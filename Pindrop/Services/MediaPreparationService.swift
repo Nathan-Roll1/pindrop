@@ -2,70 +2,205 @@
 //  MediaPreparationService.swift
 //  Pindrop
 //
-//  Created on 2026-03-07.
+//  macOS-only ffmpeg fallback for PindropMedia.MediaPreparationService.
+//  AVFoundation preparation lives in the package; this file owns Process.
 //
 
-@preconcurrency import AVFoundation
 import Darwin
 import Foundation
+import PindropCore
+import PindropMedia
 
-struct PreparedMediaAudio: Equatable, Sendable {
-    let audioData: Data
-    let duration: TimeInterval
-}
+/// Host-injected ffmpeg transcoder used when AVFoundation cannot open a media file.
+///
+/// Discovers `ffmpeg` on PATH (or uses an injected path) and writes a 16 kHz mono
+/// PCM WAV to the package-owned destination URL. Cancellation terminates the
+/// process (SIGTERM, then SIGKILL after a grace period), resumes the waiter
+/// immediately, and only removes residual destination output after the child
+/// has fully exited, so a SIGTERM-ignoring ffmpeg cannot recreate a leaked file.
+struct MacFFmpegFallbackTranscoder: MediaFallbackTranscoding, Sendable {
+    private let ffmpegPath: String?
+    private let toolPathResolver: @Sendable (String) -> String?
+    private static let targetSampleRate: Double = 16_000
 
-protocol MediaAudioPreparing: Sendable {
-    func prepareAudio(from mediaURL: URL, ffmpegPath: String?) async throws -> PreparedMediaAudio
-}
-
-extension MediaAudioPreparing {
-    func prepareAudio(from mediaURL: URL) async throws -> PreparedMediaAudio {
-        try await prepareAudio(from: mediaURL, ffmpegPath: nil)
+    init(
+        ffmpegPath: String? = nil,
+        toolPathResolver: @escaping @Sendable (String) -> String? = MacFFmpegFallbackTranscoder.defaultDirectToolPath(named:)
+    ) {
+        self.ffmpegPath = ffmpegPath
+        self.toolPathResolver = toolPathResolver
     }
-}
 
-enum MediaPreparationError: Error, LocalizedError {
-    case unsupportedMedia(String)
-    case exportFailed(String)
-    case readFailed(String)
-    case conversionFailed(String)
+    func transcodeToPCM(sourceURL: URL, destinationURL: URL) async throws {
+        let executablePath = try resolveFFmpegPath()
 
-    var errorDescription: String? {
-        switch self {
-        case .unsupportedMedia(let message):
-            return "Unsupported media: \(message)"
-        case .exportFailed(let message):
-            return "Failed to export audio from media: \(message)"
-        case .readFailed(let message):
-            return "Failed to read audio: \(message)"
-        case .conversionFailed(let message):
-            return "Failed to prepare audio for transcription: \(message)"
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            try? FileManager.default.removeItem(at: destinationURL)
+        }
+
+        // 16 kHz mono signed 16-bit PCM WAV - matches what AVAudioFile handles
+        // most reliably. The package upconverts floats via AVAudioConverter afterwards.
+        let arguments = [
+            "-nostdin",
+            "-y",
+            "-hide_banner",
+            "-loglevel", "error",
+            "-i", sourceURL.path,
+            "-vn",
+            "-ac", "1",
+            "-ar", String(Int(Self.targetSampleRate)),
+            "-acodec", "pcm_s16le",
+            "-f", "wav",
+            destinationURL.path
+        ]
+
+        Log.app.info(
+            "MacFFmpegFallback: launching ffmpeg for \(sourceURL.lastPathComponent) → \(destinationURL.lastPathComponent)"
+        )
+
+        // On cancellation the package leaves `destinationURL` in place so a
+        // SIGTERM-ignoring child can finish its in-flight write. This adapter
+        // owns residual cleanup and only unlinks after the process is reaped.
+        let outputCleanup = DeferredProcessOutputCleanup(outputURL: destinationURL)
+        do {
+            let (status, stderr) = try await runProcess(
+                executablePath: executablePath,
+                arguments: arguments,
+                onExit: { @Sendable in outputCleanup.processDidExit() }
+            )
+            if status != 0 {
+                outputCleanup.scheduleCleanup()
+                throw MediaPreparationError.exportFailed("ffmpeg exited \(status): \(stderr.prefix(500))")
+            }
+            guard FileManager.default.fileExists(atPath: destinationURL.path) else {
+                outputCleanup.scheduleCleanup()
+                throw MediaPreparationError.exportFailed("ffmpeg reported success but produced no output file.")
+            }
+            outputCleanup.relinquishOwnership()
+        } catch {
+            outputCleanup.scheduleCleanup()
+            throw error
         }
     }
-}
 
-@MainActor
-final class MediaPreparationService: MediaAudioPreparing {
-    private let worker: MediaAudioPreparationWorker
+    // MARK: - Path resolution
 
-    init(fileManager: FileManager = .default, temporaryDirectory: URL? = nil) {
-        worker = MediaAudioPreparationWorker(
-            fileManager: fileManager,
-            temporaryDirectory: temporaryDirectory ?? fileManager.temporaryDirectory
-        )
+    private func resolveFFmpegPath() throws -> String {
+        if let ffmpegPath, !ffmpegPath.isEmpty {
+            return URL(fileURLWithPath: ffmpegPath).resolvingSymlinksInPath().path
+        }
+
+        if let directPath = toolPathResolver("ffmpeg") {
+            return URL(fileURLWithPath: directPath).resolvingSymlinksInPath().path
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+        process.arguments = ["ffmpeg"]
+        process.environment = ["PATH": Self.toolSearchPath]
+
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            throw MediaPreparationError.exportFailed("Failed to locate ffmpeg: \(error.localizedDescription)")
+        }
+
+        guard process.terminationStatus == 0 else {
+            throw MediaPreparationError.exportFailed(
+                "ffmpeg is not available. Install ffmpeg on PATH for broader media format support."
+            )
+        }
+
+        let path = String(data: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !path.isEmpty else {
+            throw MediaPreparationError.exportFailed("ffmpeg resolution returned an empty path.")
+        }
+        return URL(fileURLWithPath: path).resolvingSymlinksInPath().path
     }
 
-    func prepareAudio(from mediaURL: URL, ffmpegPath: String? = nil) async throws -> PreparedMediaAudio {
-        try await worker.prepare(
-            MediaPreparationInput(mediaURL: mediaURL, ffmpegPath: ffmpegPath)
-        )
+    nonisolated private static func defaultDirectToolPath(named tool: String) -> String? {
+        for directory in toolSearchDirectories {
+            let candidateURL = directory.appendingPathComponent(tool)
+            if FileManager.default.isExecutableFile(atPath: candidateURL.path) {
+                return candidateURL.path
+            }
+        }
+        return nil
+    }
+
+    nonisolated private static var toolSearchDirectories: [URL] {
+        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
+        let baseDirectories = [
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/opt/local/bin",
+            "/usr/bin",
+            "/bin",
+            "/usr/sbin",
+            "/sbin"
+        ].map { URL(fileURLWithPath: $0, isDirectory: true) } + [
+            homeDirectory.appendingPathComponent(".local/bin", isDirectory: true),
+            homeDirectory.appendingPathComponent("bin", isDirectory: true),
+            homeDirectory.appendingPathComponent("homebrew/bin", isDirectory: true)
+        ]
+
+        let pathDirectories = (ProcessInfo.processInfo.environment["PATH"] ?? "")
+            .split(separator: ":")
+            .map { URL(fileURLWithPath: String($0), isDirectory: true) }
+
+        return Array(NSOrderedSet(array: baseDirectories + pathDirectories))
+            .compactMap { $0 as? URL }
+    }
+
+    nonisolated private static var toolSearchPath: String {
+        toolSearchDirectories.map(\.path).joined(separator: ":")
+    }
+
+    // MARK: - Process runner (cancel → SIGTERM → SIGKILL)
+
+    private func runProcess(
+        executablePath: String,
+        arguments: [String],
+        onExit: @escaping @Sendable () -> Void
+    ) async throws -> (Int32, String) {
+        let state = ProcessCompletionState(didExit: onExit)
+        return try await withTaskCancellationHandler(operation: {
+            let result = try await withCheckedThrowingContinuation { continuation in
+                let process = Process()
+                let stderrPipe = Pipe()
+                let stderrCollector = ProcessStandardErrorCollector()
+
+                process.executableURL = URL(fileURLWithPath: executablePath)
+                process.arguments = arguments
+                process.standardOutput = FileHandle.nullDevice
+                process.standardError = stderrPipe
+                stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+                    stderrCollector.append(handle.availableData)
+                }
+                process.terminationHandler = { proc in
+                    stderrPipe.fileHandleForReading.readabilityHandler = nil
+                    stderrCollector.append(stderrPipe.fileHandleForReading.readDataToEndOfFile())
+                    state.processDidExit(with: .success((proc.terminationStatus, stderrCollector.string)))
+                }
+
+                state.launch(process, continuation: continuation)
+            }
+            try Task.checkCancellation()
+            return result
+        }, onCancel: {
+            state.cancel()
+        })
     }
 }
 
-private struct MediaPreparationInput: Sendable {
-    let mediaURL: URL
-    let ffmpegPath: String?
-}
+// MARK: - Process helpers
 
 private final class ProcessStandardErrorCollector: @unchecked Sendable {
     private let lock = NSLock()
@@ -85,6 +220,12 @@ private final class ProcessStandardErrorCollector: @unchecked Sendable {
     }
 }
 
+/// Removes a process-owned destination only after the child has exited.
+///
+/// Cancellation resumes the waiter immediately (so callers can tear down) but
+/// must not unlink the partial output while a SIGTERM-ignoring child can still
+/// write to it. `scheduleCleanup()` records the intent; `processDidExit()`
+/// performs the unlink once the process is fully reaped.
 private final class DeferredProcessOutputCleanup: @unchecked Sendable {
     private let lock = NSLock()
     private let fileManager: FileManager
@@ -93,7 +234,7 @@ private final class DeferredProcessOutputCleanup: @unchecked Sendable {
     private var cleanupScheduled = false
     private var ownsOutput = true
 
-    init(fileManager: FileManager, outputURL: URL) {
+    init(fileManager: FileManager = .default, outputURL: URL) {
         self.fileManager = fileManager
         self.outputURL = outputURL
     }
@@ -175,15 +316,29 @@ private final class ProcessCompletionState: @unchecked Sendable {
             cancellationRequested = true
             return self.process
         }
-        if process?.isRunning == true {
-            process?.terminate()
+        guard let process else {
+            // Not launched yet (or already cleared): fail any waiter immediately.
+            complete(.failure(CancellationError()))
+            return
+        }
+        if process.isRunning {
+            process.terminate()
             scheduleForcedTermination()
         }
+        // Resume immediately so the package can surface CancellationError while
+        // the child is still draining. Residual output is removed only after
+        // `processDidExit` / forced SIGKILL reaps the process.
         complete(.failure(CancellationError()))
     }
 
     func processDidExit(with result: Result) {
-        complete(result)
+        let wasCancelled = lock.withLock { cancellationRequested }
+        if !wasCancelled {
+            // Success/failure path: deliver the real termination status.
+            complete(result)
+        }
+        // Cancel path already resumed the waiter; still notify exit so deferred
+        // output cleanup can run after the child is fully reaped.
         didExit()
         clearProcess()
     }
@@ -218,341 +373,5 @@ private final class ProcessCompletionState: @unchecked Sendable {
         }
         guard let processIdentifier, processIdentifier > 0 else { return }
         Darwin.kill(processIdentifier, SIGKILL)
-    }
-}
-
-/// Keeps synchronous AVFoundation decode and conversion work off the main actor.
-private actor MediaAudioPreparationWorker {
-    private let fileManager: FileManager
-    private let temporaryDirectory: URL
-    private static let targetSampleRate: Double = 16_000
-    // Target buffer size per read — small enough to tolerate malformed packet
-    // tables on ~MB boundaries instead of blowing up on a single multi-GB read.
-    private static let readChunkFrames: AVAudioFrameCount = 1 << 17  // 131 072 frames ≈ 2.7s @ 48 kHz
-
-    init(fileManager: FileManager = .default, temporaryDirectory: URL) {
-        self.fileManager = fileManager
-        self.temporaryDirectory = temporaryDirectory
-    }
-
-    func prepare(_ input: MediaPreparationInput) async throws -> PreparedMediaAudio {
-        try Task.checkCancellation()
-        let mediaURL = input.mediaURL
-        let ffmpegPath = input.ffmpegPath
-        let fileSize = (try? fileManager.attributesOfItem(atPath: mediaURL.path)[.size] as? NSNumber)?.int64Value ?? -1
-        let uti = (try? mediaURL.resourceValues(forKeys: [.contentTypeKey]).contentType?.identifier) ?? "unknown"
-        Log.app.info(
-            "MediaPreparation: begin source=\(mediaURL.lastPathComponent) " +
-            "ext=\(mediaURL.pathExtension) size=\(fileSize) uti=\(uti) " +
-            "ffmpegAvailable=\(ffmpegPath != nil)"
-        )
-
-        // 1. Try the fast path: AVAudioFile directly on the source.
-        if let prepared = try await tryPrepareWithAVAudioFile(url: mediaURL, label: "direct") {
-            return prepared
-        }
-        try Task.checkCancellation()
-
-        // 2. Try ffmpeg transcode to a clean WAV if available. This is the most
-        //    robust path for files with malformed packet tables, HLS-fetched
-        //    segments, or exotic containers that AVAssetExportSession inherits
-        //    bugs from.
-        if let ffmpegPath {
-            do {
-                let wavURL = try await ffmpegTranscode(mediaURL: mediaURL, ffmpegPath: ffmpegPath)
-                defer { try? fileManager.removeItem(at: wavURL) }
-                if let prepared = try await tryPrepareWithAVAudioFile(url: wavURL, label: "ffmpeg") {
-                    return prepared
-                }
-                Log.app.warning("MediaPreparation: ffmpeg WAV still not readable by AVAudioFile, falling back to AVAssetExportSession")
-            } catch {
-                if error is CancellationError {
-                    throw error
-                }
-                Log.app.warning("MediaPreparation: ffmpeg transcode failed — \(error.localizedDescription). Falling back to AVAssetExportSession")
-            }
-        }
-        try Task.checkCancellation()
-
-        // 3. Last resort: AVAssetExportSession → m4a. Kept for parity with
-        //    the previous behavior when ffmpeg is not on PATH.
-        let exportedURL = try await exportAudioTrack(from: mediaURL)
-        defer { try? fileManager.removeItem(at: exportedURL) }
-        try Task.checkCancellation()
-        if let prepared = try await tryPrepareWithAVAudioFile(url: exportedURL, label: "export") {
-            return prepared
-        }
-
-        throw MediaPreparationError.readFailed(
-            "None of the decode paths could read this media. Enable ffmpeg on PATH for better format support."
-        )
-    }
-
-    // MARK: - AVAudioFile path
-
-    /// Open `url` with AVAudioFile and convert to 16 kHz mono Float32 via
-    /// chunked reads. Returns `nil` if the open itself fails — the caller
-    /// should fall through to a more aggressive decode. Any failure *after*
-    /// a successful open (mid-read, converter allocation) is thrown so the
-    /// caller can surface or log it.
-    private func tryPrepareWithAVAudioFile(url: URL, label: String) async throws -> PreparedMediaAudio? {
-        let audioFile: AVAudioFile
-        do {
-            audioFile = try AVAudioFile(forReading: url)
-        } catch {
-            Log.app.info("MediaPreparation[\(label)]: AVAudioFile open failed — \(error.localizedDescription)")
-            return nil
-        }
-
-        let inputFormat = audioFile.processingFormat
-        let totalFrames = audioFile.length
-        Log.app.info(
-            "MediaPreparation[\(label)]: opened frames=\(totalFrames) " +
-            "sampleRate=\(inputFormat.sampleRate) channels=\(inputFormat.channelCount) " +
-            "common=\(inputFormat.commonFormat.rawValue) interleaved=\(inputFormat.isInterleaved)"
-        )
-
-        guard totalFrames > 0 else {
-            // AVAudioFile can open some containers (notably MP4 with AAC) and
-            // report 0 frames because it doesn't decode the inner track.
-            // Signal the caller to try another decode path instead of
-            // producing a silent transcript.
-            Log.app.warning("MediaPreparation[\(label)]: file reports zero frames, falling through to next decode path")
-            return nil
-        }
-
-        let outputFormat = Self.targetFormat
-        guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
-            throw MediaPreparationError.conversionFailed("Unable to initialize audio converter.")
-        }
-
-        var accumulated = Data()
-        // Reserve a generous capacity to reduce reallocations.
-        let expectedOutputFrames = Int(Double(totalFrames) * outputFormat.sampleRate / max(inputFormat.sampleRate, 1))
-        accumulated.reserveCapacity(max(0, expectedOutputFrames) * MemoryLayout<Float>.size)
-
-        do {
-            try await readAndConvert(
-                audioFile: audioFile,
-                inputFormat: inputFormat,
-                outputFormat: outputFormat,
-                converter: converter,
-                into: &accumulated
-            )
-        } catch {
-            Log.app.error("MediaPreparation[\(label)]: chunked read failed — \(error.localizedDescription)")
-            // Signal the caller to try another decode path rather than surfacing here —
-            // except for .conversionFailed which is definitive.
-            if error is CancellationError || error is MediaPreparationError {
-                throw error
-            }
-            return nil
-        }
-
-        let duration = Double(totalFrames) / max(inputFormat.sampleRate, 1)
-        Log.app.info("MediaPreparation[\(label)]: success bytes=\(accumulated.count) duration=\(String(format: "%.2f", duration))s")
-        return PreparedMediaAudio(audioData: accumulated, duration: duration)
-    }
-
-    private func readAndConvert(
-        audioFile: AVAudioFile,
-        inputFormat: AVAudioFormat,
-        outputFormat: AVAudioFormat,
-        converter: AVAudioConverter,
-        into accumulated: inout Data
-    ) async throws {
-        guard let inputBuffer = AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: Self.readChunkFrames) else {
-            throw MediaPreparationError.readFailed("Unable to allocate input buffer.")
-        }
-
-        let sampleRatio = outputFormat.sampleRate / max(inputFormat.sampleRate, 1)
-        let outputCapacity = AVAudioFrameCount(Double(Self.readChunkFrames) * sampleRatio) + 1024
-        guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: outputCapacity) else {
-            throw MediaPreparationError.conversionFailed("Unable to allocate output buffer.")
-        }
-
-        final class ChunkState: @unchecked Sendable {
-            var supplied = false
-            var reachedEnd = false
-        }
-        let state = ChunkState()
-
-        while true {
-            try Task.checkCancellation()
-            inputBuffer.frameLength = 0
-            do {
-                try audioFile.read(into: inputBuffer)
-            } catch {
-                // Per AVAudioFile docs, read throws once EOF/packet issues are
-                // hit. If we already produced some samples treat it as the
-                // natural end of stream; otherwise rethrow so the caller can
-                // try another decode path.
-                if accumulated.isEmpty {
-                    throw MediaPreparationError.readFailed(error.localizedDescription)
-                } else {
-                    Log.app.warning("MediaPreparation: truncating read at tail — \(error.localizedDescription)")
-                    break
-                }
-            }
-
-            if inputBuffer.frameLength == 0 {
-                break
-            }
-
-            state.supplied = false
-            state.reachedEnd = (audioFile.framePosition >= audioFile.length)
-
-            outputBuffer.frameLength = 0
-            var conversionError: NSError?
-            let status = converter.convert(to: outputBuffer, error: &conversionError) { _, outStatus in
-                if state.supplied {
-                    outStatus.pointee = state.reachedEnd ? .endOfStream : .noDataNow
-                    return nil
-                }
-                state.supplied = true
-                outStatus.pointee = .haveData
-                return inputBuffer
-            }
-
-            if let conversionError {
-                throw MediaPreparationError.conversionFailed(conversionError.localizedDescription)
-            }
-
-            if outputBuffer.frameLength > 0, let channelData = outputBuffer.floatChannelData {
-                let frames = Int(outputBuffer.frameLength)
-                let byteCount = frames * MemoryLayout<Float>.size
-                channelData[0].withMemoryRebound(to: UInt8.self, capacity: byteCount) { ptr in
-                    accumulated.append(ptr, count: byteCount)
-                }
-            }
-
-            try Task.checkCancellation()
-
-            if status == .endOfStream || state.reachedEnd {
-                break
-            }
-        }
-    }
-
-    // MARK: - ffmpeg path
-
-    private func ffmpegTranscode(mediaURL: URL, ffmpegPath: String) async throws -> URL {
-        let outputURL = temporaryDirectory
-            .appendingPathComponent("pindrop-prep-\(UUID().uuidString)")
-            .appendingPathExtension("wav")
-        let outputCleanup = DeferredProcessOutputCleanup(fileManager: fileManager, outputURL: outputURL)
-        if fileManager.fileExists(atPath: outputURL.path) {
-            try? fileManager.removeItem(at: outputURL)
-        }
-
-        // 16 kHz mono signed 16-bit PCM WAV — matches what AVAudioFile handles
-        // most reliably. We'll upconvert floats via AVAudioConverter afterwards.
-        let arguments = [
-            "-nostdin",
-            "-y",
-            "-hide_banner",
-            "-loglevel", "error",
-            "-i", mediaURL.path,
-            "-vn",
-            "-ac", "1",
-            "-ar", String(Int(Self.targetSampleRate)),
-            "-acodec", "pcm_s16le",
-            "-f", "wav",
-            outputURL.path
-        ]
-
-        Log.app.info("MediaPreparation: launching ffmpeg for \(mediaURL.lastPathComponent) → \(outputURL.lastPathComponent)")
-
-        do {
-            let (status, stderr) = try await runProcess(
-                executablePath: ffmpegPath,
-                arguments: arguments,
-                onExit: { @Sendable in outputCleanup.processDidExit() }
-            )
-            if status != 0 {
-                throw MediaPreparationError.exportFailed("ffmpeg exited \(status): \(stderr.prefix(500))")
-            }
-            guard fileManager.fileExists(atPath: outputURL.path) else {
-                throw MediaPreparationError.exportFailed("ffmpeg reported success but produced no output file.")
-            }
-            outputCleanup.relinquishOwnership()
-            return outputURL
-        } catch {
-            outputCleanup.scheduleCleanup()
-            throw error
-        }
-    }
-
-    private func runProcess(
-        executablePath: String,
-        arguments: [String],
-        onExit: @escaping @Sendable () -> Void
-    ) async throws -> (Int32, String) {
-        let state = ProcessCompletionState(didExit: onExit)
-        return try await withTaskCancellationHandler(operation: {
-            let result = try await withCheckedThrowingContinuation { continuation in
-                let process = Process()
-                let stderrPipe = Pipe()
-                let stderrCollector = ProcessStandardErrorCollector()
-
-                process.executableURL = URL(fileURLWithPath: executablePath)
-                process.arguments = arguments
-                process.standardOutput = FileHandle.nullDevice
-                process.standardError = stderrPipe
-                stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-                    stderrCollector.append(handle.availableData)
-                }
-                process.terminationHandler = { proc in
-                    stderrPipe.fileHandleForReading.readabilityHandler = nil
-                    stderrCollector.append(stderrPipe.fileHandleForReading.readDataToEndOfFile())
-                    state.processDidExit(with: .success((proc.terminationStatus, stderrCollector.string)))
-                }
-
-                state.launch(process, continuation: continuation)
-            }
-            try Task.checkCancellation()
-            return result
-        }, onCancel: {
-            state.cancel()
-        })
-    }
-
-    // MARK: - AVAssetExportSession path (fallback)
-
-    private func exportAudioTrack(from mediaURL: URL) async throws -> URL {
-        let asset = AVURLAsset(url: mediaURL)
-        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
-        guard !audioTracks.isEmpty else {
-            throw MediaPreparationError.unsupportedMedia("No audio track was found.")
-        }
-
-        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else {
-            throw MediaPreparationError.exportFailed("Unable to create export session.")
-        }
-
-        let outputURL = temporaryDirectory
-            .appendingPathComponent("pindrop-export-\(UUID().uuidString)")
-            .appendingPathExtension("m4a")
-
-        if fileManager.fileExists(atPath: outputURL.path) {
-            try? fileManager.removeItem(at: outputURL)
-        }
-
-        exportSession.outputURL = outputURL
-        exportSession.outputFileType = .m4a
-        exportSession.shouldOptimizeForNetworkUse = false
-
-        await exportSession.export()
-
-        if exportSession.status == .completed {
-            Log.app.info("MediaPreparation: AVAssetExportSession produced \(outputURL.lastPathComponent)")
-            return outputURL
-        }
-
-        throw MediaPreparationError.exportFailed(exportSession.error?.localizedDescription ?? "Export session did not complete.")
-    }
-
-    private static var targetFormat: AVAudioFormat {
-        AVAudioFormat(standardFormatWithSampleRate: targetSampleRate, channels: 1)!
     }
 }

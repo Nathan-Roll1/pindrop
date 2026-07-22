@@ -9,6 +9,8 @@ import SwiftUI
 import SwiftData
 import AppKit
 import SQLite3
+import PindropCore
+import PindropData
 
 @main
 struct PindropApp: App {
@@ -548,33 +550,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// persistent history can otherwise defer an option mismatch until the
     /// first fetch, which is where Library and stop-recording surface it.
     static func makeModelContainer(at storeURL: URL) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: TranscriptionRecordSchemaV12.self)
-        let configuration = ModelConfiguration(schema: schema, url: storeURL)
-        let container = try ModelContainer(
-            for: schema,
-            migrationPlan: TranscriptionRecordMigrationPlan.self,
-            configurations: configuration
-        )
-
-        // SwiftData can defer opening a damaged or metadata-incompatible store
-        // until an affected entity is first fetched. Probe every current model
-        // so AppDelegate repairs the store before any service retains it.
-        func validateStoreAccess<Model: PersistentModel>(_: Model.Type) throws {
-            var healthCheck = FetchDescriptor<Model>()
-            healthCheck.fetchLimit = 1
-            _ = try container.mainContext.fetch(healthCheck)
-        }
-
-        try validateStoreAccess(TranscriptionRecord.self)
-        try validateStoreAccess(MediaFolder.self)
-        try validateStoreAccess(ParticipantProfile.self)
-        try validateStoreAccess(ParticipantTrainingEvidence.self)
-        try validateStoreAccess(WordReplacement.self)
-        try validateStoreAccess(VocabularyWord.self)
-        try validateStoreAccess(Note.self)
-        try validateStoreAccess(PromptPreset.self)
-        try validateStoreAccess(TrainingContribution.self)
-        return container
+        try PindropModelContainerFactory.makeContainer(at: storeURL)
     }
 
     private func describe(error: Error) -> String {
@@ -596,37 +572,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 @MainActor
 final class SwiftDataStoreRepairService {
-    private enum StoreSchemaVersion: String {
-        case v1 = "1.0.0"
-        case v2 = "1.0.1"
-        case v3 = "1.0.2"
-        case v4 = "1.0.3"
-        case v5 = "1.0.4"
-        case v6 = "1.0.5"
-        case v7 = "1.0.6"
-        case v8 = "1.0.7"
-        case v9 = "1.0.8"
-        case v10 = "1.0.9"
-        case v11 = "1.0.10"
-        case v12 = "1.0.11"
-
-        var versionedSchema: any VersionedSchema.Type {
-            switch self {
-            case .v1: return TranscriptionRecordSchemaV1.self
-            case .v2: return TranscriptionRecordSchemaV2.self
-            case .v3: return TranscriptionRecordSchemaV3.self
-            case .v4: return TranscriptionRecordSchemaV4.self
-            case .v5: return TranscriptionRecordSchemaV5.self
-            case .v6: return TranscriptionRecordSchemaV6.self
-            case .v7: return TranscriptionRecordSchemaV7.self
-            case .v8: return TranscriptionRecordSchemaV8.self
-            case .v9: return TranscriptionRecordSchemaV9.self
-            case .v10: return TranscriptionRecordSchemaV10.self
-            case .v11: return TranscriptionRecordSchemaV11.self
-            case .v12: return TranscriptionRecordSchemaV12.self
-            }
-        }
-    }
+    private typealias StoreSchemaVersion = PindropPersistentSchemaVersion
 
     struct RepairOutcome {
         let repaired: Bool

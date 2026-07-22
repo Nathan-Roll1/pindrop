@@ -9,6 +9,8 @@ import Foundation
 import Testing
 
 @testable import Pindrop
+import PindropData
+import PindropSpeech
 
 // MARK: - Mock File System
 

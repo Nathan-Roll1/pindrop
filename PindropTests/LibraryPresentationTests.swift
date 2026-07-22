@@ -8,6 +8,8 @@
 import Foundation
 import Testing
 @testable import Pindrop
+import PindropCore
+import PindropData
 
 @Suite
 struct LibraryPresentationTests {

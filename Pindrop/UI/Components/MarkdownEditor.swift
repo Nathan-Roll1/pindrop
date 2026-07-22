@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import PindropCore
 
 struct MarkdownEditor: NSViewRepresentable {
     @Binding var text: String

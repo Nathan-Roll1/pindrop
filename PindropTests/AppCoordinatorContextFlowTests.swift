@@ -10,6 +10,8 @@ import Foundation
 import Testing
 
 @testable import Pindrop
+import PindropSpeech
+import PindropCore
 
 @MainActor
 @Suite

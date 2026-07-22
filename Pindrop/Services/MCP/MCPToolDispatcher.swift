@@ -6,6 +6,9 @@
 //
 
 import Foundation
+import PindropCore
+import PindropAI
+import PindropData
 
 private enum MCPToolValidationError: Error, LocalizedError {
     case invalid(String)

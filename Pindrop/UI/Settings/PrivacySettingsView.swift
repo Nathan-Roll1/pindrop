@@ -8,6 +8,8 @@
 import AppKit
 import SwiftData
 import SwiftUI
+import PindropCore
+import PindropData
 
 struct PrivacySettingsView: View {
     @ObservedObject var settings: SettingsStore

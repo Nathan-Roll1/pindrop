@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import PindropCore
+import PindropSpeech
 
 struct DownloadETAEstimator: Equatable, Sendable {
     private struct Sample: Equatable, Sendable {
@@ -306,19 +308,23 @@ struct ModelDownloadStepView: View {
 struct ModelDownloadStepView_Previews: PreviewProvider {
     static var previews: some View {
         ModelDownloadStepView(
-            modelManager: PreviewModelManagerDownload(),
-            transcriptionService: TranscriptionService(),
+            modelManager: ModelManager(storageLocations: Self.previewStorageLocations),
+            transcriptionService: TranscriptionService(storageLocations: Self.previewStorageLocations),
             modelName: "openai_whisper-base.en",
             onComplete: {},
             onCancel: {}
         )
         .frame(width: 760, height: 500)
     }
-}
 
-final class PreviewModelManagerDownload: ModelManager {
-    override init() {
-        // Skip async initialization to avoid launching WhisperKit in preview
-    }
+    private static let previewStorageLocations = ModelStorageLocations(
+        pindropApplicationSupportRoot: FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Pindrop", isDirectory: true),
+        fluidAudioModelsRoot: FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("FluidAudio", isDirectory: true)
+            .appendingPathComponent("Models", isDirectory: true)
+    )
 }
 #endif

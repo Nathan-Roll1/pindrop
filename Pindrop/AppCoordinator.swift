@@ -12,6 +12,11 @@ import Combine
 import AVFoundation
 import AppKit
 import os.log
+import PindropCore
+import PindropAI
+import PindropData
+import PindropSpeech
+import PindropMedia
 
 private final class EventTapRunLoopThread: Thread {
 
@@ -488,32 +493,32 @@ final class AppCoordinator {
     
     let permissionManager: PermissionManager
     let audioRecorder: AudioRecorder
-    let transcriptionService: TranscriptionService
-    let modelManager: ModelManager
-    let aiEnhancementService: AIEnhancementService
+    let transcriptionService: PindropSpeech.TranscriptionService
+    let modelManager: PindropSpeech.ModelManager
+    let aiEnhancementService: PindropAI.AIEnhancementService
     let hotkeyManager: HotkeyManager
     let launchAtLoginManager: LaunchAtLoginManager
     let updateService: UpdateService
     let outputManager: OutputManager
-    let historyStore: HistoryStore
-    let speakerIdentityService: SpeakerIdentityService
-    let dictionaryStore: DictionaryStore
+    let historyStore: PindropData.HistoryStore
+    let speakerIdentityService: PindropData.SpeakerIdentityService
+    let dictionaryStore: PindropData.DictionaryStore
     let settingsStore: SettingsStore
-    let notesStore: NotesStore
+    let notesStore: PindropData.NotesStore
     let contextCaptureService: ContextCaptureService
     let contextEngineService: ContextEngineService
     let toastService: ToastService
     let automaticDictionaryLearningService: AutomaticDictionaryLearningService
-    let promptPresetStore: PromptPresetStore
+    let promptPresetStore: PindropData.PromptPresetStore
     let mentionRewriteService: MentionRewriteService
     let mediaPauseService: MediaPauseService
     let mediaIngestionService: MediaIngestionService
-    let mediaPreparationService: MediaPreparationService
+    let mediaPreparationService: PindropMedia.MediaPreparationService
     let announcementService: AnnouncementService
     let telemetryService: TelemetryService
     let telemetryConsentService: TelemetryConsentService
-    let contributionService: ContributionService
-    let dictationAudioRetentionService: DictationAudioRetentionService
+    let contributionService: PindropData.ContributionService
+    let dictationAudioRetentionService: PindropMedia.DictationAudioRetentionService
     let recordingState: RecordingFeatureState
     let mediaTranscriptionState: MediaTranscriptionFeatureState
     private(set) var mcpServer: MCPServer?
@@ -685,21 +690,41 @@ final class AppCoordinator {
             Log.app.error("Failed to initialize AudioRecorder: \(error)")
             fatalError("Failed to initialize AudioRecorder: \(error)")
         }
-        self.speakerIdentityService = SpeakerIdentityService(modelContext: modelContext)
-        self.modelManager = ModelManager()
-        self.aiEnhancementService = AIEnhancementService()
+        let applicationSupportRoot = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let modelStorageLocations = ModelStorageLocations(
+            pindropApplicationSupportRoot: applicationSupportRoot
+                .appendingPathComponent("Pindrop", isDirectory: true),
+            fluidAudioModelsRoot: applicationSupportRoot
+                .appendingPathComponent("FluidAudio", isDirectory: true)
+                .appendingPathComponent("Models", isDirectory: true)
+        )
+        let mediaLibraryBaseURL = applicationSupportRoot
+            .appendingPathComponent("Pindrop", isDirectory: true)
+            .appendingPathComponent("MediaLibrary", isDirectory: true)
+        let dictationAudioDirectoryURL = mediaLibraryBaseURL
+            .appendingPathComponent("DictationAudio", isDirectory: true)
+
+        self.speakerIdentityService = PindropData.SpeakerIdentityService(modelContext: modelContext)
+        self.settingsStore = SettingsStore()
+        self.telemetryService = TelemetryService(settingsStore: settingsStore)
+        self.modelManager = PindropSpeech.ModelManager(
+            storageLocations: modelStorageLocations,
+            modelDownloadEventReporter: telemetryService
+        )
+        self.aiEnhancementService = PindropAI.AIEnhancementService()
         self.hotkeyManager = HotkeyManager()
         self.launchAtLoginManager = LaunchAtLoginManager()
         self.updateService = UpdateService()
-        self.settingsStore = SettingsStore()
         // TranscriptionService is built after SettingsStore so the streaming chunk
         // profile and backend providers can read the user's toggles when the engine
         // is (re)loaded.
         let settingsRef = self.settingsStore
-        self.transcriptionService = TranscriptionService(
+        self.transcriptionService = PindropSpeech.TranscriptionService(
+            storageLocations: modelStorageLocations,
             openAIAPIKeyProvider: { [weak settingsRef] in
                 guard let key = settingsRef?.loadTranscriptionAPIKey(for: .openAI) else {
-                    throw OpenAITranscriptionEngine.EngineError.apiKeyMissing
+                    throw PindropSpeech.OpenAITranscriptionEngine.EngineError.apiKeyMissing
                 }
                 return key
             },
@@ -719,17 +744,43 @@ final class AppCoordinator {
         
         let initialOutputMode: OutputMode = settingsStore.outputMode == "directInsert" ? .directInsert : .clipboard
         self.outputManager = OutputManager(outputMode: initialOutputMode)
-        self.contributionService = ContributionService(
+        self.contributionService = PindropData.ContributionService(
             modelContext: modelContext,
-            settingsStore: settingsStore
+            metadataProvider: { [weak settingsRef] in
+                ContributionCaptureMetadata(
+                    isEnabled: settingsRef?.trainingDataContributionEnabled ?? false,
+                    languageRawValue: settingsRef?.selectedAppLanguage.rawValue ?? AppLanguage.automatic.rawValue,
+                    localeIdentifier: settingsRef?.selectedAppLocale.locale.identifier
+                        ?? Locale.current.identifier,
+                    appVersion: Bundle.main.appShortVersionString
+                )
+            }
         )
-        self.historyStore = HistoryStore(
+        self.historyStore = PindropData.HistoryStore(
             modelContext: modelContext,
             speakerIdentityService: speakerIdentityService,
             contributionService: contributionService
         )
-        self.dictionaryStore = DictionaryStore(modelContext: modelContext)
-        self.notesStore = NotesStore(modelContext: modelContext, aiEnhancementService: aiEnhancementService, settingsStore: settingsStore)
+        self.dictionaryStore = PindropData.DictionaryStore(modelContext: modelContext)
+        let aiEnhancementServiceRef = self.aiEnhancementService
+        self.notesStore = PindropData.NotesStore(
+            modelContext: modelContext,
+            metadataGenerator: { [weak settingsRef, weak aiEnhancementServiceRef] content, existingTags in
+                guard let settingsRef, let aiEnhancementServiceRef else { return nil }
+                guard let assignment = settingsRef.resolveAssignment(for: .noteMetadata) else {
+                    return nil
+                }
+                let metadata = try await aiEnhancementServiceRef.generateNoteMetadata(
+                    content: content,
+                    apiEndpoint: assignment.endpoint ?? "",
+                    apiKey: assignment.apiKey,
+                    model: assignment.modelID,
+                    existingTags: existingTags,
+                    provider: assignment.kind
+                )
+                return NoteMetadata(title: metadata.title, tags: metadata.tags)
+            }
+        )
         self.contextCaptureService = ContextCaptureService()
         self.contextEngineService = ContextEngineService()
         self.floatingIndicatorFocusTracker = FloatingIndicatorFocusTracker(
@@ -742,14 +793,19 @@ final class AppCoordinator {
             dictionaryStore: dictionaryStore,
             toastService: toastService
         )
-        self.promptPresetStore = PromptPresetStore(modelContext: modelContext)
+        self.promptPresetStore = PindropData.PromptPresetStore(modelContext: modelContext)
         self.mentionRewriteService = MentionRewriteService()
         self.mediaPauseService = MediaPauseService()
         self.mediaIngestionService = MediaIngestionService()
-        self.mediaPreparationService = MediaPreparationService()
-        self.dictationAudioRetentionService = DictationAudioRetentionService(
+        self.mediaPreparationService = PindropMedia.MediaPreparationService(
+            fallbackTranscoder: MacFFmpegFallbackTranscoder()
+        )
+        self.dictationAudioRetentionService = PindropMedia.DictationAudioRetentionService(
             historyStore: historyStore,
-            settingsStore: settingsStore
+            directoryURL: dictationAudioDirectoryURL,
+            retentionPolicyProvider: { [weak settingsRef] in
+                settingsRef?.dictationAudioRetention ?? .days7
+            }
         )
         self.recordingState = RecordingFeatureState()
         self.mediaTranscriptionState = MediaTranscriptionFeatureState()
@@ -801,7 +857,6 @@ final class AppCoordinator {
             settingsStore: settingsStore,
             presenter: announcementController
         )
-        self.telemetryService = TelemetryService(settingsStore: settingsStore)
         self.telemetryConsentController = TelemetryConsentWindowController()
         self.telemetryConsentService = TelemetryConsentService(
             settingsStore: settingsStore,
@@ -816,7 +871,6 @@ final class AppCoordinator {
             updateService: updateService
         )
         self.mainWindowController = MainWindowController()
-        self.modelManager.telemetryService = telemetryService
         self.mainWindowController.setModelContainer(modelContainer)
         self.noteEditorWindowController = NoteEditorWindowController()
         self.noteEditorWindowController.setModelContainer(modelContainer)
@@ -1356,7 +1410,7 @@ final class AppCoordinator {
 
     private func loadAndActivateModel(
         named modelName: String,
-        provider: ModelManager.ModelProvider
+        provider: PindropSpeech.ModelManager.ModelProvider
     ) async throws {
         do {
             if provider == .whisperKit,
@@ -1380,7 +1434,7 @@ final class AppCoordinator {
     }
 
     private func updateSplashDownloadState(
-        with snapshot: ModelManager.DownloadSnapshot,
+        with snapshot: PindropSpeech.ModelManager.DownloadSnapshot,
         displayName: String
     ) {
         let loadingText: String
@@ -1415,7 +1469,7 @@ final class AppCoordinator {
 
         do {
             try await modelManager.deleteModel(named: modelName)
-        } catch ModelManager.ModelError.modelNotFound {
+        } catch PindropSpeech.ModelManager.ModelError.modelNotFound {
             Log.model.debug("Model \(modelName) was not present when starting repair")
         }
 
@@ -1634,7 +1688,7 @@ final class AppCoordinator {
     /// Loads and activates a transcription model by name for MCP callers.
     func loadAndActivateModelForMCP(named modelName: String) async throws {
         guard let model = modelManager.availableModels.first(where: { $0.name == modelName }) else {
-            throw ModelManager.ModelError.modelNotFound(modelName)
+            throw PindropSpeech.ModelManager.ModelError.modelNotFound(modelName)
         }
         if !modelManager.isModelDownloaded(modelName),
            modelManager.existingLocalModelPath(for: modelName) == nil {
@@ -2398,7 +2452,7 @@ final class AppCoordinator {
         return lastSignature != signature
     }
 
-    private func currentLiveSessionContext() -> AIEnhancementService.LiveSessionContext? {
+    private func currentLiveSessionContext() -> PindropAI.AIEnhancementService.LiveSessionContext? {
         guard let contextSessionState else { return nil }
 
         let enrichment = contextSessionState.latestAdapterEnrichment
@@ -2410,7 +2464,7 @@ final class AppCoordinator {
             contextSessionState.transitions.flatMap { $0.contextTags }
         )
 
-        return AIEnhancementService.LiveSessionContext(
+        return PindropAI.AIEnhancementService.LiveSessionContext(
             runtimeState: contextSessionState.runtimeState,
             latestAppName: contextSessionState.latestSnapshot.appContext?.appName,
             latestWindowTitle: contextSessionState.latestSnapshot.appContext?.windowTitle,
@@ -2986,7 +3040,7 @@ final class AppCoordinator {
                 diarizationFailurePolicy: .bestEffort
             )
             try ensureOperationCurrent(token)
-        } catch let error as TranscriptionService.TranscriptionError {
+        } catch let error as PindropSpeech.TranscriptionService.TranscriptionError {
             // Stale/cancelled operations must not toast or mutate UI after a newer session started.
             guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else {
                 throw CancellationError()
@@ -3040,7 +3094,7 @@ final class AppCoordinator {
         return textAfterReplacements
     }
 
-    private func stopRecordingAndTranscribeForQuickCapture(token: DictationOperationToken) async throws -> AIEnhancementService.EnhancedNote? {
+    private func stopRecordingAndTranscribeForQuickCapture(token: DictationOperationToken) async throws -> PindropAI.AIEnhancementService.EnhancedNote? {
         guard recordingStartTime != nil else {
             Log.app.warning("stopRecordingAndTranscribeForQuickCapture called but recordingStartTime is nil")
             return nil
@@ -3093,7 +3147,7 @@ final class AppCoordinator {
                 diarizationFailurePolicy: .bestEffort
             )
             try ensureOperationCurrent(token)
-        } catch let error as TranscriptionService.TranscriptionError {
+        } catch let error as PindropSpeech.TranscriptionService.TranscriptionError {
             guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else {
                 throw CancellationError()
             }
@@ -3162,12 +3216,12 @@ final class AppCoordinator {
                 )
                 let vocabularyWords = try dictionaryStore.fetchAllVocabularyWords().map(\.word)
                 let replacementCorrections = appliedReplacements.map {
-                    AIEnhancementService.ContextMetadata.ReplacementCorrection(
+                    PindropAI.AIEnhancementService.ContextMetadata.ReplacementCorrection(
                         original: $0.original,
                         replacement: $0.replacement
                     )
                 }
-                let enhancementContext = AIEnhancementService.ContextMetadata(
+                let enhancementContext = PindropAI.AIEnhancementService.ContextMetadata(
                     hasClipboardText: false,
                     clipboardText: nil,
                     hasClipboardImage: false,
@@ -3195,7 +3249,7 @@ final class AppCoordinator {
                     handleNoSpeechDetected(context: "quick-capture")
                     return nil
                 }
-                return AIEnhancementService.EnhancedNote(
+                return PindropAI.AIEnhancementService.EnhancedNote(
                     content: normalizedEnhancedContent,
                     title: enhancedNote.title,
                     tags: enhancedNote.tags
@@ -3210,15 +3264,15 @@ final class AppCoordinator {
 
         try ensureOperationCurrent(token)
         let fallbackTitle = aiEnhancementService.generateFallbackTitle(from: textAfterReplacements)
-        return AIEnhancementService.EnhancedNote(
+        return PindropAI.AIEnhancementService.EnhancedNote(
             content: textAfterReplacements,
             title: fallbackTitle,
             tags: []
         )
     }
 
-    private func openNoteEditorWithEnhancedNote(_ enhancedNote: AIEnhancementService.EnhancedNote) {
-        let newNote = NoteSchema.Note(
+    private func openNoteEditorWithEnhancedNote(_ enhancedNote: PindropAI.AIEnhancementService.EnhancedNote) {
+        let newNote = PindropData.NoteSchema.Note(
             title: enhancedNote.title,
             content: enhancedNote.content,
             tags: enhancedNote.tags,
@@ -3644,7 +3698,7 @@ final class AppCoordinator {
             fallback: SettingsStore.Defaults.aiEnhancementPrompt
         )
 
-        let context = AIEnhancementService.ContextMetadata(
+        let context = PindropAI.AIEnhancementService.ContextMetadata(
             hasClipboardText: false,
             hasClipboardImage: false,
             appContext: nil,
@@ -3665,7 +3719,7 @@ final class AppCoordinator {
                 context: context,
                 provider: assignment.kind
             )
-            let sanitized = AIEnhancementService.stripResponsePreamble(result.text)
+            let sanitized = PindropAI.AIEnhancementService.stripResponsePreamble(result.text)
             return StreamingSessionController.PostStopEnhanceOutcome(
                 enhancedText: sanitized,
                 modelID: assignment.modelID,
@@ -3873,7 +3927,7 @@ final class AppCoordinator {
             )
             pipelineMetrics.transcriptionSeconds = transcriptionStart.duration(to: pipelineClock.now).pipelineSeconds
             try ensureOperationCurrent(token)
-        } catch let error as TranscriptionService.TranscriptionError {
+        } catch let error as PindropSpeech.TranscriptionService.TranscriptionError {
             guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else {
                 throw CancellationError()
             }
@@ -4015,7 +4069,7 @@ final class AppCoordinator {
 
                 let vocabularyWords = try dictionaryStore.fetchAllVocabularyWords().map(\.word)
                 let replacementCorrections = lastAppliedReplacements.map {
-                    AIEnhancementService.ContextMetadata.ReplacementCorrection(
+                    PindropAI.AIEnhancementService.ContextMetadata.ReplacementCorrection(
                         original: $0.original,
                         replacement: $0.replacement
                     )
@@ -4025,7 +4079,7 @@ final class AppCoordinator {
                     basePrompt += "\n\nIf the input contains file placeholders formatted as [[:relative/path.ext:]], preserve each placeholder token exactly. Do not change brackets, colons, slashes, file names, or extensions inside those tokens."
                 }
                 
-                var contextMetadata = AIEnhancementService.ContextMetadata.none
+                var contextMetadata = PindropAI.AIEnhancementService.ContextMetadata.none
                 var clipboardText: String? = nil
 
                 var workspaceTreeSummary: String? = nil
@@ -4042,7 +4096,7 @@ final class AppCoordinator {
                     let hasClipboardText = context.clipboardText != nil && !context.clipboardText!.isEmpty
                     clipboardText = hasClipboardText ? context.clipboardText : nil
                     
-                    contextMetadata = AIEnhancementService.ContextMetadata(
+                    contextMetadata = PindropAI.AIEnhancementService.ContextMetadata(
                         hasClipboardText: hasClipboardText,
                         clipboardText: clipboardText,
                         hasClipboardImage: false,
@@ -4055,7 +4109,7 @@ final class AppCoordinator {
                         replacementCorrections: replacementCorrections
                     )
                 } else if let appContext = capturedSnapshot?.appContext {
-                    contextMetadata = AIEnhancementService.ContextMetadata(
+                    contextMetadata = PindropAI.AIEnhancementService.ContextMetadata(
                         hasClipboardText: false,
                         clipboardText: nil,
                         hasClipboardImage: false,
@@ -4068,7 +4122,7 @@ final class AppCoordinator {
                         replacementCorrections: replacementCorrections
                     )
                 } else if let liveSessionContext {
-                    contextMetadata = AIEnhancementService.ContextMetadata(
+                    contextMetadata = PindropAI.AIEnhancementService.ContextMetadata(
                         hasClipboardText: false,
                         clipboardText: nil,
                         hasClipboardImage: false,
@@ -4081,7 +4135,7 @@ final class AppCoordinator {
                         replacementCorrections: replacementCorrections
                     )
                 } else if !vocabularyWords.isEmpty || !replacementCorrections.isEmpty {
-                    contextMetadata = AIEnhancementService.ContextMetadata(
+                    contextMetadata = PindropAI.AIEnhancementService.ContextMetadata(
                         hasClipboardText: false,
                         clipboardText: nil,
                         hasClipboardImage: false,
@@ -5184,8 +5238,8 @@ final class AppCoordinator {
     // MARK: - Media Transcription
     static func mediaTranscriptionProvider(
         named modelName: String,
-        availableModels: [ModelManager.WhisperModel]
-    ) -> ModelManager.ModelProvider {
+        availableModels: [PindropSpeech.ModelManager.WhisperModel]
+    ) -> PindropSpeech.ModelManager.ModelProvider {
         availableModels.first(where: { $0.name == modelName })?.provider ?? .whisperKit
     }
 
@@ -5338,7 +5392,7 @@ final class AppCoordinator {
         manualExpectedSpeakerCount = nil
 
         let job = MediaTranscriptionJobState(
-            request: .manualCapture(mode),
+            request: .manualCapture(mode.rawValue),
             options: TranscriptionJobOptions(
                 modelName: settingsStore.selectedModel,
                 language: settingsStore.selectedAppLanguage,
@@ -5399,7 +5453,7 @@ final class AppCoordinator {
 
             let finalText = normalizedTranscriptionText(transcriptionOutput.text)
             guard !isTranscriptionEffectivelyEmpty(finalText) else {
-                throw MediaPreparationError.readFailed("No speech could be transcribed from this recording.")
+                throw PindropMedia.MediaPreparationError.readFailed("No speech could be transcribed from this recording.")
             }
 
             let transcriptionMetadata = await generateTranscriptionMetadataIfNeeded(
@@ -5733,11 +5787,8 @@ final class AppCoordinator {
                 detail: "Preparing audio for transcription",
                 errorMessage: nil
             )
-            let tooling = await mediaIngestionService.checkTooling()
-            try ensureMediaTranscriptionOwnerCurrent(generation)
             let preparedAudio = try await mediaPreparationService.prepareAudio(
-                from: managedAsset.mediaURL,
-                ffmpegPath: tooling.ffmpegPath
+                from: managedAsset.mediaURL
             )
 
             try ensureMediaTranscriptionOwnerCurrent(generation)
@@ -5769,7 +5820,7 @@ final class AppCoordinator {
             let renderedText = renderTranscriptionOutput(transcriptionOutput, format: options.outputFormat)
             let finalText = normalizedTranscriptionText(renderedText)
             guard !isTranscriptionEffectivelyEmpty(finalText) else {
-                throw MediaPreparationError.readFailed("No speech could be transcribed from this media.")
+                throw PindropMedia.MediaPreparationError.readFailed("No speech could be transcribed from this media.")
             }
 
             let transcriptionMetadata = await generateTranscriptionMetadataIfNeeded(

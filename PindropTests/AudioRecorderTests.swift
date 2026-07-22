@@ -8,6 +8,7 @@
 import AVFoundation
 import Testing
 @testable import Pindrop
+import PindropSpeech
 
 @MainActor
 @Suite

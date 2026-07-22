@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import PindropAI
 
 /// Searchable modal picker over a provider's fetched model list for one assignment purpose.
 struct ModelPickerSheet: View {

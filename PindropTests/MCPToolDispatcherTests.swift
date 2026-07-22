@@ -1,3 +1,4 @@
+import PindropCore
 import Testing
 @testable import Pindrop
 

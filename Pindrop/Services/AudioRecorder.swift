@@ -4,162 +4,17 @@
 //
 //  Created on 2026-01-25.
 //
+//  macOS hardware capture backends and AudioRecorder orchestration.
+//  Portable mode/config/error/backend contracts live in PindropSpeech.
+//
 
 import Foundation
 import AVFoundation
 import CoreAudio
 import AudioToolbox
 import os.log
-
-enum AudioRecordingMode: String, CaseIterable, Equatable, Sendable {
-    case microphone
-    case systemAudio
-    case microphoneAndSystemAudio
-
-    var requiresMicrophonePermission: Bool {
-        switch self {
-        case .microphone, .microphoneAndSystemAudio:
-            return true
-        case .systemAudio:
-            return false
-        }
-    }
-
-    var requiresSystemAudioPermission: Bool {
-        switch self {
-        case .microphone:
-            return false
-        case .systemAudio, .microphoneAndSystemAudio:
-            return true
-        }
-    }
-}
-
-struct AudioRecordingConfiguration: Equatable, Sendable {
-    var mode: AudioRecordingMode
-
-    static let microphone = AudioRecordingConfiguration(mode: .microphone)
-}
-
-enum AudioRecorderError: Error, LocalizedError {
-    case permissionDenied
-    case systemAudioPermissionDenied
-    case notRecording
-    case engineStartFailed(String)
-    case systemAudioCaptureFailed(String)
-    case unsupportedCaptureMode(String)
-    case audioFormatCreationFailed
-    case recordingTooLong(maximumDuration: TimeInterval)
-    /// A controlled signal: the valid ASR spool is full and must be finalized.
-    case recordingLimitReached(maximumDuration: TimeInterval)
-    case audioWriterBacklogExceeded
-    
-    var errorDescription: String? {
-        switch self {
-        case .permissionDenied:
-            return "Microphone permission denied"
-        case .systemAudioPermissionDenied:
-            return "System audio capture permission denied or unavailable"
-        case .notRecording:
-            return "Not currently recording"
-        case .engineStartFailed(let message):
-            return "Audio engine failed to start: \(message)"
-        case .systemAudioCaptureFailed(let message):
-            return "System audio capture failed: \(message)"
-        case .unsupportedCaptureMode(let message):
-            return message
-        case .audioFormatCreationFailed:
-            return "Failed to create audio format"
-        case .recordingTooLong(let maximumDuration):
-            return "Recording exceeded the maximum duration of \(Int(maximumDuration / 60)) minutes"
-        case .recordingLimitReached(let maximumDuration):
-            return "Recording reached the maximum duration of \(Int(maximumDuration / 60)) minutes and is being finalized"
-        case .audioWriterBacklogExceeded:
-            return "Audio capture could not keep up with disk writing"
-        }
-    }
-}
-
-// MARK: - AudioCaptureBackend Protocol
-
-/// Native-rate mono PCM collected alongside the 16 kHz ASR feed. Retention encodes
-/// this so kept audio isn't telephone-bandwidth (the target format exists for the
-/// recognizer, not for listening).
-final class AudioCaptureNativeAudio {
-    private var fileURL: URL?
-    let sampleRate: Double
-
-    init(fileURL: URL, sampleRate: Double) {
-        self.fileURL = fileURL
-        self.sampleRate = sampleRate
-    }
-
-    /// Transfers the temporary PCM file to the retention encoder. The caller owns
-    /// deletion after this returns a URL.
-    func takeFileURL() -> URL? {
-        defer { fileURL = nil }
-        return fileURL
-    }
-
-    func discard() {
-        if let fileURL { try? FileManager.default.removeItem(at: fileURL) }
-        fileURL = nil
-    }
-
-    deinit { discard() }
-}
-
-struct AudioPCMFile {
-    let fileURL: URL
-    let byteCount: Int
-    let sampleRate: Double
-
-    func consumeData(maximumByteCount: Int) throws -> Data {
-        defer { try? FileManager.default.removeItem(at: fileURL) }
-        guard byteCount <= maximumByteCount else {
-            throw AudioRecorderError.recordingTooLong(
-                maximumDuration: Double(maximumByteCount) / Double(16_000 * MemoryLayout<Float>.size)
-            )
-        }
-        return try Data(contentsOf: fileURL)
-    }
-
-    func discard() {
-        try? FileManager.default.removeItem(at: fileURL)
-    }
-}
-
-/// Abstracts audio capture hardware, enabling mock-based testing.
-protocol AudioCaptureBackend: AnyObject {
-    var isCapturing: Bool { get }
-    var targetFormat: AVAudioFormat { get }
-    /// When true, capture also accumulates buffers at the device's native sample
-    /// rate for retention-quality encoding. Set before `startCapture`.
-    var retainsNativeAudio: Bool { get set }
-
-    func startCapture(
-        onBuffer: @escaping (AVAudioPCMBuffer) -> Void,
-        onAudioLevel: @escaping (Float) -> Void,
-        onError: @escaping (Error) -> Void
-    ) throws
-    /// Stops capture and returns the file-backed 16 kHz mono Float32 PCM spool.
-    func stopCapture() throws -> AudioPCMFile
-    /// Drains the native-rate copy collected during the last capture, if enabled.
-    func collectNativeAudio() -> AudioCaptureNativeAudio?
-    func cancelCapture()
-    func reset()
-    func setPreferredInputDeviceUID(_ uid: String) throws
-}
-
-extension AudioCaptureBackend {
-    // Backends that never feed retention (system-audio tap, test mocks) opt out.
-    var retainsNativeAudio: Bool {
-        get { false }
-        set {}
-    }
-
-    func collectNativeAudio() -> AudioCaptureNativeAudio? { nil }
-}
+import PindropCore
+import PindropSpeech
 
 private enum AudioCaptureUtilities {
     static func makeTargetFormat() throws -> AVAudioFormat {

@@ -17,6 +17,7 @@
 //
 
 import Foundation
+import PindropSpeech
 
 @MainActor
 final class OverlayStreamingSink: StreamingRefinementOutputSink {

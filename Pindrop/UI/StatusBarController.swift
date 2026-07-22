@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import SwiftUI
 import os.log
+import PindropCore
 
 @MainActor
 final class StatusBarController: NSObject, NSMenuDelegate {

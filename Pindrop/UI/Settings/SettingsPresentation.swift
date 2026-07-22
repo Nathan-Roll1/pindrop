@@ -8,6 +8,8 @@
 //
 
 import Foundation
+import PindropCore
+import PindropMedia
 
 // MARK: - Layout metrics (spec §13 — normative)
 

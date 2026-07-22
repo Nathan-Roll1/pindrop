@@ -13,6 +13,8 @@ import SwiftData
 import AppKit
 import Combine
 import Foundation
+import PindropCore
+import PindropData
 
 @MainActor
 final class NoteEditorWindowController: NSObject, NSWindowDelegate {

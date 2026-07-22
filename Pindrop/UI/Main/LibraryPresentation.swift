@@ -9,6 +9,8 @@
 
 import Foundation
 import SwiftUI
+import PindropCore
+import PindropData
 
 // MARK: - Filter chips ↔ source kinds
 

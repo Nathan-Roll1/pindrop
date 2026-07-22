@@ -10,6 +10,8 @@
 
 import SwiftUI
 import SwiftData
+import PindropCore
+import PindropData
 
 struct TranscriptionHistoryRow: View {
     enum TimestampStyle {

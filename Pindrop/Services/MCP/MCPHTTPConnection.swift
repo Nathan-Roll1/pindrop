@@ -7,6 +7,7 @@
 
 import Foundation
 import Network
+import PindropCore
 
 /// Handles a single HTTP/1.1 connection: reads the request, validates auth,
 /// routes to MCPProtocolHandler, and sends the response.

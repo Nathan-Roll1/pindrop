@@ -7,6 +7,9 @@
 
 import SwiftData
 import SwiftUI
+import PindropCore
+import PindropData
+import PindropMedia
 
 struct DictationSettingsView: View {
     @ObservedObject var settings: SettingsStore
@@ -28,9 +31,18 @@ struct DictationSettingsView: View {
     }
 
     private var retentionService: DictationAudioRetentionService {
-        DictationAudioRetentionService(
+        let applicationSupportRoot = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dictationAudioDirectoryURL = applicationSupportRoot
+            .appendingPathComponent("Pindrop", isDirectory: true)
+            .appendingPathComponent("MediaLibrary", isDirectory: true)
+            .appendingPathComponent("DictationAudio", isDirectory: true)
+        return DictationAudioRetentionService(
             historyStore: HistoryStore(modelContext: modelContext),
-            settingsStore: settings
+            directoryURL: dictationAudioDirectoryURL,
+            retentionPolicyProvider: { [settings] in
+                settings.dictationAudioRetention
+            }
         )
     }
 

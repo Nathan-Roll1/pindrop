@@ -7,6 +7,7 @@
 
 import AppKit
 import SwiftUI
+import PindropCore
 
 struct AboutSettingsView: View {
     @ObservedObject var settings: SettingsStore

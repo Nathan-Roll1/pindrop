@@ -8,6 +8,7 @@
 import AVFoundation
 import Foundation
 @testable import Pindrop
+import PindropSpeech
 
 final class MockAudioCaptureBackend: AudioCaptureBackend {
     let identifier: String

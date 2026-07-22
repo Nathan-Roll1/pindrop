@@ -9,6 +9,7 @@ import Foundation
 import AppKit
 import Sparkle
 import UserNotifications
+import PindropCore
 
 @MainActor
 protocol UpdateControlling: AnyObject {

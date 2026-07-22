@@ -8,6 +8,7 @@
 import SwiftUI
 import AppKit
 import Combine
+import PindropCore
 
 private final class PillHostingView: NSHostingView<AnyView> {
     /// The panel never becomes key, so every click is a "first mouse"; without

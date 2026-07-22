@@ -8,6 +8,9 @@
 import Foundation
 import Testing
 @testable import Pindrop
+import PindropCore
+import PindropData
+import PindropAI
 
 @MainActor
 @Suite
@@ -287,6 +290,76 @@ struct AIEnhancementAdapterTests {
         #expect(
             store.enhanceTranscriptsResolvedEnglishPrompt()
                 == BuiltInPresets.cleanTranscript.prompt
+        )
+    }
+    @Test func resolvedCustomAssignmentEnhancesThroughMockWithoutConstructionTraffic() async throws {
+        let store = makeCleanStore()
+        defer { store.resetAllSettings() }
+
+        let provider = ProviderConfig(
+            kind: .custom,
+            customKind: .ollama,
+            displayName: "Local mock"
+        )
+        store.upsertProvider(provider)
+        store.setAssignment(
+            ModelAssignment(
+                providerID: provider.id,
+                modelID: "mock-model",
+                promptOverride: "Clean up the transcript."
+            ),
+            for: .transcriptionEnhancement
+        )
+
+        let assignment = try #require(store.resolveAssignment(for: .transcriptionEnhancement))
+        let endpoint = try #require(assignment.endpoint)
+        let mockSession = ResolvedAssignmentMockURLSession()
+        let service = AIEnhancementService(session: mockSession)
+
+        #expect(mockSession.requestCount == 0)
+
+        mockSession.data = """
+        {
+          "choices": [
+            {
+              "message": {
+                "content": "Enhanced through the resolved assignment."
+              }
+            }
+          ]
+        }
+        """.data(using: .utf8)
+        mockSession.response = HTTPURLResponse(
+            url: try #require(URL(string: endpoint)),
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )
+
+        let result = try await service.enhance(
+            text: "enhance me",
+            apiEndpoint: endpoint,
+            apiKey: assignment.apiKey,
+            model: assignment.modelID,
+            customPrompt: assignment.prompt ?? BuiltInPresets.cleanTranscript.prompt,
+            provider: assignment.kind
+        )
+
+        #expect(result == "Enhanced through the resolved assignment.")
+        #expect(mockSession.requestCount == 1)
+    }
+}
+
+private final class ResolvedAssignmentMockURLSession: URLSessionProtocol, @unchecked Sendable {
+    var data: Data?
+    var response: URLResponse?
+    private(set) var requestCount = 0
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        requestCount += 1
+        return (
+            try #require(data),
+            try #require(response)
         )
     }
 }

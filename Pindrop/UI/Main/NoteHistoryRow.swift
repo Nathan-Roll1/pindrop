@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import PindropData
 
 struct NoteHistoryRow: View {
     let note: NoteSchema.Note

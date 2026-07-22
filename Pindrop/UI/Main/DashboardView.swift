@@ -8,6 +8,8 @@
 
 import SwiftUI
 import SwiftData
+import PindropCore
+import PindropData
 
 struct DashboardView: View {
     @Environment(\.layoutDirection) private var layoutDirection
@@ -81,7 +83,7 @@ struct DashboardView: View {
 
     /// Sendable value projection for cache invalidation (data changes, not object identity).
     private var recordProjection: [StatsSample] {
-        transcriptions.map(DashboardStatsService.sample(from:))
+        transcriptions.asStatsSamples()
     }
 
     private func stats(now: Date) -> DashboardStats {

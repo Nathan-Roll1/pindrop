@@ -7,6 +7,7 @@
 
 import AppKit
 import SwiftUI
+import PindropCore
 
 @MainActor
 final class AnnouncementWindowController: NSObject, AnnouncementPresenting, NSWindowDelegate {

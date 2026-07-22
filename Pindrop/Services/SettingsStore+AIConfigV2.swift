@@ -10,6 +10,8 @@
 //
 
 import Foundation
+import PindropCore
+import PindropAI
 
 extension SettingsStore {
 

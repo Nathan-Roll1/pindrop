@@ -4,8 +4,12 @@
 //
 //  Created on 2026-02-08.
 //
+//  App/runtime context capture contracts and platform hooks.
+//  Shared value types live in PindropCore.
+//
 
 import Foundation
+import PindropCore
 
 // MARK: - Context Snapshot
 
@@ -39,21 +43,6 @@ struct ContextSnapshot {
     )
 }
 
-// MARK: - Vibe Runtime State
-
-enum VibeRuntimeState: String, CaseIterable, Sendable {
-    case ready
-    case limited
-    case degraded
-}
-
-enum ContextSessionUpdateTrigger: String, Sendable {
-    case recordingStart = "recording_start"
-    case poll = "poll"
-    case frontmostAppChange = "frontmost_app_change"
-    case focusOrWindowChange = "focus_or_window_change"
-}
-
 struct ContextTransitionSignature: Equatable, Sendable {
     let bundleIdentifier: String?
     let windowTitle: String?
@@ -74,24 +63,8 @@ extension ContextSnapshot {
     }
 }
 
-struct ContextSessionTransition: Sendable, Equatable {
-    static let maxSelectedTextPreviewLength = 160
-    let timestamp: Date
-    let trigger: ContextSessionUpdateTrigger
-    let appBundleIdentifier: String?
-    let appName: String?
-    let windowTitle: String?
-    let focusedElementRole: String?
-    let documentPath: String?
-    let selectedTextPreview: String?
-    let activeFilePath: String?
-    let activeFileConfidence: Double?
-    let workspacePath: String?
-    let workspaceConfidence: Double?
-    let outputMode: String?
-    let contextTags: [String]
-    let transitionSignature: String?
-
+extension ContextSessionTransition {
+    /// Projects a live `ContextSnapshot` into the Core transition DTO.
     init(
         timestamp: Date = Date(),
         trigger: ContextSessionUpdateTrigger,
@@ -104,26 +77,23 @@ struct ContextSessionTransition: Sendable, Equatable {
         contextTags: [String] = [],
         transitionSignature: String? = nil
     ) {
-        self.timestamp = timestamp
-        self.trigger = trigger
-        self.appBundleIdentifier = snapshot.appContext?.bundleIdentifier
-        self.appName = snapshot.appContext?.appName
-        self.windowTitle = snapshot.appContext?.windowTitle
-        self.focusedElementRole = snapshot.appContext?.focusedElementRole
-        self.documentPath = snapshot.appContext?.documentPath
-        self.activeFilePath = activeFilePath
-        self.activeFileConfidence = activeFileConfidence.map { min(max($0, 0), 1) }
-        self.workspacePath = workspacePath
-        self.workspaceConfidence = workspaceConfidence.map { min(max($0, 0), 1) }
-        self.outputMode = outputMode
-        self.contextTags = contextTags
-        self.transitionSignature = transitionSignature
-        if let selectedText = snapshot.appContext?.selectedText,
-           selectedText.count > Self.maxSelectedTextPreviewLength {
-            self.selectedTextPreview = String(selectedText.prefix(Self.maxSelectedTextPreviewLength)) + "…"
-        } else {
-            self.selectedTextPreview = snapshot.appContext?.selectedText
-        }
+        self.init(
+            timestamp: timestamp,
+            trigger: trigger,
+            appBundleIdentifier: snapshot.appContext?.bundleIdentifier,
+            appName: snapshot.appContext?.appName,
+            windowTitle: snapshot.appContext?.windowTitle,
+            focusedElementRole: snapshot.appContext?.focusedElementRole,
+            documentPath: snapshot.appContext?.documentPath,
+            selectedText: snapshot.appContext?.selectedText,
+            activeFilePath: activeFilePath,
+            activeFileConfidence: activeFileConfidence,
+            workspacePath: workspacePath,
+            workspaceConfidence: workspaceConfidence,
+            outputMode: outputMode,
+            contextTags: contextTags,
+            transitionSignature: transitionSignature
+        )
     }
 }
 
@@ -164,28 +134,6 @@ struct ContextSessionState: Sendable {
     }
 }
 
-
-// MARK: - App Context Info
-
-/// Structured information about the frontmost application and window,
-/// captured via Accessibility APIs when available.
-struct AppContextInfo {
-    let bundleIdentifier: String?
-    let appName: String
-    let windowTitle: String?
-    let focusedElementRole: String?
-    let focusedElementValue: String?
-    let selectedText: String?
-    let documentPath: String?
-    let browserURL: String?
-
-    /// Whether this context has any meaningful AX-sourced data
-    /// beyond just the app name.
-    var hasDetailedContext: Bool {
-        windowTitle != nil || focusedElementRole != nil ||
-        selectedText != nil || documentPath != nil || browserURL != nil
-    }
-}
 
 // MARK: - Context Source Type
 
@@ -270,36 +218,7 @@ struct ContextCaptureConfig: Sendable {
 
 // MARK: - Prompt Routing Signal
 
-/// Normalized signal extracted from a `ContextSnapshot` that downstream
-/// systems can use to select prompt presets or profiles automatically.
-/// This is a foundation type; no auto-switch behavior is implemented yet.
-struct PromptRoutingSignal {
-    let appBundleIdentifier: String?
-    let appName: String?
-    let windowTitle: String?
-    let workspacePath: String?
-    let browserDomain: String?
-    let isCodeEditorContext: Bool
-    let terminalProviderIdentifier: String?
-
-    init(
-        appBundleIdentifier: String?,
-        appName: String?,
-        windowTitle: String?,
-        workspacePath: String?,
-        browserDomain: String?,
-        isCodeEditorContext: Bool,
-        terminalProviderIdentifier: String? = nil
-    ) {
-        self.appBundleIdentifier = appBundleIdentifier
-        self.appName = appName
-        self.windowTitle = windowTitle
-        self.workspacePath = workspacePath
-        self.browserDomain = browserDomain
-        self.isCodeEditorContext = isCodeEditorContext
-        self.terminalProviderIdentifier = terminalProviderIdentifier
-    }
-
+extension PromptRoutingSignal {
     /// Build a routing signal from a normalized context snapshot.
     static func from(
         snapshot: ContextSnapshot,
@@ -349,16 +268,6 @@ struct PromptRoutingSignal {
             terminalProviderIdentifier: terminalProviderIdentifier
         )
     }
-
-    static let empty = PromptRoutingSignal(
-        appBundleIdentifier: nil,
-        appName: nil,
-        windowTitle: nil,
-        workspacePath: nil,
-        browserDomain: nil,
-        isCodeEditorContext: false,
-        terminalProviderIdentifier: nil
-    )
 
     // MARK: - Private
 
@@ -588,6 +497,7 @@ struct PromptRoutingSignal {
         }
         return host.lowercased()
     }
+
 }
 
 // MARK: - Prompt Routing Resolver

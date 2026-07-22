@@ -17,6 +17,7 @@
 import SwiftUI
 import AppKit
 import Combine
+import PindropCore
 
 // MARK: - Layout constants (size-independent only)
 

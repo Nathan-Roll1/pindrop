@@ -7,6 +7,7 @@
 
 import AppKit
 import SwiftUI
+import PindropCore
 
 private enum ToastMetrics {
     static let horizontalPadding: CGFloat = 16

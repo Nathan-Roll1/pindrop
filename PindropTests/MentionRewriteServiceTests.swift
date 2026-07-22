@@ -9,6 +9,9 @@ import Foundation
 import Testing
 
 @testable import Pindrop
+import PindropCore
+import PindropData
+import PindropSpeech
 
 @MainActor
 @Suite

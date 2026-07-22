@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import PindropData
 
 /// Pure helpers for Library/Dashboard detail presentation (B7 un-gating).
 enum TranscriptionDetailAccess {

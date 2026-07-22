@@ -8,6 +8,9 @@
 import SwiftUI
 import SwiftData
 import AppKit
+import PindropCore
+import PindropData
+import PindropSpeech
 
 // MARK: - Navigation
 

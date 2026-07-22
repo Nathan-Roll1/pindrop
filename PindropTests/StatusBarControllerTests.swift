@@ -8,6 +8,8 @@
 import AppKit
 import Testing
 @testable import Pindrop
+import PindropAI
+import PindropCore
 
 @MainActor
 @Suite(.serialized)

@@ -8,6 +8,8 @@
 import AppKit
 import Foundation
 import UniformTypeIdentifiers
+import PindropCore
+import PindropData
 
 /// Per-recording export formats for Library / detail views.
 enum TranscriptExportFormat: String, CaseIterable, Sendable, Equatable {

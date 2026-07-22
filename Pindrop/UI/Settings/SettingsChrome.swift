@@ -9,6 +9,7 @@
 
 import AppKit
 import SwiftUI
+import PindropCore
 
 // MARK: - Root shell (titlebar + tab strip + scrolling pane)
 

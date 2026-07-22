@@ -9,6 +9,7 @@ import Foundation
 import AppKit
 import ApplicationServices
 import os.log
+import PindropCore
 
 enum OutputMode {
     case clipboard

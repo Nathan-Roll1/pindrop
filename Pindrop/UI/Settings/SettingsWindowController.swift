@@ -9,6 +9,7 @@ import AppKit
 import Combine
 import SwiftData
 import SwiftUI
+import PindropCore
 
 enum SettingsTab: String, CaseIterable, Identifiable {
     case general

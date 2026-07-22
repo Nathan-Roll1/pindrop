@@ -7,6 +7,7 @@
 
 import AppKit
 import SwiftUI
+import PindropCore
 
 /// Bundled Scorched Earth typefaces with system-font fallbacks.
 ///

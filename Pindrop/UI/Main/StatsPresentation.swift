@@ -8,6 +8,8 @@
 //
 
 import Foundation
+import PindropCore
+import PindropData
 
 enum StatsRange: String, CaseIterable, Identifiable, Sendable {
     case sevenDays

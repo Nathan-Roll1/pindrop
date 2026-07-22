@@ -10,6 +10,9 @@ import Foundation
 import Security
 import Speech
 import SwiftUI
+import PindropCore
+import PindropSpeech
+import PindropAI
 
 private enum SettingsStoreRuntime {
    static let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -42,218 +45,34 @@ public enum SidebarPosition: String, CaseIterable, Identifiable {
    }
 }
 
-/// How long dictation (`voiceRecording`) audio files are retained on disk.
-/// Imported / media-backed audio is never governed by this setting.
-public enum DictationAudioRetention: String, CaseIterable, Sendable, Identifiable {
-   case off
-   case days7
-   case days30
-   case forever
+// Domain types (AppLanguage, AppLocale, TranscriptionBackend, DictationAudioRetention)
+// and AIEnhancementDefaults live in PindropCore. Presentation helpers live in
+// SharedDomainPresentation.swift. FeatureModelType/StreamingChunkProfile live in PindropSpeech.
 
-   public var id: String { rawValue }
-
-   /// Calendar-day window before audio is eligible for deletion.
-   /// `nil` means never expire; `0` means do not persist.
-   var retentionDays: Int? {
-      switch self {
-      case .off: return 0
-      case .days7: return 7
-      case .days30: return 30
-      case .forever: return nil
-      }
-   }
-
-   /// Time interval for expiry checks. `nil` = forever; `.off` returns `0`.
-   var retentionInterval: TimeInterval? {
-      guard let days = retentionDays else { return nil }
-      return TimeInterval(days) * 24 * 60 * 60
-   }
-}
-
-/// Which streaming transcription engine the user prefers. Availability at runtime may
-/// force the service to substitute a different backend — see
-/// `SettingsStore.resolvedTranscriptionBackend` for the effective value.
-public enum TranscriptionBackend: String, CaseIterable, Sendable, Identifiable {
-   /// Nemotron Speech Streaming 0.6B via FluidAudio. Natively punctuated and
-   /// capitalized; available on all supported macOS versions; requires a ~630 MB model
-   /// download. (Raw value stays "parakeet" for stored-settings compatibility — the
-   /// case predates the Nemotron engine swap.)
-   case parakeet = "parakeet"
-
-   /// Apple's on-device `Speech.SpeechTranscriber` (macOS 26+). Ships with the OS,
-   /// zero download, but locale coverage follows Apple's supported-locales list.
-   case appleSpeechTranscriber = "apple"
-
-   public var id: String { rawValue }
-
-   var displayNameKey: String {
-      switch self {
-      case .parakeet: return "Nemotron (default)"
-      case .appleSpeechTranscriber: return "Apple SpeechTranscriber (macOS 26+)"
-      }
-   }
-}
-
-public enum AppLanguage: String, CaseIterable, Sendable, Identifiable {
-   case automatic = "auto"
-   case english = "en"
-   case russian = "ru"
-   case ukrainian = "uk"
-   case simplifiedChinese = "zh-Hans"
-   case spanish = "es"
-   case french = "fr"
-   case german = "de"
-   case turkish = "tr"
-   case japanese = "ja"
-   case portugueseBrazil = "pt-BR"
-   case italian = "it"
-   case dutch = "nl"
-   case korean = "ko"
-   case hindi = "hi"
-   case malayalam = "ml"
-   case polish = "pl"
-
-   public var id: String { rawValue }
-
-   private struct Metadata {
-      let displayKey: String
-      let whisperCode: String?
-      let localeIdentifier: String?
-      let selectable: Bool
-   }
-
-   private var metadata: Metadata {
-      switch self {
-      case .automatic:        return Metadata(displayKey: "Automatic (Follow System)", whisperCode: nil, localeIdentifier: nil, selectable: true)
-      case .english:          return Metadata(displayKey: "English", whisperCode: "en", localeIdentifier: "en", selectable: true)
-      case .russian:          return Metadata(displayKey: "Russian", whisperCode: "ru", localeIdentifier: "ru", selectable: true)
-      case .ukrainian:        return Metadata(displayKey: "Ukrainian", whisperCode: "uk", localeIdentifier: "uk", selectable: true)
-      case .simplifiedChinese: return Metadata(displayKey: "Simplified Chinese", whisperCode: "zh", localeIdentifier: "zh-Hans", selectable: true)
-      case .spanish:          return Metadata(displayKey: "Spanish", whisperCode: "es", localeIdentifier: "es", selectable: true)
-      case .french:           return Metadata(displayKey: "French", whisperCode: "fr", localeIdentifier: "fr", selectable: true)
-      case .german:           return Metadata(displayKey: "German", whisperCode: "de", localeIdentifier: "de", selectable: true)
-      case .turkish:          return Metadata(displayKey: "Turkish", whisperCode: "tr", localeIdentifier: "tr", selectable: true)
-      case .japanese:         return Metadata(displayKey: "Japanese", whisperCode: "ja", localeIdentifier: "ja", selectable: true)
-      case .portugueseBrazil: return Metadata(displayKey: "Portuguese (Brazil)", whisperCode: "pt", localeIdentifier: "pt-BR", selectable: true)
-      case .italian:          return Metadata(displayKey: "Italian", whisperCode: "it", localeIdentifier: "it", selectable: true)
-      case .dutch:            return Metadata(displayKey: "Dutch", whisperCode: "nl", localeIdentifier: "nl", selectable: true)
-      case .korean:           return Metadata(displayKey: "Korean", whisperCode: "ko", localeIdentifier: "ko", selectable: true)
-      case .hindi:            return Metadata(displayKey: "Hindi", whisperCode: "hi", localeIdentifier: "hi", selectable: true)
-      case .malayalam:        return Metadata(displayKey: "Malayalam", whisperCode: "ml", localeIdentifier: "ml", selectable: true)
-      case .polish:           return Metadata(displayKey: "Polish", whisperCode: "pl", localeIdentifier: "pl", selectable: true)
-      }
-   }
-
-   var displayName: String {
-      displayName(locale: .autoupdatingCurrent)
-   }
-
-   var pickerLabel: String {
-      pickerLabel(locale: .autoupdatingCurrent)
-   }
-
-   func displayName(locale: Locale) -> String {
-      localized(metadata.displayKey, locale: locale)
-   }
-
-   func pickerLabel(locale: Locale) -> String {
-      let name = displayName(locale: locale)
-      guard !isSelectable else { return name }
-      return String(format: localized("%@ (Coming Soon)", locale: locale), name)
-   }
-
-   /// The language name rendered in its own locale (e.g. "Français" for French).
-   /// Returns `nil` for `.automatic` since there is no single native representation.
-   func nativeDisplayName(currentLocale: Locale) -> String? {
-      guard self != .automatic else { return nil }
-      let native = displayName(locale: self.locale)
-      let current = displayName(locale: currentLocale)
-      // Only show the native label when it actually differs from the current-locale label.
-      guard native != current else { return nil }
-      return native
-   }
-
-   var isSelectable: Bool { metadata.selectable }
-
-   var isEnglish: Bool { self == .english }
-
-   var locale: Locale {
-      guard let id = metadata.localeIdentifier else { return .autoupdatingCurrent }
-      return Locale(identifier: id)
-   }
-
-   var whisperLanguageCode: String? { metadata.whisperCode }
-
-}
-
-public enum AppLocale: String, CaseIterable, Sendable, Identifiable {
-   case automatic = "auto"
-   case arabic = "ar"
-   case bengali = "bn"
-   case czech = "cs"
-   case danish = "da"
-   case german = "de"
-   case english = "en"
-   case greek = "el"
-   case spanish = "es"
-   case finnish = "fi"
-   case french = "fr"
-   case hebrew = "he"
-   case hindi = "hi"
-   case hungarian = "hu"
-   case indonesian = "id"
-   case italian = "it"
-   case japanese = "ja"
-   case korean = "ko"
-   case malay = "ms"
-   case norwegianBokmal = "nb"
-   case dutch = "nl"
-   case polish = "pl"
-   case portugueseBrazil = "pt-BR"
-   case romanian = "ro"
-   case russian = "ru"
-   case swedish = "sv"
-   case thai = "th"
-   case turkish = "tr"
-   case ukrainian = "uk"
-   case vietnamese = "vi"
-   case traditionalChinese = "zh-Hant"
-   case simplifiedChinese = "zh-Hans"
-
-   public var id: String { rawValue }
-
-   func displayName(locale: Locale) -> String {
-      guard self != .automatic else {
-         return localized("Automatic (Follow System)", locale: locale)
-      }
-
-      return locale.localizedString(forIdentifier: rawValue)
-         ?? locale.localizedString(forLanguageCode: rawValue)
-         ?? rawValue
-   }
-
-   func pickerLabel(locale: Locale) -> String {
-      displayName(locale: locale)
-   }
-
-   func nativeDisplayName(currentLocale: Locale) -> String? {
-      guard self != .automatic else { return nil }
-      let native = displayName(locale: self.locale)
-      let current = displayName(locale: currentLocale)
-      guard native != current else { return nil }
-      return native
-   }
-
-   var isSelectable: Bool { true }
-
-   var locale: Locale {
-      guard self != .automatic else { return .autoupdatingCurrent }
-      return Locale(identifier: rawValue)
-   }
+/// Host settings surface used by composition/adapters.
+/// Non-secret typed preferences only; Keychain credentials stay on SettingsStore.
+@MainActor
+protocol AppSettingsProviding: AnyObject {
+   var selectedModel: String { get set }
+   var selectedAppLanguage: AppLanguage { get set }
+   var selectedAppLocale: AppLocale { get set }
+   var selectedTranscriptionBackend: TranscriptionBackend { get set }
+   var resolvedTranscriptionBackend: TranscriptionBackend { get }
+   var streamingChunkProfile: StreamingChunkProfile { get }
+   var dictationAudioRetention: DictationAudioRetention { get set }
+   var programmaticFormattingEnabled: Bool { get set }
+   var addTrailingSpace: Bool { get set }
+   var outputMode: String { get set }
+   var selectedInputDeviceUID: String { get set }
+   var vadFeatureEnabled: Bool { get set }
+   var diarizationFeatureEnabled: Bool { get set }
+   var streamingFeatureEnabled: Bool { get set }
+   var streamingLowLatencyMode: Bool { get set }
+   var selectedPresetId: String? { get set }
 }
 
 @MainActor
-final class SettingsStore: ObservableObject {
+final class SettingsStore: ObservableObject, AppSettingsProviding {
 
    // MARK: - Errors
 
@@ -289,8 +108,7 @@ final class SettingsStore: ObservableObject {
 
       static let selectedInputDeviceUID = ""
       static let aiModel = "openai/gpt-4o-mini"
-      static let aiEnhancementPrompt =
-         "You are a text enhancement assistant. Improve the grammar, punctuation, and formatting of the provided text while preserving its original meaning and tone. Return only the enhanced text without any additional commentary."
+      static let aiEnhancementPrompt = AIEnhancementDefaults.transcriptionPrompt
       static let floatingIndicatorEnabled = true
       static let floatingIndicatorType = FloatingIndicatorType.orb.rawValue
       static let pillFloatingIndicatorOffsetX = 0.0
@@ -298,20 +116,7 @@ final class SettingsStore: ObservableObject {
       static let orbFloatingIndicatorOffsetX = 0.0
       static let orbFloatingIndicatorOffsetY = 0.0
       static let orbFloatingIndicatorSize = "medium"
-      static let noteEnhancementPrompt = """
-         You are a note formatting assistant. Transform the transcribed text into a well-structured note.
-
-         Rules:
-         - Fix grammar, punctuation, and spelling errors
-         - For longer content (3+ paragraphs), add markdown formatting:
-           - Use headers (## or ###) to organize sections
-           - Use bullet points or numbered lists where appropriate
-           - Use **bold** for emphasis on key terms
-         - For shorter content, keep it simple with minimal formatting
-         - Preserve the original meaning and tone
-         - Do not add content that wasn't in the original
-         - Return only the formatted note without any commentary
-         """
+      static let noteEnhancementPrompt = AIEnhancementDefaults.notePrompt
       static let mentionTemplateOverridesJSON = "{}"
 
       enum Hotkeys {

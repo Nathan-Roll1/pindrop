@@ -47,7 +47,7 @@ _test testplan sign="yes" coverage="no":
         -scheme {{scheme}} \
         -testPlan {{testplan}} \
         -destination 'platform=macOS' \
-        {{ if coverage == "yes" { "-enableCodeCoverage YES" } else { "" } }} \
+        -enableCodeCoverage {{ if coverage == "yes" { "YES" } else { "NO" } }} \
         {{ if sign == "no" { signing_disabled } else { "" } }}
 
 # Build for development (Debug, Xcode-managed signing)
@@ -92,6 +92,25 @@ test:
     @echo "🧪 Running tests..."
     @just _test Unit
     @echo "✅ Tests complete"
+
+# Run all shared package tests
+test-shared:
+    swift test --package-path Packages/PindropShared
+
+# Approved shared package test gate
+shared-test: test-shared
+
+# Build one shared product for the iOS 17+ platform boundary
+build-shared-ios product:
+    cd Packages/PindropShared && xcodebuild build -scheme {{product}} -destination 'generic/platform=iOS'
+
+# Build every shared product for iOS
+build-shared-ios-all:
+    @for product in PindropCore PindropAI PindropData PindropSpeech PindropMedia; do just build-shared-ios "$product"; done
+
+# Approved shared iOS boundary gate
+shared-build-ios: build-shared-ios-all
+
 
 # Run integration tests only (opt-in)
 test-integration:
@@ -621,6 +640,6 @@ format:
 dev: clean build test
     @echo "✅ Development build and test complete"
 
-# CI workflow: clean, unsigned build, unsigned test, unsigned release build
-ci: clean build-unsigned test-unsigned build-release-unsigned
+# CI workflow: shared package gates, unsigned app build/test, unsigned release build
+ci: clean test-shared build-shared-ios-all build-unsigned test-unsigned build-release-unsigned
     @echo "✅ CI workflow complete"

@@ -6,6 +6,8 @@
 //
 
 import Foundation
+import PindropCore
+import PindropData
 import SQLite3
 import SwiftData
 import Testing

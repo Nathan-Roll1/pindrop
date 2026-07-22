@@ -6,6 +6,8 @@
 //
 
 import Foundation
+import PindropCore
+import PindropSpeech
 import Testing
 @testable import Pindrop
 
@@ -45,8 +47,17 @@ struct MediaTranscriptionFeatureStateTests {
         #expect(options.diarizationEnabled == false)
     }
 
-    @Test func mediaTranscriptionResolvesCatalogModelProviders() {
-        let models = ModelManager().availableModels
+    @Test func mediaTranscriptionResolvesCatalogModelProviders() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("pindrop-media-feature-state-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let locations = ModelStorageLocations(
+            pindropApplicationSupportRoot: root.appendingPathComponent("Pindrop", isDirectory: true),
+            fluidAudioModelsRoot: root.appendingPathComponent("FluidAudio/Models", isDirectory: true)
+        )
+        try FileManager.default.createDirectory(at: locations.pindropApplicationSupportRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: locations.fluidAudioModelsRoot, withIntermediateDirectories: true)
+        let models = ModelManager(storageLocations: locations).availableModels
 
         #expect(
             AppCoordinator.mediaTranscriptionProvider(

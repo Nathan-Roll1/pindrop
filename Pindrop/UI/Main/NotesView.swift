@@ -11,6 +11,8 @@ import SwiftUI
 import SwiftData
 import Foundation
 import AppKit
+import PindropCore
+import PindropData
 
 struct NotesView: View {
     @Environment(\.modelContext) private var modelContext
@@ -35,7 +37,10 @@ struct NotesView: View {
     @State private var keyMonitor: Any?
 
     private var notesStore: NotesStore {
-        NotesStore(modelContext: modelContext)
+        NotesStore(
+            modelContext: modelContext,
+            metadataGenerator: { _, _ in nil }
+        )
     }
 
     /// Single derived snapshot for body + keyboard selection (one derivation per input change).

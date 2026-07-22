@@ -7,6 +7,8 @@
 
 import SwiftUI
 import AppKit
+import PindropCore
+import PindropSpeech
 
 @MainActor
 final class OnboardingWindowController {

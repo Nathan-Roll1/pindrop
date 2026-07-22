@@ -5,8 +5,12 @@
 //  Created on 2026-07-13.
 //
 
-import Foundation
 import AVFoundation
+import Foundation
+import PindropAI
+import PindropCore
+import PindropData
+import PindropSpeech
 import SwiftData
 import Testing
 @testable import Pindrop
@@ -72,7 +76,14 @@ struct StreamingSessionControllerTests {
         let effectiveDictionaryStore = try dictionaryStore ?? makeDictionaryStore()
 
         return StreamingSessionController(
-            transcriptionService: transcriptionService ?? TranscriptionService(),
+            transcriptionService: transcriptionService ?? TranscriptionService(
+                storageLocations: ModelStorageLocations(
+                    pindropApplicationSupportRoot: FileManager.default.temporaryDirectory
+                        .appendingPathComponent("pindrop-streaming-session-\(UUID().uuidString)/Pindrop", isDirectory: true),
+                    fluidAudioModelsRoot: FileManager.default.temporaryDirectory
+                        .appendingPathComponent("pindrop-streaming-session-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
+                )
+            ),
             settingsStore: settings,
             dictionaryStore: effectiveDictionaryStore,
             outputManager: outputManager,
@@ -213,7 +224,7 @@ struct StreamingSessionControllerTests {
         let clipboard = RecordingClipboard()
         let toastPresenter = RecordingToastPresenter()
 
-        final class CountingStreamingEngine: StreamingTranscriptionEngine, @unchecked Sendable {
+        final class CountingStreamingEngine: PindropSpeech.StreamingTranscriptionEngine, @unchecked Sendable {
             private(set) var state: StreamingTranscriptionState = .unloaded
             private(set) var loadCallCount = 0
             private(set) var startStreamingCallCount = 0
@@ -278,7 +289,13 @@ struct StreamingSessionControllerTests {
         var profileProviderCallCount = 0
         var backendProviderCallCount = 0
         let transcriptionService = TranscriptionService(
-            streamingEngineFactory: { _ in
+            storageLocations: ModelStorageLocations(
+                pindropApplicationSupportRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("pindrop-streaming-engine-\(UUID().uuidString)/Pindrop", isDirectory: true),
+                fluidAudioModelsRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("pindrop-streaming-engine-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
+            ),
+            streamingEngineFactory: { _, _ in
                 factoryCallCount += 1
                 return engine
             },
@@ -319,7 +336,7 @@ struct StreamingSessionControllerTests {
     }
 
     @Test func finalizeRunsConfiguredEnhancementAndRecordsMetrics() async throws {
-        final class FinalizingStreamingEngine: StreamingTranscriptionEngine, @unchecked Sendable {
+        final class FinalizingStreamingEngine: PindropSpeech.StreamingTranscriptionEngine, @unchecked Sendable {
             private(set) var state: StreamingTranscriptionState = .unloaded
             private var finalUtteranceCallback: EndOfUtteranceCallback?
 
@@ -369,7 +386,13 @@ struct StreamingSessionControllerTests {
         let toastPresenter = RecordingToastPresenter()
         let engine = FinalizingStreamingEngine()
         let transcriptionService = TranscriptionService(
-            streamingEngineFactory: { _ in engine }
+            storageLocations: ModelStorageLocations(
+                pindropApplicationSupportRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("pindrop-streaming-finalize-\(UUID().uuidString)/Pindrop", isDirectory: true),
+                fluidAudioModelsRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("pindrop-streaming-finalize-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
+            ),
+            streamingEngineFactory: { _, _ in engine }
         )
         let dictionaryStore = try makeDictionaryStore()
         try dictionaryStore.add(VocabularyWord(word: "Fenneko"))

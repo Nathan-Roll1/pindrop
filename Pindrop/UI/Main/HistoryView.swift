@@ -10,6 +10,8 @@ import SwiftData
 import Foundation
 import AppKit
 import UniformTypeIdentifiers
+import PindropCore
+import PindropData
 
 struct HistoryLoadRequest: Equatable {
     let query: String
@@ -94,8 +96,18 @@ struct HistoryView: View {
         HistoryStore(
             modelContext: modelContext,
             speakerIdentityService: SpeakerIdentityService(modelContext: modelContext),
-            contributionService: settingsStore.map {
-                ContributionService(modelContext: modelContext, settingsStore: $0)
+            contributionService: settingsStore.map { store in
+                ContributionService(
+                    modelContext: modelContext,
+                    metadataProvider: {
+                        ContributionCaptureMetadata(
+                            isEnabled: store.trainingDataContributionEnabled,
+                            languageRawValue: store.selectedAppLanguage.rawValue,
+                            localeIdentifier: store.selectedAppLocale.locale.identifier,
+                            appVersion: Bundle.main.appShortVersionString
+                        )
+                    }
+                )
             }
         )
     }

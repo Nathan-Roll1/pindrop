@@ -8,6 +8,8 @@
 //
 
 import Foundation
+import PindropCore
+import PindropData
 
 // MARK: - Vocabulary chip ordering
 

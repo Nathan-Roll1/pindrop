@@ -36,6 +36,12 @@ jobs:
         with:
           just-version: '1.49.0'
 
+      - name: Test Shared Package
+        run: just test-shared
+
+      - name: Build Shared Products for iOS
+        run: just build-shared-ios-all
+
       - name: Build App (Unsigned)
         run: just build-unsigned
 

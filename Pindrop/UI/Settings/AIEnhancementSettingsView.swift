@@ -11,6 +11,9 @@ import FoundationModels
 #endif
 import SwiftData
 import SwiftUI
+import PindropCore
+import PindropAI
+import PindropData
 
 struct AIEnhancementSettingsView: View {
    @ObservedObject var settings: SettingsStore
@@ -33,7 +36,12 @@ struct AIEnhancementSettingsView: View {
    @State private var modelListCache: [UUID: [AIModelService.AIModel]] = [:]
    @State private var modelListLoading: Set<UUID> = []
    @State private var modelListErrors: [UUID: String] = [:]
-   @State private var modelService = AIModelService()
+   @State private var modelService = AIModelService(
+      storageBaseURL: FileManager.default
+         .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+         .appendingPathComponent("Pindrop", isDirectory: true)
+         .appendingPathComponent("AIModels", isDirectory: true)
+   )
    @State private var modelPickerPurpose: EnhancementPurpose?
 
    // Inline prompt-override drafts per purpose, keyed by purpose.rawValue.

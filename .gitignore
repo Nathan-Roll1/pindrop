@@ -19,7 +19,8 @@ appcast.xml
 # Swift Package Manager
 .build/
 .swiftpm/
-Packages/
+Packages/*
+!Packages/PindropShared/
 
 # CocoaPods (if used)
 Pods/
@@ -38,6 +39,7 @@ Carthage/Build/
 
 # Docs
 .sisyphus/
+.omp/
 
 # Test coverage
 *.profraw

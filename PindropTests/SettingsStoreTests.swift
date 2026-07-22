@@ -9,6 +9,7 @@ import AppKit
 import Carbon
 import Testing
 @testable import Pindrop
+import PindropCore
 
 @MainActor
 @Suite

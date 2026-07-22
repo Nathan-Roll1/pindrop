@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import PindropData
 
 struct PresetManagementSheet: View {
     @Environment(\.modelContext) private var modelContext

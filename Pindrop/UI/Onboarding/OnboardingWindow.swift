@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import PindropCore
+import PindropSpeech
 
 enum OnboardingStep: Int, CaseIterable {
     case welcome = 0
@@ -332,19 +334,23 @@ struct OnboardingWindow_Previews: PreviewProvider {
     static var previews: some View {
         OnboardingWindow(
             settings: SettingsStore(),
-            modelManager: PreviewModelManagerWindow(),
-            transcriptionService: TranscriptionService(),
+            modelManager: ModelManager(storageLocations: Self.previewStorageLocations),
+            transcriptionService: TranscriptionService(storageLocations: Self.previewStorageLocations),
             permissionManager: PermissionManager(),
             onComplete: {},
             onPreferredContentSizeChange: { _ in },
             onStepChange: { _ in }
         )
     }
-}
 
-final class PreviewModelManagerWindow: ModelManager {
-    override init() {
-        // Skip async initialization to avoid launching WhisperKit in preview
-    }
+    private static let previewStorageLocations = ModelStorageLocations(
+        pindropApplicationSupportRoot: FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Pindrop", isDirectory: true),
+        fluidAudioModelsRoot: FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("FluidAudio", isDirectory: true)
+            .appendingPathComponent("Models", isDirectory: true)
+    )
 }
 #endif

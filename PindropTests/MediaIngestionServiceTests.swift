@@ -1,12 +1,15 @@
 //
 //  MediaIngestionServiceTests.swift
-//  Pindrop
+//  PindropTests
 //
-//  Created on 2026-03-07.
+//  macOS process/yt-dlp/ffmpeg adapter coverage. Portable direct-download and
+//  managed-library behavior lives in PindropMediaTests.
 //
 
 import Foundation
 import Testing
+import PindropCore
+import PindropMedia
 @testable import Pindrop
 
 @MainActor
@@ -15,102 +18,6 @@ struct MediaIngestionServiceTests {
     private let fakeYTDLPPath = "/tmp/pindrop-test-yt-dlp"
     private let fakeFFmpegPath = "/tmp/pindrop-test-ffmpeg"
 
-    @Test func testDirectDownloadDelegateRetainsImmediateSuccess() async throws {
-        let sourceURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension("mp3")
-        try Data("audio-data".utf8).write(to: sourceURL)
-
-        let delegate = DirectDownloadDelegate(onProgress: { _, _ in })
-        let session = URLSession(configuration: .ephemeral)
-        let task = session.downloadTask(with: URL(string: "https://example.com/audio.mp3")!)
-        defer { session.invalidateAndCancel() }
-
-        delegate.urlSession(session, downloadTask: task, didFinishDownloadingTo: sourceURL)
-
-        var didStart = false
-        let downloadedURL = try await delegate.waitForCompletion {
-            didStart = true
-        }
-
-        #expect(!didStart)
-        #expect(try Data(contentsOf: downloadedURL) == Data("audio-data".utf8))
-        try? FileManager.default.removeItem(at: downloadedURL)
-    }
-
-    @Test func testDirectDownloadDelegateRetainsImmediateFailure() async {
-        let delegate = DirectDownloadDelegate(onProgress: { _, _ in })
-        let session = URLSession(configuration: .ephemeral)
-        let task = session.downloadTask(with: URL(string: "https://example.com/audio.mp3")!)
-        defer { session.invalidateAndCancel() }
-
-        delegate.urlSession(session, task: task, didCompleteWithError: URLError(.cannotConnectToHost))
-
-        var didStart = false
-        do {
-            _ = try await delegate.waitForCompletion {
-                didStart = true
-            }
-            Issue.record("Expected immediate download failure")
-        } catch let error as URLError {
-            #expect(error.code == .cannotConnectToHost)
-        } catch {
-            Issue.record("Expected URLError, got \(error)")
-        }
-        #expect(!didStart)
-    }
-
-    @Test func testDirectDownloadDelegateRetainsCancellation() async {
-        let delegate = DirectDownloadDelegate(onProgress: { _, _ in })
-        delegate.cancel()
-
-        var didStart = false
-        do {
-            _ = try await delegate.waitForCompletion {
-                didStart = true
-            }
-            Issue.record("Expected cancellation")
-        } catch is CancellationError {
-            #expect(!didStart)
-        } catch {
-            Issue.record("Expected CancellationError, got \(error)")
-        }
-    }
-
-    @Test func testDirectDownloadDelegateRemovesTempFileWhenCancellationWins() throws {
-        let temporaryDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
-        let sourceURL = temporaryDirectory.appendingPathComponent("download.mp3")
-        try Data("audio-data".utf8).write(to: sourceURL)
-
-        let delegate = DirectDownloadDelegate(temporaryDirectory: temporaryDirectory, onProgress: { _, _ in })
-        let session = URLSession(configuration: .ephemeral)
-        let task = session.downloadTask(with: URL(string: "https://example.com/audio.mp3")!)
-        defer { session.invalidateAndCancel() }
-
-        delegate.cancel()
-        delegate.urlSession(session, downloadTask: task, didFinishDownloadingTo: sourceURL)
-
-        #expect(try FileManager.default.contentsOfDirectory(atPath: temporaryDirectory.path).isEmpty)
-    }
-
-    @Test func testImportLocalFileCopiesIntoManagedLibrary() async throws {
-        let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mp3")
-        try Data("audio-data".utf8).write(to: sourceURL)
-
-        let library = ManagedMediaLibrary()
-        let asset = try await library.importLocalFile(at: sourceURL, jobID: UUID())
-
-        #expect(asset.sourceKind == .importedFile)
-        #expect(asset.displayName == sourceURL.lastPathComponent)
-        #expect(FileManager.default.fileExists(atPath: asset.mediaURL.path))
-        #expect(try Data(contentsOf: asset.mediaURL) == Data("audio-data".utf8))
-
-        try? FileManager.default.removeItem(at: sourceURL)
-        try? FileManager.default.removeItem(at: asset.directoryURL)
-    }
     @Test func testIngestFileDelegatesToMediaLibrary() async throws {
         let expectedAsset = ManagedMediaAsset(
             directoryURL: URL(fileURLWithPath: "/tmp/job"),

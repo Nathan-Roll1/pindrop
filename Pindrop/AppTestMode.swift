@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import PindropData
 import SwiftData
 import SwiftUI
 

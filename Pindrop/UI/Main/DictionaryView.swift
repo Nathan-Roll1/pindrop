@@ -9,6 +9,8 @@ import SwiftUI
 import SwiftData
 import Foundation
 import AppKit
+import PindropCore
+import PindropData
 
 // MARK: - Async lifecycle (pure seams)
 

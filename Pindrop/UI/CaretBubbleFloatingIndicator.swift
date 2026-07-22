@@ -8,6 +8,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import PindropCore
 
 @MainActor
 final class CaretBubbleFloatingIndicatorController: FloatingIndicatorPresenting, ObservableObject,

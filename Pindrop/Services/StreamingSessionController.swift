@@ -16,6 +16,10 @@
 
 import Foundation
 import AVFoundation
+import PindropCore
+import PindropAI
+import PindropData
+import PindropSpeech
 
 @MainActor
 final class StreamingSessionController {
@@ -105,7 +109,7 @@ final class StreamingSessionController {
     private(set) var isSessionActive = false
     /// Direct engine handle for the audio pump. Captured once per session so the
     /// per-buffer path never hops through the @MainActor TranscriptionService.
-    private var pumpEngine: (any StreamingTranscriptionEngine)?
+    private var pumpEngine: (any PindropSpeech.StreamingTranscriptionEngine)?
     private var audioStreamContinuation: AsyncStream<AVAudioPCMBuffer>.Continuation?
     private var audioConsumerTask: Task<Void, Never>?
     private var refinementCoordinator: StreamingRefinementCoordinator?

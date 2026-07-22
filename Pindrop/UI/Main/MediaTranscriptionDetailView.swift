@@ -12,6 +12,9 @@ import Foundation
 import Observation
 import SwiftData
 import SwiftUI
+import PindropCore
+import PindropMedia
+import PindropData
 
 struct MediaTranscriptionDetailView: View {
     let record: TranscriptionRecord

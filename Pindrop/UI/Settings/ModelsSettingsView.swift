@@ -8,6 +8,8 @@
 //
 
 import SwiftUI
+import PindropCore
+import PindropSpeech
 
 struct ModelsSettingsView: View {
     @ObservedObject var settings: SettingsStore
@@ -630,7 +632,20 @@ private struct OpenAITranscriptionCredentialsSheet: View {
 }
 
 #Preview("Models page") {
-    ModelsSettingsView(settings: SettingsStore(), modelManager: ModelManager())
+    ModelsSettingsView(
+        settings: SettingsStore(),
+        modelManager: ModelManager(
+            storageLocations: ModelStorageLocations(
+                pindropApplicationSupportRoot: FileManager.default
+                    .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+                    .appendingPathComponent("Pindrop", isDirectory: true),
+                fluidAudioModelsRoot: FileManager.default
+                    .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+                    .appendingPathComponent("FluidAudio", isDirectory: true)
+                    .appendingPathComponent("Models", isDirectory: true)
+            )
+        )
+    )
         .frame(width: 720, height: 640)
         .preferredColorScheme(.light)
 }

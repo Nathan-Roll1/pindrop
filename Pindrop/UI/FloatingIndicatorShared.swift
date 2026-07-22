@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import AppKit
+import PindropCore
 
 extension NSScreen {
     /// Stable identity for the physical display backing this screen (handles cases where AppKit

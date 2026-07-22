@@ -7,6 +7,7 @@
 
 import Foundation
 import AppKit
+import PindropCore
 
 @MainActor
 final class AlertManager {
