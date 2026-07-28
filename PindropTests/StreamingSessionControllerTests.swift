@@ -59,11 +59,13 @@ struct StreamingSessionControllerTests {
         clipboard: RecordingClipboard,
         toastPresenter: RecordingToastPresenter,
         transcriptionService: TranscriptionService? = nil,
-        dictionaryStore: DictionaryStore? = nil
+        dictionaryStore: DictionaryStore? = nil,
+        transcriptionBackend: TranscriptionBackend = .parakeet
     ) throws -> StreamingSessionController {
         let settings = SettingsStore()
         settings.resetAllSettings()
         settings.addTrailingSpace = false
+        settings.selectedTranscriptionBackend = transcriptionBackend
 
         let outputManager = OutputManager(
             outputMode: .clipboard,
@@ -335,7 +337,7 @@ struct StreamingSessionControllerTests {
         await controller.cancel()
     }
 
-    @Test func finalizeRunsConfiguredEnhancementAndRecordsMetrics() async throws {
+    @Test func parakeetFinalizeOmitsVocabularyAndRecordsEnhancementMetrics() async throws {
         final class FinalizingStreamingEngine: PindropSpeech.StreamingTranscriptionEngine, @unchecked Sendable {
             private(set) var state: StreamingTranscriptionState = .unloaded
             private var finalUtteranceCallback: EndOfUtteranceCallback?
@@ -382,9 +384,35 @@ struct StreamingSessionControllerTests {
             }
         }
 
+        final class RecordingBatchEngine: TranscriptionEngine, @unchecked Sendable {
+            private(set) var state: TranscriptionEngineState = .unloaded
+            private(set) var receivedOptions: TranscriptionOptions?
+
+            func loadModel(path: String) async throws {
+                state = .ready
+            }
+
+            func loadModel(name: String, downloadBase: URL?) async throws {
+                state = .ready
+            }
+
+            func transcribe(
+                audioData: Data,
+                options: TranscriptionOptions
+            ) async throws -> String {
+                receivedOptions = options
+                return "batch transcript"
+            }
+
+            func unloadModel() async {
+                state = .unloaded
+            }
+        }
+
         let clipboard = RecordingClipboard()
         let toastPresenter = RecordingToastPresenter()
         let engine = FinalizingStreamingEngine()
+        let batchEngine = RecordingBatchEngine()
         let transcriptionService = TranscriptionService(
             storageLocations: ModelStorageLocations(
                 pindropApplicationSupportRoot: FileManager.default.temporaryDirectory
@@ -392,7 +420,12 @@ struct StreamingSessionControllerTests {
                 fluidAudioModelsRoot: FileManager.default.temporaryDirectory
                     .appendingPathComponent("pindrop-streaming-finalize-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
             ),
+            engineFactory: { _ in batchEngine },
             streamingEngineFactory: { _, _ in engine }
+        )
+        try await transcriptionService.loadModel(
+            modelName: "openai_whisper-tiny",
+            provider: .whisperKit
         )
         let dictionaryStore = try makeDictionaryStore()
         try dictionaryStore.add(VocabularyWord(word: "Fenneko"))
@@ -438,13 +471,14 @@ struct StreamingSessionControllerTests {
         await Task.yield()
 
         let outcome = try await controller.finalize(
-            recordedAudioData: Data(),
+            recordedAudioData: Data(repeating: 0, count: MemoryLayout<Float>.size),
             recordingDuration: 0
         )
 
         #expect(enhancementCallCount == 1)
-        #expect(enhancementInput != nil)
-        #expect(enhancementVocabulary == ["Fenneko"])
+        #expect(enhancementInput == "batch transcript")
+        #expect(enhancementVocabulary == [])
+        #expect(batchEngine.receivedOptions?.vocabularyBiasWords == [])
         #expect(outcome.originalStreamedText == enhancementInput)
         #expect(outcome.finalText == "Enhanced final text.")
         #expect(outcome.enhancedWithModel == "mock-model")

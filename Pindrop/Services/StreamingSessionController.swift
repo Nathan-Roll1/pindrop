@@ -322,12 +322,22 @@ final class StreamingSessionController {
         // (pauses included) with full bidirectional context and places punctuation
         // correctly. The streamed text remains the live overlay preview and the
         // fallback whenever the offline pass fails, stalls, or comes back empty.
+        // Parakeet/Nemotron does not support vocabulary biasing. Forwarding the
+        // dictionary into the fallback Whisper prompt or post-stop enhancer can
+        // hallucinate unrelated vocabulary terms into otherwise valid speech.
+        let vocabularyWords: [String]
+        if settingsStore.resolvedTranscriptionBackend == .parakeet {
+            vocabularyWords = []
+        } else {
+            vocabularyWords =
+                (try? dictionaryStore.fetchAllVocabularyWords().map(\.word)) ?? []
+        }
+
         if !recordedAudioData.isEmpty {
             try ensureNotCancelled()
             liveTranscriptState.beginEnhancing()
             do {
                 let language = settingsStore.selectedAppLanguage
-                let vocabularyBias = (try? dictionaryStore.vocabularyBiasWords()) ?? []
                 let timeout = Self.offlineRetranscriptionTimeout(recordingDuration: recordingDuration)
                 let transcriptionStart = pipelineClock.now
                 let refinedText = try await Self.withFinalizeTimeout(
@@ -338,7 +348,7 @@ final class StreamingSessionController {
                         diarizationEnabled: false,
                         options: TranscriptionOptions(
                             language: language,
-                            vocabularyBiasWords: vocabularyBias
+                            vocabularyBiasWords: vocabularyWords
                         )
                     ).text
                 }
@@ -383,8 +393,6 @@ final class StreamingSessionController {
         }
         try ensureNotCancelled()
         try? dictionaryStore.recordVocabularyHits(in: textAfterReplacements)
-
-        let vocabularyWords = (try? dictionaryStore.fetchAllVocabularyWords().map(\.word)) ?? []
 
         // A configured transcription-enhancement assignment owns the post-stop LLM pass.
         // Streaming text is only the live preview and fallback; the authoritative offline

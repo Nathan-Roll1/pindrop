@@ -1462,26 +1462,26 @@ public final class TranscriptionService {
         sampleRate: Int,
         options: TranscriptionOptions
     ) async -> TranscriptionOptions {
+        // Reapplying the vocabulary prompt to every diarized slice can make it dominate
+        // short or noisy segments and leak the prompt itself into the transcript.
+        let unbiasedOptions = TranscriptionOptions(language: options.language)
         guard options.language == .automatic else {
-            return options
+            return unbiasedOptions
         }
 
         do {
             guard let detectedLanguage = try await engine.detectLanguage(samples: samples, sampleRate: sampleRate),
                   detectedLanguage != .automatic else {
-                return options
+                return unbiasedOptions
             }
 
             Log.transcription.info("Pinned detected language for diarized transcription segments: \(detectedLanguage.rawValue)")
-            return TranscriptionOptions(
-                language: detectedLanguage,
-                vocabularyBiasWords: options.vocabularyBiasWords
-            )
+            return TranscriptionOptions(language: detectedLanguage)
         } catch {
             Log.transcription.warning(
                 "Language detection for diarized transcription failed; using per-segment automatic detection: \(error.localizedDescription)"
             )
-            return options
+            return unbiasedOptions
         }
     }
 

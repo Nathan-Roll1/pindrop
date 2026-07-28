@@ -446,7 +446,10 @@ struct TranscriptionServiceTests {
         _ = try await service.transcribe(
             audioData: makeFloatAudioData(seconds: 3.0),
             diarizationEnabled: true,
-            options: TranscriptionOptions(language: .automatic)
+            options: TranscriptionOptions(
+                language: .automatic,
+                vocabularyBiasWords: ["Codex", "Fenneko"]
+            )
         )
 
         #expect(mockEngine.detectLanguageCallCount == 1)
@@ -454,6 +457,45 @@ struct TranscriptionServiceTests {
         #expect(mockEngine.receivedOptions == [
             TranscriptionOptions(language: .german),
             TranscriptionOptions(language: .german)
+        ])
+    }
+
+    @Test func transcribeWithDiarizationStripsVocabularyBiasFromFixedLanguageSegments() async throws {
+        let mockEngine = MockDiarizationTranscriptionEngine()
+        mockEngine.transcribeResponses = ["Hello team", "Ship it"]
+
+        let speakerA = Speaker(id: "speaker-a", label: "A", embedding: nil)
+        let speakerB = Speaker(id: "speaker-b", label: "B", embedding: nil)
+        let mockDiarizer = MockSpeakerDiarizer()
+        mockDiarizer.nextResult = DiarizationResult(
+            segments: [
+                SpeakerSegment(speaker: speakerA, startTime: 0.0, endTime: 1.4, confidence: 0.9),
+                SpeakerSegment(speaker: speakerB, startTime: 1.6, endTime: 3.0, confidence: 0.9)
+            ],
+            speakers: [speakerA, speakerB],
+            audioDuration: 3.0
+        )
+
+        let service = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            engineFactory: { _ in mockEngine },
+            diarizerFactory: { _ in mockDiarizer }
+        )
+
+        try await service.loadModel(modelName: "tiny", provider: .whisperKit)
+        _ = try await service.transcribe(
+            audioData: makeFloatAudioData(seconds: 3.0),
+            diarizationEnabled: true,
+            options: TranscriptionOptions(
+                language: .english,
+                vocabularyBiasWords: ["Codex", "Fenneko"]
+            )
+        )
+
+        #expect(mockEngine.detectLanguageCallCount == 0)
+        #expect(mockEngine.receivedOptions == [
+            TranscriptionOptions(language: .english),
+            TranscriptionOptions(language: .english)
         ])
     }
 
