@@ -76,7 +76,9 @@ public enum CaptureStageAssignmentError: Error, Codable, Sendable, Equatable, Lo
     }
 }
 
-/// An immutable provider selection for a single capture pipeline stage attempt.
+/// An immutable logical provider selection for a single capture pipeline stage attempt.
+/// The logical provider UUID, model, and resolved prompt are frozen; runtime provider
+/// configuration, endpoint, and credentials are intentionally late-bound at execution time.
 public struct CaptureStageAssignment: Codable, Sendable, Equatable {
     public let stage: CapturePipelineStage
     public let providerKind: CaptureAssignmentProviderKind

@@ -14,13 +14,35 @@ import PindropCore
 @MainActor
 @Suite(.serialized)
 struct NotesStoreTests {
-    private func makeStore() throws -> NotesStore {
-        let modelContainer = try PindropModelContainerFactory.makeInMemoryContainer()
-        let modelContext = ModelContext(modelContainer)
-        return NotesStore(
-            modelContext: modelContext,
+    private func makeContainer() throws -> ModelContainer {
+        try PindropModelContainerFactory.makeInMemoryContainer()
+    }
+
+    private func makeStore(in container: ModelContainer) -> NotesStore {
+        NotesStore(
+            modelContext: ModelContext(container),
             metadataGenerator: { _, _ in nil }
         )
+    }
+
+    private func makeStore() throws -> NotesStore {
+        makeStore(in: try makeContainer())
+    }
+
+    private func insertMeetingReference(
+        in container: ModelContainer,
+        noteID: UUID,
+        role: CaptureNoteRole
+    ) throws -> CaptureNoteReferenceModel {
+        let context = ModelContext(container)
+        let reference = CaptureNoteReferenceModel(
+            sessionID: UUID(),
+            noteID: noteID,
+            role: role
+        )
+        context.insert(reference)
+        try context.save()
+        return reference
     }
 
     @Test func createNote() async throws {
@@ -36,6 +58,17 @@ struct NotesStoreTests {
         #expect(notes.first?.content == "This is a test note content.")
         #expect(notes.first?.tags == [])
         #expect(notes.first?.isPinned == false)
+    }
+
+    @Test func fetchReturnsRegisteredNoteAfterDurableLookup() async throws {
+        let notesStore = try makeStore()
+        let created = try await notesStore.create(title: "Durable", content: "Persisted content")
+
+        let fetched = try notesStore.fetch(id: created.id)
+
+        #expect(fetched.id == created.id)
+        #expect(fetched.title == "Durable")
+        #expect(fetched.content == "Persisted content")
     }
 
     @Test func createNoteWithAutoTitle() async throws {
@@ -164,6 +197,114 @@ struct NotesStoreTests {
 
         notes = try notesStore.fetchAll()
         #expect(notes.count == 0)
+    }
+
+    @Test func deleteProtectsMeetingHumanAnchorWithoutMutation() async throws {
+        let container = try makeContainer()
+        let notesStore = makeStore(in: container)
+        let anchor = try await notesStore.create(title: "Anchor", content: "Human content")
+        let reference = try insertMeetingReference(
+            in: container,
+            noteID: anchor.id,
+            role: .humanAnchor
+        )
+
+        #expect(throws: NotesStore.NotesStoreError.meetingAnchorProtected(noteID: anchor.id)) {
+            try notesStore.delete(anchor)
+        }
+
+        let freshContext = ModelContext(container)
+        #expect(try freshContext.fetch(FetchDescriptor<Note>()).map(\.id) == [anchor.id])
+        #expect(
+            try freshContext.fetch(FetchDescriptor<CaptureNoteReferenceModel>()).map(\.id)
+                == [reference.id]
+        )
+    }
+
+    @Test func deleteAllProtectsEveryMeetingHumanAnchorWithoutMutation() async throws {
+        let container = try makeContainer()
+        let notesStore = makeStore(in: container)
+        let anchor = try await notesStore.create(title: "Anchor", content: "Human content")
+        let generated = try await notesStore.create(title: "Generated", content: "Generated content")
+        let anchorReference = try insertMeetingReference(
+            in: container,
+            noteID: anchor.id,
+            role: .humanAnchor
+        )
+        let generatedReference = try insertMeetingReference(
+            in: container,
+            noteID: generated.id,
+            role: .generated
+        )
+
+        #expect(throws: NotesStore.NotesStoreError.meetingAnchorProtected(noteID: anchor.id)) {
+            try notesStore.deleteAll()
+        }
+
+        let freshContext = ModelContext(container)
+        #expect(
+            Set(try freshContext.fetch(FetchDescriptor<Note>()).map(\.id))
+                == Set([anchor.id, generated.id])
+        )
+        #expect(
+            Set(try freshContext.fetch(FetchDescriptor<CaptureNoteReferenceModel>()).map(\.id))
+                == Set([anchorReference.id, generatedReference.id])
+        )
+    }
+
+    @Test func deleteRemovesGeneratedMeetingReferenceAndAllowsRegeneration() async throws {
+        let container = try makeContainer()
+        let notesStore = makeStore(in: container)
+        let generated = try await notesStore.create(title: "Generated", content: "Generated content")
+        _ = try insertMeetingReference(in: container, noteID: generated.id, role: .generated)
+
+        try notesStore.delete(generated)
+
+        let deletedContext = ModelContext(container)
+        #expect(try deletedContext.fetch(FetchDescriptor<Note>()).isEmpty)
+        #expect(try deletedContext.fetch(FetchDescriptor<CaptureNoteReferenceModel>()).isEmpty)
+
+        let regenerated = try await notesStore.create(
+            title: "Regenerated",
+            content: "Regenerated generated content"
+        )
+        _ = try insertMeetingReference(in: container, noteID: regenerated.id, role: .generated)
+
+        let freshContext = ModelContext(container)
+        #expect(try freshContext.fetch(FetchDescriptor<Note>()).map(\.id) == [regenerated.id])
+        #expect(
+            try freshContext.fetch(FetchDescriptor<CaptureNoteReferenceModel>()).map(\.noteID)
+                == [regenerated.id]
+        )
+    }
+
+    @Test func deleteFailsClosedForUnknownMeetingNoteRoleWithoutMutation() async throws {
+        let container = try makeContainer()
+        let notesStore = makeStore(in: container)
+        let note = try await notesStore.create(title: "Unknown role", content: "Protected")
+        let setupContext = ModelContext(container)
+        let reference = CaptureNoteReferenceModel(
+            persistedRawID: UUID(),
+            sessionID: UUID(),
+            noteID: note.id,
+            roleRawValue: "unknown"
+        )
+        setupContext.insert(reference)
+        try setupContext.save()
+
+        #expect(throws: NotesStore.NotesStoreError.deleteFailed("Note has an unrecognized meeting role.")) {
+            try notesStore.delete(note)
+        }
+        #expect(throws: NotesStore.NotesStoreError.deleteFailed("Note has an unrecognized meeting role.")) {
+            try notesStore.deleteAll()
+        }
+
+        let freshContext = ModelContext(container)
+        #expect(try freshContext.fetch(FetchDescriptor<Note>()).map(\.id) == [note.id])
+        #expect(
+            try freshContext.fetch(FetchDescriptor<CaptureNoteReferenceModel>()).map(\.id)
+                == [reference.id]
+        )
     }
 
     @Test func searchByTitle() async throws {

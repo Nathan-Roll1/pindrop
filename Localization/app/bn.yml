@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "সেটিংস → গোপনীয়তা-তে যেকোনো সময় আপনার পছন্দ পরিবর্তন করুন।"
 changes:
   the_language_used_by_pindrop_s_interface: "Changes the language used by Pindrop's interface."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "এই প্রদানকারীর শংসাপত্র ও এন্ডপয়েন্টে করা পরিবর্তনগুলি চলমান ও পুনরুদ্ধার করা ক্যাপচারগুলিতে প্রযোজ্য। নির্বাচিত মডেল ও প্রম্পট অপরিবর্তিত থাকে।"
 check:
   for_updates: "আপডেটের জন্য চেক করুন..."
   for_updates_736b9062: "আপডেটের জন্য চেক করুন"

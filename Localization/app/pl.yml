@@ -164,6 +164,7 @@ change:
   your_choice_anytime_in_settings_privacy: "Zmień swój wybór w dowolnym momencie w Ustawienia → Prywatność."
 changes:
   the_language_used_by_pindrop_s_interface: "Zmienia język interfejsu Pindropa."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "Zmiany poświadczeń i punktu końcowego tego dostawcy dotyczą trwających i odzyskanych nagrań. Wybrany model i prompt pozostają niezmienione."
 check:
   for_updates: "Sprawdź aktualizacje..."
   for_updates_736b9062: "Sprawdź aktualizacje"

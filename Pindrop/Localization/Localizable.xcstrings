@@ -21506,6 +21506,198 @@
         }
       }
     },
+    "changes_to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures": {
+      "comment": "Changes to this provider's credentials and endpoint apply to in-progress and recovered captures. The selected model and prompt stay fixed.",
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تنطبق التغييرات التي تطرأ على بيانات اعتماد هذا الموفّر ونقطة النهاية على عمليات الالتقاط الجارية والمستعادة. يظل النموذج المحدد والمطالبة المحددة ثابتين."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "এই প্রদানকারীর শংসাপত্র ও এন্ডপয়েন্টে করা পরিবর্তনগুলি চলমান ও পুনরুদ্ধার করা ক্যাপচারগুলিতে প্রযোজ্য। নির্বাচিত মডেল ও প্রম্পট অপরিবর্তিত থাকে।"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Změny přihlašovacích údajů a koncového bodu tohoto poskytovatele se vztahují na probíhající a obnovené záznamy. Vybraný model a výzva zůstávají beze změny."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ændringer af denne udbyders legitimationsoplysninger og slutpunkt gælder for igangværende og gendannede optagelser. Den valgte model og prompt forbliver uændrede."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen an den Anmeldedaten und dem Endpunkt dieses Anbieters gelten für laufende und wiederhergestellte Aufnahmen. Das ausgewählte Modell und der Prompt bleiben unverändert."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Οι αλλαγές στα διαπιστευτήρια και το τελικό σημείο αυτού του παρόχου ισχύουν για τις εγγραφές σε εξέλιξη και τις ανακτημένες εγγραφές. Το επιλεγμένο μοντέλο και η προτροπή παραμένουν αμετάβλητα."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changes to this provider's credentials and endpoint apply to in-progress and recovered captures. The selected model and prompt stay fixed."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los cambios en las credenciales y el endpoint de este proveedor se aplican a las capturas en curso y recuperadas. El modelo y el prompt seleccionados permanecen fijos."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tämän palveluntarjoajan tunnistetietojen ja päätepisteen muutokset koskevat käynnissä olevia ja palautettuja tallenteita. Valittu malli ja kehote pysyvät samoina."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les modifications des informations d’identification et du point de terminaison de ce fournisseur s’appliquent aux captures en cours et récupérées. Le modèle et le prompt sélectionnés restent inchangés."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "שינויים באישורים ובנקודת הקצה של ספק זה יחולו על לכידות בתהליך ולכידות ששוחזרו. המודל וההנחיה שנבחרו יישארו קבועים."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस प्रदाता के क्रेडेंशियल और समापन बिंदु में किए गए बदलाव चल रहे और पुनर्प्राप्त कैप्चर पर लागू होते हैं। चयनित मॉडल और प्रॉम्प्ट स्थिर रहते हैं।"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Az adott szolgáltató hitelesítési adatainak és végpontjának módosításai érvényesek a folyamatban lévő és helyreállított rögzítésekre. A kiválasztott modell és prompt változatlan marad."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perubahan pada kredensial dan titik akhir penyedia ini berlaku untuk tangkapan yang sedang berlangsung dan yang dipulihkan. Model dan prompt yang dipilih tetap tidak berubah."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le modifiche alle credenziali e all’endpoint di questo provider si applicano alle acquisizioni in corso e recuperate. Il modello e il prompt selezionati rimangono fissi."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このプロバイダーの認証情報とエンドポイントを変更すると、進行中および復元されたキャプチャに適用されます。選択したモデルとプロンプトは固定されたままです。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 제공업체의 자격 증명과 엔드포인트를 변경하면 진행 중인 캡처와 복구된 캡처에 적용됩니다. 선택한 모델과 프롬프트는 그대로 유지됩니다."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perubahan pada bukti kelayakan dan titik akhir pembekal ini terpakai pada tangkapan yang sedang berlangsung dan dipulihkan. Model dan gesaan yang dipilih kekal tidak berubah."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Endringer i denne leverandørens legitimasjon og endepunkt gjelder for pågående og gjenopprettede opptak. Den valgte modellen og ledeteksten forblir uendret."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wijzigingen in de inloggegevens en het eindpunt van deze aanbieder zijn van toepassing op lopende en herstelde opnamen. Het geselecteerde model en de prompt blijven ongewijzigd."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zmiany poświadczeń i punktu końcowego tego dostawcy dotyczą trwających i odzyskanych nagrań. Wybrany model i prompt pozostają niezmienione."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alterações nas credenciais e no endpoint deste provedor se aplicam às capturas em andamento e recuperadas. O modelo e o prompt selecionados permanecem inalterados."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modificările acreditărilor și ale punctului final pentru acest furnizor se aplică înregistrărilor aflate în curs și celor recuperate. Modelul și promptul selectate rămân neschimbate."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменения учетных данных и конечной точки этого провайдера применяются к текущим и восстановленным захватам. Выбранная модель и выбранный промпт остаются неизменными."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ändringar av den här leverantörens inloggningsuppgifter och slutpunkt gäller för pågående och återställda inspelningar. Den valda modellen och prompten förblir oförändrade."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การเปลี่ยนแปลงข้อมูลรับรองและปลายทางของผู้ให้บริการนี้จะมีผลกับการบันทึกที่กำลังดำเนินอยู่และการบันทึกที่กู้คืนมา โมเดลและพรอมต์ที่เลือกไว้จะยังคงเดิม"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu sağlayıcının kimlik bilgileri ve uç noktasındaki değişiklikler, devam eden ve kurtarılan kayıtlar için geçerli olur. Seçilen model ve istem sabit kalır."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зміни облікових даних і кінцевої точки цього постачальника застосовуються до поточних і відновлених записів. Вибрана модель і промпт залишаються незмінними."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các thay đổi đối với thông tin xác thực và điểm cuối của nhà cung cấp này sẽ áp dụng cho các bản ghi đang thực hiện và đã khôi phục. Mô hình và lời nhắc đã chọn vẫn được giữ nguyên."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "对该提供商凭据和端点的更改会应用于进行中的捕获和已恢复的捕获。所选模型和提示词保持不变。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "對此提供商憑證和端點的變更會套用至進行中的擷取和已復原的擷取。所選模型和提示詞維持不變。"
+          }
+        }
+      }
+    },
     "check_for_updates": {
       "comment": "check_for_updates",
       "extractionState": "manual",

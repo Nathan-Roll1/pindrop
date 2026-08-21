@@ -1362,6 +1362,7 @@ enum LocalizationMetadata {
         "Change microphone": "change_microphone_ac9970f4",
         "Change your choice anytime in Settings → Privacy.": "change_your_choice_anytime_in_settings_privacy",
         "Changes the language used by Pindrop's interface.": "changes_the_language_used_by_pindrop_s_interface",
+        "Changes to this provider's credentials and endpoint apply to in-progress and recovered captures. The selected model and prompt stay fixed.": "changes_to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures",
         "Check Now": "check_now",
         "Check for Updates...": "check_for_updates",
         "Check for updates": "check_for_updates_736b9062",

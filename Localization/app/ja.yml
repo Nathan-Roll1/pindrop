@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "設定 → プライバシー でいつでも選択を変更できます。"
 changes:
   the_language_used_by_pindrop_s_interface: "Pindrop のインターフェース言語を変更します。"
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "このプロバイダーの認証情報とエンドポイントを変更すると、進行中および復元されたキャプチャに適用されます。選択したモデルとプロンプトは固定されたままです。"
 check:
   for_updates: "アップデートを確認してください..."
   for_updates_736b9062: "アップデートを確認する"

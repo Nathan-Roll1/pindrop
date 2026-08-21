@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "Ändere deine Wahl jederzeit unter Einstellungen → Datenschutz."
 changes:
   the_language_used_by_pindrop_s_interface: "Ändert die Sprache der Pindrop-Oberfläche."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "Änderungen an den Anmeldedaten und dem Endpunkt dieses Anbieters gelten für laufende und wiederhergestellte Aufnahmen. Das ausgewählte Modell und der Prompt bleiben unverändert."
 check:
   for_updates: "Auf Updates prüfen..."
   for_updates_736b9062: "Auf Updates prüfen"

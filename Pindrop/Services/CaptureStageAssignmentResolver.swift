@@ -67,8 +67,8 @@ struct CaptureStageAssignmentPreview: Equatable, Sendable, Identifiable {
 
 /// Resolves capture stages exclusively from the current supported settings and model catalog.
 ///
-/// The returned assignment deliberately contains durable identifiers and resolved prompt text,
-/// never credentials, endpoint URLs, or model catalog metadata that can change after capture.
+/// Returned assignments freeze the logical provider UUID, model, and resolved prompt, never
+/// credentials, endpoint URLs, or provider configuration that are late-bound at runtime.
 @MainActor
 final class CaptureStageAssignmentResolver {
     private struct StageSelection {
@@ -76,6 +76,7 @@ final class CaptureStageAssignmentResolver {
         let providerIdentifier: String
         let modelIdentifier: String?
         let previewValue: String?
+        let previewState: CaptureStageAssignmentPreview.State
     }
 
     private let settings: SettingsStore
@@ -158,10 +159,10 @@ final class CaptureStageAssignmentResolver {
         }
     }
 
-    /// Resolves the current runtime material for a persisted note assignment without consulting
-    /// the current purpose assignment. This preserves the provider/model/prompt selected when
-    /// the capture was created while intentionally loading only the provider's *current*
-    /// Keychain credential and endpoint.
+    /// Resolves current runtime provider configuration and Keychain credential for a persisted
+    /// logical provider UUID without consulting the current purpose assignment. The persisted
+    /// assignment freezes its UUID, model, and resolved prompt; current provider configuration,
+    /// endpoint, and credential are intentionally late-bound for in-progress and recovered captures.
     func resolveNoteGenerationRuntime(
         for persistedAssignment: CaptureStageAssignment
     ) throws -> ResolvedAssignment {
@@ -303,7 +304,8 @@ final class CaptureStageAssignmentResolver {
                 providerKind: .disabled,
                 providerIdentifier: "streaming-disabled",
                 modelIdentifier: nil,
-                previewValue: nil
+                previewValue: nil,
+                previewState: .disabled
             )
         }
 
@@ -317,21 +319,24 @@ final class CaptureStageAssignmentResolver {
                     providerKind: .bestEffortUnavailable,
                     providerIdentifier: TranscriptionBackend.parakeet.rawValue,
                     modelIdentifier: modelIdentifier,
-                    previewValue: previewValue
+                    previewValue: previewValue,
+                    previewState: .unavailable
                 )
             }
             return StageSelection(
                 providerKind: .streamingSpeech,
                 providerIdentifier: TranscriptionBackend.parakeet.rawValue,
                 modelIdentifier: modelIdentifier,
-                previewValue: previewValue
+                previewValue: previewValue,
+                previewState: .ready
             )
         case .appleSpeechTranscriber:
             return StageSelection(
                 providerKind: .streamingSpeech,
                 providerIdentifier: TranscriptionBackend.appleSpeechTranscriber.rawValue,
                 modelIdentifier: "apple-speech-transcriber/progressive",
-                previewValue: TranscriptionBackend.appleSpeechTranscriber.displayNameKey
+                previewValue: TranscriptionBackend.appleSpeechTranscriber.displayNameKey,
+                previewState: .ready
             )
         }
     }
@@ -367,7 +372,8 @@ final class CaptureStageAssignmentResolver {
             providerKind: .batchSpeech,
             providerIdentifier: model.provider.rawValue,
             modelIdentifier: model.name,
-            previewValue: model.displayName
+            previewValue: model.displayName,
+            previewState: .ready
         )
     }
 
@@ -381,7 +387,8 @@ final class CaptureStageAssignmentResolver {
                 providerKind: .disabled,
                 providerIdentifier: "user-disabled",
                 modelIdentifier: nil,
-                previewValue: nil
+                previewValue: nil,
+                previewState: .disabled
             )
         }
         guard modelManager.isOfflineDiarizationReady() else {
@@ -389,14 +396,16 @@ final class CaptureStageAssignmentResolver {
                 providerKind: .bestEffortUnavailable,
                 providerIdentifier: FeatureModelType.diarization.rawValue,
                 modelIdentifier: modelIdentifier,
-                previewValue: nil
+                previewValue: nil,
+                previewState: .unavailable
             )
         }
         return StageSelection(
             providerKind: .localDiarization,
             providerIdentifier: FeatureModelType.diarization.rawValue,
             modelIdentifier: modelIdentifier,
-            previewValue: nil
+            previewValue: nil,
+            previewState: .ready
         )
     }
 
@@ -406,7 +415,8 @@ final class CaptureStageAssignmentResolver {
                 providerKind: .disabled,
                 providerIdentifier: "note-enhancement-unassigned",
                 modelIdentifier: nil,
-                previewValue: nil
+                previewValue: nil,
+                previewState: .disabled
             )
         }
         let modelIdentifier = configuredAssignment.modelID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -415,31 +425,27 @@ final class CaptureStageAssignmentResolver {
                 providerKind: .bestEffortUnavailable,
                 providerIdentifier: configuredAssignment.providerID.uuidString,
                 modelIdentifier: configuredAssignment.modelID,
-                previewValue: settings.provider(withID: configuredAssignment.providerID)?.displayName
+                previewValue: settings.provider(withID: configuredAssignment.providerID)?.displayName,
+                previewState: .unavailable
             )
         }
-        guard let provider = settings.provider(withID: configuredAssignment.providerID) else {
-            return StageSelection(
-                providerKind: .bestEffortUnavailable,
-                providerIdentifier: configuredAssignment.providerID.uuidString,
-                modelIdentifier: configuredAssignment.modelID,
-                previewValue: configuredAssignment.modelID
-            )
+
+        let provider = settings.provider(withID: configuredAssignment.providerID)
+        let previewValue = provider.map { "\($0.displayName) · \(configuredAssignment.modelID)" }
+            ?? configuredAssignment.modelID
+        let previewState: CaptureStageAssignmentPreview.State
+        if let provider, providerHasUsableCredential(provider, settings: settings) {
+            previewState = .ready
+        } else {
+            previewState = .unavailable
         }
-        let value = "\(provider.displayName) · \(configuredAssignment.modelID)"
-        guard providerHasUsableCredential(provider, settings: settings) else {
-            return StageSelection(
-                providerKind: .bestEffortUnavailable,
-                providerIdentifier: provider.id.uuidString,
-                modelIdentifier: configuredAssignment.modelID,
-                previewValue: value
-            )
-        }
+
         return StageSelection(
             providerKind: .generativeAI,
-            providerIdentifier: provider.id.uuidString,
+            providerIdentifier: configuredAssignment.providerID.uuidString,
             modelIdentifier: configuredAssignment.modelID,
-            previewValue: value
+            previewValue: previewValue,
+            previewState: previewState
         )
     }
 
@@ -447,18 +453,9 @@ final class CaptureStageAssignmentResolver {
         stage: CapturePipelineStage,
         selection: StageSelection
     ) -> CaptureStageAssignmentPreview {
-        let state: CaptureStageAssignmentPreview.State
-        switch selection.providerKind {
-        case .disabled:
-            state = .disabled
-        case .bestEffortUnavailable:
-            state = .unavailable
-        case .streamingSpeech, .batchSpeech, .localDiarization, .generativeAI:
-            state = .ready
-        }
-        return CaptureStageAssignmentPreview(
+        CaptureStageAssignmentPreview(
             stage: stage,
-            state: state,
+            state: selection.previewState,
             value: selection.previewValue
         )
     }

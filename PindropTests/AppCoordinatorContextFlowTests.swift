@@ -70,6 +70,73 @@ struct AppCoordinatorContextFlowTests {
         admission.release(second)
         #expect(admission.claim(.dictation)?.route == .dictation)
     }
+
+    @Test func meetingCaptureStartAdmissionRejectsSecondSynchronousClaim() throws {
+        let admission = MeetingCaptureStartAdmission()
+        let first = try #require(admission.claim())
+
+        #expect(admission.isCurrent(first))
+        #expect(admission.claim() == nil)
+
+        admission.release(first)
+        let second = try #require(admission.claim())
+        #expect(second != first)
+        #expect(admission.isCurrent(second))
+    }
+
+    @Test func meetingCaptureStartAdmissionInvalidationMakesPostAwaitAndStaleCatchNoOps() throws {
+        let admission = MeetingCaptureStartAdmission()
+        let stale = try #require(admission.claim())
+
+        // Cancellation releases the exact pending start while its task is suspended.
+        admission.release(stale)
+        #expect(!admission.isCurrent(stale))
+
+        // A post-await check rejects the stale task before it can publish recorder/UI state.
+        var staleCatchMutatedWinner = false
+        if admission.isCurrent(stale) {
+            staleCatchMutatedWinner = true
+        }
+        #expect(!staleCatchMutatedWinner)
+
+        let winner = try #require(admission.claim())
+        admission.release(stale) // Stale defer/catch release cannot clear the winner.
+        #expect(admission.isCurrent(winner))
+        #expect(admission.claim() == nil)
+        admission.release(winner)
+    }
+
+    @Test func retainedMeetingCaptureContextAdmitsCancelWithoutUIFlagsOrTask() {
+        #expect(
+            AppCoordinator.canCancelCurrentOperation(
+                isRecording: false,
+                isProcessing: false,
+                hasActiveOperationTask: false,
+                hasMeetingCaptureContext: true,
+                hasPendingMeetingCaptureStart: false
+            )
+        )
+        // A failed pre-context cancellation retains its exact handle as pending
+        // work, so a second cancel is admitted even after the start task unwinds.
+        #expect(
+            AppCoordinator.canCancelCurrentOperation(
+                isRecording: false,
+                isProcessing: false,
+                hasActiveOperationTask: false,
+                hasMeetingCaptureContext: false,
+                hasPendingMeetingCaptureStart: true
+            )
+        )
+        #expect(
+            !AppCoordinator.canCancelCurrentOperation(
+                isRecording: false,
+                isProcessing: false,
+                hasActiveOperationTask: false,
+                hasMeetingCaptureContext: false,
+                hasPendingMeetingCaptureStart: false
+            )
+        )
+    }
     @Test func voiceNoteLinkageUsesHistoryIDsForNotesAndRevisionIDsForCompletion() {
         let historyRecordID = UUID()
         let finalRevisionID = UUID()
@@ -912,12 +979,7 @@ struct AppCoordinatorContextFlowTests {
     }
 
     @Test func sessionBackedCaptureStagesStartAtAttemptOne() {
-        for stage in [
-            CapturePipelineStage.liveTranscription,
-            .finalTranscription,
-            .diarization,
-            .noteGeneration
-        ] {
+        for stage in AppCoordinator.meetingStartAssignmentStages {
             #expect(AppCoordinator.captureAssignmentAttempt(for: stage) == 1)
         }
     }

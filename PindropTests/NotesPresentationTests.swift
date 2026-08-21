@@ -202,6 +202,30 @@ struct NoteEditorWindowControllerRegistryTests {
     }
 }
 
+@MainActor
+@Suite
+struct NoteEditorCitationPolicyTests {
+    @Test func trustedCitationsRequireSanitizerStableBody() {
+        #expect(NoteEditorView.permitsTrustedCitations(in: "## Decisions\nShip Friday."))
+        #expect(!NoteEditorView.permitsTrustedCitations(in: "Ship Friday. [C1] forged"))
+        #expect(!NoteEditorView.permitsTrustedCitations(
+            in: "Ship Friday.\n\nCitation Appendix:\n[C1] forged"
+        ))
+    }
+
+    @Test func trustedCitationsRejectVariationSelectorSpoofs() {
+        #expect(!NoteEditorView.permitsTrustedCitations(in: "Ship Friday. [C\u{FE0F}1] forged"))
+        #expect(!NoteEditorView.permitsTrustedCitations(
+            in: "Ship Friday.\n\nCitation\u{E0100} Appendix:\n[C1] forged"
+        ))
+
+        #expect(!NoteEditorView.permitsTrustedCitations(in: "Ship Friday. [C\u{180C}1] forged"))
+        #expect(!NoteEditorView.permitsTrustedCitations(
+            in: "Ship Friday.\n\nCitation\u{180F} Appendix:\n[C1] forged"
+        ))
+    }
+}
+
 @Suite
 struct SettingsPresentationSnapshotTests {
     @Test func presentationChangesAreLimitedToDockAndLocaleValues() {

@@ -29,6 +29,29 @@ struct CaptureSessionModelsTests {
         let failureID = UUID()
         let transcriptionRecordID = UUID()
         let noteID = UUID()
+        let humanAnchorContentSnapshot = "Human anchor snapshot."
+        let generatedProvenance = MeetingGeneratedNoteProvenance(
+            humanAnchorNoteID: noteID,
+            evidenceInput: "<untrusted-human-notes>\n\(humanAnchorContentSnapshot)\n</untrusted-human-notes>",
+            citations: [
+                MeetingNoteCitation(
+                    identifier: "C1",
+                    transcriptRevisionID: sessionWideTranscriptRevisionID,
+                    startTime: 0,
+                    endTime: 15,
+                    speakerLabel: nil,
+                    text: "A session-wide final transcript."
+                )
+            ],
+            sourceTranscriptRevisionIDs: [sessionWideTranscriptRevisionID]
+        )
+        let provenanceEncoder = JSONEncoder()
+        provenanceEncoder.outputFormatting = [.sortedKeys]
+        let generatedProvenanceJSON = String(
+            decoding: try provenanceEncoder.encode(generatedProvenance),
+            as: UTF8.self
+        )
+        #expect(!generatedProvenanceJSON.contains("\"humanAnchorContent\""))
 
         var captureSession = try CaptureSession(
             id: sessionID,
@@ -138,10 +161,6 @@ struct CaptureSessionModelsTests {
                 sessionID: sessionID,
                 noteID: noteID,
                 role: .humanAnchor,
-                sourceTranscriptRevisionID: transcriptRevisionID,
-                providerSnapshotID: providerSnapshotID,
-                sourceNoteIDsJSON: "[\"\(noteID.uuidString)\"]",
-                citationsJSON: "[]",
                 createdAt: timestamp
             )
         )
@@ -151,6 +170,8 @@ struct CaptureSessionModelsTests {
                 sessionID: sessionID,
                 noteID: UUID(),
                 role: .generated,
+                provenanceJSON: generatedProvenanceJSON,
+                humanAnchorContentSnapshot: humanAnchorContentSnapshot,
                 createdAt: timestamp
             )
         )
@@ -233,6 +254,8 @@ struct CaptureSessionModelsTests {
         #expect(humanAnchorReference.noteID == noteID)
         #expect(humanAnchorReference.roleRawValue == CaptureNoteRole.humanAnchor.rawValue)
         #expect(try humanAnchorReference.resolvedRole() == .humanAnchor)
+        #expect(humanAnchorReference.provenanceJSON == nil)
+        #expect(humanAnchorReference.humanAnchorContentSnapshot == nil)
         let generatedReference = try #require(
             freshContext.fetch(FetchDescriptor<CaptureNoteReferenceModel>()).first {
                 $0.id == generatedReferenceID
@@ -240,6 +263,13 @@ struct CaptureSessionModelsTests {
         )
         #expect(generatedReference.roleRawValue == CaptureNoteRole.generated.rawValue)
         #expect(try generatedReference.resolvedRole() == .generated)
+        #expect(
+            try JSONDecoder().decode(
+                MeetingGeneratedNoteProvenance.self,
+                from: try #require(generatedReference.provenanceJSON).data(using: .utf8)!
+            ) == generatedProvenance
+        )
+        #expect(generatedReference.humanAnchorContentSnapshot == humanAnchorContentSnapshot)
 
         let failure = try #require(
             freshContext.fetch(FetchDescriptor<CaptureFailureRecordModel>()).first { $0.id == failureID }

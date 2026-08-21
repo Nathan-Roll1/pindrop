@@ -198,7 +198,10 @@ public struct MeetingChunkCheckpoint: Sendable, Equatable {
 }
 
 /// A successful final-ASR output that can be merged without retranscribing its source chunk.
+/// A successful final-ASR output that can be merged without retranscribing its source chunk.
 public struct MeetingTranscriptionCheckpoint: Sendable, Equatable {
+    public let revisionID: UUID
+    public let providerSnapshotID: UUID?
     public let sequence: Int
     public let startOffset: TimeInterval
     public let duration: TimeInterval
@@ -207,6 +210,8 @@ public struct MeetingTranscriptionCheckpoint: Sendable, Equatable {
     public let languageCode: String?
 
     public init(
+        revisionID: UUID,
+        providerSnapshotID: UUID?,
         sequence: Int,
         startOffset: TimeInterval,
         duration: TimeInterval,
@@ -214,12 +219,81 @@ public struct MeetingTranscriptionCheckpoint: Sendable, Equatable {
         segmentsJSON: String?,
         languageCode: String?
     ) {
+        self.revisionID = revisionID
+        self.providerSnapshotID = providerSnapshotID
         self.sequence = sequence
         self.startOffset = startOffset
         self.duration = duration
         self.text = text
         self.segmentsJSON = segmentsJSON
         self.languageCode = languageCode
+    }
+}
+
+/// A durable, user-editable note that anchors a meeting before generated output exists.
+public struct MeetingHumanAnchorSnapshot: Sendable, Equatable {
+    public let sessionID: UUID
+    public let noteID: UUID
+    public let title: String
+    public let content: String
+
+    public init(sessionID: UUID, noteID: UUID, title: String, content: String) {
+        self.sessionID = sessionID
+        self.noteID = noteID
+        self.title = title
+        self.content = content
+    }
+}
+
+/// The reservation and durable inputs required before generating a meeting note.
+public struct MeetingGeneratedNotePreflightSnapshot: Sendable, Equatable {
+    public let sessionID: UUID
+    public let humanAnchor: MeetingHumanAnchorSnapshot
+    public let sourceTranscriptionID: UUID
+    public let providerSnapshotID: UUID
+    public let assignmentAttempt: Int
+
+    public init(
+        sessionID: UUID,
+        humanAnchor: MeetingHumanAnchorSnapshot,
+        sourceTranscriptionID: UUID,
+        providerSnapshotID: UUID,
+        assignmentAttempt: Int
+    ) {
+        self.sessionID = sessionID
+        self.humanAnchor = humanAnchor
+        self.sourceTranscriptionID = sourceTranscriptionID
+        self.providerSnapshotID = providerSnapshotID
+        self.assignmentAttempt = assignmentAttempt
+    }
+}
+
+/// The immutable store identity and provenance for a generated meeting note.
+public struct MeetingGeneratedNoteSnapshot: Sendable, Equatable {
+    public let sessionID: UUID
+    public let noteID: UUID
+    public let humanAnchorNoteID: UUID
+    public let humanAnchorContent: String
+    public let sourceTranscriptionID: UUID
+    public let providerSnapshotID: UUID
+    public let citations: [MeetingNoteCitation]
+
+    public init(
+        sessionID: UUID,
+        noteID: UUID,
+        humanAnchorNoteID: UUID,
+        humanAnchorContent: String,
+        sourceTranscriptionID: UUID,
+        providerSnapshotID: UUID,
+        citations: [MeetingNoteCitation]
+    ) {
+        self.sessionID = sessionID
+        self.noteID = noteID
+        self.humanAnchorNoteID = humanAnchorNoteID
+        self.humanAnchorContent = humanAnchorContent
+        self.sourceTranscriptionID = sourceTranscriptionID
+        self.providerSnapshotID = providerSnapshotID
+        self.citations = citations
     }
 }
 
@@ -366,6 +440,12 @@ public enum CaptureSessionStoreError: Error, Equatable, LocalizedError {
     case assignmentSessionNotFound(UUID)
     case assignmentKeyMismatch
     case duplicateAssignments(sessionID: UUID, stage: CapturePipelineStage, attempt: Int)
+    case meetingHumanAnchorUnavailable(UUID)
+    case meetingHumanAnchorConflict(UUID)
+    case meetingGeneratedNoteConflict(UUID)
+    case meetingGeneratedNoteSourceChanged(UUID)
+    case invalidMeetingGeneratedNote(UUID)
+    case meetingNoteEncodingFailed
     case noteNotFound(UUID)
     case fetchFailed(String)
     case saveFailed(String)
@@ -451,6 +531,18 @@ public enum CaptureSessionStoreError: Error, Equatable, LocalizedError {
             return "Capture assignment does not match its requested stage and attempt."
         case .duplicateAssignments(let sessionID, let stage, let attempt):
             return "Capture session \(sessionID.uuidString) has duplicate \(stage.rawValue) assignments for attempt \(attempt)."
+        case .meetingHumanAnchorUnavailable(let sessionID):
+            return "Meeting capture session \(sessionID.uuidString) has no valid human anchor."
+        case .meetingHumanAnchorConflict(let sessionID):
+            return "Meeting capture session \(sessionID.uuidString) has conflicting human-anchor references."
+        case .meetingGeneratedNoteConflict(let sessionID):
+            return "Meeting capture session \(sessionID.uuidString) has conflicting generated-note references."
+        case .meetingGeneratedNoteSourceChanged(let sessionID):
+            return "Meeting capture session \(sessionID.uuidString) has changed generated-note source evidence."
+        case .invalidMeetingGeneratedNote(let sessionID):
+            return "Meeting capture session \(sessionID.uuidString) has invalid generated-note provenance."
+        case .meetingNoteEncodingFailed:
+            return "Meeting note provenance could not be encoded."
         case .noteNotFound(let id):
             return "Note \(id.uuidString) was not found."
         case .fetchFailed(let message):
@@ -1141,6 +1233,7 @@ public final class CaptureSessionStore {
         text: String,
         segmentsJSON: String? = nil,
         languageCode: String? = nil,
+        assignmentAttempt: Int? = nil,
         at timestamp: Date = Date()
     ) throws -> UUID {
         try checkpointMeetingRevision(
@@ -1152,6 +1245,7 @@ public final class CaptureSessionStore {
             text: text,
             segmentsJSON: segmentsJSON,
             languageCode: languageCode,
+            assignmentAttempt: assignmentAttempt,
             at: timestamp
         )
     }
@@ -1166,6 +1260,7 @@ public final class CaptureSessionStore {
         text: String,
         segmentsJSON: String?,
         languageCode: String?,
+        assignmentAttempt: Int? = nil,
         at timestamp: Date = Date()
     ) throws -> UUID {
         try checkpointMeetingRevision(
@@ -1175,9 +1270,437 @@ public final class CaptureSessionStore {
             startOffset: startOffset,
             duration: duration,
             text: text,
+
             segmentsJSON: segmentsJSON,
             languageCode: languageCode,
+            assignmentAttempt: assignmentAttempt,
             at: timestamp
+        )
+    }
+    /// Creates the single user-owned meeting anchor before any generated output exists.
+    ///
+    /// The note is deliberately returned as-is on retry: users may edit it while
+    /// capture work is cancelled, interrupted, or later resumed.
+    @discardableResult
+    public func ensureMeetingHumanAnchor(
+        _ handle: MeetingCaptureHandle,
+        title: String,
+        at timestamp: Date = Date()
+    ) throws -> MeetingHumanAnchorSnapshot {
+        let context = ModelContext(modelContainer)
+        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
+        guard isHumanAnchorAllowed(sessionStateRawValue: ownedMeeting.session.stateRawValue) else {
+            throw CaptureSessionStoreError.meetingHumanAnchorUnavailable(handle.sessionID)
+        }
+        if let existing = try validMeetingHumanAnchor(sessionID: handle.sessionID, in: context) {
+            return existing
+        }
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw CaptureSessionStoreError.meetingHumanAnchorUnavailable(handle.sessionID)
+        }
+
+        guard try meetingNoteReferences(sessionID: handle.sessionID, in: context).isEmpty else {
+            throw CaptureSessionStoreError.meetingHumanAnchorConflict(handle.sessionID)
+        }
+
+        let note = Note(
+            title: title,
+            content: "",
+            tags: [],
+            sourceTranscriptionID: nil,
+            createdAt: timestamp,
+            updatedAt: timestamp
+        )
+        context.insert(note)
+        context.insert(CaptureNoteReferenceModel(
+            sessionID: handle.sessionID,
+            noteID: note.id,
+            role: .humanAnchor,
+            createdAt: timestamp
+        ))
+        try save(context)
+        return MeetingHumanAnchorSnapshot(
+            sessionID: handle.sessionID,
+            noteID: note.id,
+            title: note.title,
+            content: note.content
+        )
+    }
+
+    /// Returns the existing human anchor without creating or mutating durable state.
+    public func meetingHumanAnchor(
+        _ handle: MeetingCaptureHandle
+    ) throws -> MeetingHumanAnchorSnapshot? {
+        let context = ModelContext(modelContainer)
+        _ = try fetchOwnedMeeting(for: handle, in: context)
+        return try validMeetingHumanAnchor(sessionID: handle.sessionID, in: context)
+    }
+
+    /// Validates the reservation and immutable provenance required for generated output.
+    public func meetingGeneratedNotePreflight(
+        _ handle: MeetingCaptureHandle,
+        assignmentAttempt: Int = 1
+    ) throws -> MeetingGeneratedNotePreflightSnapshot {
+        let context = ModelContext(modelContainer)
+        return try meetingGeneratedNotePreflight(
+            handle,
+            assignmentAttempt: assignmentAttempt,
+            in: context
+        )
+    }
+
+    /// Returns persisted generated meeting output when its immutable provenance remains valid.
+    public func generatedMeetingNote(
+        _ handle: MeetingCaptureHandle,
+        assignmentAttempt: Int = 1
+    ) throws -> MeetingGeneratedNoteSnapshot? {
+        let context = ModelContext(modelContainer)
+        _ = try fetchOwnedMeeting(for: handle, in: context)
+        let references = try meetingNoteReferences(sessionID: handle.sessionID, in: context)
+        let generatedReferences: [CaptureNoteReferenceModel]
+        do {
+            for reference in references {
+                _ = try reference.resolvedRole()
+            }
+            generatedReferences = try references.filter {
+                try $0.resolvedRole() == .generated
+            }
+        } catch {
+            throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+        }
+        guard generatedReferences.count <= 1 else {
+            throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+        }
+        guard let reference = generatedReferences.first else {
+            return nil
+        }
+        guard references.count == 2 else {
+            throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+        }
+
+        guard assignmentAttempt >= 1 else {
+            throw CaptureSessionStoreError.invalidAssignmentAttempt(assignmentAttempt)
+        }
+        let preflight: MeetingGeneratedNotePreflightSnapshot
+        do {
+            preflight = try meetingGeneratedNotePreflight(
+                handle,
+                assignmentAttempt: assignmentAttempt,
+                in: context
+            )
+        } catch {
+            throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+        }
+        let note: Note
+        let provenance: MeetingGeneratedNoteProvenance
+        let humanAnchorContentSnapshot: String
+        do {
+            guard
+                let fetchedNote = try fetchNote(id: reference.noteID, in: context),
+                let provenanceJSON = reference.provenanceJSON,
+                let provenanceData = provenanceJSON.data(using: .utf8),
+                let snapshot = reference.humanAnchorContentSnapshot
+            else {
+                throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+            }
+            note = fetchedNote
+            provenance = try JSONDecoder().decode(
+                MeetingGeneratedNoteProvenance.self,
+                from: provenanceData
+            )
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            guard provenanceJSON == String(decoding: try encoder.encode(provenance), as: UTF8.self) else {
+                throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+            }
+            humanAnchorContentSnapshot = snapshot
+        } catch {
+            throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+        }
+        guard
+            reference.sourceTranscriptRevisionID == nil,
+            reference.providerSnapshotID == preflight.providerSnapshotID,
+            preflight.humanAnchor.noteID == provenance.humanAnchorNoteID,
+            note.sourceTranscriptionID == preflight.sourceTranscriptionID
+        else {
+            throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+        }
+        // The current anchor reference proves provenance still belongs to this meeting.
+        // The write-once snapshot is the immutable input consumed by the generator.
+        let expectedSource: MeetingNoteSourceBundle
+        do {
+            expectedSource = try derivedMeetingNoteSource(
+                sessionID: handle.sessionID,
+                humanNoteContent: humanAnchorContentSnapshot,
+                in: context
+            )
+        } catch {
+            throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+        }
+        let expectedProvenance = MeetingGeneratedNoteProvenance(
+            humanAnchorNoteID: provenance.humanAnchorNoteID,
+            evidenceInput: expectedSource.evidenceInput,
+            citations: expectedSource.citations,
+            sourceTranscriptRevisionIDs: expectedSource.sourceTranscriptRevisionIDs
+        )
+        guard provenance == expectedProvenance else {
+            throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+        }
+        guard
+            !note.title.isEmpty,
+            note.title == MeetingNoteDerivation.sanitizingGeneratedContent(note.title),
+            !note.content.isEmpty,
+            note.content == MeetingNoteDerivation.sanitizingGeneratedContent(note.content)
+        else {
+            throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+        }
+
+        return MeetingGeneratedNoteSnapshot(
+            sessionID: handle.sessionID,
+            noteID: note.id,
+            humanAnchorNoteID: provenance.humanAnchorNoteID,
+            humanAnchorContent: humanAnchorContentSnapshot,
+            sourceTranscriptionID: preflight.sourceTranscriptionID,
+            providerSnapshotID: preflight.providerSnapshotID,
+            citations: provenance.citations
+        )
+    }
+
+    /// Returns a generated meeting note only when its durable provenance remains valid.
+    ///
+    /// The lookup context establishes the note's owning meeting handle. Validation then
+    /// runs through `generatedMeetingNote(_:assignmentAttempt:)` in its own fresh context.
+    public func generatedMeetingNote(
+        noteID: UUID,
+        assignmentAttempt: Int = 1
+    ) throws -> MeetingGeneratedNoteSnapshot? {
+        let context = ModelContext(modelContainer)
+        let descriptor = FetchDescriptor<CaptureNoteReferenceModel>(
+            predicate: #Predicate<CaptureNoteReferenceModel> { $0.noteID == noteID }
+        )
+        let references: [CaptureNoteReferenceModel]
+        do {
+            references = try context.fetch(descriptor)
+        } catch {
+            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
+        }
+        guard !references.isEmpty else {
+            return nil
+        }
+
+        let generatedReferences: [CaptureNoteReferenceModel]
+        do {
+            generatedReferences = try references.filter {
+                try $0.resolvedRole() == .generated
+            }
+        } catch {
+            throw CaptureSessionStoreError.meetingGeneratedNoteConflict(references[0].sessionID)
+        }
+        guard generatedReferences.count <= 1 else {
+            throw CaptureSessionStoreError.meetingGeneratedNoteConflict(generatedReferences[0].sessionID)
+        }
+        guard let reference = generatedReferences.first else {
+            return nil
+        }
+        guard assignmentAttempt >= 1 else {
+            throw CaptureSessionStoreError.invalidAssignmentAttempt(assignmentAttempt)
+        }
+
+        let handle: MeetingCaptureHandle
+        do {
+            let session = try fetchSession(id: reference.sessionID, in: context)
+            guard session.modeRawValue == CaptureSessionMode.meeting.rawValue else {
+                throw CaptureSessionStoreError.meetingGeneratedNoteConflict(reference.sessionID)
+            }
+            let sources = try fetchSources(sessionID: reference.sessionID, in: context)
+            let microphoneSources = sources.filter {
+                $0.kindRawValue == CaptureSourceKind.microphone.rawValue
+            }
+            let systemAudioSources = sources.filter {
+                $0.kindRawValue == CaptureSourceKind.systemAudio.rawValue
+            }
+            guard
+                sources.count == 2,
+                microphoneSources.count == 1,
+                systemAudioSources.count == 1,
+                let microphoneSource = microphoneSources.first,
+                let systemAudioSource = systemAudioSources.first
+            else {
+                throw CaptureSessionStoreError.meetingGeneratedNoteConflict(reference.sessionID)
+            }
+            handle = MeetingCaptureHandle(
+                sessionID: reference.sessionID,
+                microphoneSourceID: microphoneSource.id,
+                systemAudioSourceID: systemAudioSource.id
+            )
+        } catch {
+            throw CaptureSessionStoreError.meetingGeneratedNoteConflict(reference.sessionID)
+        }
+
+        do {
+            guard let snapshot = try generatedMeetingNote(
+                handle,
+                assignmentAttempt: assignmentAttempt
+            ), snapshot.noteID == noteID else {
+                throw CaptureSessionStoreError.meetingGeneratedNoteConflict(reference.sessionID)
+            }
+            return snapshot
+        } catch {
+            throw CaptureSessionStoreError.meetingGeneratedNoteConflict(reference.sessionID)
+        }
+    }
+
+    /// Saves generated meeting output and its provenance in one transaction.
+    @discardableResult
+    public func saveGeneratedMeetingNote(
+        _ handle: MeetingCaptureHandle,
+        title: String,
+        content: String,
+        source: MeetingNoteSourceBundle,
+        assignmentAttempt: Int = 1,
+        at timestamp: Date = Date()
+    ) throws -> MeetingGeneratedNoteSnapshot {
+        guard
+            !title.isEmpty,
+            title == MeetingNoteDerivation.sanitizingGeneratedContent(title),
+            !content.isEmpty,
+            content == MeetingNoteDerivation.sanitizingGeneratedContent(content),
+            !source.citations.isEmpty
+        else {
+            throw CaptureSessionStoreError.invalidMeetingGeneratedNote(handle.sessionID)
+        }
+        let context = ModelContext(modelContainer)
+        let preflight = try meetingGeneratedNotePreflight(
+            handle,
+            assignmentAttempt: assignmentAttempt,
+            in: context
+        )
+        let expectedSource: MeetingNoteSourceBundle
+        do {
+            expectedSource = try derivedMeetingNoteSource(
+                sessionID: handle.sessionID,
+                humanNoteContent: preflight.humanAnchor.content,
+                in: context
+            )
+        } catch {
+            throw CaptureSessionStoreError.invalidMeetingGeneratedNote(handle.sessionID)
+        }
+        guard source == expectedSource else {
+            throw CaptureSessionStoreError.meetingGeneratedNoteSourceChanged(handle.sessionID)
+        }
+        let expectedProvenance = MeetingGeneratedNoteProvenance(
+            humanAnchorNoteID: preflight.humanAnchor.noteID,
+            evidenceInput: expectedSource.evidenceInput,
+            citations: expectedSource.citations,
+            sourceTranscriptRevisionIDs: expectedSource.sourceTranscriptRevisionIDs
+        )
+        let provenanceJSON: String
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            provenanceJSON = String(
+                decoding: try encoder.encode(expectedProvenance),
+                as: UTF8.self
+            )
+        } catch {
+            throw CaptureSessionStoreError.meetingNoteEncodingFailed
+        }
+
+        let references = try meetingNoteReferences(sessionID: handle.sessionID, in: context)
+        let generatedReferences = try references.filter {
+            try $0.resolvedRole() == .generated
+        }
+        guard generatedReferences.count <= 1 else {
+            throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+        }
+        if let existingReference = generatedReferences.first {
+            let existingProvenance: MeetingGeneratedNoteProvenance
+            do {
+                guard
+                    let existingProvenanceJSON = existingReference.provenanceJSON,
+                    let existingProvenanceData = existingProvenanceJSON.data(using: .utf8)
+                else {
+                    throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+                }
+                existingProvenance = try JSONDecoder().decode(
+                    MeetingGeneratedNoteProvenance.self,
+                    from: existingProvenanceData
+                )
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.sortedKeys]
+                guard existingProvenanceJSON == String(
+                    decoding: try encoder.encode(existingProvenance),
+                    as: UTF8.self
+                ) else {
+                    throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+                }
+            } catch {
+                throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+            }
+            guard
+                references.count == 2,
+                existingReference.sourceTranscriptRevisionID == nil,
+                existingReference.providerSnapshotID == preflight.providerSnapshotID,
+                let existingHumanAnchorContentSnapshot = existingReference.humanAnchorContentSnapshot,
+                existingHumanAnchorContentSnapshot == preflight.humanAnchor.content,
+                existingProvenance == expectedProvenance,
+                let existingNote = try fetchNote(id: existingReference.noteID, in: context),
+                existingNote.title == title,
+                existingNote.content == content,
+                existingNote.tags.isEmpty,
+                existingNote.sourceTranscriptionID == preflight.sourceTranscriptionID
+            else {
+                throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+            }
+            return MeetingGeneratedNoteSnapshot(
+                sessionID: handle.sessionID,
+                noteID: existingNote.id,
+                humanAnchorNoteID: existingProvenance.humanAnchorNoteID,
+                humanAnchorContent: existingHumanAnchorContentSnapshot,
+                sourceTranscriptionID: preflight.sourceTranscriptionID,
+                providerSnapshotID: preflight.providerSnapshotID,
+                citations: source.citations
+            )
+        }
+        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
+        guard ownedMeeting.session.stateRawValue == CaptureSessionState.finalizing.rawValue else {
+            throw CaptureSessionStoreError.meetingSessionNotFinalizing(
+                sessionID: handle.sessionID,
+                actualStateRawValue: ownedMeeting.session.stateRawValue
+            )
+        }
+
+        guard references.count == 1 else {
+            throw CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)
+        }
+        let note = Note(
+            title: title,
+            content: content,
+            tags: [],
+            sourceTranscriptionID: preflight.sourceTranscriptionID,
+            createdAt: timestamp,
+            updatedAt: timestamp
+        )
+        context.insert(note)
+        context.insert(CaptureNoteReferenceModel(
+            sessionID: handle.sessionID,
+            noteID: note.id,
+            role: .generated,
+            sourceTranscriptRevisionID: nil,
+            providerSnapshotID: preflight.providerSnapshotID,
+            provenanceJSON: provenanceJSON,
+            humanAnchorContentSnapshot: preflight.humanAnchor.content,
+            createdAt: timestamp
+        ))
+        try save(context)
+        return MeetingGeneratedNoteSnapshot(
+            sessionID: handle.sessionID,
+            noteID: note.id,
+            humanAnchorNoteID: expectedProvenance.humanAnchorNoteID,
+            humanAnchorContent: preflight.humanAnchor.content,
+            sourceTranscriptionID: preflight.sourceTranscriptionID,
+            providerSnapshotID: preflight.providerSnapshotID,
+            citations: source.citations
         )
     }
 
@@ -2026,6 +2549,145 @@ public final class CaptureSessionStore {
         ))
     }
 
+    private func isHumanAnchorAllowed(sessionStateRawValue: String) -> Bool {
+        switch sessionStateRawValue {
+        case CaptureSessionState.capturing.rawValue,
+             CaptureSessionState.finalizing.rawValue,
+             CaptureSessionState.interrupted.rawValue:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func meetingGeneratedNotePreflight(
+        _ handle: MeetingCaptureHandle,
+        assignmentAttempt: Int,
+        in context: ModelContext
+    ) throws -> MeetingGeneratedNotePreflightSnapshot {
+        guard assignmentAttempt >= 1 else {
+            throw CaptureSessionStoreError.invalidAssignmentAttempt(assignmentAttempt)
+        }
+        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
+        guard let humanAnchor = try validMeetingHumanAnchor(
+            sessionID: handle.sessionID,
+            in: context
+        ) else {
+            throw CaptureSessionStoreError.meetingHumanAnchorUnavailable(handle.sessionID)
+        }
+        guard let sourceTranscriptionID = ownedMeeting.session.transcriptionRecordID else {
+            throw CaptureSessionStoreError.invalidMeetingGeneratedNote(handle.sessionID)
+        }
+        guard try fetchTranscriptionRecord(id: sourceTranscriptionID, in: context) != nil else {
+            throw CaptureSessionStoreError.transcriptionRecordNotFound(sourceTranscriptionID)
+        }
+
+        let snapshots = try fetchAssignmentSnapshots(
+            sessionID: handle.sessionID,
+            stage: .noteGeneration,
+            attempt: assignmentAttempt,
+            in: context
+        )
+        guard snapshots.count == 1 else {
+            if snapshots.count > 1 {
+                throw CaptureSessionStoreError.duplicateAssignments(
+                    sessionID: handle.sessionID,
+                    stage: .noteGeneration,
+                    attempt: assignmentAttempt
+                )
+            }
+            throw CaptureSessionStoreError.invalidMeetingGeneratedNote(handle.sessionID)
+        }
+        let assignment: CaptureStageAssignment
+        do {
+            guard let restoredAssignment = try persistedAssignment(
+                sessionID: handle.sessionID,
+                stage: .noteGeneration,
+                attempt: assignmentAttempt,
+                in: context
+            ) else {
+                throw CaptureSessionStoreError.invalidMeetingGeneratedNote(handle.sessionID)
+            }
+            assignment = restoredAssignment
+        } catch let error as CaptureSessionStoreError {
+            throw error
+        } catch {
+            throw CaptureSessionStoreError.invalidMeetingGeneratedNote(handle.sessionID)
+        }
+        guard
+            assignment.stage == .noteGeneration,
+            assignment.providerKind == .generativeAI,
+            let modelIdentifier = assignment.modelIdentifier,
+            !modelIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            let resolvedPrompt = assignment.prompt?.resolvedPrompt,
+            !resolvedPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            throw CaptureSessionStoreError.invalidMeetingGeneratedNote(handle.sessionID)
+        }
+
+        return MeetingGeneratedNotePreflightSnapshot(
+            sessionID: handle.sessionID,
+            humanAnchor: humanAnchor,
+            sourceTranscriptionID: sourceTranscriptionID,
+            providerSnapshotID: snapshots[0].id,
+            assignmentAttempt: assignmentAttempt
+        )
+    }
+
+    private func validMeetingHumanAnchor(
+        sessionID: UUID,
+        in context: ModelContext
+    ) throws -> MeetingHumanAnchorSnapshot? {
+        let references = try meetingNoteReferences(sessionID: sessionID, in: context)
+        let humanReferences: [CaptureNoteReferenceModel]
+        do {
+            for reference in references {
+                _ = try reference.resolvedRole()
+            }
+            humanReferences = try references.filter {
+                try $0.resolvedRole() == .humanAnchor
+            }
+        } catch {
+            throw CaptureSessionStoreError.meetingHumanAnchorConflict(sessionID)
+        }
+        guard humanReferences.count <= 1 else {
+            throw CaptureSessionStoreError.meetingHumanAnchorConflict(sessionID)
+        }
+        guard let reference = humanReferences.first else {
+            return nil
+        }
+        guard
+            reference.sourceTranscriptRevisionID == nil,
+            reference.providerSnapshotID == nil,
+            reference.provenanceJSON == nil,
+            reference.humanAnchorContentSnapshot == nil,
+            let note = try fetchNote(id: reference.noteID, in: context),
+            note.sourceTranscriptionID == nil
+        else {
+            throw CaptureSessionStoreError.meetingHumanAnchorConflict(sessionID)
+        }
+        return MeetingHumanAnchorSnapshot(
+            sessionID: sessionID,
+            noteID: note.id,
+            title: note.title,
+            content: note.content
+        )
+    }
+
+    private func meetingNoteReferences(
+        sessionID: UUID,
+        in context: ModelContext
+    ) throws -> [CaptureNoteReferenceModel] {
+        let descriptor = FetchDescriptor<CaptureNoteReferenceModel>(
+            predicate: #Predicate<CaptureNoteReferenceModel> { $0.sessionID == sessionID }
+        )
+        do {
+            return try context.fetch(descriptor)
+        } catch {
+            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
+        }
+    }
+
     private func checkpointMeetingRevision(
         _ handle: MeetingCaptureHandle,
         sequence: Int,
@@ -2035,6 +2697,7 @@ public final class CaptureSessionStore {
         text: String,
         segmentsJSON: String?,
         languageCode: String?,
+        assignmentAttempt: Int?,
         at timestamp: Date
     ) throws -> UUID {
         guard sequence >= 0, startOffset >= 0, duration >= 0 else {
@@ -2042,6 +2705,15 @@ public final class CaptureSessionStore {
         }
         let context = ModelContext(modelContainer)
         _ = try fetchOwnedMeeting(for: handle, in: context)
+        let providerSnapshotID = try assignmentAttempt.map {
+            try meetingRevisionProviderSnapshotID(
+                sessionID: handle.sessionID,
+                stage: stage,
+                assignmentAttempt: $0,
+                sequence: sequence,
+                in: context
+            )
+        }
         let chunks = try fetchMeetingChunks(sessionID: handle.sessionID, in: context)
             .filter { $0.sequence == sequence }
         guard
@@ -2077,7 +2749,9 @@ public final class CaptureSessionStore {
                 abs(existing.duration - expectedDuration) <= sampleDuration,
                 existing.text == text,
                 existing.segmentsJSON == segmentsJSON,
-                existing.languageCode == languageCode
+                existing.languageCode == languageCode,
+                (existing.providerSnapshotID == providerSnapshotID ||
+                    existing.providerSnapshotID == nil)
             else {
                 throw CaptureSessionStoreError.meetingTranscriptionRevisionConflict(
                     sequence: sequence,
@@ -2096,12 +2770,56 @@ public final class CaptureSessionStore {
             text: text,
             segmentsJSON: segmentsJSON,
             languageCode: languageCode,
+            providerSnapshotID: providerSnapshotID,
             createdAt: timestamp
         )
         context.insert(revision)
         try save(context)
         return revision.id
     }
+    private func meetingRevisionProviderSnapshotID(
+        sessionID: UUID,
+        stage: CapturePipelineStage,
+        assignmentAttempt: Int,
+        sequence: Int,
+        in context: ModelContext
+    ) throws -> UUID {
+        guard assignmentAttempt >= 1 else {
+            throw CaptureSessionStoreError.invalidAssignmentAttempt(assignmentAttempt)
+        }
+        let snapshots = try fetchAssignmentSnapshots(
+            sessionID: sessionID,
+            stage: stage,
+            attempt: assignmentAttempt,
+            in: context
+        )
+        guard snapshots.count == 1 else {
+            if snapshots.count > 1 {
+                throw CaptureSessionStoreError.duplicateAssignments(
+                    sessionID: sessionID,
+                    stage: stage,
+                    attempt: assignmentAttempt
+                )
+            }
+            throw CaptureSessionStoreError.meetingTranscriptionRevisionConflict(
+                sequence: sequence,
+                stage: stage
+            )
+        }
+        guard try persistedAssignment(
+            sessionID: sessionID,
+            stage: stage,
+            attempt: assignmentAttempt,
+            in: context
+        ) != nil else {
+            throw CaptureSessionStoreError.meetingTranscriptionRevisionConflict(
+                sequence: sequence,
+                stage: stage
+            )
+        }
+        return snapshots[0].id
+    }
+
 
     private func makeMeetingRecoverySnapshot(
         handle: MeetingCaptureHandle,
@@ -2166,12 +2884,32 @@ public final class CaptureSessionStore {
             return nil
         }
         return MeetingTranscriptionCheckpoint(
+            revisionID: revision.id,
+            providerSnapshotID: revision.providerSnapshotID,
             sequence: revision.sequence,
             startOffset: revision.startOffset,
             duration: revision.duration,
             text: revision.text,
             segmentsJSON: revision.segmentsJSON,
             languageCode: revision.languageCode
+        )
+    }
+    private func derivedMeetingNoteSource(
+        sessionID: UUID,
+        humanNoteContent: String,
+        in context: ModelContext
+    ) throws -> MeetingNoteSourceBundle {
+        let checkpoints = try fetchTranscriptRevisions(sessionID: sessionID, in: context)
+            .compactMap(finalASRCheckpoint(from:))
+            .sorted {
+                if $0.sequence != $1.sequence {
+                    return $0.sequence < $1.sequence
+                }
+                return $0.revisionID.uuidString < $1.revisionID.uuidString
+            }
+        return try MeetingNoteDerivation.make(
+            humanNoteContent: humanNoteContent,
+            checkpoints: checkpoints
         )
     }
 

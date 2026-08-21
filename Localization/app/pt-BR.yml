@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "Altere sua escolha quando quiser em Configurações → Privacidade."
 changes:
   the_language_used_by_pindrop_s_interface: "Altera o idioma da interface do Pindrop."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "Alterações nas credenciais e no endpoint deste provedor se aplicam às capturas em andamento e recuperadas. O modelo e o prompt selecionados permanecem inalterados."
 check:
   for_updates: "Verifique se há atualizações..."
   for_updates_736b9062: "Verifique se há atualizações"

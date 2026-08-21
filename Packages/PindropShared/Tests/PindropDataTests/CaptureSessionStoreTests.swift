@@ -136,6 +136,97 @@ struct CaptureSessionStoreTests {
             attempt: attempt
         )
     }
+    private func generatedMeetingNoteInputs(
+        in container: ModelContainer,
+        store: CaptureSessionStore,
+        startedAt: Date
+    ) throws -> (
+        handle: MeetingCaptureHandle,
+        transcriptionRecordID: UUID,
+        source: MeetingNoteSourceBundle
+    ) {
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        _ = try store.ensureMeetingHumanAnchor(
+            handle,
+            title: "Planning",
+            at: startedAt
+        )
+        try store.beginMeetingFinalization(handle, at: startedAt.addingTimeInterval(1))
+        let checkpoint = chunk(
+            handle.microphoneSourceID,
+            sessionID: handle.sessionID,
+            sequence: 0,
+            sealedAt: startedAt.addingTimeInterval(2)
+        )
+        try store.recordSealedMeetingChunk(handle, checkpoint: checkpoint)
+        _ = try store.resolveAssignment(
+            sessionID: handle.sessionID,
+            stage: .finalTranscription,
+            attempt: 1,
+            selecting: { try assignment(stage: .finalTranscription) }
+        )
+        let revisionID = try store.recordMeetingTranscriptionChunk(
+            handle,
+            sourceChunkSequence: 0,
+            startOffset: checkpoint.startOffset,
+            duration: checkpoint.duration,
+            text: "Completed final transcript",
+            assignmentAttempt: 1
+        )
+        let transcriptionRecordID = try store.reserveMeetingTranscriptionRecordID(handle)
+        let context = ModelContext(container)
+        context.insert(TranscriptionRecord(
+            id: transcriptionRecordID,
+            text: "Completed final transcript",
+            duration: checkpoint.duration,
+            modelUsed: "test"
+        ))
+        try context.save()
+        _ = try store.resolveAssignment(
+            sessionID: handle.sessionID,
+            stage: .noteGeneration,
+            attempt: 1,
+            selecting: {
+                try assignment(
+                    stage: .noteGeneration,
+                    providerKind: .generativeAI,
+                    providerIdentifier: "generator",
+                    modelIdentifier: "generator-model",
+                    prompt: CapturePromptSnapshot(
+                        presetIdentifier: "meeting-summary",
+                        resolvedPrompt: "Summarize this meeting."
+                    )
+                )
+            }
+        )
+        let source = try MeetingNoteDerivation.make(
+            humanNoteContent: "",
+            checkpoints: [
+                MeetingTranscriptionCheckpoint(
+                    revisionID: revisionID,
+                    providerSnapshotID: nil,
+                    sequence: checkpoint.sequence,
+                    startOffset: checkpoint.startOffset,
+                    duration: checkpoint.duration,
+                    text: "Completed final transcript",
+                    segmentsJSON: nil,
+                    languageCode: nil
+                )
+            ]
+        )
+        return (
+            handle: handle,
+            transcriptionRecordID: transcriptionRecordID,
+            source: source
+        )
+    }
+
+    private func generatedMeetingNoteContent(
+        _ body: String = "Auditable generated content."
+    ) -> String {
+        MeetingNoteDerivation.sanitizingGeneratedContent(body)
+    }
+
 
     @Test func captureSourceArtifactPathUsesCanonicalMeetingLocation() throws {
         let sessionID = try #require(UUID(uuidString: "00000000-0000-0000-0000-000000000001"))
@@ -1761,7 +1852,7 @@ struct CaptureSessionStoreTests {
         )
         try store.reconcileMeetingChunks(handle, checkpoints: [first, second], failures: [])
 
-        _ = try store.recordMeetingTranscriptionChunk(
+        let secondRevisionID = try store.recordMeetingTranscriptionChunk(
             handle,
             sourceChunkSequence: 1,
             startOffset: second.startOffset,
@@ -1770,7 +1861,7 @@ struct CaptureSessionStoreTests {
             segmentsJSON: #"[{"speaker":"speaker-2","start":0,"end":300,"text":"Second completed chunk"}]"#,
             languageCode: "fr-CA"
         )
-        _ = try store.recordMeetingTranscriptionChunk(
+        let firstRevisionID = try store.recordMeetingTranscriptionChunk(
             handle,
             sourceChunkSequence: 0,
             startOffset: first.startOffset,
@@ -1782,6 +1873,8 @@ struct CaptureSessionStoreTests {
 
         let expected = [
             MeetingTranscriptionCheckpoint(
+                revisionID: firstRevisionID,
+                providerSnapshotID: nil,
                 sequence: 0,
                 startOffset: first.startOffset,
                 duration: first.duration,
@@ -1790,6 +1883,8 @@ struct CaptureSessionStoreTests {
                 languageCode: "en-US"
             ),
             MeetingTranscriptionCheckpoint(
+                revisionID: secondRevisionID,
+                providerSnapshotID: nil,
                 sequence: 1,
                 startOffset: second.startOffset,
                 duration: second.duration,
@@ -2770,6 +2865,788 @@ struct CaptureSessionStoreTests {
         #expect(candidates[0].recoveryTarget == .capturing)
         let repeatedCandidates = try store.voiceNoteRecoveryCandidates()
         #expect(candidates == repeatedCandidates)
+    }
+
+    @Test func meetingAnchorAndGeneratedNotePersistExactProvenance() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 24_500)
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        let anchor = try store.ensureMeetingHumanAnchor(
+            handle,
+            title: "Planning",
+            at: startedAt
+        )
+
+        let notesContext = ModelContext(container)
+        let editedAnchor = try #require(
+            notesContext.fetch(FetchDescriptor<Note>()).first { $0.id == anchor.noteID }
+        )
+        editedAnchor.title = "Edited planning"
+        editedAnchor.content = "Human edits survive."
+        try notesContext.save()
+        let retriedAnchor = try store.ensureMeetingHumanAnchor(
+            handle,
+            title: "Ignored replacement title",
+            at: startedAt.addingTimeInterval(1)
+        )
+        #expect(retriedAnchor.title == "Edited planning")
+        #expect(retriedAnchor.content == "Human edits survive.")
+        try store.beginMeetingFinalization(handle, at: startedAt.addingTimeInterval(1))
+        let canceledHandle = try store.startMeetingCapture(startedAt: startedAt.addingTimeInterval(2))
+        let canceledAnchor = try store.ensureMeetingHumanAnchor(
+            canceledHandle,
+            title: "Canceled planning",
+            at: startedAt.addingTimeInterval(2)
+        )
+        try store.cancelMeetingCapture(canceledHandle, at: startedAt.addingTimeInterval(3))
+        #expect(try store.meetingHumanAnchor(canceledHandle)?.noteID == canceledAnchor.noteID)
+
+        let checkpoint = chunk(
+            handle.microphoneSourceID,
+            sessionID: handle.sessionID,
+            sequence: 0,
+            sealedAt: startedAt.addingTimeInterval(2)
+        )
+        let segmentsJSON = String(
+            decoding: try JSONEncoder().encode([
+                DiarizedTranscriptSegment(
+                    speakerId: "speaker-1",
+                    speakerLabel: "Speaker 1",
+                    startTime: 0,
+                    endTime: checkpoint.duration / 2,
+                    confidence: 1,
+                    text: "Completed final"
+                ),
+                DiarizedTranscriptSegment(
+                    speakerId: "speaker-2",
+                    speakerLabel: "Speaker 2",
+                    startTime: checkpoint.duration / 2,
+                    endTime: checkpoint.duration,
+                    confidence: 1,
+                    text: "transcript"
+                )
+            ]),
+            as: UTF8.self
+        )
+        try store.recordSealedMeetingChunk(handle, checkpoint: checkpoint)
+        _ = try store.resolveAssignment(
+            sessionID: handle.sessionID,
+            stage: .finalTranscription,
+            attempt: 1,
+            selecting: { try assignment(stage: .finalTranscription) }
+        )
+        let revisionID = try store.recordMeetingTranscriptionChunk(
+            handle,
+            sourceChunkSequence: checkpoint.sequence,
+            startOffset: checkpoint.startOffset,
+            duration: checkpoint.duration,
+            text: "Completed final transcript",
+            segmentsJSON: segmentsJSON,
+            assignmentAttempt: 1
+        )
+        let historyID = try store.reserveMeetingTranscriptionRecordID(handle)
+        let historyContext = ModelContext(container)
+        historyContext.insert(TranscriptionRecord(
+            id: historyID,
+            text: "Completed final transcript",
+            duration: checkpoint.duration,
+            modelUsed: "test"
+        ))
+        try historyContext.save()
+        _ = try store.resolveAssignment(
+            sessionID: handle.sessionID,
+            stage: .noteGeneration,
+            attempt: 1,
+            selecting: {
+                try assignment(
+                    stage: .noteGeneration,
+                    providerKind: .generativeAI,
+                    providerIdentifier: "generator",
+                    modelIdentifier: "generator-model",
+                    prompt: CapturePromptSnapshot(
+                        presetIdentifier: "meeting-summary",
+                        resolvedPrompt: "Summarize this meeting."
+                    )
+                )
+            }
+        )
+        let finalizationPlan = try store.makeMeetingFinalizationPlan(handle)
+        #expect(finalizationPlan.completedASRCheckpoints.count == 1)
+        let source = try MeetingNoteDerivation.make(
+            humanNoteContent: retriedAnchor.content,
+            checkpoints: finalizationPlan.completedASRCheckpoints
+        )
+        #expect(source.citations.count == 2)
+        #expect(source.sourceTranscriptRevisionIDs == [revisionID])
+        let stateBeforeInvalidSources = ModelContext(container)
+        let noteCountBeforeInvalidSources = try stateBeforeInvalidSources.fetch(
+            FetchDescriptor<Note>()
+        ).count
+        let referenceCountBeforeInvalidSources = try stateBeforeInvalidSources.fetch(
+            FetchDescriptor<CaptureNoteReferenceModel>()
+        )
+        .filter { $0.sessionID == handle.sessionID }
+        .count
+        let missingSourceRevision = MeetingNoteSourceBundle(
+            evidenceInput: source.evidenceInput,
+            citations: source.citations,
+            sourceTranscriptRevisionIDs: []
+        )
+        #expect(throws: CaptureSessionStoreError.meetingGeneratedNoteSourceChanged(handle.sessionID)) {
+            try store.saveGeneratedMeetingNote(
+                handle,
+                title: "Generated summary",
+                content: "Auditable generated content.",
+                source: missingSourceRevision
+            )
+        }
+        let fabricatedCitation = try #require(source.citations.first)
+        let fabricatedCitationSource = MeetingNoteSourceBundle(
+            evidenceInput: source.evidenceInput,
+            citations: [
+                MeetingNoteCitation(
+                    identifier: fabricatedCitation.identifier,
+                    transcriptRevisionID: fabricatedCitation.transcriptRevisionID,
+                    startTime: fabricatedCitation.startTime,
+                    endTime: fabricatedCitation.endTime + 1,
+                    speakerLabel: fabricatedCitation.speakerLabel,
+                    text: "Fabricated transcript text"
+                ),
+                source.citations[1]
+            ],
+            sourceTranscriptRevisionIDs: source.sourceTranscriptRevisionIDs
+        )
+        #expect(throws: CaptureSessionStoreError.meetingGeneratedNoteSourceChanged(handle.sessionID)) {
+            try store.saveGeneratedMeetingNote(
+                handle,
+                title: "Generated summary",
+                content: "Auditable generated content.",
+                source: fabricatedCitationSource
+            )
+        }
+        let fabricatedPromptSource = MeetingNoteSourceBundle(
+            evidenceInput: "Fabricated evidence input",
+            citations: source.citations,
+            sourceTranscriptRevisionIDs: source.sourceTranscriptRevisionIDs
+        )
+        #expect(throws: CaptureSessionStoreError.meetingGeneratedNoteSourceChanged(handle.sessionID)) {
+            try store.saveGeneratedMeetingNote(
+                handle,
+                title: "Generated summary",
+                content: "Auditable generated content.",
+                source: fabricatedPromptSource
+            )
+        }
+        let extraSourceRevision = MeetingNoteSourceBundle(
+            evidenceInput: source.evidenceInput,
+            citations: source.citations,
+            sourceTranscriptRevisionIDs: [revisionID, UUID()]
+        )
+        #expect(throws: CaptureSessionStoreError.meetingGeneratedNoteSourceChanged(handle.sessionID)) {
+            try store.saveGeneratedMeetingNote(
+                handle,
+                title: "Generated summary",
+                content: "Auditable generated content.",
+                source: extraSourceRevision
+            )
+        }
+        let stateAfterExtraSourceRevision = ModelContext(container)
+        #expect(
+            try stateAfterExtraSourceRevision.fetch(FetchDescriptor<Note>()).count
+                == noteCountBeforeInvalidSources
+        )
+        #expect(
+            try stateAfterExtraSourceRevision.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+                .filter { $0.sessionID == handle.sessionID }
+                .count == referenceCountBeforeInvalidSources
+        )
+        do {
+            #expect(try store.generatedMeetingNote(handle) == nil)
+        } catch {
+            Issue.record("Pre-save generated-note discovery failed: \(error)")
+            return
+        }
+        let generatedContent = generatedMeetingNoteContent()
+
+
+        let generated: MeetingGeneratedNoteSnapshot
+        do {
+            generated = try store.saveGeneratedMeetingNote(
+                handle,
+                title: "Generated summary",
+                content: generatedContent,
+                source: source
+            )
+        } catch {
+            Issue.record("Plain generated-note save failed: \(error)")
+            return
+        }
+        let retriedWhileFinalizing: MeetingGeneratedNoteSnapshot
+        do {
+            retriedWhileFinalizing = try store.saveGeneratedMeetingNote(
+                handle,
+                title: "Generated summary",
+                content: generatedContent,
+                source: source
+            )
+        } catch {
+            Issue.record("Finalizing generated-note retry failed: \(error)")
+            return
+        }
+        do {
+            let discovered = try store.generatedMeetingNote(handle)
+            #expect(discovered == generated)
+        } catch {
+            Issue.record("Finalizing generated-note discovery failed: \(error)")
+            return
+        }
+        #expect(retriedWhileFinalizing == generated)
+
+        try store.finishMeetingSources(
+            handle,
+            sourceFailures: [
+                failed(handle.systemAudioSourceID, at: startedAt.addingTimeInterval(4))
+            ],
+            at: startedAt.addingTimeInterval(4)
+        )
+        try store.completeMeetingCapture(
+            handle,
+            transcriptionRecordID: historyID,
+            at: startedAt.addingTimeInterval(5)
+        )
+        let retriedAfterCompletion = try store.saveGeneratedMeetingNote(
+            handle,
+            title: "Generated summary",
+            content: generatedContent,
+            source: source
+        )
+        #expect(retriedAfterCompletion == generated)
+        #expect(try store.generatedMeetingNote(handle) == generated)
+        let stateAfterRetries = ModelContext(container)
+        #expect(
+            try stateAfterRetries.fetch(FetchDescriptor<Note>()).count
+                == noteCountBeforeInvalidSources + 1
+        )
+        #expect(
+            try stateAfterRetries.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+                .filter { $0.sessionID == handle.sessionID }
+                .count == referenceCountBeforeInvalidSources + 1
+        )
+
+        let references = try ModelContext(container).fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        let generatedReferences = try references.filter { reference in
+            try reference.resolvedRole() == .generated
+        }
+        #expect(generatedReferences.count == 1)
+        let generatedReference = try #require(generatedReferences.first)
+        #expect(generatedReference.sourceTranscriptRevisionID == nil)
+        #expect(generatedReference.humanAnchorContentSnapshot == retriedAnchor.content)
+        let expectedProvenance = MeetingGeneratedNoteProvenance(
+            humanAnchorNoteID: retriedAnchor.noteID,
+            evidenceInput: source.evidenceInput,
+            citations: source.citations,
+            sourceTranscriptRevisionIDs: source.sourceTranscriptRevisionIDs
+        )
+        let provenanceEncoder = JSONEncoder()
+        provenanceEncoder.outputFormatting = [.sortedKeys]
+        #expect(
+            generatedReference.provenanceJSON == String(
+                decoding: try provenanceEncoder.encode(expectedProvenance),
+                as: UTF8.self
+            )
+        )
+        let corruptionContext = ModelContext(container)
+        let corruptNote = try #require(
+            corruptionContext.fetch(FetchDescriptor<Note>())
+                .first { $0.id == generated.noteID }
+        )
+        corruptNote.content = "\(generatedContent)\n\nCitation Appendix: altered"
+        try corruptionContext.save()
+        #expect(throws: CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)) {
+            _ = try store.generatedMeetingNote(handle)
+        }
+        corruptNote.content = generatedContent
+        let corruptReference = try #require(
+            corruptionContext.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+                .first { $0.id == generatedReference.id }
+        )
+        corruptReference.provenanceJSON = "[]"
+        try corruptionContext.save()
+        #expect(throws: CaptureSessionStoreError.meetingGeneratedNoteConflict(handle.sessionID)) {
+            _ = try store.generatedMeetingNote(handle)
+        }
+    }
+    @Test func generatedMeetingNoteLookupPreservesImmutableHumanAnchorSnapshotAfterEdit() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let prepared = try generatedMeetingNoteInputs(
+            in: container,
+            store: store,
+            startedAt: Date(timeIntervalSinceReferenceDate: 24_700)
+        )
+        let generated = try store.saveGeneratedMeetingNote(
+            prepared.handle,
+            title: "Generated summary",
+            content: generatedMeetingNoteContent(),
+            source: prepared.source
+        )
+        let anchor = try #require(try store.meetingHumanAnchor(prepared.handle))
+        let originalAnchorContent = anchor.content
+        #expect(generated.humanAnchorContent == originalAnchorContent)
+
+        let editedAnchorContent = "Edited after generated note was saved."
+        let editContext = ModelContext(container)
+        let editedAnchor = try #require(
+            editContext.fetch(FetchDescriptor<Note>()).first { $0.id == anchor.noteID }
+        )
+        editedAnchor.content = editedAnchorContent
+        try editContext.save()
+        #expect(try store.meetingHumanAnchor(prepared.handle)?.content == editedAnchorContent)
+
+        let byHandle = try #require(try store.generatedMeetingNote(prepared.handle))
+        let byNoteID = try #require(try store.generatedMeetingNote(noteID: generated.noteID))
+        #expect(byHandle == generated)
+        #expect(byNoteID == generated)
+        #expect(byHandle.humanAnchorContent == originalAnchorContent)
+        #expect(byNoteID.humanAnchorContent == originalAnchorContent)
+        #expect(byHandle.humanAnchorContent != editedAnchorContent)
+        #expect(byNoteID.humanAnchorContent != editedAnchorContent)
+    }
+
+    @Test func generatedMeetingNoteLookupRequiresCompleteProvenance() throws {
+        typealias GeneratedFixture = (
+            container: ModelContainer,
+            store: CaptureSessionStore,
+            handle: MeetingCaptureHandle,
+            historyID: UUID,
+            noteID: UUID
+        )
+
+        func makeFixture(at timestamp: TimeInterval) throws -> GeneratedFixture {
+            let container = try makeContainer()
+            let store = makeStore(in: container)
+            let prepared = try generatedMeetingNoteInputs(
+                in: container,
+                store: store,
+                startedAt: Date(timeIntervalSinceReferenceDate: timestamp)
+            )
+            let generated = try store.saveGeneratedMeetingNote(
+                prepared.handle,
+                title: "Generated summary",
+                content: generatedMeetingNoteContent(),
+                source: prepared.source
+            )
+            return (
+                container,
+                store,
+                prepared.handle,
+                prepared.transcriptionRecordID,
+                generated.noteID
+            )
+        }
+
+        func assertConflict(
+            _ fixture: GeneratedFixture,
+            mutating mutate: (ModelContext, GeneratedFixture) throws -> Void
+        ) throws {
+            let context = ModelContext(fixture.container)
+            try mutate(context, fixture)
+            try context.save()
+            #expect(
+                throws: CaptureSessionStoreError.meetingGeneratedNoteConflict(fixture.handle.sessionID)
+            ) {
+                _ = try fixture.store.generatedMeetingNote(noteID: fixture.noteID)
+            }
+        }
+
+        let valid = try makeFixture(at: 24_700)
+        let byHandle = try valid.store.generatedMeetingNote(valid.handle)
+        let byNoteID = try valid.store.generatedMeetingNote(noteID: valid.noteID)
+        #expect(byNoteID == byHandle)
+        #expect(try valid.store.generatedMeetingNote(noteID: UUID()) == nil)
+
+        try assertConflict(try makeFixture(at: 24_701)) { context, fixture in
+            let reference = try #require(
+                context.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+                    .first { $0.noteID == fixture.noteID }
+            )
+            reference.sourceTranscriptRevisionID = UUID()
+        }
+
+        try assertConflict(try makeFixture(at: 24_702)) { context, fixture in
+            let reference = try #require(
+                context.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+                    .first { $0.noteID == fixture.noteID }
+            )
+            reference.providerSnapshotID = UUID()
+        }
+
+        try assertConflict(try makeFixture(at: 24_703)) { context, fixture in
+            let history = try #require(
+                context.fetch(FetchDescriptor<TranscriptionRecord>())
+                    .first { $0.id == fixture.historyID }
+            )
+            context.delete(history)
+        }
+
+        try assertConflict(try makeFixture(at: 24_704)) { context, fixture in
+            let humanReference = try #require(
+                context.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+                    .first { (try? $0.resolvedRole()) == .humanAnchor }
+            )
+            let humanNote = try #require(
+                context.fetch(FetchDescriptor<Note>())
+                    .first { $0.id == humanReference.noteID }
+            )
+            humanNote.sourceTranscriptionID = UUID()
+        }
+
+        try assertConflict(try makeFixture(at: 24_705)) { context, fixture in
+            context.insert(CaptureNoteReferenceModel(
+                sessionID: fixture.handle.sessionID,
+                noteID: UUID(),
+                role: .generated
+            ))
+        }
+
+        try assertConflict(try makeFixture(at: 24_706)) { context, fixture in
+            let reference = try #require(
+                context.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+                    .first { $0.noteID == fixture.noteID }
+            )
+            reference.provenanceJSON = "[]"
+        }
+        try assertConflict(try makeFixture(at: 24_707)) { context, fixture in
+            let reference = try #require(
+                context.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+                    .first { $0.noteID == fixture.noteID }
+            )
+            let provenance = try JSONDecoder().decode(
+                MeetingGeneratedNoteProvenance.self,
+                from: try #require(reference.provenanceJSON).data(using: .utf8)!
+            )
+            let duplicateCitation = try #require(provenance.citations.first)
+            let duplicateProvenance = MeetingGeneratedNoteProvenance(
+                humanAnchorNoteID: provenance.humanAnchorNoteID,
+                evidenceInput: provenance.evidenceInput,
+                citations: provenance.citations + [duplicateCitation],
+                sourceTranscriptRevisionIDs: provenance.sourceTranscriptRevisionIDs
+            )
+            reference.provenanceJSON = String(
+                decoding: try JSONEncoder().encode(duplicateProvenance),
+                as: UTF8.self
+            )
+        }
+
+        try assertConflict(try makeFixture(at: 24_708)) { context, fixture in
+            let reference = try #require(
+                context.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+                    .first { $0.noteID == fixture.noteID }
+            )
+            let provenance = try JSONDecoder().decode(
+                MeetingGeneratedNoteProvenance.self,
+                from: try #require(reference.provenanceJSON).data(using: .utf8)!
+            )
+            let orphanProvenance = MeetingGeneratedNoteProvenance(
+                humanAnchorNoteID: provenance.humanAnchorNoteID,
+                evidenceInput: provenance.evidenceInput,
+                citations: provenance.citations,
+                sourceTranscriptRevisionIDs: provenance.sourceTranscriptRevisionIDs + [UUID()]
+            )
+            reference.provenanceJSON = String(
+                decoding: try JSONEncoder().encode(orphanProvenance),
+                as: UTF8.self
+            )
+        }
+
+        try assertConflict(try makeFixture(at: 24_709)) { context, fixture in
+            let reference = try #require(
+                context.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+                    .first { $0.noteID == fixture.noteID }
+            )
+            let originalSnapshot = try #require(reference.humanAnchorContentSnapshot)
+            let provenanceJSON = try #require(reference.provenanceJSON)
+            var provenanceObject = try #require(
+                try JSONSerialization.jsonObject(
+                    with: Data(provenanceJSON.utf8)
+                ) as? [String: Any]
+            )
+            provenanceObject["humanAnchorContent"] = "Forged anchor content."
+            provenanceObject["evidenceInput"] = "Forged evidence input."
+            reference.provenanceJSON = String(
+                decoding: try JSONSerialization.data(
+                    withJSONObject: provenanceObject,
+                    options: [.sortedKeys]
+                ),
+                as: UTF8.self
+            )
+            #expect(reference.humanAnchorContentSnapshot == originalSnapshot)
+        }
+    }
+
+    @Test func generatedNoteAcceptsPlainSanitizedOutputAndRejectsReservedSyntaxWithoutMutation() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let prepared = try generatedMeetingNoteInputs(
+            in: container,
+            store: store,
+            startedAt: Date(timeIntervalSinceReferenceDate: 24_650)
+        )
+        let validContent = generatedMeetingNoteContent()
+        let reservedMarker = "Auditable generated content. [C1]"
+        let reservedHeading = "\(validContent)\n\nCitation Appendix:\n[C1] Forged source text."
+        let unsanitizedFormatControl = "Auditable generated\u{200B} content."
+        let beforeContext = ModelContext(container)
+        let noteCountBefore = try beforeContext.fetch(FetchDescriptor<Note>()).count
+        let referenceCountBefore = try beforeContext.fetch(
+            FetchDescriptor<CaptureNoteReferenceModel>()
+        )
+        .filter { $0.sessionID == prepared.handle.sessionID }
+        .count
+
+        for rejectedContent in [reservedMarker, reservedHeading, unsanitizedFormatControl] {
+            #expect(throws: CaptureSessionStoreError.invalidMeetingGeneratedNote(prepared.handle.sessionID)) {
+                try store.saveGeneratedMeetingNote(
+                    prepared.handle,
+                    title: "Generated summary",
+                    content: rejectedContent,
+                    source: prepared.source
+                )
+            }
+            let currentContext = ModelContext(container)
+            #expect(try currentContext.fetch(FetchDescriptor<Note>()).count == noteCountBefore)
+            #expect(
+                try currentContext.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+                    .filter { $0.sessionID == prepared.handle.sessionID }
+                    .count == referenceCountBefore
+            )
+        }
+
+        for rejectedTitle in ["Generated summary [C1]", "Generated\u{200B} summary"] {
+            #expect(throws: CaptureSessionStoreError.invalidMeetingGeneratedNote(prepared.handle.sessionID)) {
+                try store.saveGeneratedMeetingNote(
+                    prepared.handle,
+                    title: rejectedTitle,
+                    content: validContent,
+                    source: prepared.source
+                )
+            }
+            let currentContext = ModelContext(container)
+            #expect(try currentContext.fetch(FetchDescriptor<Note>()).count == noteCountBefore)
+            #expect(
+                try currentContext.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+                    .filter { $0.sessionID == prepared.handle.sessionID }
+                    .count == referenceCountBefore
+            )
+        }
+
+        let saved = try store.saveGeneratedMeetingNote(
+            prepared.handle,
+            title: "Generated summary",
+            content: validContent,
+            source: prepared.source
+        )
+        #expect(saved.citations == prepared.source.citations)
+        let savedContext = ModelContext(container)
+        let savedNote = try #require(
+            savedContext.fetch(FetchDescriptor<Note>())
+                .first { $0.id == saved.noteID }
+        )
+        #expect(savedNote.content == validContent)
+        let savedReference = try #require(
+            savedContext.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+                .first { $0.noteID == saved.noteID }
+        )
+        let savedProvenance = try JSONDecoder().decode(
+            MeetingGeneratedNoteProvenance.self,
+            from: try #require(savedReference.provenanceJSON).data(using: .utf8)!
+        )
+        #expect(savedProvenance.citations == prepared.source.citations)
+        #expect(savedProvenance.evidenceInput == prepared.source.evidenceInput)
+        #expect(
+            savedProvenance.sourceTranscriptRevisionIDs
+                == prepared.source.sourceTranscriptRevisionIDs
+        )
+        #expect(try store.generatedMeetingNote(prepared.handle) == saved)
+        savedNote.title = "Generated summary [C1]"
+        try savedContext.save()
+        #expect(throws: CaptureSessionStoreError.meetingGeneratedNoteConflict(prepared.handle.sessionID)) {
+            _ = try store.generatedMeetingNote(prepared.handle)
+        }
+        #expect(throws: CaptureSessionStoreError.meetingGeneratedNoteConflict(prepared.handle.sessionID)) {
+            _ = try store.generatedMeetingNote(noteID: saved.noteID)
+        }
+    }
+
+    @Test func meetingHumanAnchorRejectsEmptyCreationWithoutMutation() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let handle = try store.startMeetingCapture()
+
+        #expect(throws: CaptureSessionStoreError.meetingHumanAnchorUnavailable(handle.sessionID)) {
+            try store.ensureMeetingHumanAnchor(handle, title: " \n ")
+        }
+
+        let context = ModelContext(container)
+        #expect(try context.fetch(FetchDescriptor<Note>()).isEmpty)
+        #expect(
+            try context.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+                .filter { $0.sessionID == handle.sessionID }
+                .isEmpty
+        )
+    }
+
+    @Test func generatedNotePreflightRejectsNonExecutableAssignmentsAndUnresolvedPrompts() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 24_600)
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        _ = try store.ensureMeetingHumanAnchor(handle, title: "Planning", at: startedAt)
+        try store.beginMeetingFinalization(handle, at: startedAt.addingTimeInterval(1))
+        let historyID = try store.reserveMeetingTranscriptionRecordID(handle)
+        let historyContext = ModelContext(container)
+        historyContext.insert(TranscriptionRecord(
+            id: historyID,
+            text: "Completed final transcript",
+            duration: 1,
+            modelUsed: "test"
+        ))
+        try historyContext.save()
+
+        let resolvedPrompt = CapturePromptSnapshot(
+            presetIdentifier: "meeting-summary",
+            resolvedPrompt: "Summarize this meeting."
+        )
+        let assignments = [
+            try assignment(
+                stage: .noteGeneration,
+                providerKind: .batchSpeech,
+                prompt: resolvedPrompt,
+                attempt: 1
+            ),
+            try assignment(
+                stage: .noteGeneration,
+                providerKind: .disabled,
+                modelIdentifier: nil,
+                prompt: resolvedPrompt,
+                attempt: 2
+            ),
+            try assignment(
+                stage: .noteGeneration,
+                providerKind: .bestEffortUnavailable,
+                modelIdentifier: nil,
+                prompt: resolvedPrompt,
+                attempt: 3
+            ),
+            try assignment(
+                stage: .noteGeneration,
+                providerKind: .generativeAI,
+                prompt: nil,
+                attempt: 4
+            ),
+            try assignment(
+                stage: .noteGeneration,
+                providerKind: .generativeAI,
+                prompt: CapturePromptSnapshot(
+                    presetIdentifier: "meeting-summary",
+                    resolvedPrompt: ""
+                ),
+                attempt: 5
+            )
+        ]
+        for assignment in assignments {
+            _ = try store.resolveAssignment(
+                sessionID: handle.sessionID,
+                stage: .noteGeneration,
+                attempt: assignment.attempt,
+                selecting: { assignment }
+            )
+            #expect(throws: CaptureSessionStoreError.invalidMeetingGeneratedNote(handle.sessionID)) {
+                try store.meetingGeneratedNotePreflight(
+                    handle,
+                    assignmentAttempt: assignment.attempt
+                )
+            }
+        }
+    }
+
+    @Test func generatedNoteCreationRejectsCancelledMeetingWithoutMutation() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let prepared = try generatedMeetingNoteInputs(
+            in: container,
+            store: store,
+            startedAt: Date(timeIntervalSinceReferenceDate: 24_700)
+        )
+        try store.cancelMeetingCapture(prepared.handle)
+        let beforeContext = ModelContext(container)
+        let noteCountBefore = try beforeContext.fetch(FetchDescriptor<Note>()).count
+        let referenceCountBefore = try beforeContext.fetch(
+            FetchDescriptor<CaptureNoteReferenceModel>()
+        )
+        .filter { $0.sessionID == prepared.handle.sessionID }
+        .count
+
+        #expect(
+            throws: CaptureSessionStoreError.meetingSessionNotFinalizing(
+                sessionID: prepared.handle.sessionID,
+                actualStateRawValue: CaptureSessionState.cancelled.rawValue
+            )
+        ) {
+            try store.saveGeneratedMeetingNote(
+                prepared.handle,
+                title: "Generated summary",
+                content: generatedMeetingNoteContent(),
+                source: prepared.source
+            )
+        }
+
+        let afterContext = ModelContext(container)
+        #expect(try afterContext.fetch(FetchDescriptor<Note>()).count == noteCountBefore)
+        #expect(
+            try afterContext.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+                .filter { $0.sessionID == prepared.handle.sessionID }
+                .count == referenceCountBefore
+        )
+        #expect(try store.generatedMeetingNote(prepared.handle) == nil)
+    }
+
+    @Test func meetingHumanAnchorSurvivesInterruptedDiskBackedReopen() throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("pindrop-meeting-anchor-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let storeURL = directoryURL.appendingPathComponent("capture.store")
+        let expectedHandle: MeetingCaptureHandle
+        let expectedAnchorID: UUID
+
+        do {
+            let container = try PindropModelContainerFactory.makeContainer(at: storeURL)
+            let store = makeStore(in: container)
+            let handle = try store.startMeetingCapture()
+            let anchor = try store.ensureMeetingHumanAnchor(handle, title: "Durable anchor")
+            let context = ModelContext(container)
+            let note = try #require(
+                context.fetch(FetchDescriptor<Note>()).first { $0.id == anchor.noteID }
+            )
+            note.content = "User edit persists through interruption."
+            try context.save()
+            try store.interruptMeetingCapture(
+                handle,
+                errorDomain: "Test",
+                message: "Interrupted for reopen coverage."
+            )
+            expectedHandle = handle
+            expectedAnchorID = anchor.noteID
+        }
+
+        let reopenedContainer = try PindropModelContainerFactory.makeContainer(at: storeURL)
+        let reopenedAnchorCandidate = try makeStore(in: reopenedContainer).meetingHumanAnchor(expectedHandle)
+        let reopenedAnchor = try #require(reopenedAnchorCandidate)
+        #expect(reopenedAnchor.noteID == expectedAnchorID)
+        #expect(reopenedAnchor.content == "User edit persists through interruption.")
     }
 
     @Test func liveVoiceNoteCheckpointSurvivesDiskBackedReopen() throws {

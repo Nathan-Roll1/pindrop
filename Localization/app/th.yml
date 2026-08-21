@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "เปลี่ยนตัวเลือกของคุณได้ทุกเมื่อใน การตั้งค่า → ความเป็นส่วนตัว"
 changes:
   the_language_used_by_pindrop_s_interface: "Changes the language used by Pindrop's interface."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "การเปลี่ยนแปลงข้อมูลรับรองและปลายทางของผู้ให้บริการนี้จะมีผลกับการบันทึกที่กำลังดำเนินอยู่และการบันทึกที่กู้คืนมา โมเดลและพรอมต์ที่เลือกไว้จะยังคงเดิม"
 check:
   for_updates: "ตรวจสอบการอัปเดต..."
   for_updates_736b9062: "ตรวจสอบการอัปเดต"

@@ -196,7 +196,7 @@ struct SettingsStoreCaptureAssignmentResolverTests {
         #expect(cloud.providerIdentifier != "transcription-secret")
     }
 
-    @Test func diarizationAndNoteStagesCaptureOnlyOperationalConfiguration() throws {
+    @Test func diarizationAndNoteStagesCaptureConfiguredSelections() throws {
         let fixture = try makeFixture()
         defer { fixture.cleanup() }
         let resolver = fixture.makeResolver()
@@ -238,14 +238,14 @@ struct SettingsStoreCaptureAssignmentResolverTests {
             for: .noteEnhancement
         )
 
-        let unavailableNote = try resolver.select(
+        let noteBeforeCredential = try resolver.select(
             stage: .noteGeneration,
             attempt: 1,
             activeBatchModelName: nil
         )
-        #expect(unavailableNote.providerKind == .bestEffortUnavailable)
-        #expect(unavailableNote.providerIdentifier == provider.id.uuidString)
-        #expect(unavailableNote.modelIdentifier == "gpt-4o-mini")
+        #expect(noteBeforeCredential.providerKind == .generativeAI)
+        #expect(noteBeforeCredential.providerIdentifier == provider.id.uuidString)
+        #expect(noteBeforeCredential.modelIdentifier == "gpt-4o-mini")
 
         try fixture.settings.saveProviderAPIKey("ai-secret", forProviderID: provider.id)
         try fixture.settings.saveProviderEndpoint("https://private.example/v1", forProviderID: provider.id)
@@ -263,6 +263,50 @@ struct SettingsStoreCaptureAssignmentResolverTests {
         #expect(note.providerIdentifier != "ai-secret")
         #expect(note.providerIdentifier != "https://private.example/v1")
         #expect(note.prompt?.resolvedPrompt?.contains("ai-secret") == false)
+    }
+
+    @Test func noteGenerationPersistsValidUncredentialedSelectionAndLateBindsCredentialAtRuntime() throws {
+        let fixture = try makeFixture()
+        defer { fixture.cleanup() }
+        let resolver = fixture.makeResolver()
+        let provider = ProviderConfig(kind: .openai, displayName: "Personal OpenAI")
+        let prompt = "Capture this note with the configured instructions."
+        fixture.settings.upsertProvider(provider)
+        fixture.settings.setAssignment(
+            ModelAssignment(
+                providerID: provider.id,
+                modelID: "gpt-4.1-mini",
+                promptOverride: prompt
+            ),
+            for: .noteEnhancement
+        )
+
+        #expect(try preview(.noteGeneration, fixture: fixture).state == .unavailable)
+        let persistedAssignment = try resolver.select(
+            stage: .noteGeneration,
+            attempt: 1,
+            activeBatchModelName: nil
+        )
+        #expect(persistedAssignment.providerKind == .generativeAI)
+        #expect(persistedAssignment.providerIdentifier == provider.id.uuidString)
+        #expect(persistedAssignment.modelIdentifier == "gpt-4.1-mini")
+        #expect(persistedAssignment.prompt?.resolvedPrompt == prompt)
+
+        fixture.settings.setAssignment(
+            ModelAssignment(
+                providerID: provider.id,
+                modelID: "gpt-4.1",
+                promptOverride: "Changed after capture"
+            ),
+            for: .noteEnhancement
+        )
+
+        try fixture.settings.saveProviderAPIKey("note-secret", forProviderID: provider.id)
+
+        let runtime = try resolver.resolveNoteGenerationRuntime(for: persistedAssignment)
+        #expect(runtime.providerID == provider.id)
+        #expect(runtime.modelID == "gpt-4.1-mini")
+        #expect(runtime.prompt == prompt)
     }
 
     @Test func previewsMatchSelectionsForDefaultUnavailableAndReadyStages() throws {
@@ -381,13 +425,19 @@ struct SettingsStoreCaptureAssignmentResolverTests {
             modelID: "missing-model"
         )
         fixture.settings.setAssignment(missingProvider, for: .noteEnhancement)
-        #expect(try preview(.noteGeneration, fixture: fixture).state == .unavailable)
-        let unavailableNote = try resolver.select(
+        let missingProviderPreview = try preview(.noteGeneration, fixture: fixture)
+        #expect(missingProviderPreview.state == .unavailable)
+        #expect(missingProviderPreview.value == "missing-model")
+        let missingProviderNote = try resolver.select(
             stage: .noteGeneration,
             attempt: 1,
             activeBatchModelName: nil
         )
-        #expect(unavailableNote.providerKind == .bestEffortUnavailable)
+        #expect(missingProviderNote.providerKind == .generativeAI)
+        #expect(missingProviderNote.providerIdentifier == missingProvider.providerID.uuidString)
+        #expect(missingProviderNote.modelIdentifier == "missing-model")
+        #expect(missingProviderNote.prompt?.presetIdentifier == BuiltInPresetID.noteFormatting)
+        #expect(missingProviderNote.prompt?.resolvedPrompt == SettingsStore.Defaults.noteEnhancementPrompt)
 
         let provider = ProviderConfig(kind: .openai, displayName: "Personal OpenAI")
         fixture.settings.upsertProvider(provider)
@@ -428,23 +478,23 @@ struct SettingsStoreCaptureAssignmentResolverTests {
         )
     }
 
-    @Test func persistedNoteRuntimeUsesStoredAssignmentInsteadOfCurrentPurpose() throws {
+    @Test func persistedNoteRuntimeLateBindsCurrentSameUUIDProviderConfigAndCredentialWhileKeepingCaptureSelectionFrozen() throws {
         let fixture = try makeFixture()
         defer { fixture.cleanup() }
         let resolver = fixture.makeResolver()
-        let persistedProvider = ProviderConfig(kind: .openai, displayName: "Captured OpenAI")
-        let currentProvider = ProviderConfig(kind: .anthropic, displayName: "Current Anthropic")
-        fixture.settings.upsertProvider(persistedProvider)
-        fixture.settings.upsertProvider(currentProvider)
-        try fixture.settings.saveProviderAPIKey("captured-secret", forProviderID: persistedProvider.id)
+        let capturedProvider = ProviderConfig(kind: .openai, displayName: "Captured OpenAI")
+        let currentPurposeProvider = ProviderConfig(kind: .anthropic, displayName: "Current Anthropic")
+        fixture.settings.upsertProvider(capturedProvider)
+        fixture.settings.upsertProvider(currentPurposeProvider)
+        try fixture.settings.saveProviderAPIKey("captured-secret", forProviderID: capturedProvider.id)
         try fixture.settings.saveProviderEndpoint(
             "https://captured.example/v1",
-            forProviderID: persistedProvider.id
+            forProviderID: capturedProvider.id
         )
-        try fixture.settings.saveProviderAPIKey("current-secret", forProviderID: currentProvider.id)
+        try fixture.settings.saveProviderAPIKey("current-secret", forProviderID: currentPurposeProvider.id)
         fixture.settings.setAssignment(
             ModelAssignment(
-                providerID: persistedProvider.id,
+                providerID: capturedProvider.id,
                 modelID: "captured-model",
                 promptOverride: "Captured prompt"
             ),
@@ -455,32 +505,58 @@ struct SettingsStoreCaptureAssignmentResolverTests {
             attempt: 1,
             activeBatchModelName: nil
         )
+        let persistedJSON = String(
+            decoding: try JSONEncoder().encode(persistedAssignment),
+            as: UTF8.self
+        )
+        #expect(!persistedJSON.contains("apiKey"))
+        #expect(!persistedJSON.contains("endpoint"))
+        #expect(!persistedJSON.contains("captured-secret"))
+        #expect(!persistedJSON.contains("https://captured.example/v1"))
 
+        let currentSameUUIDProvider = ProviderConfig(
+            id: capturedProvider.id,
+            kind: .custom,
+            customKind: .custom,
+            displayName: "Current Custom"
+        )
+        fixture.settings.upsertProvider(currentSameUUIDProvider)
+        try fixture.settings.saveProviderAPIKey("current-same-uuid-secret", forProviderID: capturedProvider.id)
+        try fixture.settings.saveProviderEndpoint(
+            "https://current-same-uuid.example/v1",
+            forProviderID: capturedProvider.id
+        )
         fixture.settings.setAssignment(
             ModelAssignment(
-                providerID: currentProvider.id,
+                providerID: currentPurposeProvider.id,
                 modelID: "current-model",
                 promptOverride: "Current prompt"
             ),
             for: .noteEnhancement
         )
-        let runtime = try resolver.resolveNoteGenerationRuntime(for: persistedAssignment)
-        #expect(runtime.providerID == persistedProvider.id)
-        #expect(runtime.displayName == "Captured OpenAI")
-        #expect(runtime.modelID == "captured-model")
-        #expect(runtime.prompt == "Captured prompt")
-        #expect(runtime.endpoint == "https://captured.example/v1")
-        #expect(runtime.apiKey == "captured-secret")
 
-        try fixture.settings.deleteProviderAPIKey(forProviderID: persistedProvider.id)
+        let runtime = try resolver.resolveNoteGenerationRuntime(for: persistedAssignment)
+        #expect(runtime.providerID == capturedProvider.id)
+        #expect(runtime.providerID != currentPurposeProvider.id)
+        #expect(runtime.kind == .custom)
+        #expect(runtime.customKind == .custom)
+        #expect(runtime.displayName == "Current Custom")
+        #expect(runtime.modelID == "captured-model")
+        #expect(runtime.modelID != "current-model")
+        #expect(runtime.prompt == "Captured prompt")
+        #expect(runtime.prompt != "Current prompt")
+        #expect(runtime.endpoint == "https://current-same-uuid.example/v1")
+        #expect(runtime.apiKey == "current-same-uuid-secret")
+
+        try fixture.settings.deleteProviderAPIKey(forProviderID: capturedProvider.id)
         #expect(throws: CaptureStageAssignmentResolverError.missingPersistedNoteProviderCredential(
-            provider: "Captured OpenAI"
+            provider: "Current Custom"
         )) {
             try resolver.resolveNoteGenerationRuntime(for: persistedAssignment)
         }
-        fixture.settings.removeProvider(withID: persistedProvider.id)
+        fixture.settings.removeProvider(withID: capturedProvider.id)
         #expect(throws: CaptureStageAssignmentResolverError.persistedNoteProviderUnavailable(
-            persistedProvider.id.uuidString
+            capturedProvider.id.uuidString
         )) {
             try resolver.resolveNoteGenerationRuntime(for: persistedAssignment)
         }

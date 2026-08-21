@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "Ändra ditt val när som helst i Inställningar → Integritet."
 changes:
   the_language_used_by_pindrop_s_interface: "Changes the language used by Pindrop's interface."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "Ändringar av den här leverantörens inloggningsuppgifter och slutpunkt gäller för pågående och återställda inspelningar. Den valda modellen och prompten förblir oförändrade."
 check:
   for_updates: "Sök efter uppdateringar..."
   for_updates_736b9062: "Sök efter uppdateringar"

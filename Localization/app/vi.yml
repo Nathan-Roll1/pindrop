@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "Thay đổi lựa chọn của bạn bất cứ lúc nào trong Cài đặt → Quyền riêng tư."
 changes:
   the_language_used_by_pindrop_s_interface: "Changes the language used by Pindrop's interface."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "Các thay đổi đối với thông tin xác thực và điểm cuối của nhà cung cấp này sẽ áp dụng cho các bản ghi đang thực hiện và đã khôi phục. Mô hình và lời nhắc đã chọn vẫn được giữ nguyên."
 check:
   for_updates: "Kiểm tra cập nhật..."
   for_updates_736b9062: "Kiểm tra các bản cập nhật"

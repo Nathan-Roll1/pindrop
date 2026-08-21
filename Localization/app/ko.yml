@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "설정 → 개인정보 보호에서 언제든지 선택을 변경할 수 있습니다."
 changes:
   the_language_used_by_pindrop_s_interface: "Pindrop 인터페이스 언어를 변경합니다."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "이 제공업체의 자격 증명과 엔드포인트를 변경하면 진행 중인 캡처와 복구된 캡처에 적용됩니다. 선택한 모델과 프롬프트는 그대로 유지됩니다."
 check:
   for_updates: "업데이트 확인..."
   for_updates_736b9062: "업데이트 확인"

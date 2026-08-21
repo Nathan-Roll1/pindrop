@@ -77,6 +77,25 @@ final class PindropUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Recording indicator"].exists)
     }
 
+    @MainActor
+    func testNoteEditorCitationsFixtureLaunches() throws {
+        try skipIfTargetAppIsAlreadyRunning()
+
+        let app = configuredApplication(surface: "noteEditorCitations")
+        launchedApplication = app
+        app.launch()
+
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5))
+        let citationPanel = app.descendants(matching: .any)["note-editor-citation-panel"]
+        XCTAssertTrue(citationPanel.waitForExistence(timeout: 5))
+        XCTAssertTrue(citationPanel.label.contains("Confirm the release timeline before publishing."))
+        XCTAssertTrue(citationPanel.label.contains("C1"))
+        XCTAssertTrue(citationPanel.label.contains("C2"))
+
+        let editorBody = app.descendants(matching: .any)["note-editor-body"]
+        XCTAssertTrue(editorBody.waitForExistence(timeout: 5))
+    }
+
     private func configuredApplication(
         surface: String = "settings",
         settingsTab: String = "general",

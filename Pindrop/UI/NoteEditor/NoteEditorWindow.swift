@@ -223,6 +223,12 @@ struct NoteEditorView: View {
     /// Displayed word count — updated independently of Markdown editor rendering.
     @State private var displayedWordCount = 0
     @State private var wordCountTask: Task<Void, Never>?
+    /// Immutable meeting-note citations rendered separately from the editable body.
+    @State private var generatedCitations: [MeetingNoteCitation] = []
+    /// Exact human-anchor snapshot that the meeting-note derivation consumed.
+    @State private var generatedHumanAnchorContent = ""
+    /// Invalidates citation lookups when the displayed note, title, or body changes.
+    @State private var citationValidationGeneration: UInt = 0
 
     /// Ownership + processing only — does NOT observe 4Hz `elapsed` ticks.
     @ObservedObject private var appendSessionState = NoteAppendListeningCoordinator.shared.sessionState
@@ -307,8 +313,15 @@ struct NoteEditorView: View {
             // reopened editor never starts from a pre-close snapshot.
             if let existing = note {
                 let modelID = existing.persistentModelID
+                let loadValidationGeneration = citationValidationGeneration
                 Task { @MainActor in
                     await NoteEditorPersistenceController.shared.flush(modelID: modelID)
+                    guard citationValidationGeneration == loadValidationGeneration,
+                          currentNote?.persistentModelID == modelID,
+                          currentNote?.id == existing.id
+                    else {
+                        return
+                    }
                     if let refreshed = modelContext.model(for: modelID) as? NoteSchema.Note {
                         title = refreshed.title
                         content = refreshed.content
@@ -318,6 +331,7 @@ struct NoteEditorView: View {
                         currentNote = refreshed
                         lastSavedSnapshot = NoteSnapshot(note: refreshed)
                         displayedWordCount = refreshed.content.wordCount
+                        loadMeetingCitations(for: refreshed.id, expectedContent: refreshed.content)
                     } else {
                         loadNoteData()
                         refreshWordCountImmediately()
@@ -340,6 +354,12 @@ struct NoteEditorView: View {
                 }
             }
         }
+        .onChange(of: note?.id) { _, _ in
+            invalidateCitationValidation(clearingCitations: true)
+            loadNoteData()
+            refreshWordCountImmediately()
+        }
+
         .onDisappear {
             savedConfirmationTask?.cancel()
             let requestedNoteID = appendRequestState.requestedNoteID
@@ -360,10 +380,12 @@ struct NoteEditorView: View {
                 )
             }
         }
-        .onChange(of: title) { _, _ in
+        .onChange(of: title) { _, newValue in
+            invalidateCitationValidation(title: newValue)
             noteDidChange()
         }
         .onChange(of: content) { _, newValue in
+            invalidateCitationValidation(body: newValue)
             scheduleWordCountUpdate(for: newValue)
             noteDidChange()
         }
@@ -511,8 +533,14 @@ struct NoteEditorView: View {
             tagsRow
 
             MarkdownEditor(text: $content)
+                .accessibilityIdentifier("note-editor-body")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if !generatedCitations.isEmpty {
+                citationPanel
+            }
         }
+
         .disabled(isAppendLocked)
         .padding(.horizontal, 24)
         .padding(.top, 16)
@@ -547,6 +575,68 @@ struct NoteEditorView: View {
 
             Spacer(minLength: 0)
         }
+    }
+
+    private var citationPanel: some View {
+        GroupBox {
+            ScrollView(.vertical, showsIndicators: true) {
+                LazyVStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(localized("Note", locale: locale))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppColors.textTertiary)
+
+                        Text(humanAnchorPresentationText)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(AppColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+
+                    ForEach(Array(generatedCitations.enumerated()), id: \.offset) { _, citation in
+                        Text(MeetingNoteDerivation.citationPresentationLine(citation))
+                            .font(.caption.monospaced())
+                            .foregroundStyle(AppColors.textSecondary)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 104)
+        } label: {
+            Label(
+                localized("Sources", locale: locale),
+                systemImage: "checkmark.shield.fill"
+            )
+            .font(.headline)
+            .foregroundStyle(AppColors.accent)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(AppColors.accentBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(AppColors.accent.opacity(0.45), lineWidth: 1)
+        }
+        .accessibilityIdentifier("note-editor-citation-panel")
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(citationAccessibilityLabel)
+    }
+
+    private var humanAnchorPresentationText: String {
+        MeetingNoteDerivation.sourcePresentationText(generatedHumanAnchorContent)
+    }
+
+    private var citationAccessibilityLabel: String {
+        let sourceLines = generatedCitations
+            .map(MeetingNoteDerivation.citationPresentationLine)
+            .joined(separator: " ")
+        return "\(localized("Sources", locale: locale)). \(localized("Note", locale: locale)): \(humanAnchorPresentationText). \(sourceLines)"
     }
 
     // MARK: - Footer (spec §10)
@@ -760,6 +850,41 @@ struct NoteEditorView: View {
         }
     }
 
+    /// Reads citations only after validating the durable generated-note provenance.
+    ///
+    /// Both guards make a lookup harmless when an editor is replaced or a newer
+    /// draft arrives while a save completion is being handled.
+    private func loadMeetingCitations(
+        for noteID: UUID?,
+        expectedContent: String? = nil
+    ) {
+        guard let noteID,
+              currentNote?.id == noteID,
+              expectedContent.map({ content == $0 }) ?? true
+        else {
+            return
+        }
+
+        let validationGeneration = citationValidationGeneration
+        let generatedNote: MeetingGeneratedNoteSnapshot?
+        do {
+            let store = CaptureSessionStore(modelContext: modelContext)
+            generatedNote = try store.generatedMeetingNote(noteID: noteID)
+        } catch {
+            Log.app.error("Generated note citation metadata is invalid.")
+            generatedNote = nil
+        }
+
+        guard citationValidationGeneration == validationGeneration,
+              currentNote?.id == noteID,
+              expectedContent.map({ content == $0 }) ?? true
+        else {
+            return
+        }
+        generatedCitations = generatedNote?.citations ?? []
+        generatedHumanAnchorContent = generatedNote?.humanAnchorContent ?? ""
+    }
+
     private func loadNoteData() {
         if let note = note {
             title = note.title
@@ -770,7 +895,9 @@ struct NoteEditorView: View {
             currentNote = note
             lastSavedSnapshot = NoteSnapshot(note: note)
             displayedWordCount = note.content.wordCount
+            loadMeetingCitations(for: note.id, expectedContent: note.content)
         } else {
+            invalidateCitationValidation(clearingCitations: true)
             displayedWordCount = 0
         }
     }
@@ -907,8 +1034,13 @@ struct NoteEditorView: View {
 
         // Drop stale completions — a newer edit already supersedes this save.
         guard result.applied,
-              result.generation == NoteEditorPersistenceController.shared.currentGeneration(for: modelID)
-        else { return }
+              result.generation == NoteEditorPersistenceController.shared.currentGeneration(for: modelID),
+              currentNote?.persistentModelID == modelID,
+              currentNote?.id == noteToSave.id,
+              currentSnapshot() == snapshot
+        else {
+            return
+        }
 
         // Refresh the managed model from the main context for the onSave callback.
         if let refreshed = modelContext.model(for: modelID) as? NoteSchema.Note {
@@ -921,6 +1053,10 @@ struct NoteEditorView: View {
             noteToSave.updatedAt = result.updatedAt ?? editedAt
             onSave(noteToSave)
         }
+
+        // Citations are trusted only when a fresh store validation confirms the
+        // exact persisted note still has valid generated-note provenance.
+        loadMeetingCitations(for: noteToSave.id, expectedContent: snapshot.content)
     }
 
     private func saveNow() {
@@ -960,6 +1096,29 @@ struct NoteEditorView: View {
             guard !Task.isCancelled else { return }
             saveNote(immediate: false)
         }
+    }
+
+    /// Clears trusted citation metadata synchronously when an edited title or
+    /// body contains a reserved citation form or another value the generated-note
+    /// sanitizer would change. Sanitized edits remain eligible for store revalidation.
+    private func invalidateCitationValidation(
+        body: String? = nil,
+        title: String? = nil,
+        clearingCitations: Bool = false
+    ) {
+        citationValidationGeneration &+= 1
+        let body = body ?? content
+        let title = title ?? self.title
+        if clearingCitations
+            || !Self.permitsTrustedCitations(in: body)
+            || title != MeetingNoteDerivation.sanitizingGeneratedContent(title) {
+            generatedCitations = []
+            generatedHumanAnchorContent = ""
+        }
+    }
+
+    static func permitsTrustedCitations(in body: String) -> Bool {
+        body == MeetingNoteDerivation.sanitizingGeneratedContent(body)
     }
 
     private func scheduleWordCountUpdate(for text: String) {

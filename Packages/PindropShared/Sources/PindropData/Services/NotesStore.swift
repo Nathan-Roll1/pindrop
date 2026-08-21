@@ -38,6 +38,8 @@ public final class NotesStore {
         case searchFailed(String)
         case metadataGenerationFailed(String)
         case noteNotFound(UUID)
+        case meetingAnchorProtected(noteID: UUID)
+
         public var errorDescription: String? {
             switch self {
             case .saveFailed(let message):
@@ -52,6 +54,8 @@ public final class NotesStore {
                 return "Failed to generate metadata: \(message)"
             case .noteNotFound(let id):
                 return "Note \(id.uuidString) was not found."
+            case .meetingAnchorProtected(let noteID):
+                return "Meeting anchor note \(noteID.uuidString) cannot be deleted."
             }
         }
     }
@@ -120,8 +124,7 @@ public final class NotesStore {
                     }
                 }
             } catch {
-                Log.aiEnhancement.warning(
-                    "Failed to generate note metadata: \(error.localizedDescription)")
+                Log.aiEnhancement.warning("Note metadata generation failed; using fallback")
                 // Fall back to default behavior on generator failure
             }
         }
@@ -189,6 +192,39 @@ public final class NotesStore {
 
         do {
             return try context.fetch(descriptor).first != nil
+        } catch {
+            throw NotesStoreError.fetchFailed(error.localizedDescription)
+        }
+    }
+
+    /// Fetches a durable note after proving its existence in a fresh context.
+    public func fetch(id: UUID) throws -> Note {
+        let durableContext = ModelContext(modelContext.container)
+        var descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate<Note> { note in
+                note.id == id
+            }
+        )
+        descriptor.fetchLimit = 1
+
+        do {
+            guard let durableNote = try durableContext.fetch(descriptor).first else {
+                throw NotesStoreError.noteNotFound(id)
+            }
+            let registered: Note? = modelContext.registeredModel(
+                for: durableNote.persistentModelID
+            )
+            if let registered {
+                return registered
+            }
+            guard let registered = modelContext.model(
+                for: durableNote.persistentModelID
+            ) as? Note else {
+                throw NotesStoreError.noteNotFound(id)
+            }
+            return registered
+        } catch let error as NotesStoreError {
+            throw error
         } catch {
             throw NotesStoreError.fetchFailed(error.localizedDescription)
         }
@@ -281,10 +317,37 @@ public final class NotesStore {
     }
 
     public func delete(_ note: Note) throws {
-        modelContext.delete(note)
-
+        let noteID = note.id
+        let context = ModelContext(modelContext.container)
+        let references: [CaptureNoteReferenceModel]
         do {
-            try modelContext.save()
+            references = try noteReferences(for: noteID, in: context)
+            for reference in references {
+                switch try reference.resolvedRole() {
+                case .humanAnchor:
+                    throw NotesStoreError.meetingAnchorProtected(noteID: noteID)
+                case .generated:
+                    break
+                }
+            }
+        } catch let error as NotesStoreError {
+            throw error
+        } catch {
+            throw NotesStoreError.deleteFailed("Note has an unrecognized meeting role.")
+        }
+
+        let descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate<Note> { $0.id == noteID }
+        )
+        do {
+            guard let durableNote = try context.fetch(descriptor).first else {
+                return
+            }
+            for reference in references {
+                context.delete(reference)
+            }
+            context.delete(durableNote)
+            try context.save()
             invalidateUniqueTagsCache()
         } catch {
             throw NotesStoreError.deleteFailed(error.localizedDescription)
@@ -292,9 +355,30 @@ public final class NotesStore {
     }
 
     public func deleteAll() throws {
+        let context = ModelContext(modelContext.container)
+        let references: [CaptureNoteReferenceModel]
         do {
-            try modelContext.delete(model: Note.self)
-            try modelContext.save()
+            references = try noteReferences(in: context)
+            for reference in references {
+                switch try reference.resolvedRole() {
+                case .humanAnchor:
+                    throw NotesStoreError.meetingAnchorProtected(noteID: reference.noteID)
+                case .generated:
+                    break
+                }
+            }
+        } catch let error as NotesStoreError {
+            throw error
+        } catch {
+            throw NotesStoreError.deleteFailed("Note has an unrecognized meeting role.")
+        }
+
+        do {
+            for reference in references {
+                context.delete(reference)
+            }
+            try context.delete(model: Note.self)
+            try context.save()
             invalidateUniqueTagsCache()
         } catch {
             throw NotesStoreError.deleteFailed(error.localizedDescription)
@@ -375,6 +459,22 @@ public final class NotesStore {
     private func invalidateUniqueTagsCache() {
         uniqueTagsCacheGeneration &+= 1
         uniqueTagsCache = nil
+    }
+
+    private func noteReferences(
+        for noteID: UUID,
+        in context: ModelContext
+    ) throws -> [CaptureNoteReferenceModel] {
+        let descriptor = FetchDescriptor<CaptureNoteReferenceModel>(
+            predicate: #Predicate<CaptureNoteReferenceModel> { $0.noteID == noteID }
+        )
+        return try context.fetch(descriptor)
+    }
+
+    private func noteReferences(
+        in context: ModelContext
+    ) throws -> [CaptureNoteReferenceModel] {
+        try context.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
     }
 }
 

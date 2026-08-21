@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "随时可在设置 → 隐私中更改你的选择。"
 changes:
   the_language_used_by_pindrop_s_interface: "更改 Pindrop 界面使用的语言。"
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "对该提供商凭据和端点的更改会应用于进行中的捕获和已恢复的捕获。所选模型和提示词保持不变。"
 check:
   for_updates: "检查更新..."
   for_updates_736b9062: "检查更新"

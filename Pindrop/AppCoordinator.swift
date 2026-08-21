@@ -293,6 +293,44 @@ final class RecordingStopAdmission {
     }
 }
 
+/// A synchronous admission gate for a pending meeting-capture start.
+/// A claim is acquired before the start task is created, so a second trigger
+/// cannot enter while the first one is suspended in recorder preparation.
+struct MeetingCaptureStartClaim: Equatable, Sendable {
+    let id: UInt64
+}
+
+final class MeetingCaptureStartAdmission {
+    private let lock = NSLock()
+    private var isClaimed = false
+    private var currentClaimID: UInt64 = 0
+    private var nextClaimID: UInt64 = 0
+
+    func claim() -> MeetingCaptureStartClaim? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !isClaimed else { return nil }
+        nextClaimID &+= 1
+        currentClaimID = nextClaimID
+        isClaimed = true
+        return MeetingCaptureStartClaim(id: currentClaimID)
+    }
+
+    func isCurrent(_ claim: MeetingCaptureStartClaim) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isClaimed && currentClaimID == claim.id
+    }
+
+    /// Releases only the exact pending start that owns the admission.
+    func release(_ claim: MeetingCaptureStartClaim) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard isClaimed, currentClaimID == claim.id else { return }
+        isClaimed = false
+    }
+}
+
 /// Generation-token ownership for a single in-flight dictation/processing pipeline.
 /// Cancel advances the generation so post-await stages can discard stale results.
 final class DictationOperationController: @unchecked Sendable {
@@ -449,6 +487,7 @@ final class AppCoordinator {
     }
     private struct MeetingCaptureContext {
         let handle: PindropData.MeetingCaptureHandle
+        let humanAnchorNoteID: UUID
         let spoolPlan: MeetingCaptureSpoolPlan
         let generation: UInt64
     }
@@ -517,6 +556,98 @@ final class AppCoordinator {
         case stageCall
         case rawFallback
     }
+
+    enum MeetingNoteGenerationExecutionDecision: Equatable {
+        case skipDisabled
+        case skipUnavailable
+        case rejectInvalidAssignment
+        case resolveRuntime
+    }
+
+    enum MeetingNoteGenerationFailure: String, Error, Equatable, Sendable, LocalizedError {
+        case assignmentUnavailable = "assignment-unavailable"
+        case disabled = "assignment-disabled"
+        case unavailable = "assignment-best-effort-unavailable"
+        case runtimeUnavailable = "runtime-unavailable"
+        case promptUnavailable = "prompt-unavailable"
+        case derivationFailed = "source-derivation-failed"
+        case generationFailed = "generation-failed"
+        case emptyOutput = "empty-output"
+        case sourceChanged = "source-changed"
+        case saveFailed = "save-failed"
+        case generatedNoteDiscoveryFailed = "generated-note-discovery-failed"
+
+        var retryable: Bool {
+            switch self {
+            case .disabled, .unavailable:
+                false
+            case .assignmentUnavailable,
+                    .runtimeUnavailable,
+                    .promptUnavailable,
+                    .derivationFailed,
+                    .generationFailed,
+                    .emptyOutput,
+                    .sourceChanged,
+                    .saveFailed,
+                    .generatedNoteDiscoveryFailed:
+                true
+            }
+        }
+
+        var message: String {
+            switch self {
+            case .assignmentUnavailable:
+                "Meeting note generation assignment was unavailable."
+            case .disabled:
+                "Meeting note generation was disabled when capture started."
+            case .unavailable:
+                "Meeting note generation was unavailable when capture started."
+            case .runtimeUnavailable:
+                "Meeting note generation runtime was unavailable."
+            case .promptUnavailable:
+                "Meeting note generation prompt was unavailable."
+            case .derivationFailed:
+                "Meeting note sources could not be derived."
+            case .generationFailed:
+                "Meeting note generation failed."
+            case .emptyOutput:
+                "Meeting note generation returned empty content."
+            case .sourceChanged:
+                "Meeting note sources changed before the generated note could be saved."
+            case .saveFailed:
+                "Generated meeting note could not be saved."
+            case .generatedNoteDiscoveryFailed:
+                "Existing generated meeting note could not be verified."
+            }
+        }
+        var errorDescription: String? {
+            message
+        }
+
+        var category: MeetingNoteGenerationFailureCategory {
+            switch self {
+            case .assignmentUnavailable, .disabled, .unavailable:
+                .assignment
+            case .runtimeUnavailable, .promptUnavailable:
+                .configuration
+            case .derivationFailed, .sourceChanged:
+                .sourceDerivation
+            case .generationFailed, .emptyOutput:
+                .providerOutput
+            case .saveFailed, .generatedNoteDiscoveryFailed:
+                .persistence
+            }
+        }
+    }
+
+    enum MeetingNoteGenerationFailureCategory: String, Equatable {
+        case assignment
+        case configuration
+        case sourceDerivation = "source-derivation"
+        case providerOutput = "provider-output"
+        case persistence
+    }
+
 
     private struct PendingNoteAppendStart: Equatable {
         let generation: UInt64
@@ -675,6 +806,11 @@ final class AppCoordinator {
     let toastWindowController: ToastWindowController
     private var meetingCaptureContext: MeetingCaptureContext?
     private var meetingCaptureGeneration: UInt64 = 0
+    private let meetingCaptureStartAdmission = MeetingCaptureStartAdmission()
+    private var pendingMeetingCaptureStart: MeetingCaptureStartClaim?
+    private var pendingMeetingCaptureStartTask: Task<Void, Never>?
+    private var pendingMeetingCaptureStartHandle: PindropData.MeetingCaptureHandle?
+    private var pendingMeetingCaptureCancellationHandle: PindropData.MeetingCaptureHandle?
     private var meetingRecoveryTask: Task<Void, Never>?
     private var meetingRecoveryGeneration: UInt64 = 0
     private var meetingRecoveryHandle: PindropData.MeetingCaptureHandle?
@@ -1787,6 +1923,18 @@ final class AppCoordinator {
                         generation: generation,
                         handle: candidate.handle
                     )
+                    _ = try self.captureSessionStore.ensureMeetingHumanAnchor(
+                        candidate.handle,
+                        title: localized(
+                            "Untitled Note",
+                            locale: self.settingsStore.selectedAppLocale.locale
+                        ),
+                        at: .now
+                    )
+                    try self.ensureMeetingRecoveryCurrent(
+                        generation: generation,
+                        handle: candidate.handle
+                    )
                     try self.captureSessionStore.interruptMeetingCapture(
                         candidate.handle,
                         errorDomain: "Pindrop",
@@ -1846,6 +1994,19 @@ final class AppCoordinator {
                                 handle: candidate.handle
                             )
                         }
+                    )
+                } catch let failure as MeetingNoteGenerationFailure {
+                    guard Self.shouldContinueMeetingRecovery(after: failure) else {
+                        return
+                    }
+                    guard self.isMeetingRecoveryCurrent(
+                        generation: generation,
+                        handle: candidate.handle
+                    ) else {
+                        return
+                    }
+                    Log.app.warning(
+                        "Meeting recovery deferred note generation for \(candidate.handle.sessionID.uuidString): \(failure.message)"
                     )
                 } catch {
                     guard Self.shouldContinueMeetingRecovery(after: error) else {
@@ -3638,6 +3799,13 @@ final class AppCoordinator {
         NoteAppendListeningCoordinator.shared.state.finishSession()
     }
 
+    static let meetingStartAssignmentStages: [CapturePipelineStage] = [
+        .liveTranscription,
+        .finalTranscription,
+        .diarization,
+        .noteGeneration
+    ]
+
     static func captureAssignmentAttempt(for stage: CapturePipelineStage) -> Int {
         // Capture retries are represented by new attempts. Initial execution, recovery,
         // and every meeting chunk share the durable first attempt.
@@ -3695,9 +3863,44 @@ final class AppCoordinator {
         return persistedAssignment
     }
     static func canExecutePersistedNoteGeneration(resolvedPrompt: String?) -> Bool {
-        resolvedPrompt != nil
+        guard let resolvedPrompt else { return false }
+        return !normalizedTranscriptionText(resolvedPrompt).isEmpty
     }
 
+    static func shouldGenerateMeetingNote(existingGeneratedNote: Bool) -> Bool {
+        !existingGeneratedNote
+    }
+
+    static func generatedMeetingNoteTitle(_ title: String, fallback: String) -> String {
+        let sanitizedTitle = MeetingNoteDerivation.sanitizingGeneratedContent(
+            normalizedTranscriptionText(title)
+        )
+        return sanitizedTitle.isEmpty ? fallback : sanitizedTitle
+    }
+
+    static func meetingNoteGenerationExecutionDecision(
+        for assignment: CaptureStageAssignment
+    ) -> MeetingNoteGenerationExecutionDecision {
+        switch assignment.providerKind {
+        case .disabled:
+            .skipDisabled
+        case .bestEffortUnavailable:
+            .skipUnavailable
+        case .generativeAI:
+            .resolveRuntime
+        case .streamingSpeech, .batchSpeech, .localDiarization:
+            .rejectInvalidAssignment
+        }
+    }
+    static func meetingNoteGenerationSaveFailure(
+        for error: Error
+    ) -> MeetingNoteGenerationFailure {
+        guard let storeError = error as? CaptureSessionStoreError,
+              case .meetingGeneratedNoteSourceChanged = storeError else {
+            return .saveFailed
+        }
+        return .sourceChanged
+    }
 
     static func noteGenerationExecutionOrder(
         for persistedAssignment: CaptureStageAssignment,
@@ -3747,6 +3950,20 @@ final class AppCoordinator {
         isShutdown: Bool = false
     ) -> Bool {
         activeHandle == nil && !recoveryTaskActive && !isShutdown
+    }
+
+    static func canCancelCurrentOperation(
+        isRecording: Bool,
+        isProcessing: Bool,
+        hasActiveOperationTask: Bool,
+        hasMeetingCaptureContext: Bool,
+        hasPendingMeetingCaptureStart: Bool
+    ) -> Bool {
+        isRecording
+            || isProcessing
+            || hasActiveOperationTask
+            || hasMeetingCaptureContext
+            || hasPendingMeetingCaptureStart
     }
 
     static func isMeetingCaptureCurrent(
@@ -4001,6 +4218,62 @@ final class AppCoordinator {
         voiceNoteCaptureContext = nil
     }
 
+    private func isPendingMeetingCaptureStartCurrent(_ claim: MeetingCaptureStartClaim) -> Bool {
+        pendingMeetingCaptureStart == claim
+            && meetingCaptureStartAdmission.isCurrent(claim)
+            && !Task.isCancelled
+    }
+
+    private func ensurePendingMeetingCaptureStartCurrent(
+        _ claim: MeetingCaptureStartClaim
+    ) throws {
+        try Task.checkCancellation()
+        guard !isShutdown, isPendingMeetingCaptureStartCurrent(claim) else {
+            throw CancellationError()
+        }
+    }
+
+    private func clearPendingMeetingCaptureStart(
+        ifCurrent claim: MeetingCaptureStartClaim
+    ) {
+        guard pendingMeetingCaptureStart == claim else { return }
+        pendingMeetingCaptureStartTask = nil
+        pendingMeetingCaptureStart = nil
+        pendingMeetingCaptureStartHandle = nil
+        meetingCaptureStartAdmission.release(claim)
+    }
+
+    private func cancelPendingMeetingCaptureStart() {
+        guard let claim = pendingMeetingCaptureStart else { return }
+        pendingMeetingCaptureStartTask?.cancel()
+        pendingMeetingCaptureStartTask = nil
+        pendingMeetingCaptureStart = nil
+        meetingCaptureStartAdmission.release(claim)
+    }
+
+    private func cancelPendingMeetingCaptureStartHandle() throws {
+        guard let handle = pendingMeetingCaptureCancellationHandle
+            ?? pendingMeetingCaptureStartHandle,
+            meetingCaptureContext?.handle != handle else {
+            return
+        }
+
+        do {
+            try captureSessionStore.cancelMeetingCapture(handle, at: .now)
+        } catch {
+            pendingMeetingCaptureCancellationHandle = handle
+            throw MeetingCaptureTerminalPersistenceError.cancellation(error)
+        }
+
+        if pendingMeetingCaptureStartHandle == handle {
+            pendingMeetingCaptureStartHandle = nil
+        }
+        if pendingMeetingCaptureCancellationHandle == handle {
+            pendingMeetingCaptureCancellationHandle = nil
+        }
+
+    }
+
     private func isMeetingCaptureContextCurrent(_ context: MeetingCaptureContext) -> Bool {
         meetingCaptureGeneration == context.generation
             && Self.isMeetingCaptureCurrent(
@@ -4038,6 +4311,12 @@ final class AppCoordinator {
             throw MeetingCaptureTerminalPersistenceError.cancellation(error)
         }
         clearMeetingCaptureContext(ifCurrent: context)
+        if pendingMeetingCaptureStartHandle == context.handle {
+            pendingMeetingCaptureStartHandle = nil
+        }
+        if pendingMeetingCaptureCancellationHandle == context.handle {
+            pendingMeetingCaptureCancellationHandle = nil
+        }
     }
 
     private func reportMeetingCaptureTerminalPersistenceFailure(_ error: Error) {
@@ -4210,6 +4489,17 @@ final class AppCoordinator {
         operationGuard: () throws -> Void
     ) async throws {
         try operationGuard()
+        let meetingStartAssignments = try captureMeetingStartAssignments(sessionID: handle.sessionID)
+        guard let finalAssignment = meetingStartAssignments.first(where: {
+            $0.stage == .finalTranscription
+        }) else {
+            throw CaptureStageAssignmentError.missingModelIdentifier(providerKind: .disabled)
+        }
+        guard let diarizationAssignment = meetingStartAssignments.first(where: {
+            $0.stage == .diarization
+        }) else {
+            throw CaptureStageAssignmentError.missingModelIdentifier(providerKind: .disabled)
+        }
         let plan = try captureSessionStore.makeMeetingFinalizationPlan(handle)
         let workItems = try Self.meetingChunkWorkItems(
             sourceChunks: plan.sourceChunks,
@@ -4219,11 +4509,6 @@ final class AppCoordinator {
         let needsFinalModelActivation = Self.meetingFinalizationNeedsFinalModelActivation(
             workItems: workItems,
             completedASRSequences: plan.completedASRSequences
-        )
-        let finalAssignment = try captureAssignment(
-            sessionID: handle.sessionID,
-            stage: .finalTranscription,
-            attempt: Self.captureAssignmentAttempt(for: .finalTranscription)
         )
         guard let finalModelIdentifier = Self.finalHistoryModelIdentifier(from: finalAssignment) else {
             throw CaptureStageAssignmentError.missingModelIdentifier(
@@ -4235,11 +4520,6 @@ final class AppCoordinator {
             try operationGuard()
         }
 
-        let diarizationAssignment = try captureAssignment(
-            sessionID: handle.sessionID,
-            stage: .diarization,
-            attempt: Self.captureAssignmentAttempt(for: .diarization)
-        )
         let diarizationDecision = Self.captureAssignmentExecutionDecision(
             for: diarizationAssignment
         )
@@ -4323,6 +4603,7 @@ final class AppCoordinator {
                 systemAudio: systemAudio,
                 handle: handle,
                 spoolPlan: spoolPlan,
+                finalAssignmentAttempt: finalAssignment.attempt,
                 diarizationEnabled: diarizationDecision == .execute,
                 outputs: &outputs,
                 warningCount: &warningCount,
@@ -4374,9 +4655,36 @@ final class AppCoordinator {
                 sourceDisplayName: "Meeting recording",
                 id: recordID
             )
-            try operationGuard()
-            try captureSessionStore.completeMeetingCapture(handle, transcriptionRecordID: record.id, at: .now)
+            try await Self.completeMeetingAfterHistory(
+                recordID: record.id,
+                operationGuard: operationGuard,
+                generateNote: {
+                    try await self.generateMeetingNoteIfNeeded(
+                        handle,
+                        operationGuard: operationGuard
+                    )
+                },
+                onGenerationFailure: { failure in
+                    self.recordMeetingNoteGenerationFailure(
+                        failure,
+                        handle: handle,
+                        attempt: Self.captureAssignmentAttempt(for: .noteGeneration)
+                    )
+                },
+                complete: { transcriptionRecordID in
+                    try self.captureSessionStore.completeMeetingCapture(
+                        handle,
+                        transcriptionRecordID: transcriptionRecordID,
+                        at: .now
+                    )
+                }
+            )
             updateRecentTranscriptsMenu()
+
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let failure as MeetingNoteGenerationFailure {
+            throw failure
         } catch {
             let nsError = error as NSError
             try? captureSessionStore.recordMeetingHistoryFailure(
@@ -4396,6 +4704,7 @@ final class AppCoordinator {
         systemAudio: SealedAudioSourceChunk?,
         handle: PindropData.MeetingCaptureHandle,
         spoolPlan: MeetingCaptureSpoolPlan,
+        finalAssignmentAttempt: Int,
         diarizationEnabled: Bool,
         outputs: inout [TranscriptionChunkOutput],
         warningCount: inout Int,
@@ -4444,6 +4753,7 @@ final class AppCoordinator {
                 text: output.plainText,
                 segmentsJSON: segmentsJSON,
                 languageCode: settingsStore.selectedAppLanguage.rawValue,
+                assignmentAttempt: finalAssignmentAttempt,
                 at: .now
             )
             outputs.append(output)
@@ -4529,6 +4839,211 @@ final class AppCoordinator {
                 retryable: true,
                 at: .now
             )
+        }
+    }
+
+    private func captureMeetingStartAssignments(
+        sessionID: UUID
+    ) throws -> [CaptureStageAssignment] {
+        try Self.meetingStartAssignmentStages.map { stage in
+            try captureAssignment(
+                sessionID: sessionID,
+                stage: stage,
+                attempt: Self.captureAssignmentAttempt(for: stage)
+            )
+        }
+    }
+
+    private func recordMeetingNoteGenerationFailure(
+        _ failure: MeetingNoteGenerationFailure,
+        handle: PindropData.MeetingCaptureHandle,
+        attempt: Int
+    ) {
+        do {
+            try captureSessionStore.recordStageFailure(
+                sessionID: handle.sessionID,
+                stage: .noteGeneration,
+                attempt: attempt,
+                domain: "PindropMeetingNotes",
+                code: failure.rawValue,
+                message: failure.message,
+                retryable: failure.retryable,
+                at: .now
+            )
+        } catch {
+            Log.app.error(
+                "Meeting note generation failure persistence failed code=\(failure.rawValue) category=\(failure.category.rawValue)"
+            )
+        }
+        Log.app.warning(
+            "Meeting note generation failure code=\(failure.rawValue) category=\(failure.category.rawValue) message=\(failure.message)"
+        )
+    }
+
+    @MainActor
+    static func completeMeetingAfterHistory(
+        recordID: UUID,
+        operationGuard: () throws -> Void,
+        generateNote: () async throws -> Void,
+        onGenerationFailure: (MeetingNoteGenerationFailure) -> Void,
+        complete: (UUID) throws -> Void
+    ) async throws {
+        try operationGuard()
+        do {
+            try await generateNote()
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let failure as MeetingNoteGenerationFailure {
+            onGenerationFailure(failure)
+            throw failure
+        }
+        try operationGuard()
+        try complete(recordID)
+    }
+
+    private func generateMeetingNoteIfNeeded(
+        _ handle: PindropData.MeetingCaptureHandle,
+        operationGuard: () throws -> Void
+    ) async throws {
+        let attempt = Self.captureAssignmentAttempt(for: .noteGeneration)
+
+        do {
+            let existing = try captureSessionStore.generatedMeetingNote(
+                handle,
+                assignmentAttempt: attempt
+            )
+            guard Self.shouldGenerateMeetingNote(existingGeneratedNote: existing != nil) else {
+                return
+            }
+        } catch {
+            if Self.isTaskCancellation(error) { throw CancellationError() }
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.generatedNoteDiscoveryFailed
+        }
+
+        let assignment: CaptureStageAssignment
+        do {
+            assignment = try captureAssignment(
+                sessionID: handle.sessionID,
+                stage: .noteGeneration,
+                attempt: attempt
+            )
+        } catch {
+            if Self.isTaskCancellation(error) { throw CancellationError() }
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.assignmentUnavailable
+        }
+
+        switch Self.meetingNoteGenerationExecutionDecision(for: assignment) {
+        case .skipDisabled:
+            try operationGuard()
+            recordMeetingNoteGenerationFailure(
+                .disabled,
+                handle: handle,
+                attempt: attempt,
+            )
+            return
+        case .skipUnavailable:
+            try operationGuard()
+            recordMeetingNoteGenerationFailure(
+                .unavailable,
+                handle: handle,
+                attempt: attempt,
+            )
+            return
+        case .rejectInvalidAssignment:
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.assignmentUnavailable
+        case .resolveRuntime:
+            break
+        }
+
+        guard let persistedAssignment = Self.noteGenerationRuntimeAssignment(from: assignment) else {
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.runtimeUnavailable
+        }
+
+        let runtime: ResolvedAssignment
+        do {
+            runtime = try captureAssignmentResolver.resolveNoteGenerationRuntime(
+                for: persistedAssignment
+            )
+        } catch {
+            if Self.isTaskCancellation(error) { throw CancellationError() }
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.runtimeUnavailable
+        }
+
+        guard let prompt = runtime.prompt,
+              Self.canExecutePersistedNoteGeneration(resolvedPrompt: prompt) else {
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.promptUnavailable
+        }
+
+        let source: MeetingNoteSourceBundle
+        do {
+            let preflight = try captureSessionStore.meetingGeneratedNotePreflight(
+                handle,
+                assignmentAttempt: attempt
+            )
+            guard let anchor = try captureSessionStore.meetingHumanAnchor(handle),
+                  anchor.noteID == preflight.humanAnchor.noteID else {
+                throw CaptureSessionStoreError.meetingHumanAnchorUnavailable(handle.sessionID)
+            }
+            let currentAnchor = try notesStore.fetch(id: anchor.noteID)
+            let refreshedPlan = try captureSessionStore.makeMeetingFinalizationPlan(handle)
+            source = try MeetingNoteDerivation.make(
+                humanNoteContent: currentAnchor.content,
+                checkpoints: refreshedPlan.completedASRCheckpoints
+            )
+        } catch {
+            if Self.isTaskCancellation(error) { throw CancellationError() }
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.derivationFailed
+        }
+
+        let enhancedNote: AIEnhancementService.EnhancedNote
+        do {
+            enhancedNote = try await aiEnhancementService.generateMeetingNote(
+                evidence: source.evidenceInput,
+                assignment: runtime,
+                formatPrompt: prompt
+            )
+            try operationGuard()
+        } catch {
+            if Self.isTaskCancellation(error) { throw CancellationError() }
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.generationFailed
+        }
+
+        let content = MeetingNoteDerivation.sanitizingGeneratedContent(
+            normalizedTranscriptionText(enhancedNote.content)
+        )
+        guard !content.isEmpty else {
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.emptyOutput
+        }
+
+        do {
+            let title = Self.generatedMeetingNoteTitle(
+                enhancedNote.title,
+                fallback: localized(
+                    "Untitled Note",
+                    locale: settingsStore.selectedAppLocale.locale
+                )
+            )
+            _ = try captureSessionStore.saveGeneratedMeetingNote(
+                handle,
+                title: title,
+                content: content,
+                source: source,
+                assignmentAttempt: attempt,
+                at: .now
+            )
+        } catch {
+            if Self.isTaskCancellation(error) { throw CancellationError() }
+            try operationGuard()
+            throw Self.meetingNoteGenerationSaveFailure(for: error)
         }
     }
 
@@ -5775,7 +6290,7 @@ final class AppCoordinator {
                 return nil
             }
             Log.aiEnhancement.warning(
-                "Streaming post-stop enhance failed: \(error.localizedDescription)")
+                "Streaming post-stop enhance failed provider=\(assignment.kind.rawValue)")
             toastService.show(
                 ToastPayload(
                     message: localized(
@@ -6939,7 +7454,14 @@ final class AppCoordinator {
     }
 
     private func cancelCurrentOperation(source: String = "cancel") {
-        guard isRecording || isProcessing || activeOperationTask != nil else {
+        guard Self.canCancelCurrentOperation(
+            isRecording: isRecording,
+            isProcessing: isProcessing,
+            hasActiveOperationTask: activeOperationTask != nil,
+            hasMeetingCaptureContext: meetingCaptureContext != nil,
+            hasPendingMeetingCaptureStart: pendingMeetingCaptureStart != nil
+                || pendingMeetingCaptureCancellationHandle != nil
+        ) else {
             Log.app.debug("Cancel requested (\(source)) but no operation in progress")
             return
         }
@@ -6963,6 +7485,13 @@ final class AppCoordinator {
         // stages discard results even if cooperative cancellation is delayed.
         operationController.cancel()
         cancelPendingNoteAppendStart()
+        cancelPendingMeetingCaptureStart()
+        do {
+            try cancelPendingMeetingCaptureStartHandle()
+        } catch {
+            meetingTerminalPersistenceError = error
+            reportMeetingCaptureTerminalPersistenceFailure(error)
+        }
         activeOperationTask?.cancel()
         activeOperationTask = nil
         // Free stop admission immediately so a new recording can stop even while the
@@ -7428,15 +7957,31 @@ final class AppCoordinator {
     }
 
     private func handleStartMeetingCapture(expectedSpeakerCount: Int?) {
-        Task { @MainActor [weak self] in
+        guard Self.canBeginMeetingCapture(
+            activeHandle: meetingCaptureContext?.handle,
+            recoveryTaskActive: meetingRecoveryTask != nil,
+            isShutdown: isShutdown
+        ), pendingMeetingCaptureCancellationHandle == nil,
+        let claim = meetingCaptureStartAdmission.claim() else {
+            recordingState.message = "Finish the active transcription before starting another one."
+            return
+        }
+
+        pendingMeetingCaptureStart = claim
+        pendingMeetingCaptureStartTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            defer {
+                self.clearPendingMeetingCaptureStart(ifCurrent: claim)
+            }
+
             do {
                 try await self.startManualTranscriptionRecording(
                     mode: .microphoneAndSystemAudio,
-                    expectedSpeakerCount: expectedSpeakerCount
+                    expectedSpeakerCount: expectedSpeakerCount,
+                    pendingStart: claim
                 )
             } catch {
-                guard !self.isShutdown else { return }
+                guard !self.isShutdown, self.isPendingMeetingCaptureStartCurrent(claim) else { return }
                 self.error = error
                 self.audioRecorder.resetAudioEngine()
                 self.isRecordingFeatureCaptureActive = false
@@ -7448,8 +7993,10 @@ final class AppCoordinator {
 
     private func startManualTranscriptionRecording(
         mode: AudioRecordingMode,
-        expectedSpeakerCount: Int? = nil
+        expectedSpeakerCount: Int? = nil,
+        pendingStart: MeetingCaptureStartClaim
     ) async throws {
+        try ensurePendingMeetingCaptureStartCurrent(pendingStart)
         guard !isRecording && !isProcessing else {
             recordingState.message = "Finish the active transcription before starting another one."
             return
@@ -7462,6 +8009,7 @@ final class AppCoordinator {
             throw MeetingCaptureAdmissionError.captureAlreadyActive
         }
 
+        try ensurePendingMeetingCaptureStartCurrent(pendingStart)
         let startedAt = Date.now
         let preferredInputUID = audioRecorder.currentPreferredInputDeviceUID
             ?? settingsStore.selectedInputDeviceUID
@@ -7473,26 +8021,38 @@ final class AppCoordinator {
             microphoneDisplayName: microphoneDisplayName,
             systemAudioDisplayName: "System Audio"
         )
-
+        pendingMeetingCaptureStartHandle = handle
 
         do {
-            _ = try captureAssignment(
-                sessionID: handle.sessionID,
-                stage: .liveTranscription,
-                attempt: Self.captureAssignmentAttempt(for: .liveTranscription)
+            try ensurePendingMeetingCaptureStartCurrent(pendingStart)
+            let humanAnchor = try captureSessionStore.ensureMeetingHumanAnchor(
+                handle,
+                title: localized(
+                    "Untitled Note",
+                    locale: settingsStore.selectedAppLocale.locale
+                ),
+                at: startedAt
             )
+            _ = try captureMeetingStartAssignments(sessionID: handle.sessionID)
+            try ensurePendingMeetingCaptureStartCurrent(pendingStart)
             let spoolPlan = try await mediaIngestionService.makeMeetingCaptureSpoolPlan(
                 sessionID: handle.sessionID,
                 microphoneSourceID: handle.microphoneSourceID,
                 systemAudioSourceID: handle.systemAudioSourceID
             )
+            try ensurePendingMeetingCaptureStartCurrent(pendingStart)
+
             meetingCaptureGeneration &+= 1
             let context = MeetingCaptureContext(
                 handle: handle,
+                humanAnchorNoteID: humanAnchor.noteID,
                 spoolPlan: spoolPlan,
                 generation: meetingCaptureGeneration
             )
+            try ensurePendingMeetingCaptureStartCurrent(pendingStart)
             meetingCaptureContext = context
+
+            try ensurePendingMeetingCaptureStartCurrent(pendingStart)
             let didStartRecording = try await audioRecorder.startMeetingRecording(
                 spoolPlan: spoolPlan,
                 onChunkSealed: { [weak self] chunk in
@@ -7501,11 +8061,13 @@ final class AppCoordinator {
                     }
                 }
             )
+            try ensurePendingMeetingCaptureStartCurrent(pendingStart)
             guard didStartRecording else {
                 throw MeetingCaptureAdmissionError.recorderDidNotStart
             }
             try ensureMeetingCaptureCurrent(context)
 
+            try ensurePendingMeetingCaptureStartCurrent(pendingStart)
             manualExpectedSpeakerCount = expectedSpeakerCount
             isRecording = true
             isRecordingFeatureCaptureActive = true
@@ -7514,7 +8076,29 @@ final class AppCoordinator {
             statusBarController.setRecordingState()
             statusBarController.updateMenuState()
             startRecordingIndicatorSession()
+
+            try ensurePendingMeetingCaptureStartCurrent(pendingStart)
+            do {
+                let note = try notesStore.fetch(id: context.humanAnchorNoteID)
+                noteEditorWindowController.show(note: note, isNewNote: false)
+            } catch {
+                Log.app.warning(
+                    "Meeting capture started, but its human anchor could not be opened: \(error.localizedDescription)"
+                )
+            }
         } catch {
+            guard !isShutdown else {
+                throw CancellationError()
+            }
+            guard isPendingMeetingCaptureStartCurrent(pendingStart) else {
+                do {
+                    try cancelPendingMeetingCaptureStartHandle()
+                } catch {
+                    reportMeetingCaptureTerminalPersistenceFailure(error)
+                }
+                throw CancellationError()
+            }
+
             let nsError = error as NSError
             if let context = meetingCaptureContext, context.handle == handle {
                 if Self.isTaskCancellation(error) {
@@ -7622,11 +8206,8 @@ final class AppCoordinator {
             }
             throw CancellationError()
         } catch {
-            if isMeetingCaptureContextCurrent(context) {
-                // Chunk and History failures are durable/retryable and must remain
-                // finalizing rather than being converted to a terminal failure.
-                clearMeetingCaptureContext(ifCurrent: context)
-            }
+            // Chunk and History failures are durable/retryable. Retain the exact
+            // capture context so cancel can retry terminal persistence.
             resetStoppedMeetingCaptureState()
             recordingState.failCurrentJob(error.localizedDescription)
             throw error
@@ -8043,7 +8624,8 @@ final class AppCoordinator {
                 trimmedSummary.isEmpty ? nil : trimmedSummary
             )
         } catch {
-            Log.aiEnhancement.warning("Transcription metadata generation failed: \(error.localizedDescription)")
+            Log.aiEnhancement.warning(
+                "Transcription metadata generation failed provider=\(assignment.kind.rawValue)")
             return (nil, nil)
         }
     }
@@ -8374,6 +8956,12 @@ final class AppCoordinator {
         floatingIndicatorHiddenTask = nil
         escapeEventTapRecoveryTask?.cancel()
         cancelPendingNoteAppendStart()
+        cancelPendingMeetingCaptureStart()
+        do {
+            try cancelPendingMeetingCaptureStartHandle()
+        } catch {
+            reportMeetingCaptureTerminalPersistenceFailure(error)
+        }
         cancelActiveVoiceNoteCapture()
         meetingRecoveryGeneration &+= 1
         meetingRecoveryTask?.cancel()

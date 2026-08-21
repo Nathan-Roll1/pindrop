@@ -1088,10 +1088,10 @@ public final class AIEnhancementService {
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let error = json["error"] as? [String: Any],
                    let message = error["message"] as? String {
-                    Self.logAPIError(message, statusCode: httpResponse.statusCode)
+                    Self.logAPIError(statusCode: httpResponse.statusCode)
                     throw EnhancementError.apiError(message)
                 }
-                Self.logAPIError(nil, statusCode: httpResponse.statusCode)
+                Self.logAPIError(statusCode: httpResponse.statusCode)
                 throw EnhancementError.apiError("HTTP \(httpResponse.statusCode)")
             }
 
@@ -1245,10 +1245,10 @@ public final class AIEnhancementService {
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let error = json["error"] as? [String: Any],
                    let message = error["message"] as? String {
-                    Self.logAPIError(message, statusCode: httpResponse.statusCode)
+                    Self.logAPIError(statusCode: httpResponse.statusCode)
                     throw EnhancementError.apiError(message)
                 }
-                Self.logAPIError(nil, statusCode: httpResponse.statusCode)
+                Self.logAPIError(statusCode: httpResponse.statusCode)
                 throw EnhancementError.apiError("HTTP \(httpResponse.statusCode)")
             }
 
@@ -1350,12 +1350,8 @@ public final class AIEnhancementService {
         return separator == "-" || separator == "."
     }
 
-    private static func logAPIError(_ message: String?, statusCode: Int) {
-        if let message, !message.isEmpty {
-            Log.aiEnhancement.error("AI enhancement API error (status=\(statusCode)): \(message)")
-        } else {
-            Log.aiEnhancement.error("AI enhancement API error (status=\(statusCode))")
-        }
+    private static func logAPIError(statusCode: Int) {
+        Log.aiEnhancement.error("AI enhancement API error (status=\(statusCode))")
     }
 
     private func parseAPIResponse(data: Data, provider: AIProvider) throws -> String {
@@ -1630,7 +1626,8 @@ public final class AIEnhancementService {
                 title = metadata.title
                 tags = metadata.tags
             } catch {
-                Log.aiEnhancement.warning("Metadata generation failed, using fallback: \(error.localizedDescription)")
+                Log.aiEnhancement.warning(
+                    "Note metadata generation failed; using fallback provider=\(provider.rawValue)")
             }
         }
         
@@ -1754,10 +1751,10 @@ public final class AIEnhancementService {
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let error = json["error"] as? [String: Any],
                    let message = error["message"] as? String {
-                    Self.logAPIError(message, statusCode: httpResponse.statusCode)
+                    Self.logAPIError(statusCode: httpResponse.statusCode)
                     throw EnhancementError.apiError(message)
                 }
-                Self.logAPIError(nil, statusCode: httpResponse.statusCode)
+                Self.logAPIError(statusCode: httpResponse.statusCode)
                 throw EnhancementError.apiError("HTTP \(httpResponse.statusCode)")
             }
 
@@ -1849,10 +1846,10 @@ public final class AIEnhancementService {
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let error = json["error"] as? [String: Any],
                    let message = error["message"] as? String {
-                    Self.logAPIError(message, statusCode: httpResponse.statusCode)
+                    Self.logAPIError(statusCode: httpResponse.statusCode)
                     throw EnhancementError.apiError(message)
                 }
-                Self.logAPIError(nil, statusCode: httpResponse.statusCode)
+                Self.logAPIError(statusCode: httpResponse.statusCode)
                 throw EnhancementError.apiError("HTTP \(httpResponse.statusCode)")
             }
 

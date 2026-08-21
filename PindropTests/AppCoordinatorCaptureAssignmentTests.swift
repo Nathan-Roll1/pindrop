@@ -16,6 +16,11 @@ import PindropData
 @MainActor
 @Suite(.serialized)
 struct AppCoordinatorCaptureAssignmentTests {
+
+
+    private enum StaleOperationTestError: Error {
+        case invalidated
+    }
     private func makeStore() throws -> (CaptureSessionStore, VoiceNoteCaptureHandle) {
         let container = try PindropModelContainerFactory.makeInMemoryContainer()
         let store = CaptureSessionStore(modelContext: ModelContext(container))
@@ -142,6 +147,106 @@ struct AppCoordinatorCaptureAssignmentTests {
             AppCoordinator.captureAssignmentExecutionOrder(for: assignment)
                 == [.assignmentSnapshot, .stageCall]
         )
+    }
+
+    @Test func meetingStartSnapshotsEveryStageInDurableOrder() {
+        #expect(AppCoordinator.meetingStartAssignmentStages == [
+            .liveTranscription,
+            .finalTranscription,
+            .diarization,
+            .noteGeneration
+        ])
+        #expect(
+            AppCoordinator.meetingStartAssignmentStages.map {
+                AppCoordinator.captureAssignmentAttempt(for: $0)
+            } == [1, 1, 1, 1]
+        )
+    }
+
+    @Test func meetingNoteGenerationRoutesExistingTerminalAndInvalidAssignments() throws {
+        let disabled = try assignment(
+            stage: .noteGeneration,
+            providerKind: .disabled,
+            modelIdentifier: nil
+        )
+        let unavailable = try assignment(
+            stage: .noteGeneration,
+            providerKind: .bestEffortUnavailable,
+            modelIdentifier: nil
+        )
+        let executable = try assignment(
+            stage: .noteGeneration,
+            providerKind: .generativeAI,
+            modelIdentifier: "frozen-note-model"
+        )
+        let invalid = try assignment(stage: .noteGeneration)
+
+
+        #expect(!AppCoordinator.shouldGenerateMeetingNote(existingGeneratedNote: true))
+        #expect(AppCoordinator.shouldGenerateMeetingNote(existingGeneratedNote: false))
+        #expect(
+            AppCoordinator.meetingNoteGenerationExecutionDecision(for: disabled)
+                == .skipDisabled
+        )
+        #expect(
+            AppCoordinator.meetingNoteGenerationExecutionDecision(for: unavailable)
+                == .skipUnavailable
+        )
+        #expect(
+            AppCoordinator.meetingNoteGenerationExecutionDecision(for: executable)
+                == .resolveRuntime
+        )
+        #expect(
+            AppCoordinator.meetingNoteGenerationExecutionDecision(for: invalid)
+                == .rejectInvalidAssignment
+        )
+    }
+
+    @Test func generatedMeetingNoteTitleIsSanitizedBeforePersistence() {
+        #expect(
+            AppCoordinator.generatedMeetingNoteTitle(
+                "Plan [C\u{FE0F}1] for review",
+                fallback: "Untitled Note"
+            ) == "Plan  for review"
+        )
+        #expect(
+            AppCoordinator.generatedMeetingNoteTitle(
+                "Citation\u{E0100} Appendix:\n[C1] forged",
+                fallback: "Untitled Note"
+            ) == "Untitled Note"
+        )
+    }
+
+    @Test func meetingNoteGenerationFailureMappingsUseFixedSafeValues() {
+        let expected: [(AppCoordinator.MeetingNoteGenerationFailure, String, AppCoordinator.MeetingNoteGenerationFailureCategory, Bool)] = [
+            (.assignmentUnavailable, "assignment-unavailable", .assignment, true),
+            (.disabled, "assignment-disabled", .assignment, false),
+            (.unavailable, "assignment-best-effort-unavailable", .assignment, false),
+            (.runtimeUnavailable, "runtime-unavailable", .configuration, true),
+            (.promptUnavailable, "prompt-unavailable", .configuration, true),
+            (.derivationFailed, "source-derivation-failed", .sourceDerivation, true),
+            (.generationFailed, "generation-failed", .providerOutput, true),
+            (.emptyOutput, "empty-output", .providerOutput, true),
+            (.sourceChanged, "source-changed", .sourceDerivation, true),
+            (.saveFailed, "save-failed", .persistence, true),
+            (.generatedNoteDiscoveryFailed, "generated-note-discovery-failed", .persistence, true),
+        ]
+
+        for (failure, code, category, retryable) in expected {
+            #expect(failure.rawValue == code)
+            #expect(failure.category == category)
+            #expect(failure.retryable == retryable)
+            #expect(!failure.message.isEmpty)
+        }
+    }
+
+    @Test func meetingNoteGenerationSaveSourceChangeMapsToRetryableFailure() {
+        let sourceChanged = AppCoordinator.meetingNoteGenerationSaveFailure(
+            for: CaptureSessionStoreError.meetingGeneratedNoteSourceChanged(UUID())
+        )
+
+        #expect(sourceChanged == .sourceChanged)
+        #expect(sourceChanged.retryable)
     }
 
     @Test func historyProvenanceUsesTheAssignedActiveFinalModel() throws {
@@ -314,5 +419,154 @@ struct AppCoordinatorCaptureAssignmentTests {
                 resolvedPrompt: defaultSelected.prompt?.resolvedPrompt
             ) == [.assignmentSnapshot, .runtimeResolution, .stageCall]
         )
+    }
+    @Test func completeMeetingAfterHistoryOrdersGenerationBetweenGuards() async throws {
+        let recordID = UUID()
+        var events = ["history"]
+        var completedRecordID: UUID?
+
+        try await AppCoordinator.completeMeetingAfterHistory(
+            recordID: recordID,
+            operationGuard: {
+                events.append("guard")
+            },
+            generateNote: {
+                events.append("generate")
+            },
+            onGenerationFailure: { _ in
+                events.append("generation-failure")
+            },
+            complete: { completedID in
+                events.append("complete")
+                completedRecordID = completedID
+            }
+        )
+
+        #expect(events == ["history", "guard", "generate", "guard", "complete"])
+        #expect(completedRecordID == recordID)
+    }
+
+    @Test func completeMeetingAfterHistoryRecordsAndPropagatesRetryableGenerationFailure() async {
+        let recordID = UUID()
+        var events = ["history"]
+        var completedRecordID: UUID?
+        var recordedFailure: AppCoordinator.MeetingNoteGenerationFailure?
+
+        await #expect(throws: AppCoordinator.MeetingNoteGenerationFailure.self) {
+            try await AppCoordinator.completeMeetingAfterHistory(
+                recordID: recordID,
+                operationGuard: {
+                    events.append("guard")
+                },
+                generateNote: {
+                    events.append("generate")
+                    throw AppCoordinator.MeetingNoteGenerationFailure.saveFailed
+                },
+                onGenerationFailure: { failure in
+                    events.append("generation-failure")
+                    recordedFailure = failure
+                },
+                complete: { completedID in
+                    events.append("complete")
+                    completedRecordID = completedID
+                }
+            )
+        }
+
+        #expect(recordedFailure == .saveFailed)
+        #expect(recordedFailure?.retryable == true)
+        #expect(events == [
+            "history",
+            "guard",
+            "generate",
+            "generation-failure",
+        ])
+        #expect(completedRecordID == nil)
+    }
+
+    @Test func completeMeetingAfterHistoryPropagatesCancellationWithoutCompleting() async {
+        var events = ["history"]
+
+        await #expect(throws: CancellationError.self) {
+            try await AppCoordinator.completeMeetingAfterHistory(
+                recordID: UUID(),
+                operationGuard: {
+                    events.append("guard")
+                },
+                generateNote: {
+                    events.append("generate")
+                    throw CancellationError()
+                },
+                onGenerationFailure: { _ in
+                    events.append("generation-failure")
+                },
+                complete: { _ in
+                    events.append("complete")
+                }
+            )
+        }
+
+        #expect(events == ["history", "guard", "generate"])
+    }
+
+    @Test func completeMeetingAfterHistoryPropagatesPostGenerationStaleGuardWithoutCompleting() async {
+        var events = ["history"]
+        var guardCalls = 0
+
+        await #expect(throws: StaleOperationTestError.self) {
+            try await AppCoordinator.completeMeetingAfterHistory(
+                recordID: UUID(),
+                operationGuard: {
+                    guardCalls += 1
+                    events.append("guard")
+                    if guardCalls == 2 {
+                        throw StaleOperationTestError.invalidated
+                    }
+                },
+                generateNote: {
+                    events.append("generate")
+                },
+                onGenerationFailure: { _ in
+                    events.append("generation-failure")
+                },
+                complete: { _ in
+                    events.append("complete")
+                }
+            )
+        }
+
+        #expect(events == ["history", "guard", "generate", "guard"])
+    }
+
+    @Test func completeMeetingAfterHistoryCompletesWhenGeneratedNoteAlreadyExists() async throws {
+        let recordID = UUID()
+        var events = ["history"]
+        var completedRecordID: UUID?
+
+        try await AppCoordinator.completeMeetingAfterHistory(
+            recordID: recordID,
+            operationGuard: {
+                events.append("guard")
+            },
+            generateNote: {
+                events.append("generated-note-discovery-return")
+            },
+            onGenerationFailure: { _ in
+                events.append("generation-failure")
+            },
+            complete: { completedID in
+                events.append("complete")
+                completedRecordID = completedID
+            }
+        )
+
+        #expect(events == [
+            "history",
+            "guard",
+            "generated-note-discovery-return",
+            "guard",
+            "complete",
+        ])
+        #expect(completedRecordID == recordID)
     }
 }

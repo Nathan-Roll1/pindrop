@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "सेटिंग्स → गोपनीयता में कभी भी अपना चयन बदलें।"
 changes:
   the_language_used_by_pindrop_s_interface: "Changes the language used by Pindrop's interface."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "इस प्रदाता के क्रेडेंशियल और समापन बिंदु में किए गए बदलाव चल रहे और पुनर्प्राप्त कैप्चर पर लागू होते हैं। चयनित मॉडल और प्रॉम्प्ट स्थिर रहते हैं।"
 check:
   for_updates: "अद्यतन के लिए जाँच..."
   for_updates_736b9062: "अद्यतन के लिए जाँच"

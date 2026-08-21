@@ -6,6 +6,8 @@
 //
 
 import AppKit
+import Foundation
+import PindropCore
 import PindropData
 import SwiftData
 import SwiftUI
@@ -39,6 +41,7 @@ enum AppTestMode {
 
 enum AppUITestSurface: String {
     case settings
+    case noteEditorCitations
 }
 
 enum AppUITestFixture {
@@ -64,6 +67,8 @@ enum AppUITestFixture {
         switch surface {
         case .settings:
             SettingsFixtureRootView(initialTab: settingsInitialTab)
+        case .noteEditorCitations:
+            NoteEditorCitationsFixtureRootView()
         case nil:
             EmptyView()
         }
@@ -99,5 +104,183 @@ private struct SettingsFixtureRootView: View {
             .environment(\.locale, settings.selectedAppLocale.locale)
             .environment(\.layoutDirection, settings.selectedAppLocale.layoutDirection)
             .modelContainer(Self.modelContainer)
+    }
+}
+
+private struct NoteEditorCitationsFixtureRootView: View {
+
+    /// A seeded V14 store makes the real citation panel stable without accessing
+    /// the user's persistent notes or capture history.
+    private static let fixture: (modelContainer: ModelContainer, noteID: UUID) = {
+        let schema = Schema(versionedSchema: TranscriptionRecordSchemaV14.self)
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let createdAt = Date(timeIntervalSinceReferenceDate: 0)
+
+        do {
+            let container = try ModelContainer(for: schema, configurations: [configuration])
+            let store = CaptureSessionStore(modelContext: ModelContext(container))
+            let handle = try store.startMeetingCapture(startedAt: createdAt)
+            let anchor = try store.ensureMeetingHumanAnchor(
+                handle,
+                title: "Generated meeting note",
+                at: createdAt
+            )
+            let humanAnchorContent = "Confirm the release timeline before publishing."
+            let anchorContext = ModelContext(container)
+            guard let anchorNote = try anchorContext.fetch(FetchDescriptor<NoteSchema.Note>())
+                .first(where: { $0.id == anchor.noteID })
+            else {
+                fatalError("Failed to find the seeded human anchor note.")
+            }
+            anchorNote.content = humanAnchorContent
+            try anchorContext.save()
+            guard let populatedAnchor = try store.meetingHumanAnchor(handle) else {
+                fatalError("Failed to reload the seeded human anchor note.")
+            }
+            try store.beginMeetingFinalization(handle, at: createdAt)
+            let checkpoint = MeetingChunkCheckpoint(
+                sourceID: handle.microphoneSourceID,
+                sequence: 0,
+                startOffset: 0,
+                duration: MeetingCaptureSpoolPlan.chunkDuration,
+                managedMediaPath: CaptureSourceArtifactPath.relativePath(
+                    sessionID: handle.sessionID,
+                    sourceID: handle.microphoneSourceID,
+                    chunkSequence: 0
+                ),
+                byteCount: MeetingCaptureSpoolPlan.defaultChunkByteCount,
+                sha256: String(repeating: "a", count: 64),
+                sealedAt: createdAt
+            )
+            try store.recordSealedMeetingChunk(handle, checkpoint: checkpoint)
+            _ = try store.resolveAssignment(
+                sessionID: handle.sessionID,
+                stage: .finalTranscription,
+                attempt: 1,
+                selecting: {
+                    try CaptureStageAssignment(
+                        stage: .finalTranscription,
+                        providerKind: .batchSpeech,
+                        providerIdentifier: "Generated meeting note",
+                        modelIdentifier: "Generated meeting note",
+                        prompt: nil,
+                        selectedAt: createdAt,
+                        attempt: 1
+                    )
+                }
+            )
+            let segmentsJSON = String(
+                decoding: try JSONEncoder().encode([
+                    DiarizedTranscriptSegment(
+                        speakerId: "Alex",
+                        speakerLabel: "Alex",
+                        startTime: 5,
+                        endTime: 18,
+                        confidence: 1,
+                        text: "We will publish the final report on Friday."
+                    ),
+                    DiarizedTranscriptSegment(
+                        speakerId: "Jordan",
+                        speakerLabel: "Jordan",
+                        startTime: 22,
+                        endTime: 34,
+                        confidence: 1,
+                        text: "The launch checklist needs legal approval."
+                    )
+                ]),
+                as: UTF8.self
+            )
+            let revisionID = try store.recordMeetingTranscriptionChunk(
+                handle,
+                sourceChunkSequence: checkpoint.sequence,
+                startOffset: checkpoint.startOffset,
+                duration: checkpoint.duration,
+                text: "We will publish the final report on Friday. The launch checklist needs legal approval.",
+                segmentsJSON: segmentsJSON,
+                assignmentAttempt: 1
+            )
+            let historyID = try store.reserveMeetingTranscriptionRecordID(handle)
+            let context = ModelContext(container)
+            context.insert(TranscriptionRecord(
+                id: historyID,
+                text: "We will publish the final report on Friday. The launch checklist needs legal approval.",
+                duration: checkpoint.duration,
+                modelUsed: "Generated meeting note"
+            ))
+            try context.save()
+            _ = try store.resolveAssignment(
+                sessionID: handle.sessionID,
+                stage: .noteGeneration,
+                attempt: 1,
+                selecting: {
+                    try CaptureStageAssignment(
+                        stage: .noteGeneration,
+                        providerKind: .generativeAI,
+                        providerIdentifier: "Generated meeting note",
+                        modelIdentifier: "Generated meeting note",
+                        prompt: CapturePromptSnapshot(
+                            presetIdentifier: "Generated meeting note",
+                            resolvedPrompt: "Generated meeting note"
+                        ),
+                        selectedAt: createdAt,
+                        attempt: 1
+                    )
+                }
+            )
+            let source = try MeetingNoteDerivation.make(
+                humanNoteContent: populatedAnchor.content,
+                checkpoints: [
+                    MeetingTranscriptionCheckpoint(
+                        revisionID: revisionID,
+                        providerSnapshotID: nil,
+                        sequence: checkpoint.sequence,
+                        startOffset: checkpoint.startOffset,
+                        duration: checkpoint.duration,
+                        text: "We will publish the final report on Friday. The launch checklist needs legal approval.",
+                        segmentsJSON: segmentsJSON,
+                        languageCode: nil
+                    )
+                ]
+            )
+            let generated = try store.saveGeneratedMeetingNote(
+                handle,
+                title: "Generated meeting note",
+                content: "## Decisions\n\nPublish the final report on Friday.\n\nComplete legal review before launch.",
+                source: source,
+                at: createdAt
+            )
+            return (container, generated.noteID)
+        } catch {
+            fatalError("Failed to create and seed note-editor citation UI-test fixture: \(error)")
+        }
+    }()
+
+    var body: some View {
+        NoteEditorCitationsFixtureContentView(noteID: Self.fixture.noteID)
+            .frame(width: 480, height: 560)
+            .modelContainer(Self.fixture.modelContainer)
+    }
+}
+
+private struct NoteEditorCitationsFixtureContentView: View {
+    @Query private var notes: [NoteSchema.Note]
+
+    init(noteID: UUID) {
+        _notes = Query(
+            filter: #Predicate<NoteSchema.Note> { $0.id == noteID }
+        )
+    }
+
+    var body: some View {
+        if let note = notes.first {
+            NoteEditorView(
+                note: note,
+                isNewNote: false,
+                onClose: {},
+                onSave: { _ in }
+            )
+        } else {
+            ProgressView()
+        }
     }
 }

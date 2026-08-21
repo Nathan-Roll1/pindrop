@@ -449,6 +449,29 @@ public final class CaptureStagePromptSnapshotModel {
     }
 }
 
+/// Immutable source evidence retained for a generated meeting note.
+///
+/// This intentionally has no schema version: the backing reference fields are new
+/// in this schema generation and every value is re-derived before it is trusted.
+public struct MeetingGeneratedNoteProvenance: Codable, Equatable, Sendable {
+    public let humanAnchorNoteID: UUID
+    public let evidenceInput: String
+    public let citations: [MeetingNoteCitation]
+    public let sourceTranscriptRevisionIDs: [UUID]
+
+    public init(
+        humanAnchorNoteID: UUID,
+        evidenceInput: String,
+        citations: [MeetingNoteCitation],
+        sourceTranscriptRevisionIDs: [UUID]
+    ) {
+        self.humanAnchorNoteID = humanAnchorNoteID
+        self.evidenceInput = evidenceInput
+        self.citations = citations
+        self.sourceTranscriptRevisionIDs = sourceTranscriptRevisionIDs
+    }
+}
+
 @Model
 public final class CaptureNoteReferenceModel {
     @Attribute(.unique) public var id: UUID
@@ -457,8 +480,8 @@ public final class CaptureNoteReferenceModel {
     public private(set) var roleRawValue: String
     public var sourceTranscriptRevisionID: UUID?
     public var providerSnapshotID: UUID?
-    public var sourceNoteIDsJSON: String?
-    public var citationsJSON: String?
+    public var provenanceJSON: String?
+    public private(set) var humanAnchorContentSnapshot: String?
     public var createdAt: Date
 
     public init(
@@ -468,8 +491,8 @@ public final class CaptureNoteReferenceModel {
         role: CaptureNoteRole,
         sourceTranscriptRevisionID: UUID? = nil,
         providerSnapshotID: UUID? = nil,
-        sourceNoteIDsJSON: String? = nil,
-        citationsJSON: String? = nil,
+        provenanceJSON: String? = nil,
+        humanAnchorContentSnapshot: String? = nil,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -478,8 +501,8 @@ public final class CaptureNoteReferenceModel {
         self.roleRawValue = role.rawValue
         self.sourceTranscriptRevisionID = sourceTranscriptRevisionID
         self.providerSnapshotID = providerSnapshotID
-        self.sourceNoteIDsJSON = sourceNoteIDsJSON
-        self.citationsJSON = citationsJSON
+        self.provenanceJSON = provenanceJSON
+        self.humanAnchorContentSnapshot = humanAnchorContentSnapshot
         self.createdAt = createdAt
     }
 
@@ -497,8 +520,8 @@ public final class CaptureNoteReferenceModel {
         roleRawValue: String,
         sourceTranscriptRevisionID: UUID? = nil,
         providerSnapshotID: UUID? = nil,
-        sourceNoteIDsJSON: String? = nil,
-        citationsJSON: String? = nil,
+        provenanceJSON: String? = nil,
+        humanAnchorContentSnapshot: String? = nil,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -507,8 +530,8 @@ public final class CaptureNoteReferenceModel {
         self.roleRawValue = roleRawValue
         self.sourceTranscriptRevisionID = sourceTranscriptRevisionID
         self.providerSnapshotID = providerSnapshotID
-        self.sourceNoteIDsJSON = sourceNoteIDsJSON
-        self.citationsJSON = citationsJSON
+        self.provenanceJSON = provenanceJSON
+        self.humanAnchorContentSnapshot = humanAnchorContentSnapshot
         self.createdAt = createdAt
     }
 }
