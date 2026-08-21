@@ -812,6 +812,7 @@ final class AppCoordinator {
     private var pendingMeetingCaptureStartTask: Task<Void, Never>?
     private var pendingMeetingCaptureStartHandle: PindropData.MeetingCaptureHandle?
     private var pendingMeetingCaptureCancellationHandle: PindropData.MeetingCaptureHandle?
+    private var meetingCancellationTasks: [UUID: Task<Void, Never>] = [:]
     private var meetingRecoveryTask: Task<Void, Never>?
     private var meetingRecoveryGeneration: UInt64 = 0
     private var meetingRecoveryHandle: PindropData.MeetingCaptureHandle?
@@ -1901,6 +1902,34 @@ final class AppCoordinator {
                 }
             }
 
+            let cancelledSessionIDs: [UUID]
+            do {
+                cancelledSessionIDs = try self.captureSessionStore.cancelledMeetingCaptureSessionIDs()
+            } catch {
+                cancelledSessionIDs = []
+                Log.app.warning("Cancelled meeting cleanup candidates unavailable: \(error.localizedDescription)")
+            }
+
+            for sessionID in cancelledSessionIDs {
+                do {
+                    try Task.checkCancellation()
+                    guard
+                        !self.isShutdown,
+                        !self.isPreparingForTermination,
+                        self.meetingRecoveryGeneration == generation
+                    else {
+                        throw CancellationError()
+                    }
+                    try await self.mediaIngestionService.removeMeetingCaptureArtifacts(for: sessionID)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    Log.app.warning(
+                        "Cancelled meeting cleanup deferred for \(sessionID.uuidString): \(error.localizedDescription)"
+                    )
+                }
+            }
+
             let candidates: [PindropData.MeetingRecoverySnapshot]
             do {
                 candidates = try self.captureSessionStore.meetingRecoveryCandidates()
@@ -2051,6 +2080,7 @@ final class AppCoordinator {
         let noteAppendStartTask = pendingNoteAppendStartTask
         let meetingStartTask = pendingMeetingCaptureStartTask
         let windowStartTask = mainWindowCaptureStartTask
+        let cancellationTasks = Array(meetingCancellationTasks.values)
         cancelPendingNoteAppendStart()
         cancelPendingMeetingCaptureStart()
         recordingState.invalidateCaptureStart()
@@ -2064,9 +2094,13 @@ final class AppCoordinator {
         if let windowStartTask {
             await windowStartTask.value
         }
+        for cancellationTask in cancellationTasks {
+            await cancellationTask.value
+        }
+        meetingCancellationTasks.removeAll()
         mainWindowCaptureStartTask = nil
         do {
-            try cancelPendingMeetingCaptureStartHandle()
+            try await cancelPendingMeetingCaptureStartHandle()
         } catch {
             reportMeetingCaptureTerminalPersistenceFailure(error)
         }
@@ -3976,11 +4010,29 @@ final class AppCoordinator {
         return [.assignmentSnapshot, .runtimeResolution, .stageCall]
     }
 
+    static func expectedMeetingFinalASRSequences(
+        workItems: [MeetingChunkWorkItem]
+    ) -> Set<Int> {
+        Set(workItems.lazy.filter(shouldCreateMeetingTranscriptionInput(for:)).map(\.sequence))
+    }
+
+    static func missingMeetingFinalASRSequences(
+        workItems: [MeetingChunkWorkItem],
+        completedASRSequences: Set<Int>
+    ) -> [Int] {
+        expectedMeetingFinalASRSequences(workItems: workItems)
+            .subtracting(completedASRSequences)
+            .sorted()
+    }
+
     static func meetingFinalizationNeedsFinalModelActivation(
         workItems: [MeetingChunkWorkItem],
         completedASRSequences: Set<Int>
     ) -> Bool {
-        workItems.contains { !completedASRSequences.contains($0.sequence) }
+        !missingMeetingFinalASRSequences(
+            workItems: workItems,
+            completedASRSequences: completedASRSequences
+        ).isEmpty
     }
 
     static func finalHistoryModelIdentifier(
@@ -4312,38 +4364,22 @@ final class AppCoordinator {
         meetingCaptureStartAdmission.release(claim)
     }
 
-    private func cancelPendingMeetingCaptureStartHandle() throws {
+    private func cancelPendingMeetingCaptureStartHandle() async throws {
         guard let handle = pendingMeetingCaptureCancellationHandle
             ?? pendingMeetingCaptureStartHandle else {
             return
         }
-        try cancelMeetingCaptureStartHandle(handle)
+        try await cancelMeetingCaptureStartHandle(handle)
     }
 
     private func cancelMeetingCaptureStartHandle(
         _ handle: PindropData.MeetingCaptureHandle
-    ) throws {
+    ) async throws {
         guard !Self.isMeetingCaptureCurrent(
             activeHandle: meetingCaptureContext?.handle,
             candidateHandle: handle
         ) else { return }
-
-        do {
-            try captureSessionStore.cancelMeetingCapture(handle, at: .now)
-        } catch {
-            if pendingMeetingCaptureCancellationHandle == nil
-                || pendingMeetingCaptureCancellationHandle == handle {
-                pendingMeetingCaptureCancellationHandle = handle
-            }
-            throw MeetingCaptureTerminalPersistenceError.cancellation(error)
-        }
-
-        if pendingMeetingCaptureStartHandle == handle {
-            pendingMeetingCaptureStartHandle = nil
-        }
-        if pendingMeetingCaptureCancellationHandle == handle {
-            pendingMeetingCaptureCancellationHandle = nil
-        }
+        try await cancelMeetingCapture(handle, activeContext: nil)
     }
 
     private func isMeetingCaptureContextCurrent(_ context: MeetingCaptureContext) -> Bool {
@@ -4374,26 +4410,53 @@ final class AppCoordinator {
         meetingCaptureContext = nil
     }
 
-    private func cancelActiveMeetingCapture() throws {
+    private func cancelActiveMeetingCapture() async throws {
         guard let context = meetingCaptureContext else { return }
+        try await cancelMeetingCapture(context.handle, activeContext: context)
+    }
+
+    /// Terminal cancellation is exact-handle scoped: a delayed duplicate must not
+    /// clear or delete a successor.
+    /// Active-capture callers must tear down the recorder first.
+    private func cancelMeetingCapture(
+        _ handle: PindropData.MeetingCaptureHandle,
+        activeContext: MeetingCaptureContext?
+    ) async throws {
         do {
-            try captureSessionStore.cancelMeetingCapture(context.handle, at: .now)
+            try captureSessionStore.cancelMeetingCapture(handle, at: .now)
         } catch {
-            Log.app.error("Failed to cancel meeting capture: \(error)")
+            if pendingMeetingCaptureCancellationHandle == nil
+                || pendingMeetingCaptureCancellationHandle == handle {
+                pendingMeetingCaptureCancellationHandle = handle
+            }
             throw MeetingCaptureTerminalPersistenceError.cancellation(error)
         }
-        clearMeetingCaptureContext(ifCurrent: context)
-        if pendingMeetingCaptureStartHandle == context.handle {
+
+        if let activeContext {
+            clearMeetingCaptureContext(ifCurrent: activeContext)
+        }
+        if pendingMeetingCaptureStartHandle == handle {
             pendingMeetingCaptureStartHandle = nil
         }
-        if pendingMeetingCaptureCancellationHandle == context.handle {
+
+        do {
+            try await mediaIngestionService.removeMeetingCaptureArtifacts(for: handle.sessionID)
+        } catch {
+            if pendingMeetingCaptureCancellationHandle == nil
+                || pendingMeetingCaptureCancellationHandle == handle {
+                pendingMeetingCaptureCancellationHandle = handle
+            }
+            throw MeetingCaptureTerminalPersistenceError.cancellation(error)
+        }
+
+        if pendingMeetingCaptureCancellationHandle == handle {
             pendingMeetingCaptureCancellationHandle = nil
         }
     }
 
     private func reportMeetingCaptureTerminalPersistenceFailure(_ error: Error) {
         self.error = error
-        Log.app.error("Meeting capture terminal persistence failed; retaining capture ownership: \(error)")
+        Log.app.error("Meeting capture terminal cancellation cleanup deferred: \(error)")
     }
 
     private func resetStoppedMeetingCaptureState() {
@@ -4686,6 +4749,16 @@ final class AppCoordinator {
 
         try operationGuard()
         let refreshedPlan = try captureSessionStore.makeMeetingFinalizationPlan(handle)
+        let missingFinalASRSequences = Self.missingMeetingFinalASRSequences(
+            workItems: workItems,
+            completedASRSequences: refreshedPlan.completedASRSequences
+        )
+        guard missingFinalASRSequences.isEmpty else {
+            throw CaptureSessionStoreError.meetingCaptureHasIncompleteFinalTranscript(
+                sessionID: handle.sessionID,
+                sequences: missingFinalASRSequences
+            )
+        }
         let refreshedOutputs: [TranscriptionChunkOutput] = refreshedPlan.completedASRCheckpoints.compactMap { checkpoint -> TranscriptionChunkOutput? in
             guard let workItem = workItems.first(where: { $0.sequence == checkpoint.sequence }) else {
                 return nil
@@ -7608,12 +7681,14 @@ final class AppCoordinator {
     }
 
     private func cancelCurrentOperation(source: String = "cancel") {
+        guard !isShutdown, !isPreparingForTermination else { return }
         guard Self.canCancelCurrentOperation(
             isRecording: isRecording,
             isProcessing: isProcessing,
             hasActiveOperationTask: activeOperationTask != nil,
             hasMeetingCaptureContext: meetingCaptureContext != nil,
             hasPendingMeetingCaptureStart: pendingMeetingCaptureStart != nil
+                || pendingMeetingCaptureStartHandle != nil
                 || pendingMeetingCaptureCancellationHandle != nil
         ) else {
             Log.app.debug("Cancel requested (\(source)) but no operation in progress")
@@ -7632,7 +7707,11 @@ final class AppCoordinator {
         Log.app.info("Cancelling current operation via \(source)")
         let capturedStreamingSessionToken = activeStreamingSessionToken
         let capturedVoiceNoteHandle = voiceNoteCaptureContext?.handle
-        var meetingTerminalPersistenceError: Error?
+        let capturedMeetingContext = meetingCaptureContext
+        let capturedPendingMeetingHandle = pendingMeetingCaptureCancellationHandle
+            ?? pendingMeetingCaptureStartHandle
+        let capturedPendingMeetingStartTask = pendingMeetingCaptureStartTask
+        let capturedActiveOperationTask = activeOperationTask
 
         escapeCancelArmedAt = nil
         // Invalidate any in-flight stop/transcribe/enhance pipeline first so post-await
@@ -7640,23 +7719,40 @@ final class AppCoordinator {
         operationController.cancel()
         cancelPendingNoteAppendStart()
         cancelPendingMeetingCaptureStart()
-        do {
-            try cancelPendingMeetingCaptureStartHandle()
-        } catch {
-            meetingTerminalPersistenceError = error
-            reportMeetingCaptureTerminalPersistenceFailure(error)
-        }
         activeOperationTask?.cancel()
         activeOperationTask = nil
         // Free stop admission immediately so a new recording can stop even while the
         // cancelled finalize task is still unwinding its defer.
         recordingStopAdmission.invalidateCurrentClaim()
         cancelActiveVoiceNoteCapture()
-        do {
-            try cancelActiveMeetingCapture()
-        } catch {
-            meetingTerminalPersistenceError = error
-            reportMeetingCaptureTerminalPersistenceFailure(error)
+        audioRecorder.resetAudioEngine()
+        let meetingCancellationTaskID = UUID()
+        meetingCancellationTasks[meetingCancellationTaskID] = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.meetingCancellationTasks[meetingCancellationTaskID] = nil }
+            if let capturedPendingMeetingStartTask {
+                await capturedPendingMeetingStartTask.value
+            }
+            if let capturedActiveOperationTask {
+                _ = await capturedActiveOperationTask.result
+            }
+            if let capturedPendingMeetingHandle {
+                do {
+                    try await self.cancelMeetingCaptureStartHandle(capturedPendingMeetingHandle)
+                } catch {
+                    self.reportMeetingCaptureTerminalPersistenceFailure(error)
+                }
+            }
+            if let capturedMeetingContext {
+                do {
+                    try await self.cancelMeetingCapture(
+                        capturedMeetingContext.handle,
+                        activeContext: capturedMeetingContext
+                    )
+                } catch {
+                    self.reportMeetingCaptureTerminalPersistenceFailure(error)
+                }
+            }
         }
 
         if let capturedStreamingSessionToken {
@@ -7674,7 +7770,6 @@ final class AppCoordinator {
         recordingState.endRecording(message: localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale))
         recordingState.clearCurrentJob()
 
-        audioRecorder.resetAudioEngine()
         mediaPauseService.endRecordingSession()
         isRecording = false
         isProcessing = false
@@ -7689,7 +7784,6 @@ final class AppCoordinator {
         capturedRoutingSignal = nil
         stopLiveContextSession()
         updateVibeRuntimeStateFromSettings()
-        error = meetingTerminalPersistenceError
 
         statusBarController.setIdleState()
         statusBarController.updateMenuState()
@@ -8118,7 +8212,6 @@ final class AppCoordinator {
                   recoveryTaskActive: meetingRecoveryTask != nil,
                   isShutdown: isShutdown || isPreparingForTermination
               ),
-              pendingMeetingCaptureCancellationHandle == nil,
               let captureStartClaim = recordingState.claimCaptureStart() else {
             recordingState.message = "Finish the active transcription before starting another one."
             return false
@@ -8254,8 +8347,11 @@ final class AppCoordinator {
             }
         } catch {
             guard isPendingMeetingCaptureStartCurrent(pendingStart) else {
+                if meetingCaptureContext?.handle == handle {
+                    audioRecorder.resetAudioEngine()
+                }
                 do {
-                    try cancelMeetingCaptureStartHandle(handle)
+                    try await cancelMeetingCaptureStartHandle(handle)
                 } catch {
                     reportMeetingCaptureTerminalPersistenceFailure(error)
                 }
@@ -8265,7 +8361,7 @@ final class AppCoordinator {
             let nsError = error as NSError
             if let context = meetingCaptureContext, context.handle == handle {
                 if Self.isTaskCancellation(error) {
-                    try captureSessionStore.cancelMeetingCapture(handle, at: .now)
+                    try await cancelMeetingCapture(handle, activeContext: context)
                 } else {
                     try captureSessionStore.failMeetingCapture(
                         handle,
@@ -8363,7 +8459,12 @@ final class AppCoordinator {
             // Explicit cancellation already terminally cancelled the durable session.
             // Lifecycle interruption retains it for startup recovery instead.
             if isMeetingCaptureContextCurrent(context), operationController.isCurrent(token) {
-                try cancelActiveMeetingCapture()
+                do {
+                    try await cancelActiveMeetingCapture()
+                } catch {
+                    reportMeetingCaptureTerminalPersistenceFailure(error)
+                    throw error
+                }
                 resetStoppedMeetingCaptureState()
                 recordingState.clearCurrentJob()
                 recordingState.message = localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale)
@@ -8813,13 +8914,13 @@ final class AppCoordinator {
         activeOperationTask = nil
         recordingStopAdmission.invalidateCurrentClaim()
         cancelActiveVoiceNoteCapture()
+        audioRecorder.cancelRecording()
         do {
-            try cancelActiveMeetingCapture()
+            try await cancelActiveMeetingCapture()
         } catch {
             reportMeetingCaptureTerminalPersistenceFailure(error)
         }
 
-        audioRecorder.cancelRecording()
         if let capturedStreamingSessionToken {
             if activeStreamingSessionToken == capturedStreamingSessionToken {
                 activeStreamingSessionToken = nil
@@ -9118,16 +9219,20 @@ final class AppCoordinator {
 
         notificationResources.tearDown()
         cancellables.removeAll()
-
-        floatingIndicatorHiddenTask?.cancel()
-        floatingIndicatorHiddenTask = nil
-        escapeEventTapRecoveryTask?.cancel()
         cancelPendingNoteAppendStart()
         cancelPendingMeetingCaptureStart()
-        do {
-            try cancelPendingMeetingCaptureStartHandle()
-        } catch {
-            reportMeetingCaptureTerminalPersistenceFailure(error)
+        if let handle = pendingMeetingCaptureStartHandle {
+            do {
+                try captureSessionStore.interruptMeetingCapture(
+                    handle,
+                    errorDomain: "Pindrop",
+                    errorCode: "lifecycle-sync-shutdown",
+                    message: "Meeting capture was interrupted before startup completed.",
+                    at: .now
+                )
+            } catch {
+                reportMeetingCaptureTerminalPersistenceFailure(error)
+            }
         }
         cancelActiveVoiceNoteCapture()
         meetingRecoveryGeneration &+= 1

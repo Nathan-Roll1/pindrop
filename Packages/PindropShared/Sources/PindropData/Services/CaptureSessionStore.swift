@@ -420,6 +420,7 @@ public enum CaptureSessionStoreError: Error, Equatable, LocalizedError {
     case meetingChunkConflict(sourceID: UUID, sequence: Int)
     case meetingChunkSequenceGap(sourceID: UUID, expected: Int, actual: Int)
     case meetingTranscriptionRevisionConflict(sequence: Int, stage: CapturePipelineStage)
+    case meetingCaptureHasIncompleteFinalTranscript(sessionID: UUID, sequences: [Int])
     case meetingCaptureHasNoFinalTranscript(UUID)
     case transcriptionRecordReservationMismatch(expected: UUID, actual: UUID)
     case transcriptionRecordNotFound(UUID)
@@ -490,6 +491,8 @@ public enum CaptureSessionStoreError: Error, Equatable, LocalizedError {
             return "Meeting source \(sourceID.uuidString) expected chunk \(expected), not \(actual)."
         case .meetingTranscriptionRevisionConflict(let sequence, let stage):
             return "Meeting \(stage.rawValue) revision for chunk \(sequence) conflicts with its persisted checkpoint."
+        case .meetingCaptureHasIncompleteFinalTranscript(let sessionID, let sequences):
+            return "Meeting capture session \(sessionID.uuidString) is missing completed final transcripts for chunks \(sequences.map(String.init).joined(separator: ", "))."
         case .meetingCaptureHasNoFinalTranscript(let sessionID):
             return "Meeting capture session \(sessionID.uuidString) has no completed final transcript."
         case .transcriptionRecordReservationMismatch(let expected, let actual):
@@ -977,6 +980,27 @@ public final class CaptureSessionStore {
             }
         } catch let error as CaptureSessionStoreError {
             throw error
+        } catch {
+            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
+        }
+    }
+
+    /// Returns terminal user-cancelled meeting IDs whose managed artifacts can be
+    /// safely retried for deletion during startup cleanup.
+    public func cancelledMeetingCaptureSessionIDs() throws -> [UUID] {
+        let context = ModelContext(modelContainer)
+        let meetingModeRawValue = CaptureSessionMode.meeting.rawValue
+        let cancelledStateRawValue = CaptureSessionState.cancelled.rawValue
+        let descriptor = FetchDescriptor<CaptureSessionModel>(
+            predicate: #Predicate<CaptureSessionModel> {
+                $0.modeRawValue == meetingModeRawValue
+                    && $0.stateRawValue == cancelledStateRawValue
+            }
+        )
+        do {
+            return try context.fetch(descriptor)
+                .map(\.id)
+                .sorted { $0.uuidString < $1.uuidString }
         } catch {
             throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
         }
@@ -1961,6 +1985,9 @@ public final class CaptureSessionStore {
         let context = ModelContext(modelContainer)
         let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
         var session = try ownedMeeting.session.restoreSession()
+        guard session.state != .cancelled else {
+            return
+        }
         try session.cancel(at: timestamp)
         try ownedMeeting.session.update(from: session)
         ownedMeeting.session.lastActivityAt = timestamp
@@ -2387,11 +2414,17 @@ public final class CaptureSessionStore {
             throw CaptureSessionStoreError.meetingCaptureHasNoCompletedSource(handle.sessionID)
         }
         let revisions = try fetchTranscriptRevisions(sessionID: handle.sessionID, in: context)
-        guard revisions.contains(where: {
-            $0.stageRawValue == CapturePipelineStage.finalTranscription.rawValue &&
-                $0.statusRawValue == "completed" &&
-                !$0.text.isEmpty
-        }) else {
+        let completedCheckpoints = revisions.compactMap(finalASRCheckpoint(from:))
+        let expectedSequences = Set(chunks.compactMap(meetingCheckpoint(from:)).map(\.sequence))
+        let completedSequences = Set(completedCheckpoints.map(\.sequence))
+        let missingSequences = expectedSequences.subtracting(completedSequences).sorted()
+        guard missingSequences.isEmpty else {
+            throw CaptureSessionStoreError.meetingCaptureHasIncompleteFinalTranscript(
+                sessionID: handle.sessionID,
+                sequences: missingSequences
+            )
+        }
+        guard completedCheckpoints.contains(where: { !$0.text.isEmpty }) else {
             throw CaptureSessionStoreError.meetingCaptureHasNoFinalTranscript(handle.sessionID)
         }
     }
@@ -2758,6 +2791,15 @@ public final class CaptureSessionStore {
                     stage: stage
                 )
             }
+            if stage == .finalTranscription,
+               try markRetryableFinalTranscriptionFailuresRecovered(
+                    sessionID: handle.sessionID,
+                    sequence: sequence,
+                    at: timestamp,
+                    in: context
+               ) {
+                try save(context)
+            }
             return existing.id
         }
         let revision = CaptureTranscriptRevisionModel(
@@ -2774,6 +2816,14 @@ public final class CaptureSessionStore {
             createdAt: timestamp
         )
         context.insert(revision)
+        if stage == .finalTranscription {
+            _ = try markRetryableFinalTranscriptionFailuresRecovered(
+                sessionID: handle.sessionID,
+                sequence: sequence,
+                at: timestamp,
+                in: context
+            )
+        }
         try save(context)
         return revision.id
     }
@@ -3068,6 +3118,24 @@ public final class CaptureSessionStore {
             existing.occurredAt == failure.occurredAt
     }
 
+    private func markRetryableFinalTranscriptionFailuresRecovered(
+        sessionID: UUID,
+        sequence: Int,
+        at timestamp: Date,
+        in context: ModelContext
+    ) throws -> Bool {
+        let failures = try fetchMeetingFailures(sessionID: sessionID, in: context)
+        let matchingFailures = failures.filter {
+            $0.stageRawValue == CapturePipelineStage.finalTranscription.rawValue &&
+                $0.isRetryable &&
+                $0.recoveredAt == nil &&
+                persistedFailureSequence(from: $0) == sequence
+        }
+        for failure in matchingFailures {
+            failure.recoveredAt = timestamp
+        }
+        return !matchingFailures.isEmpty
+    }
     private func markFailureRecovered(
         id: UUID,
         at timestamp: Date,

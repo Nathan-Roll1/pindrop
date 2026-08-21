@@ -969,6 +969,25 @@ struct CaptureSessionStoreTests {
         )
     }
 
+    @Test func cancelledMeetingCancellationIsIdempotentAndOnlyFeedsCleanup() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 8_450)
+        let cancelled = try store.startMeetingCapture(startedAt: startedAt)
+        let active = try store.startMeetingCapture(startedAt: startedAt.addingTimeInterval(1))
+
+        try store.cancelMeetingCapture(cancelled, at: startedAt.addingTimeInterval(2))
+        try store.cancelMeetingCapture(cancelled, at: startedAt.addingTimeInterval(3))
+
+        #expect(try store.cancelledMeetingCaptureSessionIDs() == [cancelled.sessionID])
+        #expect(try store.meetingRecoveryCandidates().allSatisfy {
+            $0.handle.sessionID != cancelled.sessionID
+        })
+        #expect(try store.meetingRecoveryCandidates().contains {
+            $0.handle.sessionID == active.sessionID
+        })
+    }
+
     @Test func meetingStopRejectsInvalidOutcomesWithoutMutatingAnySource() throws {
         let container = try makeContainer()
         let store = makeStore(in: container)
@@ -1069,7 +1088,12 @@ struct CaptureSessionStoreTests {
             duration: 2,
             modelUsed: "meeting"
         )
-        #expect(throws: CaptureSessionStoreError.meetingCaptureHasNoFinalTranscript(handle.sessionID)) {
+        #expect(
+            throws: CaptureSessionStoreError.meetingCaptureHasIncompleteFinalTranscript(
+                sessionID: handle.sessionID,
+                sequences: [0]
+            )
+        ) {
             try store.completeMeetingCapture(
                 handle,
                 transcriptionRecordID: history.id,
@@ -1105,6 +1129,62 @@ struct CaptureSessionStoreTests {
         #expect(try session.restoreSession().state == .completed)
         #expect(session.transcriptionRecordID == history.id)
     }
+    @Test func meetingCompletionRejectsMissingDurableChunkCheckpointWithoutMutation() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 8_650)
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        try store.beginMeetingFinalization(handle, at: startedAt.addingTimeInterval(1))
+        let checkpoints = (0...1).map {
+            chunk(
+                handle.microphoneSourceID,
+                sessionID: handle.sessionID,
+                sequence: $0,
+                sealedAt: startedAt.addingTimeInterval(Double($0 + 2))
+            )
+        }
+        try store.reconcileMeetingChunks(handle, checkpoints: checkpoints, failures: [])
+        try store.finishMeetingSources(
+            handle,
+            sourceFailures: [failed(handle.systemAudioSourceID, at: startedAt.addingTimeInterval(4))],
+            at: startedAt.addingTimeInterval(5)
+        )
+        _ = try store.recordMeetingTranscriptionChunk(
+            handle,
+            sourceChunkSequence: 0,
+            startOffset: checkpoints[0].startOffset,
+            duration: checkpoints[0].duration,
+            text: "Opening chunk",
+            at: startedAt.addingTimeInterval(6)
+        )
+        let history = try HistoryStore(modelContext: ModelContext(container)).save(
+            text: "Opening chunk",
+            originalText: "Opening chunk",
+            duration: checkpoints[0].duration,
+            modelUsed: "meeting"
+        )
+
+        #expect(
+            throws: CaptureSessionStoreError.meetingCaptureHasIncompleteFinalTranscript(
+                sessionID: handle.sessionID,
+                sequences: [1]
+            )
+        ) {
+            try store.completeMeetingCapture(
+                handle,
+                transcriptionRecordID: history.id,
+                at: startedAt.addingTimeInterval(7)
+            )
+        }
+
+        let context = ModelContext(container)
+        let session = try #require(
+            context.fetch(FetchDescriptor<CaptureSessionModel>()).first { $0.id == handle.sessionID }
+        )
+        #expect(try session.restoreSession().state == .finalizing)
+        #expect(session.transcriptionRecordID == nil)
+    }
+
     @Test func meetingStopRejectsSwappedArtifactPathsWithoutMutation() throws {
         let container = try makeContainer()
         let store = makeStore(in: container)
@@ -1336,22 +1416,24 @@ struct CaptureSessionStoreTests {
             ],
             at: startedAt.addingTimeInterval(22)
         )
-        _ = try store.recordMeetingTranscriptionChunk(
-            handle,
-            sourceChunkSequence: 17,
-            startOffset: 5_100,
-            duration: 300,
-            text: "Final ninety-minute chunk",
-            at: startedAt.addingTimeInterval(23)
-        )
+        for checkpoint in microphoneChunks {
+            _ = try store.recordMeetingTranscriptionChunk(
+                handle,
+                sourceChunkSequence: checkpoint.sequence,
+                startOffset: checkpoint.startOffset,
+                duration: checkpoint.duration,
+                text: "Ninety-minute chunk \(checkpoint.sequence)",
+                at: startedAt.addingTimeInterval(23)
+            )
+        }
         let plan = try store.makeMeetingFinalizationPlan(handle)
         #expect(plan.sourceChunks.count == 18)
         #expect(plan.sourceChunks.map(\.sequence) == Array(0..<18))
-        #expect(plan.completedASRSequences == [17])
+        #expect(plan.completedASRSequences == Set(0..<18))
 
         let history = try HistoryStore(modelContext: ModelContext(container)).save(
-            text: "Final ninety-minute chunk",
-            originalText: "Final ninety-minute chunk",
+            text: "Complete ninety-minute transcript",
+            originalText: "Complete ninety-minute transcript",
             duration: 5_400,
             modelUsed: "meeting"
         )
@@ -1365,6 +1447,104 @@ struct CaptureSessionStoreTests {
             context.fetch(FetchDescriptor<CaptureSessionModel>()).first { $0.id == handle.sessionID }
         )
         #expect(try session.restoreSession().state == .completed)
+    }
+
+    @Test func successfulAndExactReplayFinalASRCheckpointsRecoverOnlyMatchingRetryableFailures() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 10_100)
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        try store.beginMeetingFinalization(handle, at: startedAt.addingTimeInterval(1))
+        let checkpoint = chunk(
+            handle.microphoneSourceID,
+            sessionID: handle.sessionID,
+            sequence: 0,
+            sealedAt: startedAt.addingTimeInterval(2)
+        )
+        try store.recordSealedMeetingChunk(handle, checkpoint: checkpoint)
+        let initialFailureAt = startedAt.addingTimeInterval(3)
+        try store.recordMeetingFinalizationFailure(
+            handle,
+            sequence: 0,
+            stage: .finalTranscription,
+            domain: "ASR",
+            code: "transient",
+            message: "The first attempt timed out.",
+            retryable: true,
+            at: initialFailureAt
+        )
+        try store.recordMeetingFinalizationFailure(
+            handle,
+            sequence: 1,
+            stage: .finalTranscription,
+            domain: "ASR",
+            code: "transient",
+            message: "Another chunk timed out.",
+            retryable: true,
+            at: startedAt.addingTimeInterval(4)
+        )
+        try store.recordMeetingFinalizationFailure(
+            handle,
+            sequence: 0,
+            stage: .finalTranscription,
+            domain: "ASR",
+            code: "permanent",
+            message: "A nonretryable failure remains unresolved.",
+            retryable: false,
+            at: startedAt.addingTimeInterval(5)
+        )
+
+        let firstSuccessAt = startedAt.addingTimeInterval(6)
+        let revisionID = try store.recordMeetingTranscriptionChunk(
+            handle,
+            sourceChunkSequence: checkpoint.sequence,
+            startOffset: checkpoint.startOffset,
+            duration: checkpoint.duration,
+            text: "Recovered transcript",
+            at: firstSuccessAt
+        )
+        let replayFailureAt = startedAt.addingTimeInterval(7)
+        try store.recordMeetingFinalizationFailure(
+            handle,
+            sequence: 0,
+            stage: .finalTranscription,
+            domain: "ASR",
+            code: "replay",
+            message: "A retry was interrupted after its checkpoint.",
+            retryable: true,
+            at: replayFailureAt
+        )
+        let exactReplayAt = startedAt.addingTimeInterval(8)
+        #expect(
+            try store.recordMeetingTranscriptionChunk(
+                handle,
+                sourceChunkSequence: checkpoint.sequence,
+                startOffset: checkpoint.startOffset,
+                duration: checkpoint.duration,
+                text: "Recovered transcript",
+                at: exactReplayAt
+            ) == revisionID
+        )
+
+        let context = ModelContext(container)
+        let failures = try context.fetch(FetchDescriptor<CaptureFailureRecordModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        let recoveredInitialFailure = try #require(
+            failures.first { $0.occurredAt == initialFailureAt }
+        )
+        let unmatchedRetryableFailure = try #require(
+            failures.first { $0.occurredAt == startedAt.addingTimeInterval(4) }
+        )
+        let nonretryableFailure = try #require(
+            failures.first { $0.occurredAt == startedAt.addingTimeInterval(5) }
+        )
+        let recoveredReplayFailure = try #require(
+            failures.first { $0.occurredAt == replayFailureAt }
+        )
+        #expect(recoveredInitialFailure.recoveredAt == firstSuccessAt)
+        #expect(unmatchedRetryableFailure.recoveredAt == nil)
+        #expect(nonretryableFailure.recoveredAt == nil)
+        #expect(recoveredReplayFailure.recoveredAt == exactReplayAt)
     }
 
     @Test func reconciliationIsIdempotentAndRejectsConflictingRenameCheckpoint() throws {

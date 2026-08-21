@@ -3819,16 +3819,20 @@ final class AudioRecorder {
 
         isStartingRecording = true
         defer { isStartingRecording = false }
+        try Task.checkCancellation()
         await awaitCaptureFinalizationIfNeeded()
+        try Task.checkCancellation()
         guard finalizingCapture == nil else {
             return false
         }
         guard await permissionManager.requestPermission() else {
             throw AudioRecorderError.permissionDenied
         }
+        try Task.checkCancellation()
         guard await permissionManager.requestSystemAudioPermission() else {
             throw AudioRecorderError.systemAudioPermissionDenied
         }
+        try Task.checkCancellation()
 
         let captureBackend = try makeCaptureBackend(for: .microphoneAndSystemAudio)
         guard let meetingBackend = captureBackend as? any MeetingAudioCaptureBackend else {

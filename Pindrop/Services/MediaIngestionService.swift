@@ -442,6 +442,18 @@ final class MediaIngestionService {
         }
     }
 
+    func removeMeetingCaptureArtifacts(for sessionID: UUID) async throws {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            try await Task.detached {
+                try mediaLibrary.removeMeetingCaptureArtifacts(for: sessionID)
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
     func removeMixedMeetingChunk(
         _ artifact: ManagedMixedMeetingChunkArtifact
     ) async throws {

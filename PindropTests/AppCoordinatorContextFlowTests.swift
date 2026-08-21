@@ -276,7 +276,7 @@ struct AppCoordinatorContextFlowTests {
         #expect(!AppCoordinator.shouldCreateMeetingTranscriptionInput(for: workItem))
     }
 
-    @Test func meetingFinalizerSkipsModelActivationWhenEveryASRCheckpointCompleted() {
+    @Test func meetingFinalizerSkipsModelActivationForPermanentSourceGaps() {
         let workItems = [
             AppCoordinator.MeetingChunkWorkItem(
                 sequence: 0,
@@ -296,22 +296,33 @@ struct AppCoordinatorContextFlowTests {
             )
         ]
 
+        #expect(AppCoordinator.expectedMeetingFinalASRSequences(workItems: workItems).isEmpty)
         #expect(
             !AppCoordinator.meetingFinalizationNeedsFinalModelActivation(
                 workItems: workItems,
-                completedASRSequences: [0, 1]
+                completedASRSequences: []
             )
         )
     }
 
-    @Test func meetingFinalizerActivatesModelWhenAnyASRCheckpointIsPending() {
+    @Test func meetingFinalizerActivatesModelOnlyForMissingDurableChunkCheckpoints() {
+        let sourceID = UUID()
         let workItems = [
             AppCoordinator.MeetingChunkWorkItem(
                 sequence: 0,
                 chunkID: UUID(),
                 startOffset: 0,
                 duration: 300,
-                microphone: nil,
+                microphone: MeetingChunkCheckpoint(
+                    sourceID: sourceID,
+                    sequence: 0,
+                    startOffset: 0,
+                    duration: 300,
+                    managedMediaPath: "meeting/0.pcm",
+                    byteCount: 9_600_000,
+                    sha256: String(repeating: "a", count: 64),
+                    sealedAt: .now
+                ),
                 systemAudio: nil
             ),
             AppCoordinator.MeetingChunkWorkItem(
@@ -320,10 +331,34 @@ struct AppCoordinatorContextFlowTests {
                 startOffset: 300,
                 duration: 300,
                 microphone: nil,
+                systemAudio: MeetingChunkCheckpoint(
+                    sourceID: sourceID,
+                    sequence: 1,
+                    startOffset: 300,
+                    duration: 300,
+                    managedMediaPath: "meeting/1.pcm",
+                    byteCount: 9_600_000,
+                    sha256: String(repeating: "b", count: 64),
+                    sealedAt: .now
+                )
+            ),
+            AppCoordinator.MeetingChunkWorkItem(
+                sequence: 2,
+                chunkID: UUID(),
+                startOffset: 600,
+                duration: 300,
+                microphone: nil,
                 systemAudio: nil
             )
         ]
 
+        #expect(AppCoordinator.expectedMeetingFinalASRSequences(workItems: workItems) == [0, 1])
+        #expect(
+            AppCoordinator.missingMeetingFinalASRSequences(
+                workItems: workItems,
+                completedASRSequences: [0]
+            ) == [1]
+        )
         #expect(
             AppCoordinator.meetingFinalizationNeedsFinalModelActivation(
                 workItems: workItems,

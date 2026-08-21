@@ -423,6 +423,16 @@ public final class ManagedMediaLibrary: MediaLibraryManaging, @unchecked Sendabl
         )
     }
 
+    public func removeMeetingCaptureArtifacts(for sessionID: UUID) throws {
+        Self.captureSourceStorageLock.lock()
+        defer { Self.captureSourceStorageLock.unlock() }
+
+        let directory = meetingCaptureDirectoryURL(sessionID: sessionID)
+        guard fileManager.fileExists(atPath: directory.path) else { return }
+        try assertSafeExistingPath(directory, isDirectory: true)
+        try fileManager.removeItem(at: directory)
+    }
+
     public func removeMixedMeetingChunk(_ artifact: ManagedMixedMeetingChunkArtifact) throws {
         guard artifact.sequence >= 0,
               artifact.relativePath == CaptureSourceArtifactPath.mixedRelativePath(
@@ -453,9 +463,7 @@ public final class ManagedMediaLibrary: MediaLibraryManaging, @unchecked Sendabl
         Self.captureSourceStorageLock.lock()
         defer { Self.captureSourceStorageLock.unlock() }
 
-        let directory = baseURL
-            .appendingPathComponent("CaptureSessions", isDirectory: true)
-            .appendingPathComponent(sessionID.uuidString, isDirectory: true)
+        let directory = meetingCaptureDirectoryURL(sessionID: sessionID)
             .appendingPathComponent("Mixed", isDirectory: true)
         guard fileManager.fileExists(atPath: directory.path) else { return }
         try assertSafeExistingPath(directory, isDirectory: true)
@@ -812,10 +820,14 @@ public final class ManagedMediaLibrary: MediaLibraryManaging, @unchecked Sendabl
         [plan.microphoneSourceID, plan.systemAudioSourceID]
     }
 
-    private func sourceDirectoryURL(sessionID: UUID, sourceID: UUID) -> URL {
+    private func meetingCaptureDirectoryURL(sessionID: UUID) -> URL {
         baseURL
             .appendingPathComponent("CaptureSessions", isDirectory: true)
             .appendingPathComponent(sessionID.uuidString, isDirectory: true)
+    }
+
+    private func sourceDirectoryURL(sessionID: UUID, sourceID: UUID) -> URL {
+        meetingCaptureDirectoryURL(sessionID: sessionID)
             .appendingPathComponent("Sources", isDirectory: true)
             .appendingPathComponent(sourceID.uuidString, isDirectory: true)
     }

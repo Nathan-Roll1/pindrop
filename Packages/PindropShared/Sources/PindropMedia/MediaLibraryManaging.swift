@@ -186,6 +186,11 @@ public protocol MediaLibraryManaging: AnyObject, Sendable {
         microphone: SealedAudioSourceChunk?,
         systemAudio: SealedAudioSourceChunk?
     ) throws -> ManagedMixedMeetingChunkArtifact
+    /// Removes all durable source and mixed artifacts owned by a cancelled meeting.
+    ///
+    /// `sessionID` is converted to its canonical managed-media directory; callers
+    /// cannot supply an arbitrary filesystem path.
+    func removeMeetingCaptureArtifacts(for sessionID: UUID) throws
     func removeMixedMeetingChunk(_ artifact: ManagedMixedMeetingChunkArtifact) throws
     func removeMixedMeetingChunks(for sessionID: UUID) throws
 }
@@ -225,6 +230,9 @@ public extension MediaLibraryManaging {
         throw MediaLibraryError.captureSourceStorageUnsupported
     }
 
+    func removeMeetingCaptureArtifacts(for sessionID: UUID) throws {
+        throw MediaLibraryError.captureSourceStorageUnsupported
+    }
     func removeMixedMeetingChunk(_ artifact: ManagedMixedMeetingChunkArtifact) throws {
         throw MediaLibraryError.captureSourceStorageUnsupported
     }

@@ -267,6 +267,57 @@ struct ManagedMeetingChunkStorageTests {
         #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("CaptureSessions/\(plan.sessionID.uuidString)/Mixed").path))
     }
 
+    @Test func removingMeetingCaptureArtifactsRemovesSourcesAndMixedChunksIdempotently() throws {
+        let (library, plan, root) = try makeFixture(chunkByteCount: 8)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let microphoneURL = sourceURL(plan, sourceID: plan.microphoneSourceID, sequence: 0)
+        let systemAudioURL = sourceURL(plan, sourceID: plan.systemAudioSourceID, sequence: 0)
+        try writePCM([0.25, 0.5], to: microphoneURL)
+        try writePCM([0.5, 0.25], to: systemAudioURL)
+        let inventory = try library.recoverMeetingArtifacts(for: plan).sealedChunks
+        let microphone = try #require(inventory.first { $0.sourceID == plan.microphoneSourceID })
+        let systemAudio = try #require(inventory.first { $0.sourceID == plan.systemAudioSourceID })
+        let mixed = try library.makeMixedMeetingChunk(
+            sessionID: plan.sessionID,
+            sequence: 0,
+            microphone: microphone,
+            systemAudio: systemAudio
+        )
+        let sessionDirectory = root
+            .appendingPathComponent("CaptureSessions", isDirectory: true)
+            .appendingPathComponent(plan.sessionID.uuidString, isDirectory: true)
+
+        #expect(FileManager.default.fileExists(atPath: microphoneURL.path))
+        #expect(FileManager.default.fileExists(atPath: systemAudioURL.path))
+        #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent(mixed.relativePath).path))
+
+        try library.removeMeetingCaptureArtifacts(for: plan.sessionID)
+        try library.removeMeetingCaptureArtifacts(for: plan.sessionID)
+
+        #expect(!FileManager.default.fileExists(atPath: sessionDirectory.path))
+        #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("CaptureSessions").path))
+    }
+
+    @Test func removingMeetingCaptureArtifactsRejectsSessionDirectorySymlinks() throws {
+        let (library, plan, root) = try makeFixture(chunkByteCount: 8)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sessionDirectory = root
+            .appendingPathComponent("CaptureSessions", isDirectory: true)
+            .appendingPathComponent(plan.sessionID.uuidString, isDirectory: true)
+        let outsideDirectory = root.deletingLastPathComponent().appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: outsideDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: outsideDirectory) }
+        let outsideFile = outsideDirectory.appendingPathComponent("preserve.pcm")
+        _ = FileManager.default.createFile(atPath: outsideFile.path, contents: Data([0, 1]))
+        try FileManager.default.removeItem(at: sessionDirectory)
+        try FileManager.default.createSymbolicLink(at: sessionDirectory, withDestinationURL: outsideDirectory)
+
+        #expect(throws: MediaLibraryError.self) {
+            try library.removeMeetingCaptureArtifacts(for: plan.sessionID)
+        }
+        #expect(FileManager.default.fileExists(atPath: outsideFile.path))
+    }
+
     private func makeFixture(chunkByteCount: Int) throws -> (ManagedMediaLibrary, MeetingCaptureSpoolPlan, URL) {
         let root = try makeTemporaryDirectory()
         let plan = MeetingCaptureSpoolPlan(
