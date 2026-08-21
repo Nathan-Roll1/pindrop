@@ -358,8 +358,200 @@ struct MediaIngestionServiceTests {
         #expect(library.finalizeSourceURL == youtubeURL)
         #expect(library.finalizeSuggestedTitle == "Example video")
     }
+
+    @Test func testMeetingMediaWrappersDelegateOffMainAndReturnResults() async throws {
+        let sessionID = UUID()
+        let microphoneSourceID = UUID()
+        let systemAudioSourceID = UUID()
+        let plan = MeetingCaptureSpoolPlan(
+            libraryRootURL: URL(fileURLWithPath: "/tmp/media-library", isDirectory: true),
+            sessionID: sessionID,
+            microphoneSourceID: microphoneSourceID,
+            systemAudioSourceID: systemAudioSourceID
+        )
+        let microphoneChunk = SealedAudioSourceChunk(
+            sessionID: sessionID,
+            sourceID: microphoneSourceID,
+            sequence: 2,
+            startOffset: 600,
+            duration: 300,
+            fileURL: URL(fileURLWithPath: "/tmp/microphone-2.pcm"),
+            relativePath: "CaptureSessions/\(sessionID.uuidString)/Sources/\(microphoneSourceID.uuidString)/chunk-00002.pcm",
+            byteCount: 19_200_000,
+            sha256: "microphone-hash"
+        )
+        let systemAudioChunk = SealedAudioSourceChunk(
+            sessionID: sessionID,
+            sourceID: systemAudioSourceID,
+            sequence: 2,
+            startOffset: 600,
+            duration: 300,
+            fileURL: URL(fileURLWithPath: "/tmp/system-audio-2.pcm"),
+            relativePath: "CaptureSessions/\(sessionID.uuidString)/Sources/\(systemAudioSourceID.uuidString)/chunk-00002.pcm",
+            byteCount: 19_200_000,
+            sha256: "system-audio-hash"
+        )
+        let expectedURL = URL(fileURLWithPath: "/tmp/resolved-microphone-2.pcm")
+        let expectedMixedArtifact = ManagedMixedMeetingChunkArtifact(
+            sessionID: sessionID,
+            sequence: 2,
+            relativePath: "CaptureSessions/\(sessionID.uuidString)/Mixed/chunk-00002.pcm",
+            byteCount: 19_200_000,
+            sha256: "mixed-hash"
+        )
+        let library = MockMediaLibrary()
+        library.meetingCaptureSpoolPlan = plan
+        library.recoveredMeetingArtifacts = MeetingArtifactRecoveryResult(
+            sealedChunks: [microphoneChunk, systemAudioChunk],
+            failures: []
+        )
+        library.resolvedMeetingArtifactURL = expectedURL
+        library.mixedMeetingChunkArtifact = expectedMixedArtifact
+        let sut = MediaIngestionService(
+            processRunner: MockProcessRunner(),
+            mediaLibrary: library
+        )
+
+        let returnedPlan = try await sut.makeMeetingCaptureSpoolPlan(
+            sessionID: sessionID,
+            microphoneSourceID: microphoneSourceID,
+            systemAudioSourceID: systemAudioSourceID
+        )
+        let recoveredArtifacts = try await sut.recoverMeetingArtifacts(for: plan)
+        let resolvedURL = try await sut.resolveArtifactURL(for: microphoneChunk)
+        let mixedArtifact = try await sut.makeMixedMeetingChunk(
+            sessionID: sessionID,
+            sequence: 2,
+            microphone: microphoneChunk,
+            systemAudio: systemAudioChunk
+        )
+        try await sut.removeMixedMeetingChunk(expectedMixedArtifact)
+        try await sut.removeMixedMeetingChunks(for: sessionID)
+
+        #expect(returnedPlan == plan)
+        #expect(recoveredArtifacts.sealedChunks == [microphoneChunk, systemAudioChunk])
+        #expect(resolvedURL == expectedURL)
+        #expect(mixedArtifact == expectedMixedArtifact)
+        #expect(library.meetingPlanSessionID == sessionID)
+        #expect(library.meetingPlanMicrophoneSourceID == microphoneSourceID)
+        #expect(library.meetingPlanSystemAudioSourceID == systemAudioSourceID)
+        #expect(library.recoveredMeetingPlan == plan)
+        #expect(library.resolvedMeetingChunk == microphoneChunk)
+        #expect(library.mixedMeetingSessionID == sessionID)
+        #expect(library.mixedMeetingSequence == 2)
+        #expect(library.mixedMeetingMicrophone == microphoneChunk)
+        #expect(library.mixedMeetingSystemAudio == systemAudioChunk)
+        #expect(library.removedMixedMeetingChunk == expectedMixedArtifact)
+        #expect(library.removedMixedMeetingSessionID == sessionID)
+        #expect(library.meetingOperationsRanOffMain.count == 6)
+        #expect(library.meetingOperationsRanOffMain.allSatisfy { $0 })
+    }
+
+    @Test func testMeetingMediaWrappersMapMediaLibraryErrors() async throws {
+        let sessionID = UUID()
+        let microphoneSourceID = UUID()
+        let systemAudioSourceID = UUID()
+        let plan = MeetingCaptureSpoolPlan(
+            libraryRootURL: URL(fileURLWithPath: "/tmp/media-library", isDirectory: true),
+            sessionID: sessionID,
+            microphoneSourceID: microphoneSourceID,
+            systemAudioSourceID: systemAudioSourceID
+        )
+        let chunk = SealedAudioSourceChunk(
+            sessionID: sessionID,
+            sourceID: microphoneSourceID,
+            sequence: 0,
+            startOffset: 0,
+            duration: 300,
+            fileURL: URL(fileURLWithPath: "/tmp/microphone-0.pcm"),
+            relativePath: "CaptureSessions/\(sessionID.uuidString)/Sources/\(microphoneSourceID.uuidString)/chunk-00000.pcm",
+            byteCount: 19_200_000,
+            sha256: "microphone-hash"
+        )
+        let mixedArtifact = ManagedMixedMeetingChunkArtifact(
+            sessionID: sessionID,
+            sequence: 0,
+            relativePath: "CaptureSessions/\(sessionID.uuidString)/Mixed/chunk-00000.pcm",
+            byteCount: 19_200_000,
+            sha256: "mixed-hash"
+        )
+        let library = MockMediaLibrary()
+        let sut = MediaIngestionService(
+            processRunner: MockProcessRunner(),
+            mediaLibrary: library
+        )
+
+        library.meetingMediaError = .captureSourceStorageFailed("disk full")
+        do {
+            _ = try await sut.makeMeetingCaptureSpoolPlan(
+                sessionID: sessionID,
+                microphoneSourceID: microphoneSourceID,
+                systemAudioSourceID: systemAudioSourceID
+            )
+            Issue.record("Expected capture-source storage error")
+        } catch let error as MediaIngestionError {
+            guard case .captureSourceStorageFailed(let message) = error else {
+                Issue.record("Expected capture-source storage error, got \(error)")
+                return
+            }
+            #expect(message == "disk full")
+        }
+
+        library.meetingMediaError = .captureSourceStorageUnsupported
+        do {
+            _ = try await sut.recoverMeetingArtifacts(for: plan)
+            Issue.record("Expected capture-source storage unsupported error")
+        } catch let error as MediaIngestionError {
+            guard case .captureSourceStorageUnsupported = error else {
+                Issue.record("Expected capture-source storage unsupported error, got \(error)")
+                return
+            }
+        }
+
+        let relativePath = "CaptureSessions/\(sessionID.uuidString)/Mixed/chunk-00000.pcm"
+        library.meetingMediaError = .captureSourceStorageContentConflict(relativePath: relativePath)
+        await assertCaptureSourceContentConflict(relativePath: relativePath) {
+            _ = try await sut.recoverMeetingArtifacts(for: plan)
+        }
+        await assertCaptureSourceContentConflict(relativePath: relativePath) {
+            _ = try await sut.resolveArtifactURL(for: chunk)
+        }
+        await assertCaptureSourceContentConflict(relativePath: relativePath) {
+            _ = try await sut.makeMixedMeetingChunk(
+                sessionID: sessionID,
+                sequence: 0,
+                microphone: chunk,
+                systemAudio: nil
+            )
+        }
+        await assertCaptureSourceContentConflict(relativePath: relativePath) {
+            try await sut.removeMixedMeetingChunk(mixedArtifact)
+        }
+        await assertCaptureSourceContentConflict(relativePath: relativePath) {
+            try await sut.removeMixedMeetingChunks(for: sessionID)
+        }
+    }
 }
 
+
+@MainActor
+private func assertCaptureSourceContentConflict(
+    relativePath: String,
+    operation: @MainActor () async throws -> Void
+) async {
+    do {
+        try await operation()
+        Issue.record("Expected capture-source content conflict")
+    } catch let error as MediaIngestionError {
+        guard case .captureSourceStorageContentConflict(let actualPath) = error else {
+            Issue.record("Expected capture-source content conflict, got \(error)")
+            return
+        }
+        #expect(actualPath == relativePath)
+    } catch {
+        Issue.record("Expected MediaIngestionError, got \(error)")
+    }
+}
 private final class MockMediaLibrary: MediaLibraryManaging, @unchecked Sendable {
     var importedSourceURL: URL?
     var importedAsset = ManagedMediaAsset(
@@ -399,6 +591,35 @@ private final class MockMediaLibrary: MediaLibraryManaging, @unchecked Sendable 
         byteCount: 0,
         sha256: ""
     )
+
+    var meetingCaptureSpoolPlan = MeetingCaptureSpoolPlan(
+        libraryRootURL: URL(fileURLWithPath: "/tmp/media-library", isDirectory: true),
+        sessionID: UUID(),
+        microphoneSourceID: UUID(),
+        systemAudioSourceID: UUID()
+    )
+    var recoveredMeetingArtifacts = MeetingArtifactRecoveryResult(sealedChunks: [], failures: [])
+    var resolvedMeetingArtifactURL = URL(fileURLWithPath: "/tmp/resolved-artifact.pcm")
+    var mixedMeetingChunkArtifact = ManagedMixedMeetingChunkArtifact(
+        sessionID: UUID(),
+        sequence: 0,
+        relativePath: "CaptureSessions/test/Mixed/chunk-00000.pcm",
+        byteCount: 0,
+        sha256: ""
+    )
+    var meetingMediaError: MediaLibraryError?
+    var meetingPlanSessionID: UUID?
+    var meetingPlanMicrophoneSourceID: UUID?
+    var meetingPlanSystemAudioSourceID: UUID?
+    var recoveredMeetingPlan: MeetingCaptureSpoolPlan?
+    var resolvedMeetingChunk: SealedAudioSourceChunk?
+    var mixedMeetingSessionID: UUID?
+    var mixedMeetingSequence: Int?
+    var mixedMeetingMicrophone: SealedAudioSourceChunk?
+    var mixedMeetingSystemAudio: SealedAudioSourceChunk?
+    var removedMixedMeetingChunk: ManagedMixedMeetingChunkArtifact?
+    var removedMixedMeetingSessionID: UUID?
+    var meetingOperationsRanOffMain: [Bool] = []
 
 
     func makeJobDirectory(for jobID: UUID) throws -> URL {
@@ -442,6 +663,76 @@ private final class MockMediaLibrary: MediaLibraryManaging, @unchecked Sendable 
         captureSourceID = sourceID
         captureSourceChunkSequence = chunkSequence
         return captureSourceArtifact
+    }
+
+    func makeMeetingCaptureSpoolPlan(
+        sessionID: UUID,
+        microphoneSourceID: UUID,
+        systemAudioSourceID: UUID
+    ) throws -> MeetingCaptureSpoolPlan {
+        recordMeetingOperation()
+        if let meetingMediaError {
+            throw meetingMediaError
+        }
+        meetingPlanSessionID = sessionID
+        meetingPlanMicrophoneSourceID = microphoneSourceID
+        meetingPlanSystemAudioSourceID = systemAudioSourceID
+        return meetingCaptureSpoolPlan
+    }
+
+    func recoverMeetingArtifacts(for plan: MeetingCaptureSpoolPlan) throws -> MeetingArtifactRecoveryResult {
+        recordMeetingOperation()
+        if let meetingMediaError {
+            throw meetingMediaError
+        }
+        recoveredMeetingPlan = plan
+        return recoveredMeetingArtifacts
+    }
+
+    func resolveArtifactURL(for chunk: SealedAudioSourceChunk) throws -> URL {
+        recordMeetingOperation()
+        if let meetingMediaError {
+            throw meetingMediaError
+        }
+        resolvedMeetingChunk = chunk
+        return resolvedMeetingArtifactURL
+    }
+
+    func makeMixedMeetingChunk(
+        sessionID: UUID,
+        sequence: Int,
+        microphone: SealedAudioSourceChunk?,
+        systemAudio: SealedAudioSourceChunk?
+    ) throws -> ManagedMixedMeetingChunkArtifact {
+        recordMeetingOperation()
+        if let meetingMediaError {
+            throw meetingMediaError
+        }
+        mixedMeetingSessionID = sessionID
+        mixedMeetingSequence = sequence
+        mixedMeetingMicrophone = microphone
+        mixedMeetingSystemAudio = systemAudio
+        return mixedMeetingChunkArtifact
+    }
+
+    func removeMixedMeetingChunk(_ artifact: ManagedMixedMeetingChunkArtifact) throws {
+        recordMeetingOperation()
+        if let meetingMediaError {
+            throw meetingMediaError
+        }
+        removedMixedMeetingChunk = artifact
+    }
+
+    func removeMixedMeetingChunks(for sessionID: UUID) throws {
+        recordMeetingOperation()
+        if let meetingMediaError {
+            throw meetingMediaError
+        }
+        removedMixedMeetingSessionID = sessionID
+    }
+
+    private func recordMeetingOperation() {
+        meetingOperationsRanOffMain.append(!Thread.isMainThread)
     }
 
     func finalizeDownloadedAsset(

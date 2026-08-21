@@ -37,7 +37,7 @@ struct CaptureSessionStoreTests {
                 sourceID: sourceID,
                 chunkSequence: 0
             ),
-            byteCount: 64_000,
+            byteCount: 128_000,
             sha256: String(repeating: "a", count: 64)
         )
     }
@@ -52,6 +52,65 @@ struct CaptureSessionStoreTests {
             errorDomain: "AudioCapture",
             errorCode: "unavailable",
             message: message,
+            occurredAt: timestamp
+        )
+    }
+    private func chunk(
+        _ sourceID: UUID,
+        sessionID: UUID,
+        sequence: Int,
+        sealedAt: Date
+    ) -> MeetingChunkCheckpoint {
+        let byteCount = MeetingCaptureSpoolPlan.defaultChunkByteCount
+        let duration = Double(byteCount) /
+            Double(MeetingCaptureSpoolPlan.sampleRate * MeetingCaptureSpoolPlan.bytesPerSample)
+        return MeetingChunkCheckpoint(
+            sourceID: sourceID,
+            sequence: sequence,
+            startOffset: Double(sequence) * duration,
+            duration: duration,
+            managedMediaPath: CaptureSourceArtifactPath.relativePath(
+                sessionID: sessionID,
+                sourceID: sourceID,
+                chunkSequence: sequence
+            ),
+            byteCount: byteCount,
+            sha256: String(format: "%064x", sequence + 1),
+            sealedAt: sealedAt
+        )
+    }
+    private func sealed(
+        _ checkpoint: MeetingChunkCheckpoint,
+        sessionID: UUID
+    ) -> SealedAudioSourceChunk {
+        SealedAudioSourceChunk(
+            sessionID: sessionID,
+            sourceID: checkpoint.sourceID,
+            sequence: checkpoint.sequence,
+            startOffset: checkpoint.startOffset,
+            duration: checkpoint.duration,
+            fileURL: URL(fileURLWithPath: "/recovered/chunk-\(checkpoint.sequence).pcm"),
+            relativePath: checkpoint.managedMediaPath,
+            byteCount: Int64(checkpoint.byteCount),
+            sha256: checkpoint.sha256
+        )
+    }
+
+    private func recoveryFailure(
+        _ sourceID: UUID,
+        sequence: Int? = nil,
+        invalidatesSource: Bool = false,
+        at timestamp: Date,
+        message: String
+    ) -> MeetingChunkFailure {
+        MeetingChunkFailure(
+            sourceID: sourceID,
+            sequence: sequence,
+            invalidatesSource: invalidatesSource,
+            errorDomain: "MeetingArtifactRecovery",
+            errorCode: "corrupt",
+            message: message,
+            isRetryable: true,
             occurredAt: timestamp
         )
     }
@@ -711,6 +770,27 @@ struct CaptureSessionStoreTests {
             failures: [failed(handle.systemAudioSourceID, at: startedAt.addingTimeInterval(2))],
             at: startedAt.addingTimeInterval(3)
         )
+        let history = try HistoryStore(modelContext: ModelContext(container)).save(
+            text: "Meeting transcript",
+            originalText: "Meeting transcript",
+            duration: 2,
+            modelUsed: "meeting"
+        )
+        #expect(throws: CaptureSessionStoreError.meetingCaptureHasNoFinalTranscript(handle.sessionID)) {
+            try store.completeMeetingCapture(
+                handle,
+                transcriptionRecordID: history.id,
+                at: startedAt.addingTimeInterval(4)
+            )
+        }
+        _ = try store.recordMeetingTranscriptionChunk(
+            handle,
+            sourceChunkSequence: 0,
+            startOffset: 0,
+            duration: 2,
+            text: "Meeting transcript",
+            at: startedAt.addingTimeInterval(3)
+        )
         let missingHistoryID = UUID()
         #expect(throws: CaptureSessionStoreError.transcriptionRecordNotFound(missingHistoryID)) {
             try store.completeMeetingCapture(
@@ -719,12 +799,6 @@ struct CaptureSessionStoreTests {
                 at: startedAt.addingTimeInterval(4)
             )
         }
-        let history = try HistoryStore(modelContext: ModelContext(container)).save(
-            text: "Meeting transcript",
-            originalText: "Meeting transcript",
-            duration: 2,
-            modelUsed: "meeting"
-        )
         try store.completeMeetingCapture(
             handle,
             transcriptionRecordID: history.id,
@@ -940,5 +1014,752 @@ struct CaptureSessionStoreTests {
         #expect(session.transcriptionRecordID == nil)
         #expect(chunks.count == 1)
         #expect(failures.count == 2)
+    }
+    @Test func reconcilesNinetyMinuteChunksAndCompletesOneRetainedSource() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 10_000)
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        try store.beginMeetingFinalization(handle, at: startedAt.addingTimeInterval(1))
+        let microphoneChunks = (0..<18).map {
+            chunk(
+                handle.microphoneSourceID,
+                sessionID: handle.sessionID,
+                sequence: $0,
+                sealedAt: startedAt.addingTimeInterval(Double($0 + 1))
+            )
+        }
+
+        try store.reconcileMeetingChunks(
+            handle,
+            checkpoints: microphoneChunks,
+            failures: [],
+            at: startedAt.addingTimeInterval(20)
+        )
+        try store.finishMeetingSources(
+            handle,
+            sourceFailures: [
+                failed(handle.systemAudioSourceID, at: startedAt.addingTimeInterval(21))
+            ],
+            at: startedAt.addingTimeInterval(22)
+        )
+        _ = try store.recordMeetingTranscriptionChunk(
+            handle,
+            sourceChunkSequence: 17,
+            startOffset: 5_100,
+            duration: 300,
+            text: "Final ninety-minute chunk",
+            at: startedAt.addingTimeInterval(23)
+        )
+        let plan = try store.makeMeetingFinalizationPlan(handle)
+        #expect(plan.sourceChunks.count == 18)
+        #expect(plan.sourceChunks.map(\.sequence) == Array(0..<18))
+        #expect(plan.completedASRSequences == [17])
+
+        let history = try HistoryStore(modelContext: ModelContext(container)).save(
+            text: "Final ninety-minute chunk",
+            originalText: "Final ninety-minute chunk",
+            duration: 5_400,
+            modelUsed: "meeting"
+        )
+        try store.completeMeetingCapture(
+            handle,
+            transcriptionRecordID: history.id,
+            at: startedAt.addingTimeInterval(24)
+        )
+        let context = ModelContext(container)
+        let session = try #require(
+            context.fetch(FetchDescriptor<CaptureSessionModel>()).first { $0.id == handle.sessionID }
+        )
+        #expect(try session.restoreSession().state == .completed)
+    }
+
+    @Test func reconciliationIsIdempotentAndRejectsConflictingRenameCheckpoint() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 11_000)
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        let checkpoint = chunk(
+            handle.microphoneSourceID,
+            sessionID: handle.sessionID,
+            sequence: 0,
+            sealedAt: startedAt.addingTimeInterval(1)
+        )
+
+        let renamedChunk = SealedAudioSourceChunk(
+            sessionID: handle.sessionID,
+            sourceID: checkpoint.sourceID,
+            sequence: checkpoint.sequence,
+            startOffset: checkpoint.startOffset,
+            duration: checkpoint.duration,
+            fileURL: URL(fileURLWithPath: "/recovered/chunk-00000.pcm"),
+            relativePath: checkpoint.managedMediaPath,
+            byteCount: Int64(checkpoint.byteCount),
+            sha256: checkpoint.sha256
+        )
+        try store.reconcileMeetingInventory(handle, sealedChunks: [renamedChunk])
+        try store.reconcileMeetingInventory(handle, sealedChunks: [renamedChunk])
+        let conflicting = MeetingChunkCheckpoint(
+            sourceID: checkpoint.sourceID,
+            sequence: checkpoint.sequence,
+            startOffset: checkpoint.startOffset,
+            duration: checkpoint.duration,
+            managedMediaPath: checkpoint.managedMediaPath,
+            byteCount: checkpoint.byteCount,
+            sha256: String(repeating: "f", count: 64),
+            sealedAt: checkpoint.sealedAt
+        )
+        #expect(
+            throws: CaptureSessionStoreError.meetingChunkConflict(
+                sourceID: handle.microphoneSourceID,
+                sequence: 0
+            )
+        ) {
+            try store.reconcileMeetingChunks(handle, checkpoints: [conflicting], failures: [])
+        }
+
+        let context = ModelContext(container)
+        let chunks = try context.fetch(FetchDescriptor<CaptureChunkModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        #expect(chunks.count == 1)
+        #expect(chunks[0].sha256 == checkpoint.sha256)
+    }
+
+    @Test func authoritativeInventoryRemovesLostSourceRowsAndIsIdempotent() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 11_100)
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        let microphone = chunk(
+            handle.microphoneSourceID,
+            sessionID: handle.sessionID,
+            sequence: 0,
+            sealedAt: startedAt.addingTimeInterval(1)
+        )
+        let systemAudio = chunk(
+            handle.systemAudioSourceID,
+            sessionID: handle.sessionID,
+            sequence: 0,
+            sealedAt: startedAt.addingTimeInterval(1)
+        )
+        let lostSource = recoveryFailure(
+            handle.systemAudioSourceID,
+            invalidatesSource: true,
+            at: startedAt.addingTimeInterval(2),
+            message: "The system-audio artifact is missing."
+        )
+
+        try store.reconcileMeetingChunks(handle, checkpoints: [microphone, systemAudio], failures: [])
+        try store.reconcileMeetingInventory(
+            handle,
+            sealedChunks: [sealed(microphone, sessionID: handle.sessionID)],
+            failures: [lostSource],
+            at: startedAt.addingTimeInterval(3)
+        )
+        try store.reconcileMeetingInventory(
+            handle,
+            sealedChunks: [sealed(microphone, sessionID: handle.sessionID)],
+            failures: [lostSource],
+            at: startedAt.addingTimeInterval(3)
+        )
+
+        let context = ModelContext(container)
+        let chunks = try context.fetch(FetchDescriptor<CaptureChunkModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        let failures = try context.fetch(FetchDescriptor<CaptureFailureRecordModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        #expect(chunks.count == 1)
+        #expect(chunks[0].sourceID == handle.microphoneSourceID)
+        #expect(chunks[0].sequence == 0)
+        #expect(failures.count == 1)
+        #expect(failures[0].sourceID == handle.systemAudioSourceID)
+        #expect(failures[0].chunkID == nil)
+    }
+
+    @Test func corruptMiddleChunkRemainsRecoverableThroughFinalization() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 11_200)
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        try store.beginMeetingFinalization(handle, at: startedAt.addingTimeInterval(0.5))
+        let microphoneChunks = (0...2).map {
+            chunk(
+                handle.microphoneSourceID,
+                sessionID: handle.sessionID,
+                sequence: $0,
+                sealedAt: startedAt.addingTimeInterval(Double($0 + 1))
+            )
+        }
+        let systemAudio = chunk(
+            handle.systemAudioSourceID,
+            sessionID: handle.sessionID,
+            sequence: 0,
+            sealedAt: startedAt.addingTimeInterval(1)
+        )
+        let corruptMiddle = recoveryFailure(
+            handle.microphoneSourceID,
+            sequence: 1,
+            at: startedAt.addingTimeInterval(4),
+            message: "The canonical middle chunk failed its hash check."
+        )
+
+        try store.reconcileMeetingChunks(
+            handle,
+            checkpoints: microphoneChunks + [systemAudio],
+            failures: []
+        )
+        try store.reconcileMeetingInventory(
+            handle,
+            sealedChunks: [
+                sealed(microphoneChunks[0], sessionID: handle.sessionID),
+                sealed(microphoneChunks[2], sessionID: handle.sessionID),
+                sealed(systemAudio, sessionID: handle.sessionID)
+            ],
+            failures: [corruptMiddle],
+            at: startedAt.addingTimeInterval(5)
+        )
+        try store.finishMeetingSources(
+            handle,
+            sourceFailures: [],
+            at: startedAt.addingTimeInterval(6)
+        )
+
+        let plan = try store.makeMeetingFinalizationPlan(handle)
+        #expect(
+            Set(plan.sourceChunks.map { "\($0.sourceID.uuidString):\($0.sequence)" }) ==
+                [
+                    "\(handle.microphoneSourceID.uuidString):0",
+                    "\(handle.microphoneSourceID.uuidString):2",
+                    "\(handle.systemAudioSourceID.uuidString):0"
+                ]
+        )
+        #expect(plan.failedSequences == [1])
+        _ = try store.recordMeetingTranscriptionChunk(
+            handle,
+            sourceChunkSequence: 0,
+            startOffset: 0,
+            duration: 300,
+            text: "Opening chunk",
+            at: startedAt.addingTimeInterval(7)
+        )
+        _ = try store.recordMeetingTranscriptionChunk(
+            handle,
+            sourceChunkSequence: 2,
+            startOffset: 600,
+            duration: 300,
+            text: "Closing chunk",
+            at: startedAt.addingTimeInterval(8)
+        )
+        let history = try HistoryStore(modelContext: ModelContext(container)).save(
+            text: "Opening chunk Closing chunk",
+            originalText: "Opening chunk Closing chunk",
+            duration: 900,
+            modelUsed: "meeting"
+        )
+        try store.completeMeetingCapture(
+            handle,
+            transcriptionRecordID: history.id,
+            at: startedAt.addingTimeInterval(9)
+        )
+
+        let context = ModelContext(container)
+        let sources = try context.fetch(FetchDescriptor<CaptureSourceModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        let failures = try context.fetch(FetchDescriptor<CaptureFailureRecordModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        #expect(
+            sources.allSatisfy { $0.stateRawValue == CaptureSourceState.completed.rawValue }
+        )
+        #expect(failures.count == 1)
+        #expect(failures[0].sourceID == handle.microphoneSourceID)
+        #expect(failures[0].chunkID == nil)
+        #expect(failures[0].detailsJSON == "{\"sequence\":1}")
+    }
+
+    @Test func finishMeetingSourcesRejectsUnexplainedChunkGap() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 11_250)
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        try store.beginMeetingFinalization(handle, at: startedAt.addingTimeInterval(0.5))
+        let microphoneChunks = (0...2).map {
+            chunk(
+                handle.microphoneSourceID,
+                sessionID: handle.sessionID,
+                sequence: $0,
+                sealedAt: startedAt.addingTimeInterval(Double($0 + 1))
+            )
+        }
+        let systemAudio = chunk(
+            handle.systemAudioSourceID,
+            sessionID: handle.sessionID,
+            sequence: 0,
+            sealedAt: startedAt.addingTimeInterval(1)
+        )
+
+        try store.reconcileMeetingChunks(
+            handle,
+            checkpoints: microphoneChunks + [systemAudio],
+            failures: []
+        )
+        try store.reconcileMeetingInventory(
+            handle,
+            sealedChunks: [
+                sealed(microphoneChunks[0], sessionID: handle.sessionID),
+                sealed(microphoneChunks[2], sessionID: handle.sessionID),
+                sealed(systemAudio, sessionID: handle.sessionID)
+            ],
+            at: startedAt.addingTimeInterval(5)
+        )
+
+        #expect(throws: CaptureSessionStoreError.meetingSourceOutcomeMismatch(handle.microphoneSourceID)) {
+            try store.finishMeetingSources(
+                handle,
+                sourceFailures: [],
+                at: startedAt.addingTimeInterval(6)
+            )
+        }
+    }
+
+    @Test func finishMeetingSourcesPrioritizesVerifiedSourceFailureOverStaleChunks() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 11_300)
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        try store.beginMeetingFinalization(handle, at: startedAt.addingTimeInterval(1))
+        let microphone = chunk(
+            handle.microphoneSourceID,
+            sessionID: handle.sessionID,
+            sequence: 0,
+            sealedAt: startedAt.addingTimeInterval(2)
+        )
+        let systemAudio = chunk(
+            handle.systemAudioSourceID,
+            sessionID: handle.sessionID,
+            sequence: 0,
+            sealedAt: startedAt.addingTimeInterval(2)
+        )
+        try store.reconcileMeetingChunks(handle, checkpoints: [microphone, systemAudio], failures: [])
+
+        try store.finishMeetingSources(
+            handle,
+            sourceFailures: [
+                failed(handle.systemAudioSourceID, at: startedAt.addingTimeInterval(3))
+            ],
+            at: startedAt.addingTimeInterval(4)
+        )
+
+        let context = ModelContext(container)
+        let chunks = try context.fetch(FetchDescriptor<CaptureChunkModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        let sources = try context.fetch(FetchDescriptor<CaptureSourceModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        #expect(chunks.count == 1)
+        #expect(chunks[0].sourceID == handle.microphoneSourceID)
+        #expect(
+            sources.first { $0.id == handle.systemAudioSourceID }?.stateRawValue ==
+                CaptureSourceState.failed.rawValue
+        )
+        #expect(
+            sources.first { $0.id == handle.microphoneSourceID }?.stateRawValue ==
+                CaptureSourceState.completed.rawValue
+        )
+    }
+
+    @Test func firstMeetingRevisionRejectsMismatchedMixedWindowWithoutPersisting() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 11_400)
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        let microphoneByteCount = MeetingCaptureSpoolPlan.defaultChunkByteCount -
+            MeetingCaptureSpoolPlan.sampleRate * MeetingCaptureSpoolPlan.bytesPerSample
+        let microphone = MeetingChunkCheckpoint(
+            sourceID: handle.microphoneSourceID,
+            sequence: 0,
+            startOffset: 0,
+            duration: Double(microphoneByteCount) /
+                Double(MeetingCaptureSpoolPlan.sampleRate * MeetingCaptureSpoolPlan.bytesPerSample),
+            managedMediaPath: CaptureSourceArtifactPath.relativePath(
+                sessionID: handle.sessionID,
+                sourceID: handle.microphoneSourceID,
+                chunkSequence: 0
+            ),
+            byteCount: microphoneByteCount,
+            sha256: String(repeating: "a", count: 64),
+            sealedAt: startedAt.addingTimeInterval(1)
+        )
+        let systemAudio = chunk(
+            handle.systemAudioSourceID,
+            sessionID: handle.sessionID,
+            sequence: 0,
+            sealedAt: startedAt.addingTimeInterval(1)
+        )
+        try store.reconcileMeetingChunks(handle, checkpoints: [microphone, systemAudio], failures: [])
+
+        #expect(throws: CaptureSessionStoreError.meetingTranscriptionRevisionConflict(
+            sequence: 0,
+            stage: .finalTranscription
+        )) {
+            _ = try store.recordMeetingTranscriptionChunk(
+                handle,
+                sourceChunkSequence: 0,
+                startOffset: 2.0 / Double(MeetingCaptureSpoolPlan.sampleRate),
+                duration: microphone.duration,
+                text: "Misaligned"
+            )
+        }
+
+        let context = ModelContext(container)
+        let revisions = try context.fetch(FetchDescriptor<CaptureTranscriptRevisionModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        #expect(revisions.isEmpty)
+
+        let revisionID = try store.recordMeetingTranscriptionChunk(
+            handle,
+            sourceChunkSequence: 0,
+            startOffset: 0,
+            duration: systemAudio.duration,
+            text: "Aligned"
+        )
+        let revision = try #require(
+            context.fetch(FetchDescriptor<CaptureTranscriptRevisionModel>()).first { $0.id == revisionID }
+        )
+        #expect(revision.startOffset == 0)
+        #expect(revision.duration == systemAudio.duration)
+    }
+
+    @Test func interruptionRecoveryAndReservationPreserveFinalizationSkipGates() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 12_000)
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        let checkpoint = chunk(
+            handle.microphoneSourceID,
+            sessionID: handle.sessionID,
+            sequence: 0,
+            sealedAt: startedAt.addingTimeInterval(1)
+        )
+        try store.recordSealedMeetingChunk(handle, checkpoint: checkpoint)
+        try store.interruptMeetingCapture(
+            handle,
+            errorDomain: "Cancellation",
+            message: "The process was interrupted.",
+            at: startedAt.addingTimeInterval(2)
+        )
+        let interrupted = try #require(
+            store.meetingRecoveryCandidates().first { $0.handle.sessionID == handle.sessionID }
+        )
+        #expect(interrupted.state == .interrupted)
+        #expect(interrupted.recoveryTarget == .capturing)
+
+        try store.recoverMeetingForFinalization(handle, at: startedAt.addingTimeInterval(3))
+        try store.recordMeetingHistoryFailure(
+            handle,
+            errorDomain: "HistoryStore",
+            message: "History persistence is temporarily unavailable.",
+            at: startedAt.addingTimeInterval(3)
+        )
+        let recoveryContext = ModelContext(container)
+        let recoveringSession = try #require(
+            recoveryContext.fetch(FetchDescriptor<CaptureSessionModel>()).first {
+                $0.id == handle.sessionID
+            }
+        )
+        #expect(try recoveringSession.restoreSession().state == .finalizing)
+        let historyFailure = try #require(
+            recoveryContext.fetch(FetchDescriptor<CaptureFailureRecordModel>()).first {
+                $0.sessionID == handle.sessionID && $0.sourceID == nil
+            }
+        )
+        #expect(historyFailure.isRetryable)
+        let reservation = try store.reserveMeetingTranscriptionRecordID(handle)
+        #expect(try store.reserveMeetingTranscriptionRecordID(handle) == reservation)
+        _ = try store.recordMeetingTranscriptionChunk(
+            handle,
+            sourceChunkSequence: 0,
+            startOffset: 0,
+            duration: 300,
+            text: "Recovered final transcript",
+            at: startedAt.addingTimeInterval(4)
+        )
+        let plan = try store.makeMeetingFinalizationPlan(handle)
+        #expect(plan.completedASRSequences == [0])
+        #expect(plan.reservedTranscriptionRecordID == reservation)
+    }
+
+    @Test func chunkAndRevisionCheckpointsRejectCorruptionAndConflictsBeforeMutation() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 13_000)
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        let valid = chunk(
+            handle.microphoneSourceID,
+            sessionID: handle.sessionID,
+            sequence: 0,
+            sealedAt: startedAt.addingTimeInterval(1)
+        )
+        let corrupt = MeetingChunkCheckpoint(
+            sourceID: valid.sourceID,
+            sequence: 1,
+            startOffset: valid.duration,
+            duration: valid.duration,
+            managedMediaPath: CaptureSourceArtifactPath.relativePath(
+                sessionID: handle.sessionID,
+                sourceID: valid.sourceID,
+                chunkSequence: 1
+            ),
+            byteCount: 3,
+            sha256: valid.sha256,
+            sealedAt: valid.sealedAt
+        )
+        #expect(throws: CaptureSessionStoreError.invalidMeetingChunk(
+            sourceID: handle.microphoneSourceID,
+            sequence: 1
+        )) {
+            try store.reconcileMeetingChunks(handle, checkpoints: [corrupt], failures: [])
+        }
+        try store.reconcileMeetingChunks(handle, checkpoints: [valid], failures: [])
+        _ = try store.recordMeetingTranscriptionChunk(
+            handle,
+            sourceChunkSequence: 0,
+            startOffset: 0,
+            duration: 300,
+            text: "Original"
+        )
+        #expect(throws: CaptureSessionStoreError.meetingTranscriptionRevisionConflict(
+            sequence: 0,
+            stage: .finalTranscription
+        )) {
+            _ = try store.recordMeetingTranscriptionChunk(
+                handle,
+                sourceChunkSequence: 0,
+                startOffset: 0,
+                duration: 300,
+                text: "Changed"
+            )
+        }
+    }
+
+    @Test func meetingRecoveryCarriesSortedMergeReadyFinalASROutputs() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 14_000)
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        let first = chunk(
+            handle.microphoneSourceID,
+            sessionID: handle.sessionID,
+            sequence: 0,
+            sealedAt: startedAt.addingTimeInterval(1)
+        )
+        let second = chunk(
+            handle.microphoneSourceID,
+            sessionID: handle.sessionID,
+            sequence: 1,
+            sealedAt: startedAt.addingTimeInterval(2)
+        )
+        try store.reconcileMeetingChunks(handle, checkpoints: [first, second], failures: [])
+
+        _ = try store.recordMeetingTranscriptionChunk(
+            handle,
+            sourceChunkSequence: 1,
+            startOffset: second.startOffset,
+            duration: second.duration,
+            text: "Second completed chunk",
+            segmentsJSON: #"[{"speaker":"speaker-2","start":0,"end":300,"text":"Second completed chunk"}]"#,
+            languageCode: "fr-CA"
+        )
+        _ = try store.recordMeetingTranscriptionChunk(
+            handle,
+            sourceChunkSequence: 0,
+            startOffset: first.startOffset,
+            duration: first.duration,
+            text: "First completed chunk",
+            segmentsJSON: #"[{"speaker":"speaker-1","start":0,"end":300,"text":"First completed chunk"}]"#,
+            languageCode: "en-US"
+        )
+
+        let expected = [
+            MeetingTranscriptionCheckpoint(
+                sequence: 0,
+                startOffset: first.startOffset,
+                duration: first.duration,
+                text: "First completed chunk",
+                segmentsJSON: #"[{"speaker":"speaker-1","start":0,"end":300,"text":"First completed chunk"}]"#,
+                languageCode: "en-US"
+            ),
+            MeetingTranscriptionCheckpoint(
+                sequence: 1,
+                startOffset: second.startOffset,
+                duration: second.duration,
+                text: "Second completed chunk",
+                segmentsJSON: #"[{"speaker":"speaker-2","start":0,"end":300,"text":"Second completed chunk"}]"#,
+                languageCode: "fr-CA"
+            )
+        ]
+        let snapshot = try #require(
+            store.meetingRecoveryCandidates().first { $0.handle.sessionID == handle.sessionID }
+        )
+        let plan = try store.makeMeetingFinalizationPlan(handle)
+
+        #expect(snapshot.completedASRCheckpoints == expected)
+        #expect(snapshot.completedASRSequences == [0, 1])
+        #expect(plan.completedASRCheckpoints == expected)
+        #expect(plan.completedASRSequences == [0, 1])
+        #expect(plan.sourceChunks.map(\.chunkID) == [first.chunkID, second.chunkID])
+    }
+
+    @Test func finalASRCheckpointIsFullyIdempotentAndRejectsEveryOutputConflict() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 15_000)
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        let sourceChunk = chunk(
+            handle.microphoneSourceID,
+            sessionID: handle.sessionID,
+            sequence: 0,
+            sealedAt: startedAt.addingTimeInterval(1)
+        )
+        try store.recordSealedMeetingChunk(handle, checkpoint: sourceChunk)
+        let segments = #"[{"speaker":"speaker-1","start":0,"end":300,"text":"Original"}]"#
+
+        func record(
+            startOffset: TimeInterval,
+            duration: TimeInterval,
+            text: String,
+            segmentsJSON: String?,
+            languageCode: String?
+        ) throws -> UUID {
+            try store.recordMeetingTranscriptionChunk(
+                handle,
+                sourceChunkSequence: 0,
+                startOffset: startOffset,
+                duration: duration,
+                text: text,
+                segmentsJSON: segmentsJSON,
+                languageCode: languageCode
+            )
+        }
+
+        let revisionID = try record(
+            startOffset: sourceChunk.startOffset,
+            duration: sourceChunk.duration,
+            text: "Original",
+            segmentsJSON: segments,
+            languageCode: "en-US"
+        )
+        #expect(try record(
+            startOffset: sourceChunk.startOffset,
+            duration: sourceChunk.duration,
+            text: "Original",
+            segmentsJSON: segments,
+            languageCode: "en-US"
+        ) == revisionID)
+        #expect(throws: CaptureSessionStoreError.meetingTranscriptionRevisionConflict(
+            sequence: 0,
+            stage: .finalTranscription
+        )) {
+            _ = try record(
+                startOffset: sourceChunk.startOffset + 1,
+                duration: sourceChunk.duration,
+                text: "Original",
+                segmentsJSON: segments,
+                languageCode: "en-US"
+            )
+        }
+        #expect(throws: CaptureSessionStoreError.meetingTranscriptionRevisionConflict(
+            sequence: 0,
+            stage: .finalTranscription
+        )) {
+            _ = try record(
+                startOffset: sourceChunk.startOffset,
+                duration: sourceChunk.duration - 1,
+                text: "Original",
+                segmentsJSON: segments,
+                languageCode: "en-US"
+            )
+        }
+        #expect(throws: CaptureSessionStoreError.meetingTranscriptionRevisionConflict(
+            sequence: 0,
+            stage: .finalTranscription
+        )) {
+            _ = try record(
+                startOffset: sourceChunk.startOffset,
+                duration: sourceChunk.duration,
+                text: "Changed",
+                segmentsJSON: segments,
+                languageCode: "en-US"
+            )
+        }
+        #expect(throws: CaptureSessionStoreError.meetingTranscriptionRevisionConflict(
+            sequence: 0,
+            stage: .finalTranscription
+        )) {
+            _ = try record(
+                startOffset: sourceChunk.startOffset,
+                duration: sourceChunk.duration,
+                text: "Original",
+                segmentsJSON: "[]",
+                languageCode: "en-US"
+            )
+        }
+        #expect(throws: CaptureSessionStoreError.meetingTranscriptionRevisionConflict(
+            sequence: 0,
+            stage: .finalTranscription
+        )) {
+            _ = try record(
+                startOffset: sourceChunk.startOffset,
+                duration: sourceChunk.duration,
+                text: "Original",
+                segmentsJSON: segments,
+                languageCode: "fr-CA"
+            )
+        }
+    }
+
+    @Test func finalizationFailuresRemainSessionScopedAndAreIdempotent() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 16_000)
+        let handle = try store.startMeetingCapture(startedAt: startedAt)
+        try store.beginMeetingFinalization(handle, at: startedAt.addingTimeInterval(1))
+        let sessionFailureAt = startedAt.addingTimeInterval(2)
+        try store.recordMeetingFinalizationFailure(
+            handle,
+            stage: .finalTranscription,
+            domain: "HistoryStore",
+            code: "unavailable",
+            message: "History persistence is temporarily unavailable.",
+            retryable: true,
+            at: sessionFailureAt
+        )
+        try store.recordMeetingFinalizationFailure(
+            handle,
+            stage: .finalTranscription,
+            domain: "HistoryStore",
+            code: "unavailable",
+            message: "History persistence is temporarily unavailable.",
+            retryable: true,
+            at: sessionFailureAt
+        )
+        try store.recordMeetingFinalizationFailure(
+            handle,
+            sequence: 0,
+            stage: .diarization,
+            domain: "MeetingMix",
+            code: "mixed-input",
+            message: "The mixed chunk could not be diarized.",
+            retryable: false,
+            at: startedAt.addingTimeInterval(3)
+        )
+
+        let context = ModelContext(container)
+        let failures = try context.fetch(FetchDescriptor<CaptureFailureRecordModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        #expect(failures.count == 2)
+        #expect(failures.allSatisfy { $0.sourceID == nil && $0.chunkID == nil })
+        #expect(failures.contains {
+            $0.stageRawValue == CapturePipelineStage.diarization.rawValue &&
+                $0.detailsJSON == #"{"sequence":0}"#
+        })
     }
 }

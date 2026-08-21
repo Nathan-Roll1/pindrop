@@ -137,173 +137,72 @@ struct AppCoordinatorContextFlowTests {
         )
     }
 
-    @Test func meetingStopLedgerMappingPreservesSourceOrderAndPartialCapture() {
-        let microphoneID = UUID()
-        let systemAudioID = UUID()
-        let sessionID = UUID()
-        let retainedMicrophone = RetainedMeetingSource(
-            sourceID: microphoneID,
-            sampleRate: 16_000,
-            channelCount: 1,
-            duration: 1,
-            managedMediaPath: CaptureSourceArtifactPath.relativePath(
-                sessionID: sessionID,
-                sourceID: microphoneID,
-                chunkSequence: 0
-            ),
-            byteCount: 64_000,
-            sha256: "mic-sha"
-        )
-        let retainedSystemAudio = RetainedMeetingSource(
-            sourceID: systemAudioID,
-            sampleRate: 16_000,
-            channelCount: 1,
-            duration: 1,
-            managedMediaPath: CaptureSourceArtifactPath.relativePath(
-                sessionID: sessionID,
-                sourceID: systemAudioID,
-                chunkSequence: 0
-            ),
-            byteCount: 64_000,
-            sha256: "system-sha"
-        )
-        let failedSystemAudio = FailedMeetingSource(
-            sourceID: systemAudioID,
-            errorDomain: "PindropSpeech",
-            errorCode: "system-audio-stop",
-            message: "System audio stopped.",
-            occurredAt: .now
-        )
-        let failedMicrophone = FailedMeetingSource(
-            sourceID: microphoneID,
-            errorDomain: "PindropSpeech",
-            errorCode: "microphone-stop",
-            message: "Microphone stopped.",
-            occurredAt: .now
+    @Test func sourceLessMeetingWorkItemNeverCreatesASRInput() {
+        let workItem = AppCoordinator.MeetingChunkWorkItem(
+            sequence: 1,
+            chunkID: UUID(),
+            startOffset: 300,
+            duration: 300,
+            microphone: nil,
+            systemAudio: nil
         )
 
-        let inputs = AppCoordinator.meetingStopLedgerInputs(
-            microphone: .retained(retainedMicrophone),
-            systemAudio: .failed(failedSystemAudio)
-        )
-
-        #expect(inputs.retained == [retainedMicrophone])
-        #expect(inputs.failures == [failedSystemAudio])
-        #expect(
-            AppCoordinator.meetingStopDisposition(retainedSources: inputs.retained)
-                == .proceedToMixedAudio
-        )
-
-        let fullInputs = AppCoordinator.meetingStopLedgerInputs(
-            microphone: .retained(retainedMicrophone),
-            systemAudio: .retained(retainedSystemAudio)
-        )
-        #expect(fullInputs.retained == [retainedMicrophone, retainedSystemAudio])
-        #expect(fullInputs.failures.isEmpty)
-
-        let bothFailedInputs = AppCoordinator.meetingStopLedgerInputs(
-            microphone: .failed(failedMicrophone),
-            systemAudio: .failed(failedSystemAudio)
-        )
-        #expect(bothFailedInputs.retained.isEmpty)
-        #expect(bothFailedInputs.failures == [failedMicrophone, failedSystemAudio])
-        #expect(
-            AppCoordinator.meetingStopDisposition(retainedSources: bothFailedInputs.retained)
-                == .failWithoutTranscription
-        )
+        #expect(!AppCoordinator.shouldCreateMeetingTranscriptionInput(for: workItem))
     }
 
-    @Test func meetingProjectionRetentionMatchesOnlyDurablyRetainedHandleSources() {
-        let handle = MeetingCaptureHandle(
+    @Test func meetingRecoveryAdmissionAndGenerationAreExact() {
+        let activeHandle = MeetingCaptureHandle(
             sessionID: UUID(),
             microphoneSourceID: UUID(),
             systemAudioSourceID: UUID()
         )
-        let microphone = RetainedMeetingSource(
-            sourceID: handle.microphoneSourceID,
-            sampleRate: 16_000,
-            channelCount: 1,
-            duration: 1,
-            managedMediaPath: CaptureSourceArtifactPath.relativePath(
-                sessionID: handle.sessionID,
-                sourceID: handle.microphoneSourceID,
-                chunkSequence: 0
-            ),
-            byteCount: 64_000,
-            sha256: "mic-sha"
-        )
-        let systemAudio = RetainedMeetingSource(
-            sourceID: handle.systemAudioSourceID,
-            sampleRate: 16_000,
-            channelCount: 1,
-            duration: 1,
-            managedMediaPath: CaptureSourceArtifactPath.relativePath(
-                sessionID: handle.sessionID,
-                sourceID: handle.systemAudioSourceID,
-                chunkSequence: 0
-            ),
-            byteCount: 64_000,
-            sha256: "system-sha"
-        )
-        let microphoneStorageFailure = FailedMeetingSource(
-            sourceID: handle.microphoneSourceID,
-            errorDomain: "PindropMedia",
-            errorCode: "capture-source-store",
-            message: "Microphone storage failed.",
-            occurredAt: .now
+        let differentHandle = MeetingCaptureHandle(
+            sessionID: activeHandle.sessionID,
+            microphoneSourceID: activeHandle.microphoneSourceID,
+            systemAudioSourceID: UUID()
         )
 
-        let storageFailure = FailedMeetingSource(
-            sourceID: handle.systemAudioSourceID,
-            errorDomain: "PindropMedia",
-            errorCode: "capture-source-store",
-            message: "System audio storage failed.",
-            occurredAt: .now
-        )
+        #expect(AppCoordinator.canBeginMeetingRecovery(
+            activeHandle: nil,
+            recoveryTaskActive: false,
+            isShutdown: false
+        ))
+        #expect(!AppCoordinator.canBeginMeetingRecovery(
+            activeHandle: activeHandle,
+            recoveryTaskActive: false,
+            isShutdown: false
+        ))
+        #expect(!AppCoordinator.canBeginMeetingRecovery(
+            activeHandle: nil,
+            recoveryTaskActive: true,
+            isShutdown: false
+        ))
+        #expect(!AppCoordinator.canBeginMeetingRecovery(
+            activeHandle: nil,
+            recoveryTaskActive: false,
+            isShutdown: true
+        ))
 
-        let full = AppCoordinator.meetingProjectionRetention(
-            retainedSources: [microphone, systemAudio],
-            handle: handle
-        )
-        #expect(full.retainingMicrophone)
-        #expect(full.systemAudio)
-
-        let microphoneOnly = AppCoordinator.meetingProjectionRetention(
-            retainedSources: [microphone],
-            handle: handle
-        )
-        #expect(microphoneOnly.retainingMicrophone)
-        #expect(!microphoneOnly.systemAudio)
-
-        let systemAudioOnly = AppCoordinator.meetingProjectionRetention(
-            retainedSources: [systemAudio],
-            handle: handle
-        )
-        #expect(!systemAudioOnly.retainingMicrophone)
-        #expect(systemAudioOnly.systemAudio)
-
-        let storageFailureInputs = AppCoordinator.meetingStopLedgerInputs(
-            microphone: .retained(microphone),
-            systemAudio: .failed(storageFailure)
-        )
-        let afterStorageFailure = AppCoordinator.meetingProjectionRetention(
-            retainedSources: storageFailureInputs.retained,
-            handle: handle
-        )
-        #expect(afterStorageFailure.retainingMicrophone)
-        #expect(!afterStorageFailure.systemAudio)
-
-        let microphoneStorageFailureInputs = AppCoordinator.meetingStopLedgerInputs(
-            microphone: .failed(microphoneStorageFailure),
-            systemAudio: .retained(systemAudio)
-        )
-        let afterMicrophoneStorageFailure = AppCoordinator.meetingProjectionRetention(
-            retainedSources: microphoneStorageFailureInputs.retained,
-            handle: handle
-        )
-        #expect(!afterMicrophoneStorageFailure.retainingMicrophone)
-        #expect(afterMicrophoneStorageFailure.systemAudio)
+        #expect(AppCoordinator.isMeetingRecoveryCurrent(
+            activeGeneration: 4,
+            candidateGeneration: 4,
+            activeHandle: activeHandle,
+            candidateHandle: activeHandle
+        ))
+        #expect(!AppCoordinator.isMeetingRecoveryCurrent(
+            activeGeneration: 4,
+            candidateGeneration: 3,
+            activeHandle: activeHandle,
+            candidateHandle: activeHandle
+        ))
+        #expect(!AppCoordinator.isMeetingRecoveryCurrent(
+            activeGeneration: 4,
+            candidateGeneration: 4,
+            activeHandle: activeHandle,
+            candidateHandle: differentHandle
+        ))
     }
+
 
     @Test func postTranscriptionFailureOnlyTerminatesCurrentExactVoiceNoteCapture() {
         struct PostProcessingError: Error {}
@@ -1071,4 +970,42 @@ struct AppCoordinatorContextFlowTests {
             ) == nil
         )
     }
+    @Test func terminationRepliesOnlyAfterPreparationAndSynchronousShutdown() async {
+        let delegate = AppDelegate()
+        var events: [String] = []
+
+        await delegate.performTerminationSequence(
+            preparation: { events.append("prepared") },
+            shutdown: { events.append("shutdown") },
+            reply: { events.append("reply") }
+        )
+
+        #expect(events == ["prepared", "shutdown", "reply"])
+    }
+
+    @Test func cancelledRecoveryAfterAwaitCannotMutateStore() {
+        let handle = MeetingCaptureHandle(
+            sessionID: UUID(),
+            microphoneSourceID: UUID(),
+            systemAudioSourceID: UUID()
+        )
+
+        #expect(!AppCoordinator.shouldApplyMeetingRecoveryMutation(
+            isCancelled: true,
+            isShutdown: false,
+            isPreparingForTermination: false,
+            activeGeneration: 8,
+            candidateGeneration: 8,
+            activeHandle: handle,
+            candidateHandle: handle
+        ))
+    }
+
+    @Test func recoveryContinuesPastCorruptCandidateButStopsForCancellation() {
+        struct CorruptArtifact: Error {}
+
+        #expect(AppCoordinator.shouldContinueMeetingRecovery(after: CorruptArtifact()))
+        #expect(!AppCoordinator.shouldContinueMeetingRecovery(after: CancellationError()))
+    }
+
 }

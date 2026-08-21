@@ -12,6 +12,7 @@ import Foundation
 import AVFoundation
 import CoreAudio
 import AudioToolbox
+import CryptoKit
 import os.log
 import PindropCore
 import PindropSpeech
@@ -370,6 +371,24 @@ private enum CaptureLimits {
 /// operation: if all handoff permits are in use, the backend fails the recording
 /// rather than silently dropping samples.
 final class AudioPCMFileStorage: @unchecked Sendable {
+    struct SealedDurableChunk: Sendable {
+        let sequence: Int
+        let startOffset: TimeInterval
+        let duration: TimeInterval
+        let fileURL: URL
+        let byteCount: Int
+        let sha256: String
+    }
+
+    private enum StorageMode {
+        case temporary
+        case durable(
+            chunkByteCount: Int,
+            inProgressURL: (Int) -> URL,
+            onChunkSealed: (SealedDurableChunk) -> Void
+        )
+    }
+
     private static let writerQueueSpecificKey = DispatchSpecificKey<UUID>()
     private final class PCMStorageSlab: @unchecked Sendable {
         let capacity: Int
@@ -406,6 +425,10 @@ final class AudioPCMFileStorage: @unchecked Sendable {
     private var fileHandle: FileHandle?
     private var sampleRate: Double?
     private var byteCount = 0
+    private var totalSampleCount = 0
+    private var nextChunkSequence = 0
+    private var sealedDurableChunks: [SealedDurableChunk] = []
+    private var storageMode: StorageMode = .temporary
     private var writeFailure: Error?
     private var onWriteFailure: ((Error) -> Void)?
     private var onLimitReached: ((TimeInterval) -> Void)?
@@ -456,7 +479,8 @@ final class AudioPCMFileStorage: @unchecked Sendable {
         onLimitReached: @escaping (TimeInterval) -> Void = { _ in }
     ) throws {
         try writerQueue.sync {
-            closeAndRemoveFile()
+            closeAndRemoveCurrentFile()
+            storageMode = .temporary
             let url = FileManager.default.temporaryDirectory
                 .appendingPathComponent("pindrop-audio-\(UUID().uuidString).pcm")
             guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
@@ -469,13 +493,29 @@ final class AudioPCMFileStorage: @unchecked Sendable {
                 throw AudioRecorderError.engineStartFailed("Unable to create temporary audio spool")
             }
             fileURL = url
-            sampleRate = nil
-            byteCount = 0
-            writeFailure = nil
-            self.onWriteFailure = onWriteFailure
-            self.onLimitReached = onLimitReached
-            limitReached = false
-            isDiscarded = false
+            resetSessionState(onWriteFailure: onWriteFailure, onLimitReached: onLimitReached)
+        }
+    }
+
+    /// Starts a durable meeting spool. The writer creates only canonical
+    /// `.inprogress` files and atomically publishes each sealed `.pcm` chunk.
+    func startDurable(
+        chunkByteCount: Int,
+        inProgressURL: @escaping (Int) -> URL,
+        onChunkSealed: @escaping (SealedDurableChunk) -> Void,
+        onWriteFailure: @escaping (Error) -> Void
+    ) throws {
+        guard chunkByteCount > 0, chunkByteCount.isMultiple(of: MemoryLayout<Float>.size) else {
+            throw AudioRecorderError.engineStartFailed("Meeting chunk size must align to Float32 samples")
+        }
+        try writerQueue.sync {
+            closeAndRemoveCurrentFile()
+            storageMode = .durable(
+                chunkByteCount: chunkByteCount,
+                inProgressURL: inProgressURL,
+                onChunkSealed: onChunkSealed
+            )
+            resetSessionState(onWriteFailure: onWriteFailure, onLimitReached: { _ in })
         }
     }
 
@@ -510,30 +550,55 @@ final class AudioPCMFileStorage: @unchecked Sendable {
     func finish() throws -> AudioPCMFile? {
         try withDrainedSlabs {
             try writerQueue.sync {
-            if let writeFailure {
-                closeAndRemoveFile()
-                isDiscarded = true
-                throw writeFailure
-            }
-            guard let fileURL, let sampleRate else {
-                closeAndRemoveFile()
+                guard case .temporary = storageMode else {
+                    throw AudioRecorderError.engineStartFailed("Meeting spools must be finalized as durable chunks")
+                }
+                if let writeFailure {
+                    closeAndRemoveCurrentFile()
+                    isDiscarded = true
+                    throw writeFailure
+                }
+                guard let fileURL, let sampleRate else {
+                    closeAndRemoveCurrentFile()
+                    byteCount = 0
+                    isDiscarded = true
+                    return nil
+                }
+                do {
+                    try fileHandle?.close()
+                } catch {
+                    closeAndRemoveCurrentFile()
+                    throw error
+                }
+                fileHandle = nil
+                self.fileURL = nil
+                self.sampleRate = nil
+                let result = AudioPCMFile(fileURL: fileURL, byteCount: byteCount, sampleRate: sampleRate)
                 byteCount = 0
                 isDiscarded = true
-                return nil
+                return result
             }
-            do {
-                try fileHandle?.close()
-            } catch {
-                closeAndRemoveFile()
-                throw error
-            }
-            fileHandle = nil
-            self.fileURL = nil
-            self.sampleRate = nil
-            let result = AudioPCMFile(fileURL: fileURL, byteCount: byteCount, sampleRate: sampleRate)
-            byteCount = 0
-            isDiscarded = true
-            return result
+        }
+    }
+
+    /// Drains the writer and seals a non-empty durable tail. Unlike temporary
+    /// spools, returned chunks are persistent artifacts and are never deletion-
+    /// owned by this storage or its caller.
+    func finishDurable() -> (chunks: [SealedDurableChunk], failure: Error?) {
+        withDrainedSlabs {
+            writerQueue.sync {
+                guard case .durable = storageMode else { return ([], writeFailure) }
+                if writeFailure == nil {
+                    do {
+                        try sealCurrentChunk()
+                    } catch {
+                        recordWriteFailure(error)
+                    }
+                } else {
+                    closeCurrentFilePreservingInProgressTail()
+                }
+                isDiscarded = true
+                return (sealedDurableChunks, writeFailure)
             }
         }
     }
@@ -565,25 +630,119 @@ final class AudioPCMFileStorage: @unchecked Sendable {
     private func write(_ slab: PCMStorageSlab) {
         defer { slab.availability.signal() }
         guard !isDiscarded, writeFailure == nil, !limitReached else { return }
-        if let maximumByteCount, byteCount + slab.byteCount > maximumByteCount {
+        if case .temporary = storageMode,
+           let maximumByteCount,
+           byteCount + slab.byteCount > maximumByteCount {
             limitReached = true
             onLimitReached?(Double(maximumByteCount) / Double(16_000 * MemoryLayout<Float>.size))
             return
         }
+
         do {
             if writerDelayNanoseconds > 0 {
                 Thread.sleep(forTimeInterval: Double(writerDelayNanoseconds) / 1_000_000_000)
             }
-            guard let fileHandle else {
-                throw AudioRecorderError.engineStartFailed("Audio spool is not available")
+            if sampleRate == nil { sampleRate = slab.sampleRate }
+            guard sampleRate == slab.sampleRate else {
+                throw AudioRecorderError.engineStartFailed("Audio spool sample rate changed during capture")
             }
             let data = Data(bytesNoCopy: slab.storage, count: slab.byteCount, deallocator: .none)
-            try fileHandle.write(contentsOf: data)
-            byteCount += slab.byteCount
-            if sampleRate == nil { sampleRate = slab.sampleRate }
+            switch storageMode {
+            case .temporary:
+                guard let fileHandle else {
+                    throw AudioRecorderError.engineStartFailed("Audio spool is not available")
+                }
+                try fileHandle.write(contentsOf: data)
+                byteCount += slab.byteCount
+            case .durable:
+                try writeDurable(data)
+            }
         } catch {
             recordWriteFailure(error)
         }
+    }
+
+    private func writeDurable(_ data: Data) throws {
+        guard case .durable(let chunkByteCount, _, _) = storageMode else { return }
+        var offset = 0
+        while offset < data.count {
+            try openCurrentDurableChunkIfNeeded()
+            let writableByteCount = min(chunkByteCount - byteCount, data.count - offset)
+            guard writableByteCount > 0 else {
+                try sealCurrentChunk()
+                continue
+            }
+            try fileHandle?.write(contentsOf: data[offset..<(offset + writableByteCount)])
+            byteCount += writableByteCount
+            totalSampleCount += writableByteCount / MemoryLayout<Float>.size
+            offset += writableByteCount
+            if byteCount == chunkByteCount {
+                try sealCurrentChunk()
+            }
+        }
+    }
+
+    private func openCurrentDurableChunkIfNeeded() throws {
+        guard fileHandle == nil else { return }
+        guard case .durable(_, let inProgressURL, _) = storageMode else { return }
+        let url = inProgressURL(nextChunkSequence)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
+            throw AudioRecorderError.engineStartFailed("Unable to create durable audio spool")
+        }
+        do {
+            fileHandle = try FileHandle(forWritingTo: url)
+            fileURL = url
+        } catch {
+            try? FileManager.default.removeItem(at: url)
+            throw AudioRecorderError.engineStartFailed("Unable to open durable audio spool")
+        }
+    }
+
+    /// fsync, close, hash, and atomically rename one bounded chunk. This is
+    /// always called by the serial writer, never by a real-time callback.
+    private func sealCurrentChunk() throws {
+        guard case .durable(_, _, let onChunkSealed) = storageMode,
+              let fileURL,
+              let fileHandle,
+              let sampleRate,
+              byteCount > 0 else {
+            return
+        }
+        try fileHandle.synchronize()
+        try fileHandle.close()
+        self.fileHandle = nil
+        let sealedURL = fileURL.deletingPathExtension()
+        let sha256 = try Self.sha256(of: fileURL)
+        try FileManager.default.moveItem(at: fileURL, to: sealedURL)
+        let duration = Double(byteCount / MemoryLayout<Float>.size) / sampleRate
+        let startOffset = Double(totalSampleCount - byteCount / MemoryLayout<Float>.size) / sampleRate
+        let chunk = SealedDurableChunk(
+            sequence: nextChunkSequence,
+            startOffset: startOffset,
+            duration: duration,
+            fileURL: sealedURL,
+            byteCount: byteCount,
+            sha256: sha256
+        )
+        sealedDurableChunks.append(chunk)
+        nextChunkSequence += 1
+        self.fileURL = nil
+        byteCount = 0
+        onChunkSealed(chunk)
+    }
+
+    private static func sha256(of url: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while let data = try handle.read(upToCount: 64 * 1024), !data.isEmpty {
+            hasher.update(data: data)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     private func withDrainedSlabs<T>(_ operation: () throws -> T) rethrows -> T {
@@ -596,18 +755,48 @@ final class AudioPCMFileStorage: @unchecked Sendable {
         DispatchQueue.getSpecific(key: Self.writerQueueSpecificKey) == writerQueueIdentifier
     }
 
-    /// Must run on `writerQueue`. The guard makes direct writer-queue cleanup and
-    /// repeated teardown idempotent without synchronously re-entering that queue.
+    /// Must run on `writerQueue`. Durable spools publish their valid non-empty
+    /// tail; temporary spools retain their historical deletion semantics.
     private func discardOnWriterQueue() {
         guard !isDiscarded else { return }
-        isDiscarded = true
-        closeAndRemoveFile()
+        switch storageMode {
+        case .temporary:
+            isDiscarded = true
+            closeAndRemoveCurrentFile()
+        case .durable:
+            do {
+                if writeFailure == nil {
+                    try sealCurrentChunk()
+                } else {
+                    closeCurrentFilePreservingInProgressTail()
+                }
+            } catch {
+                recordWriteFailure(error)
+                closeCurrentFilePreservingInProgressTail()
+            }
+            isDiscarded = true
+        }
         sampleRate = nil
         byteCount = 0
-        writeFailure = nil
         onWriteFailure = nil
         onLimitReached = nil
         limitReached = false
+    }
+
+    private func resetSessionState(
+        onWriteFailure: @escaping (Error) -> Void,
+        onLimitReached: @escaping (TimeInterval) -> Void
+    ) {
+        sampleRate = nil
+        byteCount = 0
+        totalSampleCount = 0
+        nextChunkSequence = 0
+        sealedDurableChunks.removeAll(keepingCapacity: true)
+        writeFailure = nil
+        self.onWriteFailure = onWriteFailure
+        self.onLimitReached = onLimitReached
+        limitReached = false
+        isDiscarded = false
     }
 
     private func recordWriteFailure(_ error: Error) {
@@ -616,7 +805,13 @@ final class AudioPCMFileStorage: @unchecked Sendable {
         onWriteFailure?(error)
     }
 
-    private func closeAndRemoveFile() {
+    private func closeCurrentFilePreservingInProgressTail() {
+        try? fileHandle?.close()
+        fileHandle = nil
+        fileURL = nil
+    }
+
+    private func closeAndRemoveCurrentFile() {
         try? fileHandle?.close()
         fileHandle = nil
         if let fileURL { try? FileManager.default.removeItem(at: fileURL) }
@@ -624,7 +819,78 @@ final class AudioPCMFileStorage: @unchecked Sendable {
     }
 }
 
-final class AVAudioEngineCaptureBackend: AudioCaptureBackend {
+private struct MeetingStorageConfiguration {
+    let spoolPlan: MeetingCaptureSpoolPlan
+    let source: CaptureSourceKind
+    let sourceID: UUID
+    let onChunkSealed: (SealedAudioSourceChunk) -> Void
+
+    init(
+        spoolPlan: MeetingCaptureSpoolPlan,
+        source: CaptureSourceKind,
+        onChunkSealed: @escaping (SealedAudioSourceChunk) -> Void
+    ) {
+        self.spoolPlan = spoolPlan
+        self.source = source
+        self.sourceID = switch source {
+        case .microphone: spoolPlan.microphoneSourceID
+        case .systemAudio: spoolPlan.systemAudioSourceID
+        }
+        self.onChunkSealed = onChunkSealed
+    }
+
+    func inProgressURL(sequence: Int) -> URL {
+        CaptureSourceArtifactPath.inProgressSourceURL(
+            libraryRootURL: spoolPlan.libraryRootURL,
+            sessionID: spoolPlan.sessionID,
+            sourceID: sourceID,
+            chunkSequence: sequence
+        )
+    }
+
+    func sealedChunk(from chunk: AudioPCMFileStorage.SealedDurableChunk) -> SealedAudioSourceChunk {
+        SealedAudioSourceChunk(
+            sessionID: spoolPlan.sessionID,
+            sourceID: sourceID,
+            sequence: chunk.sequence,
+            startOffset: chunk.startOffset,
+            duration: chunk.duration,
+            fileURL: chunk.fileURL,
+            relativePath: CaptureSourceArtifactPath.relativePath(
+                sessionID: spoolPlan.sessionID,
+                sourceID: sourceID,
+                chunkSequence: chunk.sequence
+            ),
+            byteCount: Int64(chunk.byteCount),
+            sha256: chunk.sha256
+        )
+    }
+
+    func stopResult(
+        chunks: [AudioPCMFileStorage.SealedDurableChunk],
+        failure: Error?
+    ) -> MeetingRecordingStopResult {
+        let sourceFailure = failure.map {
+            AudioCaptureSourceFailure(source: source, stage: .stop, error: $0)
+        }
+        switch source {
+        case .microphone:
+            return MeetingRecordingStopResult(
+                sealedChunks: chunks.map(sealedChunk),
+                microphoneFailure: sourceFailure,
+                systemAudioFailure: nil
+            )
+        case .systemAudio:
+            return MeetingRecordingStopResult(
+                sealedChunks: chunks.map(sealedChunk),
+                microphoneFailure: nil,
+                systemAudioFailure: sourceFailure
+            )
+        }
+    }
+}
+
+final class AVAudioEngineCaptureBackend: MeetingAudioCaptureBackend {
     
     private var audioEngine: AVAudioEngine?
     private let audioStorage = AudioPCMFileStorage(maximumByteCount: CaptureLimits.maximumASRByteCount)
@@ -633,6 +899,7 @@ final class AVAudioEngineCaptureBackend: AudioCaptureBackend {
     /// Reused across tap callbacks; rebuilt when the engine reinstalls a tap with a new format.
     private let audioConverter = ReusableAudioConverter()
     var retainsNativeAudio = false
+    private var meetingStorageConfiguration: MeetingStorageConfiguration?
     private var preferredInputDeviceUID: String?
     private var configurationChangeObserver: NSObjectProtocol?
     private var onBufferCallback: ((AVAudioPCMBuffer) -> Void)?
@@ -671,10 +938,21 @@ final class AVAudioEngineCaptureBackend: AudioCaptureBackend {
         self.onAudioLevelCallback = onAudioLevel
         self.onErrorCallback = onError
         do {
-            try audioStorage.start(
-                onWriteFailure: onError,
-                onLimitReached: { onError(AudioRecorderError.recordingLimitReached(maximumDuration: $0)) }
-            )
+            if let meetingStorageConfiguration {
+                try audioStorage.startDurable(
+                    chunkByteCount: meetingStorageConfiguration.spoolPlan.chunkByteCount,
+                    inProgressURL: meetingStorageConfiguration.inProgressURL,
+                    onChunkSealed: { [meetingStorageConfiguration] chunk in
+                        meetingStorageConfiguration.onChunkSealed(meetingStorageConfiguration.sealedChunk(from: chunk))
+                    },
+                    onWriteFailure: onError
+                )
+            } else {
+                try audioStorage.start(
+                    onWriteFailure: onError,
+                    onLimitReached: { onError(AudioRecorderError.recordingLimitReached(maximumDuration: $0)) }
+                )
+            }
             if retainsNativeAudio {
                 try nativeAudioStorage.start(onWriteFailure: onError)
             } else {
@@ -739,8 +1017,53 @@ final class AVAudioEngineCaptureBackend: AudioCaptureBackend {
         return capturedAudio
     }
     
+    func configureMeetingRecording(
+        spoolPlan: MeetingCaptureSpoolPlan,
+        source: CaptureSourceKind,
+        onChunkSealed: @escaping (SealedAudioSourceChunk) -> Void
+    ) throws {
+        guard !isCapturing else {
+            throw AudioRecorderError.engineStartFailed("Cannot reconfigure an active capture")
+        }
+        meetingStorageConfiguration = MeetingStorageConfiguration(
+            spoolPlan: spoolPlan,
+            source: source,
+            onChunkSealed: onChunkSealed
+        )
+    }
+
+    func stopMeetingRecording() -> MeetingRecordingStopResult {
+        let configuration = meetingStorageConfiguration
+        if let engine = audioEngine {
+            tearDownEngine(engine)
+        }
+        isCapturing = false
+        audioEngine = nil
+        onBufferCallback = nil
+        onAudioLevelCallback = nil
+        onErrorCallback = nil
+        isRestartingCapture = false
+        cancelPendingConfigurationRestart()
+        suppressConfigurationChangesUntil = nil
+        audioConverter.reset()
+        nativeAudioStorage.discard()
+        let terminal = audioStorage.finishDurable()
+        meetingStorageConfiguration = nil
+        guard let configuration else {
+            return MeetingRecordingStopResult(
+                sealedChunks: [],
+                microphoneFailure: nil,
+                systemAudioFailure: nil
+            )
+        }
+        return configuration.stopResult(chunks: terminal.chunks, failure: terminal.failure)
+    }
+
     func cancelCapture() {
         guard isCapturing, let engine = audioEngine else {
+            if meetingStorageConfiguration != nil {
+                audioStorage.discard()
+            }
             return
         }
         
@@ -1087,8 +1410,8 @@ final class AVAudioEngineCaptureBackend: AudioCaptureBackend {
         let actualID = inputNode.auAudioUnit.deviceID
         Log.audio.info("Preferred input device requested: \(deviceID), actual: \(actualID)")
     }
-    
 }
+    
 
 struct CoreAudioInputStreamFormat {
     let streamID: AudioStreamID
@@ -1132,7 +1455,7 @@ enum CoreAudioInputFormatResolver {
 }
 
 
-final class CoreAudioInputCaptureBackend: AudioCaptureBackend {
+final class CoreAudioInputCaptureBackend: MeetingAudioCaptureBackend {
     private struct CaptureDevice {
         let deviceID: AudioDeviceID
         let streamID: AudioStreamID
@@ -1161,6 +1484,7 @@ final class CoreAudioInputCaptureBackend: AudioCaptureBackend {
     private var activeOnError: ((Error) -> Void)?
     private var isRestartingCapture = false
     private var pendingConfigurationRestartWorkItem: DispatchWorkItem?
+    private var meetingStorageConfiguration: MeetingStorageConfiguration?
     private var suppressConfigurationChangesUntil: Date?
     private var systemDeviceListener: AudioObjectPropertyListenerBlock?
     private var activeDeviceListeners: [
@@ -1194,10 +1518,21 @@ final class CoreAudioInputCaptureBackend: AudioCaptureBackend {
     ) throws {
         guard !isCapturing else { return }
         do {
-            try audioStorage.start(
-                onWriteFailure: onError,
-                onLimitReached: { onError(AudioRecorderError.recordingLimitReached(maximumDuration: $0)) }
-            )
+            if let meetingStorageConfiguration {
+                try audioStorage.startDurable(
+                    chunkByteCount: meetingStorageConfiguration.spoolPlan.chunkByteCount,
+                    inProgressURL: meetingStorageConfiguration.inProgressURL,
+                    onChunkSealed: { [meetingStorageConfiguration] chunk in
+                        meetingStorageConfiguration.onChunkSealed(meetingStorageConfiguration.sealedChunk(from: chunk))
+                    },
+                    onWriteFailure: onError
+                )
+            } else {
+                try audioStorage.start(
+                    onWriteFailure: onError,
+                    onLimitReached: { onError(AudioRecorderError.recordingLimitReached(maximumDuration: $0)) }
+                )
+            }
             if retainsNativeAudio {
                 try nativeAudioStorage.start(onWriteFailure: onError)
             } else {
@@ -1250,8 +1585,46 @@ final class CoreAudioInputCaptureBackend: AudioCaptureBackend {
         return capturedAudio
     }
 
+    func configureMeetingRecording(
+        spoolPlan: MeetingCaptureSpoolPlan,
+        source: CaptureSourceKind,
+        onChunkSealed: @escaping (SealedAudioSourceChunk) -> Void
+    ) throws {
+        guard !isCapturing else {
+            throw AudioRecorderError.engineStartFailed("Cannot reconfigure an active capture")
+        }
+        meetingStorageConfiguration = MeetingStorageConfiguration(
+            spoolPlan: spoolPlan,
+            source: source,
+            onChunkSealed: onChunkSealed
+        )
+    }
+
+    func stopMeetingRecording() -> MeetingRecordingStopResult {
+        let configuration = meetingStorageConfiguration
+        tearDownActiveCapture(clearCallbacks: true)
+        asrConverter.reset()
+        nativeConverter.reset()
+        nativeAudioStorage.discard()
+        let terminal = audioStorage.finishDurable()
+        meetingStorageConfiguration = nil
+        guard let configuration else {
+            return MeetingRecordingStopResult(
+                sealedChunks: [],
+                microphoneFailure: nil,
+                systemAudioFailure: nil
+            )
+        }
+        return configuration.stopResult(chunks: terminal.chunks, failure: terminal.failure)
+    }
+
     func cancelCapture() {
-        guard isCapturing else { return }
+        guard isCapturing else {
+            if meetingStorageConfiguration != nil {
+                audioStorage.discard()
+            }
+            return
+        }
         tearDownActiveCapture(clearCallbacks: true)
         asrConverter.reset()
         nativeConverter.reset()
@@ -1931,7 +2304,7 @@ final class CoreAudioInputCaptureBackend: AudioCaptureBackend {
 }
 
 @available(macOS 14.2, *)
-final class SystemAudioTapCaptureBackend: AudioCaptureBackend {
+final class SystemAudioTapCaptureBackend: MeetingAudioCaptureBackend {
     private struct CaptureObjects {
         let tapID: AudioObjectID
         let aggregateDeviceID: AudioObjectID
@@ -1958,6 +2331,7 @@ final class SystemAudioTapCaptureBackend: AudioCaptureBackend {
     private var activeCapture: CaptureObjects?
     private var activeCaptureGeneration: UInt64 = 0
     private var nextCaptureGeneration: UInt64 = 1
+    private var meetingStorageConfiguration: MeetingStorageConfiguration?
 #if DEBUG
     private var testingConverterResetObserver: (() -> Void)?
 #endif
@@ -2048,18 +2422,31 @@ final class SystemAudioTapCaptureBackend: AudioCaptureBackend {
 
         let generation = reserveCaptureGeneration()
         tearDownCaptureDiscardingStorage(deactivateCapture())
-        try audioStorage.start(
-            onWriteFailure: { [weak self] error in
-                self?.requestCaptureFailure(error, generation: generation, deliver: onError)
-            },
-            onLimitReached: { [weak self] maximumDuration in
-                self?.deliverActiveError(
-                    AudioRecorderError.recordingLimitReached(maximumDuration: maximumDuration),
-                    generation: generation,
-                    deliver: onError
-                )
-            }
-        )
+        if let meetingStorageConfiguration {
+            try audioStorage.startDurable(
+                chunkByteCount: meetingStorageConfiguration.spoolPlan.chunkByteCount,
+                inProgressURL: meetingStorageConfiguration.inProgressURL,
+                onChunkSealed: { [meetingStorageConfiguration] chunk in
+                    meetingStorageConfiguration.onChunkSealed(meetingStorageConfiguration.sealedChunk(from: chunk))
+                },
+                onWriteFailure: { [weak self] error in
+                    self?.requestCaptureFailure(error, generation: generation, deliver: onError)
+                }
+            )
+        } else {
+            try audioStorage.start(
+                onWriteFailure: { [weak self] error in
+                    self?.requestCaptureFailure(error, generation: generation, deliver: onError)
+                },
+                onLimitReached: { [weak self] maximumDuration in
+                    self?.deliverActiveError(
+                        AudioRecorderError.recordingLimitReached(maximumDuration: maximumDuration),
+                        generation: generation,
+                        deliver: onError
+                    )
+                }
+            )
+        }
         var didStartCapture = false
         defer {
             if !didStartCapture {
@@ -2154,6 +2541,37 @@ final class SystemAudioTapCaptureBackend: AudioCaptureBackend {
         }
         Log.audio.debug("Stopped system audio capture, collected \(capturedAudio.byteCount) bytes")
         return capturedAudio
+    }
+
+    func configureMeetingRecording(
+        spoolPlan: MeetingCaptureSpoolPlan,
+        source: CaptureSourceKind,
+        onChunkSealed: @escaping (SealedAudioSourceChunk) -> Void
+    ) throws {
+        guard !isCapturing else {
+            throw AudioRecorderError.engineStartFailed("Cannot reconfigure an active capture")
+        }
+        meetingStorageConfiguration = MeetingStorageConfiguration(
+            spoolPlan: spoolPlan,
+            source: source,
+            onChunkSealed: onChunkSealed
+        )
+    }
+
+    func stopMeetingRecording() -> MeetingRecordingStopResult {
+        let configuration = meetingStorageConfiguration
+        let capture = deactivateCapture()
+        tearDownCaptureDiscardingStorage(capture)
+        let terminal = audioStorage.finishDurable()
+        meetingStorageConfiguration = nil
+        guard let configuration else {
+            return MeetingRecordingStopResult(
+                sealedChunks: [],
+                microphoneFailure: nil,
+                systemAudioFailure: nil
+            )
+        }
+        return configuration.stopResult(chunks: terminal.chunks, failure: terminal.failure)
     }
 
     func cancelCapture() {
@@ -2511,7 +2929,7 @@ final class SystemAudioTapCaptureBackend: AudioCaptureBackend {
     }
 }
 
-final class MixedAudioCaptureBackend: SourceSeparatedAudioCaptureBackend {
+final class MixedAudioCaptureBackend: SourceSeparatedAudioCaptureBackend, MeetingAudioCaptureBackend {
     private struct SourceState {
         var isActive = false
         var isStopping = false
@@ -2606,6 +3024,64 @@ final class MixedAudioCaptureBackend: SourceSeparatedAudioCaptureBackend {
         }
 
         _ = onBuffer
+    }
+
+    func configureMeetingRecording(
+        spoolPlan: MeetingCaptureSpoolPlan,
+        source: CaptureSourceKind,
+        onChunkSealed: @escaping (SealedAudioSourceChunk) -> Void
+    ) throws {
+        _ = source
+        guard let microphone = microphoneBackend as? any MeetingAudioCaptureBackend,
+              let systemAudio = systemAudioBackend as? any MeetingAudioCaptureBackend else {
+            throw AudioRecorderError.unsupportedCaptureMode(
+                "Meeting capture requires durable source capture backends."
+            )
+        }
+        try microphone.configureMeetingRecording(
+            spoolPlan: spoolPlan,
+            source: .microphone,
+            onChunkSealed: onChunkSealed
+        )
+        try systemAudio.configureMeetingRecording(
+            spoolPlan: spoolPlan,
+            source: .systemAudio,
+            onChunkSealed: onChunkSealed
+        )
+    }
+
+    func stopMeetingRecording() -> MeetingRecordingStopResult {
+        drainChildTeardownQueue()
+        let sourceFailures = stateLock.withLock { () -> (AudioCaptureSourceFailure?, AudioCaptureSourceFailure?) in
+            let failures = (state.microphone.failure, state.systemAudio.failure)
+            state.isStarting = false
+            state.isCapturing = false
+            state.microphone.isActive = false
+            state.microphone.isStopping = false
+            state.systemAudio.isActive = false
+            state.systemAudio.isStopping = false
+            return failures
+        }
+
+        let microphoneResult = (microphoneBackend as? any MeetingAudioCaptureBackend)?
+            .stopMeetingRecording()
+        let systemAudioResult = (systemAudioBackend as? any MeetingAudioCaptureBackend)?
+            .stopMeetingRecording()
+        let chunks = ((microphoneResult?.sealedChunks ?? []) + (systemAudioResult?.sealedChunks ?? []))
+            .sorted {
+                if $0.startOffset != $1.startOffset {
+                    return $0.startOffset < $1.startOffset
+                }
+                if $0.sourceID != $1.sourceID {
+                    return $0.sourceID.uuidString < $1.sourceID.uuidString
+                }
+                return $0.sequence < $1.sequence
+            }
+        return MeetingRecordingStopResult(
+            sealedChunks: chunks,
+            microphoneFailure: sourceFailures.0 ?? microphoneResult?.microphoneFailure,
+            systemAudioFailure: sourceFailures.1 ?? systemAudioResult?.systemAudioFailure
+        )
     }
 
     func stopCapture() throws -> AudioPCMFile {
@@ -3329,6 +3805,115 @@ final class AudioRecorder {
         try await startRecording(configuration: .microphone)
     }
 
+    /// Starts direct-to-library source-separated meeting capture. Unlike legacy
+    /// recording, it never applies the ten-minute ASR cap or materializes PCM as
+    /// one `Data` value.
+    @discardableResult
+    func startMeetingRecording(
+        spoolPlan: MeetingCaptureSpoolPlan,
+        onChunkSealed: @escaping (SealedAudioSourceChunk) -> Void
+    ) async throws -> Bool {
+        if isRecording || isStartingRecording {
+            return false
+        }
+
+        isStartingRecording = true
+        defer { isStartingRecording = false }
+        await awaitCaptureFinalizationIfNeeded()
+        guard finalizingCapture == nil else {
+            return false
+        }
+        guard await permissionManager.requestPermission() else {
+            throw AudioRecorderError.permissionDenied
+        }
+        guard await permissionManager.requestSystemAudioPermission() else {
+            throw AudioRecorderError.systemAudioPermissionDenied
+        }
+
+        let captureBackend = try makeCaptureBackend(for: .microphoneAndSystemAudio)
+        guard let meetingBackend = captureBackend as? any MeetingAudioCaptureBackend else {
+            throw AudioRecorderError.unsupportedCaptureMode(
+                "Meeting capture requires source-separated durable capture backends."
+            )
+        }
+        if let preferredInputDeviceUID {
+            try captureBackend.setPreferredInputDeviceUID(preferredInputDeviceUID)
+        }
+
+        lastNativeAudio?.discard()
+        lastNativeAudio = nil
+        captureBackend.retainsNativeAudio = false
+        isLimitStopRequested = false
+        bandLevelAnalyzer.reset()
+        levelNormalizer.reset()
+        meterDelivery.reset()
+        activeCallbackLease?.invalidate()
+        let callbackLease = AudioCaptureCallbackLease()
+        activeCallbackLease = callbackLease
+        let captureBackendIdentifier = ObjectIdentifier(captureBackend)
+
+        do {
+            try meetingBackend.configureMeetingRecording(
+                spoolPlan: spoolPlan,
+                source: .microphone,
+                onChunkSealed: onChunkSealed
+            )
+            let bandLevelAnalyzer = self.bandLevelAnalyzer
+            let levelNormalizer = self.levelNormalizer
+            let meterDelivery = self.meterDelivery
+            try captureBackend.startCapture(
+                onBuffer: { [weak self, callbackLease] buffer in
+                    guard callbackLease.isActive else { return }
+                    let bands = levelNormalizer.scaled(bandLevelAnalyzer.process(buffer))
+                    meterDelivery.note(bands: bands) { [weak self, callbackLease] level, deliveredBands in
+                        guard callbackLease.isActive else { return }
+                        if let level {
+                            self?.onAudioLevel?(level)
+                        }
+                        if let deliveredBands {
+                            self?.onAudioBandLevels?(deliveredBands)
+                        }
+                    }
+                },
+                onAudioLevel: { [weak self, callbackLease] level in
+                    guard callbackLease.isActive else { return }
+                    let normalized = levelNormalizer.normalize(level)
+                    meterDelivery.note(level: normalized) { [weak self, callbackLease] deliveredLevel, bands in
+                        guard callbackLease.isActive else { return }
+                        if let deliveredLevel {
+                            self?.onAudioLevel?(deliveredLevel)
+                        }
+                        if let bands {
+                            self?.onAudioBandLevels?(bands)
+                        }
+                    }
+                },
+                onError: { [weak self, callbackLease, captureBackendIdentifier] error in
+                    guard callbackLease.isActive else { return }
+                    Task { @MainActor [weak self, callbackLease, captureBackendIdentifier] in
+                        self?.handleCaptureFailure(
+                            error,
+                            lease: callbackLease,
+                            backendIdentifier: captureBackendIdentifier
+                        )
+                    }
+                }
+            )
+        } catch {
+            callbackLease.invalidate()
+            if activeCallbackLease === callbackLease {
+                activeCallbackLease = nil
+            }
+            captureBackend.cancelCapture()
+            throw error
+        }
+
+        activeCaptureBackend = captureBackend
+        currentConfiguration = AudioRecordingConfiguration(mode: .microphoneAndSystemAudio)
+        isRecording = true
+        return true
+    }
+
     @discardableResult
     func startRecording(configuration: AudioRecordingConfiguration) async throws -> Bool {
         if isRecording || isStartingRecording {
@@ -3476,6 +4061,52 @@ final class AudioRecorder {
             switch await finalization.result {
             case .success(let lateResult):
                 lateResult.nativeAudio?.discard()
+            case .failure:
+                handoff.backend.cancelCapture()
+            }
+            endCaptureFinalization(handoff)
+            lastNativeAudio?.discard()
+            lastNativeAudio = nil
+            throw error
+        }
+    }
+
+    /// Drains both source writers and returns only durable chunk metadata. The
+    /// recorder never owns deletion of these sealed files.
+    func stopMeetingRecording() async throws -> MeetingRecordingStopResult {
+        guard isRecording,
+              let activeCaptureBackend,
+              activeCaptureBackend is any MeetingAudioCaptureBackend else {
+            throw AudioRecorderError.notRecording
+        }
+
+        invalidateActiveCallbackLease()
+        let handoff = CaptureFinalizationHandoff(activeCaptureBackend)
+        finalizingCapture = handoff
+        isRecording = false
+        isLimitStopRequested = false
+        self.activeCaptureBackend = nil
+        currentConfiguration = .microphone
+        meterDelivery.reset()
+
+        let finalization = Task.detached(priority: .userInitiated) { [handoff] in
+            guard let backend = handoff.backend as? any MeetingAudioCaptureBackend else {
+                throw AudioRecorderError.notRecording
+            }
+            return backend.stopMeetingRecording()
+        }
+
+        do {
+            let result = try await finalization.value
+            endCaptureFinalization(handoff)
+            lastNativeAudio?.discard()
+            lastNativeAudio = nil
+            return result
+        } catch {
+            finalization.cancel()
+            switch await finalization.result {
+            case .success:
+                break
             case .failure:
                 handoff.backend.cancelCapture()
             }

@@ -58,7 +58,7 @@ public enum CaptureFailureDisposition: String, Codable, Sendable {
     case terminal
 }
 
-/// The canonical managed-media location for a capture source artifact.
+/// Canonical managed-media paths for source-separated meeting capture artifacts.
 public enum CaptureSourceArtifactPath {
     public static func relativePath(
         sessionID: UUID,
@@ -66,6 +66,128 @@ public enum CaptureSourceArtifactPath {
         chunkSequence: Int
     ) -> String {
         "CaptureSessions/\(sessionID.uuidString)/Sources/\(sourceID.uuidString)/chunk-\(String(format: "%05d", chunkSequence)).pcm"
+    }
+
+    public static func inProgressRelativePath(
+        sessionID: UUID,
+        sourceID: UUID,
+        chunkSequence: Int
+    ) -> String {
+        "\(relativePath(sessionID: sessionID, sourceID: sourceID, chunkSequence: chunkSequence)).inprogress"
+    }
+
+    public static func mixedRelativePath(sessionID: UUID, chunkSequence: Int) -> String {
+        "CaptureSessions/\(sessionID.uuidString)/Mixed/chunk-\(String(format: "%05d", chunkSequence)).pcm"
+    }
+
+    public static func mixedInProgressRelativePath(sessionID: UUID, chunkSequence: Int) -> String {
+        "\(mixedRelativePath(sessionID: sessionID, chunkSequence: chunkSequence)).inprogress"
+    }
+
+    public static func sourceURL(
+        libraryRootURL: URL,
+        sessionID: UUID,
+        sourceID: UUID,
+        chunkSequence: Int
+    ) -> URL {
+        libraryRootURL.appendingPathComponent(
+            relativePath(sessionID: sessionID, sourceID: sourceID, chunkSequence: chunkSequence)
+        )
+    }
+
+    public static func inProgressSourceURL(
+        libraryRootURL: URL,
+        sessionID: UUID,
+        sourceID: UUID,
+        chunkSequence: Int
+    ) -> URL {
+        libraryRootURL.appendingPathComponent(
+            inProgressRelativePath(sessionID: sessionID, sourceID: sourceID, chunkSequence: chunkSequence)
+        )
+    }
+
+    public static func mixedURL(
+        libraryRootURL: URL,
+        sessionID: UUID,
+        chunkSequence: Int
+    ) -> URL {
+        libraryRootURL.appendingPathComponent(
+            mixedRelativePath(sessionID: sessionID, chunkSequence: chunkSequence)
+        )
+    }
+
+    public static func mixedInProgressURL(
+        libraryRootURL: URL,
+        sessionID: UUID,
+        chunkSequence: Int
+    ) -> URL {
+        libraryRootURL.appendingPathComponent(
+            mixedInProgressRelativePath(sessionID: sessionID, chunkSequence: chunkSequence)
+        )
+    }
+}
+
+/// The fixed-format durable-spool configuration for one meeting capture.
+public struct MeetingCaptureSpoolPlan: Codable, Sendable, Equatable {
+    public static let sampleRate = 16_000
+    public static let channelCount = 1
+    public static let bytesPerSample = MemoryLayout<Float32>.size
+    public static let defaultChunkByteCount = 19_200_000
+    public static let chunkDuration: TimeInterval = 300
+
+    public let libraryRootURL: URL
+    public let sessionID: UUID
+    public let microphoneSourceID: UUID
+    public let systemAudioSourceID: UUID
+    public let chunkByteCount: Int
+
+    public init(
+        libraryRootURL: URL,
+        sessionID: UUID,
+        microphoneSourceID: UUID,
+        systemAudioSourceID: UUID,
+        chunkByteCount: Int = Self.defaultChunkByteCount
+    ) {
+        self.libraryRootURL = libraryRootURL
+        self.sessionID = sessionID
+        self.microphoneSourceID = microphoneSourceID
+        self.systemAudioSourceID = systemAudioSourceID
+        self.chunkByteCount = chunkByteCount
+    }
+}
+
+/// One immutable source PCM chunk that has been fsynced, hashed, and published.
+public struct SealedAudioSourceChunk: Codable, Sendable, Equatable {
+    public let sessionID: UUID
+    public let sourceID: UUID
+    public let sequence: Int
+    public let startOffset: TimeInterval
+    public let duration: TimeInterval
+    public let fileURL: URL
+    public let relativePath: String
+    public let byteCount: Int64
+    public let sha256: String
+
+    public init(
+        sessionID: UUID,
+        sourceID: UUID,
+        sequence: Int,
+        startOffset: TimeInterval,
+        duration: TimeInterval,
+        fileURL: URL,
+        relativePath: String,
+        byteCount: Int64,
+        sha256: String
+    ) {
+        self.sessionID = sessionID
+        self.sourceID = sourceID
+        self.sequence = sequence
+        self.startOffset = startOffset
+        self.duration = duration
+        self.fileURL = fileURL
+        self.relativePath = relativePath
+        self.byteCount = byteCount
+        self.sha256 = sha256
     }
 }
 

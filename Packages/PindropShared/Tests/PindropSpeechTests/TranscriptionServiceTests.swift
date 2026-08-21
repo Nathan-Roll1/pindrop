@@ -6,8 +6,9 @@
 //
 
 import AVFoundation
-import Testing
+import CryptoKit
 import Foundation
+import Testing
 import PindropCore
 @testable import PindropSpeech
 
@@ -1855,6 +1856,322 @@ struct TranscriptionServiceTests {
                 "Error should indicate provider not supported")
     }
 
+    // MARK: - Durable meeting chunks
+
+    @Test func meetingChunkValidatesSealedFileBeforeASR() async throws {
+        let mockEngine = MockDiarizationTranscriptionEngine()
+        mockEngine.transcribeResponses = ["plain"]
+        let service = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            engineFactory: { _ in mockEngine }
+        )
+        try await service.loadModel(modelName: "tiny", provider: .whisperKit)
+
+        let fixture = try makeMeetingChunkFixture(data: makeFloatAudioData(seconds: 0.001))
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+        let invalidHash = TranscriptionChunkInput(
+            chunkID: fixture.input.chunkID,
+            sequence: fixture.input.sequence,
+            startOffset: fixture.input.startOffset,
+            duration: fixture.input.duration,
+            fileURL: fixture.input.fileURL,
+            byteCount: fixture.input.byteCount,
+            sha256: String(repeating: "0", count: 64)
+        )
+
+        do {
+            _ = try await service.transcribeMeetingChunk(invalidHash)
+            Issue.record("Expected sealed-file hash validation to fail")
+        } catch TranscriptionService.TranscriptionError.invalidMeetingChunk(_) {
+            #expect(mockEngine.transcribeCallCount == 0)
+        }
+    }
+
+    @Test func meetingChunkRejectsOversizedAndUnalignedFilesWithoutASR() async throws {
+        let mockEngine = MockDiarizationTranscriptionEngine()
+        let service = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            engineFactory: { _ in mockEngine }
+        )
+        try await service.loadModel(modelName: "tiny", provider: .whisperKit)
+
+        let fixture = try makeMeetingChunkFixture(data: Data([0, 0, 0]))
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+        let unaligned = TranscriptionChunkInput(
+            chunkID: fixture.input.chunkID,
+            sequence: fixture.input.sequence,
+            startOffset: fixture.input.startOffset,
+            duration: 0.001,
+            fileURL: fixture.input.fileURL,
+            byteCount: fixture.input.byteCount,
+            sha256: fixture.input.sha256
+        )
+
+        do {
+            _ = try await service.transcribeMeetingChunk(unaligned)
+            Issue.record("Expected unaligned PCM data to be rejected")
+        } catch TranscriptionService.TranscriptionError.invalidMeetingChunk(_) {
+            #expect(mockEngine.transcribeCallCount == 0)
+        }
+
+        let oversized = TranscriptionChunkInput(
+            chunkID: UUID(),
+            sequence: 1,
+            startOffset: 0,
+            duration: 300.0000625,
+            fileURL: fixture.input.fileURL,
+            byteCount: 19_200_004,
+            sha256: fixture.input.sha256
+        )
+        do {
+            _ = try await service.transcribeMeetingChunk(oversized)
+            Issue.record("Expected oversized PCM data to be rejected")
+        } catch TranscriptionService.TranscriptionError.invalidMeetingChunk(_) {
+            #expect(mockEngine.transcribeCallCount == 0)
+        }
+    }
+
+    @Test func meetingChunkReadsOneCanonicalMaximumChunk() async throws {
+        let maximumByteCount = 19_200_000
+        let mockEngine = MockDiarizationTranscriptionEngine()
+        mockEngine.transcribeResponses = ["maximum chunk"]
+        let diarizer = MockSpeakerDiarizer()
+        let service = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            engineFactory: { _ in mockEngine },
+            diarizerFactory: { _ in diarizer }
+        )
+        try await service.loadModel(modelName: "tiny", provider: .whisperKit)
+
+        let fixture = try makeMeetingChunkFixture(data: Data(repeating: 0, count: maximumByteCount))
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+        let output = try await service.transcribeMeetingChunk(fixture.input)
+
+        #expect(output.plainText == "maximum chunk")
+        #expect(mockEngine.receivedAudioByteCounts == [maximumByteCount])
+    }
+
+    @Test func meetingChunkRunsPlainASRBeforeDiarization() async throws {
+        var events: [String] = []
+        let mockEngine = MockDiarizationTranscriptionEngine()
+        mockEngine.transcribeResponses = ["plain first", "diarized second"]
+        mockEngine.eventSink = { events.append($0) }
+        let diarizer = MockSpeakerDiarizer()
+        diarizer.eventSink = { events.append($0) }
+        let service = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            engineFactory: { _ in mockEngine },
+            diarizerFactory: { _ in diarizer }
+        )
+        try await service.loadModel(modelName: "tiny", provider: .whisperKit)
+
+        let fixture = try makeMeetingChunkFixture(data: makeFloatAudioData(seconds: 0.001))
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+        diarizer.nextResult = diarizationResult(for: fixture.input)
+
+        let output = try await service.transcribeMeetingChunk(fixture.input)
+
+        #expect(output.plainText == "plain first")
+        #expect(output.diarizedSegments?.count == 1)
+        #expect(events == ["asr", "loadDiarizer", "diarize", "asr"])
+    }
+
+    @Test func meetingChunkPreservesPlainASRForEveryDiarizationFallback() async throws {
+        enum Fallback: CaseIterable, Equatable {
+            case missingModel
+            case inferenceFailure
+            case emptySegments
+            case emptyDiarizedText
+        }
+
+        for fallback in Fallback.allCases {
+            let mockEngine = MockDiarizationTranscriptionEngine()
+            mockEngine.transcribeResponses = fallback == .emptyDiarizedText ? ["plain", ""] : ["plain"]
+            let diarizer = MockSpeakerDiarizer()
+            let service = TranscriptionService(
+                storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+                engineFactory: { _ in mockEngine },
+                diarizerFactory: { _ in diarizer }
+            )
+            try await service.loadModel(modelName: "tiny", provider: .whisperKit)
+
+            let fixture = try makeMeetingChunkFixture(data: makeFloatAudioData(seconds: 0.001))
+            defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+            switch fallback {
+            case .missingModel:
+                diarizer.loadModelsError = NSError(domain: "test", code: 1)
+            case .inferenceFailure:
+                diarizer.diarizeError = NSError(domain: "test", code: 2)
+            case .emptySegments:
+                break
+            case .emptyDiarizedText:
+                diarizer.nextResult = diarizationResult(for: fixture.input)
+            }
+
+            let output = try await service.transcribeMeetingChunk(fixture.input)
+            #expect(output.plainText == "plain")
+            #expect(output.diarizedSegments == nil)
+            #expect(output.diarizationWarning != nil)
+        }
+    }
+
+    @Test func meetingChunkPreservesPlainASRAfterDiarizationTimeout() async throws {
+        let mockEngine = MockDiarizationTranscriptionEngine()
+        mockEngine.transcribeResponses = ["plain"]
+        let diarizer = MockSpeakerDiarizer()
+        diarizer.diarizeDelayNanoseconds = 1_000_000_000
+        let service = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            engineFactory: { _ in mockEngine },
+            diarizerFactory: { _ in diarizer },
+            diarizationTimeoutSeconds: 0.01
+        )
+        try await service.loadModel(modelName: "tiny", provider: .whisperKit)
+
+        let fixture = try makeMeetingChunkFixture(data: makeFloatAudioData(seconds: 0.001))
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+        let output = try await service.transcribeMeetingChunk(fixture.input)
+
+        #expect(output.plainText == "plain")
+        #expect(output.diarizedSegments == nil)
+        #expect(output.diarizationWarning?.contains("timed out") == true)
+    }
+
+    @Test func meetingChunkCancellationPropagatesAtASRBoundary() async throws {
+        let mockEngine = MockDiarizationTranscriptionEngine()
+        mockEngine.transcribeDelayNanoseconds = 1_000_000_000
+        let diarizer = MockSpeakerDiarizer()
+        let service = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            engineFactory: { _ in mockEngine },
+            diarizerFactory: { _ in diarizer }
+        )
+        try await service.loadModel(modelName: "tiny", provider: .whisperKit)
+        let fixture = try makeMeetingChunkFixture(data: makeFloatAudioData(seconds: 0.001))
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+
+        let task = Task { @MainActor in try await service.transcribeMeetingChunk(fixture.input) }
+        try await Task.sleep(nanoseconds: 20_000_000)
+        task.cancel()
+
+        do {
+            _ = try await task.value
+            Issue.record("Expected meeting-chunk transcription cancellation")
+        } catch is CancellationError {
+            #expect(diarizer.diarizeCallCount == 0)
+        }
+    }
+
+    @Test func meetingChunkMergeUsesAbsoluteOffsetsAndStableSpeakerNamespaces() throws {
+        let first = TranscriptionChunkOutput(
+            chunkID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            sequence: 0,
+            startOffset: 0,
+            duration: 1,
+            plainText: "  first\nchunk  ",
+            diarizedSegments: [
+                DiarizedTranscriptSegment(
+                    speakerId: "speaker-a",
+                    speakerLabel: "A",
+                    startTime: 0.25,
+                    endTime: 0.75,
+                    confidence: 0.9,
+                    text: "first"
+                )
+            ]
+        )
+        let second = TranscriptionChunkOutput(
+            chunkID: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+            sequence: 1,
+            startOffset: 1,
+            duration: 1,
+            plainText: "second   chunk",
+            diarizedSegments: [
+                DiarizedTranscriptSegment(
+                    speakerId: "speaker-a",
+                    speakerLabel: "A",
+                    startTime: 0,
+                    endTime: 0.5,
+                    confidence: 0.8,
+                    text: "second"
+                )
+            ]
+        )
+        let service = TranscriptionService(storageLocations: try SpeechTestSupport.makeStorageLocations().locations)
+
+        let output = try service.mergeMeetingChunks([second, first])
+
+        #expect(output.text == "first chunk\nsecond chunk")
+        #expect(output.diarizedSegments?.map(\.speakerId) == ["chunk-00000/speaker-a", "chunk-00001/speaker-a"])
+        #expect(output.diarizedSegments?.map(\.startTime) == [0.25, 1])
+        #expect(output.diarizedSegments?.map(\.endTime) == [0.75, 1.5])
+    }
+
+    @Test func meetingChunkMergeRejectsDuplicateOverlapAndGaps() throws {
+        let service = TranscriptionService(storageLocations: try SpeechTestSupport.makeStorageLocations().locations)
+        let base = TranscriptionChunkOutput(
+            chunkID: UUID(),
+            sequence: 0,
+            startOffset: 0,
+            duration: 1,
+            plainText: "base"
+        )
+
+        do {
+            _ = try service.mergeMeetingChunks([
+                base,
+                .init(chunkID: UUID(), sequence: 0, startOffset: 1, duration: 1, plainText: "duplicate")
+            ])
+            Issue.record("Expected duplicate sequence rejection")
+        } catch TranscriptionService.TranscriptionError.duplicateMeetingChunkSequence(_) {
+        }
+        do {
+            _ = try service.mergeMeetingChunks([
+                base,
+                .init(chunkID: UUID(), sequence: 1, startOffset: 0.5, duration: 1, plainText: "overlap")
+            ])
+            Issue.record("Expected overlap rejection")
+        } catch TranscriptionService.TranscriptionError.overlappingMeetingChunk(sequence: _) {
+        }
+        do {
+            _ = try service.mergeMeetingChunks([
+                base,
+                .init(chunkID: UUID(), sequence: 1, startOffset: 1.5, duration: 1, plainText: "gap")
+            ])
+            Issue.record("Expected gap rejection")
+        } catch TranscriptionService.TranscriptionError.nonContiguousMeetingChunk(
+            expected: _,
+            actual: _,
+            sequence: _
+        ) {
+        }
+    }
+
+    @Test func modelLoadWatchdogIsOptIn() async throws {
+        #expect(TranscriptionService.defaultModelLoadTimeoutSeconds == nil)
+
+        let productionEngine = MockDiarizationTranscriptionEngine()
+        productionEngine.nonCooperativeLoadDelayNanoseconds = 20_000_000
+        let productionService = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            engineFactory: { _ in productionEngine }
+        )
+        try await productionService.loadModel(modelName: "tiny", provider: .whisperKit)
+
+        let timedEngine = MockDiarizationTranscriptionEngine()
+        timedEngine.nonCooperativeLoadDelayNanoseconds = 500_000_000
+        let timedService = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            engineFactory: { _ in timedEngine },
+            modelLoadTimeoutSeconds: 0.01
+        )
+        do {
+            try await timedService.loadModel(modelName: "tiny", provider: .whisperKit)
+            Issue.record("Expected explicitly injected model-load watchdog to fire")
+        } catch TranscriptionService.TranscriptionError.modelLoadFailed(_) {
+        }
+    }
+
     private func makeStreamingBuffer(frameCount: AVAudioFrameCount = 320) throws -> AVAudioPCMBuffer {
         guard let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1),
               let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount),
@@ -1876,6 +2193,48 @@ struct TranscriptionServiceTests {
             Data(buffer: pointer)
         }
     }
+
+    private func makeMeetingChunkFixture(
+        data: Data,
+        sequence: Int = 0,
+        startOffset: TimeInterval = 0
+    ) throws -> (input: TranscriptionChunkInput, rootURL: URL) {
+        let rootURL = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        let fileURL = rootURL.appendingPathComponent("chunk.pcm")
+        try data.write(to: fileURL)
+        let duration = Double(data.count / MemoryLayout<Float>.size) / 16_000
+        let sha256 = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        return (
+            TranscriptionChunkInput(
+                chunkID: UUID(),
+                sequence: sequence,
+                startOffset: startOffset,
+                duration: duration,
+                fileURL: fileURL,
+                byteCount: data.count,
+                sha256: sha256
+            ),
+            rootURL
+        )
+    }
+
+    private func diarizationResult(for input: TranscriptionChunkInput) -> DiarizationResult {
+        let speaker = Speaker(id: "speaker-a", label: "A", embedding: nil)
+        return DiarizationResult(
+            segments: [
+                SpeakerSegment(
+                    speaker: speaker,
+                    startTime: 0,
+                    endTime: input.duration,
+                    confidence: 0.9
+                )
+            ],
+            speakers: [speaker],
+            audioDuration: input.duration
+        )
+    }
 }
 
 @MainActor
@@ -1883,20 +2242,24 @@ private final class MockDiarizationTranscriptionEngine: TranscriptionEngine {
     private(set) var state: TranscriptionEngineState = .unloaded
     var transcribeResponses: [String] = []
     var transcribeError: Error?
+    var transcribeDelayNanoseconds: UInt64?
     var nonCooperativeTranscribeDelayNanoseconds: UInt64?
     var loadDelayNanoseconds: UInt64?
+    var nonCooperativeLoadDelayNanoseconds: UInt64?
     var detectedLanguage: AppLanguage?
     var detectLanguageError: Error?
+    var eventSink: ((String) -> Void)?
     private(set) var transcribeCallCount = 0
     private(set) var detectLanguageCallCount = 0
     private(set) var detectLanguageSampleCounts: [Int] = []
     private(set) var receivedOptions: [TranscriptionOptions] = []
+    private(set) var receivedAudioByteCounts: [Int] = []
     private(set) var lastLoadName: String?
     private(set) var lastDownloadBase: URL?
     private(set) var loadModelNameCallCount = 0
 
     func loadModel(path: String) async throws {
-        if let loadDelayNanoseconds { try await Task.sleep(nanoseconds: loadDelayNanoseconds) }
+        try await waitForLoadIfNeeded()
         state = .ready
     }
 
@@ -1904,11 +2267,15 @@ private final class MockDiarizationTranscriptionEngine: TranscriptionEngine {
         loadModelNameCallCount += 1
         lastLoadName = name
         lastDownloadBase = downloadBase
-        if let loadDelayNanoseconds { try await Task.sleep(nanoseconds: loadDelayNanoseconds) }
+        try await waitForLoadIfNeeded()
         state = .ready
     }
 
     func transcribe(audioData: Data, options: TranscriptionOptions) async throws -> String {
+        eventSink?("asr")
+        if let transcribeDelayNanoseconds {
+            try await Task.sleep(nanoseconds: transcribeDelayNanoseconds)
+        }
         if let nonCooperativeTranscribeDelayNanoseconds {
             await withCheckedContinuation { continuation in
                 DispatchQueue.global().asyncAfter(
@@ -1923,6 +2290,7 @@ private final class MockDiarizationTranscriptionEngine: TranscriptionEngine {
         }
 
         receivedOptions.append(options)
+        receivedAudioByteCounts.append(audioData.count)
         transcribeCallCount += 1
         if transcribeResponses.isEmpty {
             return ""
@@ -1930,6 +2298,21 @@ private final class MockDiarizationTranscriptionEngine: TranscriptionEngine {
 
         let index = min(transcribeCallCount - 1, transcribeResponses.count - 1)
         return transcribeResponses[index]
+    }
+
+    private func waitForLoadIfNeeded() async throws {
+        if let loadDelayNanoseconds {
+            try await Task.sleep(nanoseconds: loadDelayNanoseconds)
+        }
+        if let nonCooperativeLoadDelayNanoseconds {
+            await withCheckedContinuation { continuation in
+                DispatchQueue.global().asyncAfter(
+                    deadline: .now() + .nanoseconds(Int(nonCooperativeLoadDelayNanoseconds))
+                ) {
+                    continuation.resume()
+                }
+            }
+        }
     }
 
     func detectLanguage(samples: [Float], sampleRate: Int) async throws -> AppLanguage? {
@@ -1954,9 +2337,11 @@ private final class MockSpeakerDiarizer: SpeakerDiarizer {
     let mode: DiarizationMode = .offline
 
     var nextResult: DiarizationResult = DiarizationResult(segments: [], speakers: [], audioDuration: 0)
+    var loadModelsError: Error?
     var diarizeError: Error?
     var diarizeDelayNanoseconds: UInt64?
     var nonCooperativeDiarizeDelayNanoseconds: UInt64?
+    var eventSink: ((String) -> Void)?
     private(set) var lastOptions: DiarizationOptions?
     private(set) var loadModelsCallCount = 0
     private(set) var unloadModelsCallCount = 0
@@ -1965,7 +2350,11 @@ private final class MockSpeakerDiarizer: SpeakerDiarizer {
     private(set) var registeredKnownSpeakers: [Speaker] = []
 
     func loadModels() async throws {
+        eventSink?("loadDiarizer")
         loadModelsCallCount += 1
+        if let loadModelsError {
+            throw loadModelsError
+        }
         state = .ready
     }
 
@@ -1980,6 +2369,7 @@ private final class MockSpeakerDiarizer: SpeakerDiarizer {
         options: DiarizationOptions
     ) async throws -> DiarizationResult {
         _ = options
+        eventSink?("diarize")
         lastOptions = options
         diarizeCallCount += 1
         if let nonCooperativeDiarizeDelayNanoseconds {

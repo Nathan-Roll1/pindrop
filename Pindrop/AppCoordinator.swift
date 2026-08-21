@@ -447,6 +447,25 @@ final class AppCoordinator {
     }
     private struct MeetingCaptureContext {
         let handle: PindropData.MeetingCaptureHandle
+        let spoolPlan: MeetingCaptureSpoolPlan
+        let generation: UInt64
+    }
+
+    struct MeetingChunkWorkItem: Equatable {
+        let sequence: Int
+        let chunkID: UUID
+        let startOffset: TimeInterval
+        let duration: TimeInterval
+        let microphone: PindropData.MeetingChunkCheckpoint?
+        let systemAudio: PindropData.MeetingChunkCheckpoint?
+    }
+    enum MeetingChunkWorkItemError: Error, Equatable {
+        case duplicateSourceSequence(sourceID: UUID, sequence: Int)
+        case mismatchedStartOffset(sequence: Int)
+    }
+    private struct MeetingSourceSequence: Hashable {
+        let sourceID: UUID
+        let sequence: Int
     }
 
     private enum MeetingCaptureAdmissionError: LocalizedError {
@@ -469,18 +488,8 @@ final class AppCoordinator {
         }
     }
 
-    enum MeetingSourceLedgerOutcome {
-        case retained(PindropData.RetainedMeetingSource)
-        case failed(PindropData.FailedMeetingSource)
-    }
-
-    enum MeetingStopDisposition: Equatable {
-        case proceedToMixedAudio
-        case failWithoutTranscription
-    }
 
     private enum MeetingCaptureTerminalPersistenceError: Error {
-        case failure(Error)
         case cancellation(Error)
     }
 
@@ -637,6 +646,11 @@ final class AppCoordinator {
     let mainWindowController: MainWindowController
     let noteEditorWindowController: NoteEditorWindowController
     let toastWindowController: ToastWindowController
+    private var meetingCaptureContext: MeetingCaptureContext?
+    private var meetingCaptureGeneration: UInt64 = 0
+    private var meetingRecoveryTask: Task<Void, Never>?
+    private var meetingRecoveryGeneration: UInt64 = 0
+    private var meetingRecoveryHandle: PindropData.MeetingCaptureHandle?
     
     // MARK: - Quick Capture State
     
@@ -646,7 +660,6 @@ final class AppCoordinator {
     private var isRecordingFeatureCaptureActive = false
     private var manualExpectedSpeakerCount: Int?
     private var quickCaptureTranscription: String?
-    private var meetingCaptureContext: MeetingCaptureContext?
     private var noteAppendEditorID: UUID?
     private var voiceNoteCaptureContext: VoiceNoteCaptureContext?
     /// The exact capture allocated for a pending editor request. Stop must only
@@ -741,6 +754,7 @@ final class AppCoordinator {
     private let promptRoutingResolver: any PromptRoutingResolver = NoOpPromptRoutingResolver()
     private let enableSystemHooks: Bool
     private var isShutdown = false
+    private var isPreparingForTermination = false
     private var lastObservedSettingsSnapshot: SettingsObservationSnapshot?
     private var hasRequestedAccessibilityPermissionThisLaunch = false
     private var hasShownAccessibilityFallbackAlertThisLaunch = false
@@ -1695,7 +1709,205 @@ final class AppCoordinator {
         updateVibeRuntimeStateFromSettings()
         applyMCPServerSettings()
         prewarmStreamingEngineIfEnabled()
+        scheduleMeetingRecovery()
         Log.boot.info("startNormalOperation complete")
+    }
+    private func scheduleMeetingRecovery() {
+        guard Self.canBeginMeetingRecovery(
+            activeHandle: meetingCaptureContext?.handle,
+            recoveryTaskActive: meetingRecoveryTask != nil,
+            isShutdown: isShutdown || isPreparingForTermination
+        ) else { return }
+
+        meetingRecoveryGeneration &+= 1
+        let generation = meetingRecoveryGeneration
+        meetingRecoveryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.meetingRecoveryGeneration == generation {
+                    self.meetingRecoveryHandle = nil
+                    self.meetingRecoveryTask = nil
+                }
+            }
+
+            let candidates: [PindropData.MeetingRecoverySnapshot]
+            do {
+                candidates = try self.captureSessionStore.meetingRecoveryCandidates()
+            } catch {
+                Log.app.warning("Meeting recovery candidates unavailable: \(error.localizedDescription)")
+                return
+            }
+
+            for candidate in candidates {
+                do {
+                    try Task.checkCancellation()
+                    guard
+                        !self.isShutdown,
+                        !self.isPreparingForTermination,
+                        self.meetingRecoveryGeneration == generation
+                    else {
+                        throw CancellationError()
+                    }
+                    self.meetingRecoveryHandle = candidate.handle
+
+                    try self.ensureMeetingRecoveryCurrent(
+                        generation: generation,
+                        handle: candidate.handle
+                    )
+                    try self.captureSessionStore.interruptMeetingCapture(
+                        candidate.handle,
+                        errorDomain: "Pindrop",
+                        errorCode: "startup-recovery",
+                        message: "Recovered after application interruption.",
+                        at: .now
+                    )
+
+                    try self.ensureMeetingRecoveryCurrent(
+                        generation: generation,
+                        handle: candidate.handle
+                    )
+                    try self.captureSessionStore.recoverMeetingForFinalization(candidate.handle, at: .now)
+
+                    let spoolPlan = try await self.mediaIngestionService.makeMeetingCaptureSpoolPlan(
+                        sessionID: candidate.handle.sessionID,
+                        microphoneSourceID: candidate.handle.microphoneSourceID,
+                        systemAudioSourceID: candidate.handle.systemAudioSourceID
+                    )
+                    try self.ensureMeetingRecoveryCurrent(
+                        generation: generation,
+                        handle: candidate.handle
+                    )
+
+                    let recovery = try await self.reconcileMeetingArtifacts(
+                        handle: candidate.handle,
+                        spoolPlan: spoolPlan,
+                        operationGuard: {
+                            try self.ensureMeetingRecoveryCurrent(
+                                generation: generation,
+                                handle: candidate.handle
+                            )
+                        }
+                    )
+
+                    try self.ensureMeetingRecoveryCurrent(
+                        generation: generation,
+                        handle: candidate.handle
+                    )
+                    try self.finishMeetingSources(
+                        handle: candidate.handle,
+                        artifacts: recovery.sealedChunks,
+                        recoveryFailures: recovery.failures,
+                        stopResult: nil
+                    )
+
+                    try self.ensureMeetingRecoveryCurrent(
+                        generation: generation,
+                        handle: candidate.handle
+                    )
+                    try await self.finalizeMeetingCapture(
+                        candidate.handle,
+                        spoolPlan: spoolPlan,
+                        operationGuard: {
+                            try self.ensureMeetingRecoveryCurrent(
+                                generation: generation,
+                                handle: candidate.handle
+                            )
+                        }
+                    )
+                } catch {
+                    guard Self.shouldContinueMeetingRecovery(after: error) else {
+                        return
+                    }
+                    guard self.isMeetingRecoveryCurrent(
+                        generation: generation,
+                        handle: candidate.handle
+                    ) else {
+                        return
+                    }
+                    let nsError = error as NSError
+                    try? self.captureSessionStore.recordMeetingFinalizationFailure(
+                        candidate.handle,
+                        stage: .finalTranscription,
+                        domain: nsError.domain,
+                        code: String(nsError.code),
+                        message: error.localizedDescription,
+                        retryable: true,
+                        at: .now
+                    )
+                    Log.app.warning(
+                        "Meeting recovery deferred for \(candidate.handle.sessionID.uuidString): \(error.localizedDescription)"
+                    )
+                }
+            }
+        }
+    }
+
+    /// Seals and inventories an active meeting before AppKit is allowed to terminate.
+    ///
+    /// This is deliberately awaited by the AppKit terminate-later bridge. `shutdown()`
+    /// remains synchronous and only provides a best-effort persistence fallback for
+    /// callers that cannot await this preparation.
+    func prepareForTermination() async {
+        guard !isShutdown, !isPreparingForTermination else { return }
+        isPreparingForTermination = true
+        defer { isPreparingForTermination = false }
+
+        meetingRecoveryGeneration &+= 1
+        meetingRecoveryTask?.cancel()
+        if let meetingRecoveryTask {
+            await meetingRecoveryTask.value
+        }
+        meetingRecoveryTask = nil
+        meetingRecoveryHandle = nil
+
+        guard let context = meetingCaptureContext else { return }
+        await checkpointMeetingInterruptionForTermination(context)
+        clearMeetingCaptureContext(ifCurrent: context)
+    }
+
+    private func checkpointMeetingInterruptionForTermination(_ context: MeetingCaptureContext) async {
+        do {
+            try ensureMeetingCaptureCurrent(context)
+            try captureSessionStore.beginMeetingFinalization(context.handle, at: .now)
+
+            let stopResult = try await audioRecorder.stopMeetingRecording()
+            try ensureMeetingCaptureCurrent(context)
+            for chunk in stopResult.sealedChunks {
+                try ensureMeetingCaptureCurrent(context)
+                try captureSessionStore.recordSealedMeetingChunk(context.handle, chunk: chunk, at: .now)
+            }
+            let recovery = try await reconcileMeetingArtifacts(
+                handle: context.handle,
+                spoolPlan: context.spoolPlan,
+                operationGuard: { try self.ensureMeetingCaptureCurrent(context) }
+            )
+            try ensureMeetingCaptureCurrent(context)
+            try finishMeetingSources(
+                handle: context.handle,
+                artifacts: recovery.sealedChunks,
+                recoveryFailures: recovery.failures,
+                stopResult: stopResult
+            )
+            try ensureMeetingCaptureCurrent(context)
+            try captureSessionStore.interruptMeetingCapture(
+                context.handle,
+                errorDomain: "Pindrop",
+                errorCode: "lifecycle-shutdown",
+                message: "Meeting capture was interrupted by application shutdown and can be resumed.",
+                at: .now
+            )
+        } catch {
+            let nsError = error as NSError
+            if isMeetingCaptureContextCurrent(context) {
+                try? captureSessionStore.interruptMeetingCapture(
+                    context.handle,
+                    errorDomain: nsError.domain,
+                    errorCode: String(nsError.code),
+                    message: "Meeting capture was interrupted during shutdown: \(error.localizedDescription)",
+                    at: .now
+                )
+            }
+        }
     }
 
     /// Loads the streaming (Nemotron) engine and runs its CoreML warm-up inference
@@ -3349,12 +3561,6 @@ final class AppCoordinator {
             Log.app.info("Ignore note-append stop for non-active editor or note")
             return
         }
-        guard isRecording && isNoteAppendMode else {
-            if !isProcessing {
-                clearNoteAppendMode()
-            }
-            return
-        }
 
         do {
             try await dispatchRecordingStop()
@@ -3403,9 +3609,11 @@ final class AppCoordinator {
     }
 
     static func canBeginMeetingCapture(
-        activeHandle: PindropData.MeetingCaptureHandle?
+        activeHandle: PindropData.MeetingCaptureHandle?,
+        recoveryTaskActive: Bool = false,
+        isShutdown: Bool = false
     ) -> Bool {
-        activeHandle == nil
+        activeHandle == nil && !recoveryTaskActive && !isShutdown
     }
 
     static func isMeetingCaptureCurrent(
@@ -3415,40 +3623,162 @@ final class AppCoordinator {
         activeHandle == candidateHandle
     }
 
-    static func meetingStopLedgerInputs(
-        microphone: MeetingSourceLedgerOutcome,
-        systemAudio: MeetingSourceLedgerOutcome
-    ) -> (
-        retained: [PindropData.RetainedMeetingSource],
-        failures: [PindropData.FailedMeetingSource]
-    ) {
-        let outcomes = [microphone, systemAudio]
-        return (
-            retained: outcomes.compactMap {
-                guard case .retained(let source) = $0 else { return nil }
-                return source
-            },
-            failures: outcomes.compactMap {
-                guard case .failed(let source) = $0 else { return nil }
-                return source
-            }
-        )
+    static func canBeginMeetingRecovery(
+        activeHandle: PindropData.MeetingCaptureHandle?,
+        recoveryTaskActive: Bool,
+        isShutdown: Bool
+    ) -> Bool {
+        activeHandle == nil && !recoveryTaskActive && !isShutdown
     }
 
-    static func meetingStopDisposition(
-        retainedSources: [PindropData.RetainedMeetingSource]
-    ) -> MeetingStopDisposition {
-        retainedSources.isEmpty ? .failWithoutTranscription : .proceedToMixedAudio
+    static func isMeetingRecoveryCurrent(
+        activeGeneration: UInt64,
+        candidateGeneration: UInt64,
+        activeHandle: PindropData.MeetingCaptureHandle?,
+        candidateHandle: PindropData.MeetingCaptureHandle
+    ) -> Bool {
+        activeGeneration == candidateGeneration && activeHandle == candidateHandle
     }
 
-    static func meetingProjectionRetention(
-        retainedSources: [PindropData.RetainedMeetingSource],
+    static func shouldApplyMeetingRecoveryMutation(
+        isCancelled: Bool,
+        isShutdown: Bool,
+        isPreparingForTermination: Bool,
+        activeGeneration: UInt64,
+        candidateGeneration: UInt64,
+        activeHandle: PindropData.MeetingCaptureHandle?,
+        candidateHandle: PindropData.MeetingCaptureHandle
+    ) -> Bool {
+        !isCancelled
+            && !isShutdown
+            && !isPreparingForTermination
+            && isMeetingRecoveryCurrent(
+                activeGeneration: activeGeneration,
+                candidateGeneration: candidateGeneration,
+                activeHandle: activeHandle,
+                candidateHandle: candidateHandle
+            )
+    }
+
+    static func shouldContinueMeetingRecovery(after error: Error) -> Bool {
+        !isTaskCancellation(error)
+    }
+
+    private func isMeetingRecoveryCurrent(
+        generation: UInt64,
         handle: PindropData.MeetingCaptureHandle
-    ) -> (retainingMicrophone: Bool, systemAudio: Bool) {
-        (
-            retainingMicrophone: retainedSources.contains { $0.sourceID == handle.microphoneSourceID },
-            systemAudio: retainedSources.contains { $0.sourceID == handle.systemAudioSourceID }
+    ) -> Bool {
+        Self.shouldApplyMeetingRecoveryMutation(
+            isCancelled: Task.isCancelled,
+            isShutdown: isShutdown,
+            isPreparingForTermination: isPreparingForTermination,
+            activeGeneration: meetingRecoveryGeneration,
+            candidateGeneration: generation,
+            activeHandle: meetingRecoveryHandle,
+            candidateHandle: handle
         )
+    }
+
+    private func ensureMeetingRecoveryCurrent(
+        generation: UInt64,
+        handle: PindropData.MeetingCaptureHandle
+    ) throws {
+        try Task.checkCancellation()
+        guard isMeetingRecoveryCurrent(generation: generation, handle: handle) else {
+            throw CancellationError()
+        }
+    }
+
+    static func meetingChunkWorkItems(
+        sourceChunks: [PindropData.MeetingChunkCheckpoint],
+        failedSequences: Set<Int>,
+        handle: PindropData.MeetingCaptureHandle
+    ) throws -> [MeetingChunkWorkItem] {
+        func indexedChunks(
+            sourceID: UUID
+        ) throws -> [Int: PindropData.MeetingChunkCheckpoint] {
+            try sourceChunks
+                .filter { $0.sourceID == sourceID }
+                .reduce(into: [Int: PindropData.MeetingChunkCheckpoint]()) { result, chunk in
+                    guard result[chunk.sequence] == nil else {
+                        throw MeetingChunkWorkItemError.duplicateSourceSequence(
+                            sourceID: sourceID,
+                            sequence: chunk.sequence
+                        )
+                    }
+                    result[chunk.sequence] = chunk
+                }
+        }
+
+        let microphoneChunks = try indexedChunks(sourceID: handle.microphoneSourceID)
+        let systemAudioChunks = try indexedChunks(sourceID: handle.systemAudioSourceID)
+        let sequences = Set(microphoneChunks.keys)
+            .union(systemAudioChunks.keys)
+            .union(failedSequences)
+            .sorted()
+
+        return try sequences.map { sequence in
+            let microphone = microphoneChunks[sequence]
+            let systemAudio = systemAudioChunks[sequence]
+            if let primary = microphone ?? systemAudio {
+                if let microphone, let systemAudio,
+                   abs(microphone.startOffset - systemAudio.startOffset) > (1.0 / Double(MeetingCaptureSpoolPlan.sampleRate)) {
+                    throw MeetingChunkWorkItemError.mismatchedStartOffset(sequence: sequence)
+                }
+                return MeetingChunkWorkItem(
+                    sequence: sequence,
+                    chunkID: primary.chunkID,
+                    startOffset: primary.startOffset,
+                    duration: max(microphone?.duration ?? 0, systemAudio?.duration ?? 0),
+                    microphone: microphone,
+                    systemAudio: systemAudio
+                )
+            }
+
+            return MeetingChunkWorkItem(
+                sequence: sequence,
+                chunkID: UUID(),
+                startOffset: Double(sequence) * MeetingCaptureSpoolPlan.chunkDuration,
+                duration: MeetingCaptureSpoolPlan.chunkDuration,
+                microphone: nil,
+                systemAudio: nil
+            )
+        }
+    }
+
+    static func shouldCreateMeetingTranscriptionInput(
+        for workItem: MeetingChunkWorkItem
+    ) -> Bool {
+        workItem.microphone != nil || workItem.systemAudio != nil
+    }
+
+    static func meetingOutputPlaceholder(
+        for workItem: MeetingChunkWorkItem
+    ) -> TranscriptionChunkOutput {
+        TranscriptionChunkOutput(
+            chunkID: workItem.chunkID,
+            sequence: workItem.sequence,
+            startOffset: workItem.startOffset,
+            duration: workItem.duration,
+            plainText: ""
+        )
+    }
+
+    static func meetingOutputPlaceholders(
+        workItems: [MeetingChunkWorkItem],
+        outputs: [TranscriptionChunkOutput]
+    ) -> [TranscriptionChunkOutput] {
+        let outputsBySequence = outputs.reduce(into: [Int: TranscriptionChunkOutput]()) { result, output in
+            result[output.sequence] = result[output.sequence] ?? output
+        }
+        return workItems.map { item in
+            outputsBySequence[item.sequence] ?? meetingOutputPlaceholder(for: item)
+        }
+    }
+
+    static func meetingChunkProgress(completed: Int, total: Int) -> Double {
+        guard total > 0 else { return 1 }
+        return min(1, max(0, Double(completed) / Double(total)))
     }
 
     static func isPendingNoteAppendCaptureCurrent(
@@ -3493,10 +3823,18 @@ final class AppCoordinator {
     }
 
     private func isMeetingCaptureContextCurrent(_ context: MeetingCaptureContext) -> Bool {
-        Self.isMeetingCaptureCurrent(
-            activeHandle: meetingCaptureContext?.handle,
-            candidateHandle: context.handle
-        )
+        meetingCaptureGeneration == context.generation
+            && Self.isMeetingCaptureCurrent(
+                activeHandle: meetingCaptureContext?.handle,
+                candidateHandle: context.handle
+            )
+    }
+
+    private func ensureMeetingCaptureCurrent(_ context: MeetingCaptureContext) throws {
+        try Task.checkCancellation()
+        guard !isShutdown, isMeetingCaptureContextCurrent(context) else {
+            throw CancellationError()
+        }
     }
 
     private func ensureMeetingCaptureCurrent(
@@ -3504,9 +3842,7 @@ final class AppCoordinator {
         token: DictationOperationToken
     ) throws {
         try ensureOperationCurrent(token)
-        guard isMeetingCaptureContextCurrent(context) else {
-            throw CancellationError()
-        }
+        try ensureMeetingCaptureCurrent(context)
     }
 
     private func clearMeetingCaptureContext(ifCurrent context: MeetingCaptureContext) {
@@ -3514,43 +3850,14 @@ final class AppCoordinator {
         meetingCaptureContext = nil
     }
 
-    private func failMeetingCapture(
-        _ context: MeetingCaptureContext,
-        stage: CapturePipelineStage?,
-        error: Error
-    ) throws {
-        guard isMeetingCaptureContextCurrent(context) else {
-            throw CancellationError()
-        }
-
-        let nsError = error as NSError
-        do {
-            try captureSessionStore.failMeetingCapture(
-                context.handle,
-                stage: stage,
-                errorDomain: nsError.domain,
-                errorCode: String(nsError.code),
-                message: error.localizedDescription,
-                at: .now
-            )
-        } catch {
-            Log.app.error("Failed to mark meeting capture as failed: \(error)")
-            throw MeetingCaptureTerminalPersistenceError.failure(error)
-        }
-
-        clearMeetingCaptureContext(ifCurrent: context)
-    }
-
     private func cancelActiveMeetingCapture() throws {
         guard let context = meetingCaptureContext else { return }
-
         do {
             try captureSessionStore.cancelMeetingCapture(context.handle, at: .now)
         } catch {
             Log.app.error("Failed to cancel meeting capture: \(error)")
             throw MeetingCaptureTerminalPersistenceError.cancellation(error)
         }
-
         clearMeetingCaptureContext(ifCurrent: context)
     }
 
@@ -3566,80 +3873,442 @@ final class AppCoordinator {
         resetProcessingState()
     }
 
-    private func retainMeetingSource(
-        _ outcome: AudioCaptureSourceStopOutcome,
+    private func recordSealedMeetingChunk(
+        _ chunk: SealedAudioSourceChunk,
+        for context: MeetingCaptureContext
+    ) {
+        guard isMeetingCaptureContextCurrent(context), !isShutdown else { return }
+        do {
+            try captureSessionStore.recordSealedMeetingChunk(context.handle, chunk: chunk, at: .now)
+        } catch {
+            // The writer has already durably sealed the artifact. Stop/recovery inventory
+            // reconciles this advisory callback if its database checkpoint was interrupted.
+            Log.app.warning("Deferred meeting chunk checkpoint \(chunk.sequence): \(error.localizedDescription)")
+        }
+    }
+
+    private func meetingSourceFailure(
         sourceID: UUID,
-        context: MeetingCaptureContext,
-        token: DictationOperationToken
-    ) async throws -> MeetingSourceLedgerOutcome {
-        switch outcome {
-        case .captured(let file):
-            let artifact: ManagedCaptureSourceArtifact
-            do {
-                artifact = try await mediaIngestionService.storeCapturePCMFile(
-                    at: file.fileURL,
-                    sessionID: context.handle.sessionID,
-                    sourceID: sourceID,
-                    chunkSequence: 0
-                )
-            } catch {
-                let nsError = error as NSError
-                return .failed(PindropData.FailedMeetingSource(
-                    sourceID: sourceID,
-                    errorDomain: nsError.domain,
-                    errorCode: String(nsError.code),
-                    message: error.localizedDescription,
-                    occurredAt: .now
-                ))
-            }
-
-            try ensureMeetingCaptureCurrent(context, token: token)
-
-            let expectedRelativePath = CaptureSourceArtifactPath.relativePath(
-                sessionID: context.handle.sessionID,
+        recoveryFailure: MeetingArtifactRecoveryFailure? = nil,
+        failure: AudioCaptureSourceFailure?
+    ) -> PindropData.FailedMeetingSource {
+        if let recoveryFailure {
+            return PindropData.FailedMeetingSource(
                 sourceID: sourceID,
-                chunkSequence: 0
+                errorDomain: "PindropMedia",
+                errorCode: String(describing: recoveryFailure.kind),
+                message: recoveryFailure.message,
+                occurredAt: .now
             )
-            guard artifact.sessionID == context.handle.sessionID,
-                  artifact.sourceID == sourceID,
-                  artifact.chunkSequence == 0,
-                  artifact.relativePath == expectedRelativePath else {
-                return .failed(PindropData.FailedMeetingSource(
-                    sourceID: sourceID,
-                    errorDomain: "PindropMedia",
-                    errorCode: "capture-source-artifact-mismatch",
-                    message: "Stored meeting audio source metadata did not match its deterministic artifact path.",
-                    occurredAt: .now
-                ))
-            }
-            guard let byteCount = Int(exactly: artifact.byteCount) else {
-                return .failed(PindropData.FailedMeetingSource(
-                    sourceID: sourceID,
-                    errorDomain: "PindropMedia",
-                    errorCode: "capture-source-byte-count-overflow",
-                    message: "The stored meeting audio source is too large to ledger.",
-                    occurredAt: .now
-                ))
-            }
-            let duration = Double(artifact.byteCount)
-                / (file.sampleRate * Double(MemoryLayout<Float>.size))
-            return .retained(PindropData.RetainedMeetingSource(
-                sourceID: sourceID,
-                sampleRate: file.sampleRate,
-                channelCount: 1,
-                duration: duration,
-                managedMediaPath: artifact.managedMediaPath,
-                byteCount: byteCount,
-                sha256: artifact.sha256
-            ))
-        case .failed(let failure):
-            return .failed(PindropData.FailedMeetingSource(
+        }
+        if let failure {
+            return PindropData.FailedMeetingSource(
                 sourceID: sourceID,
                 errorDomain: failure.errorDomain,
                 errorCode: failure.errorCode,
                 message: failure.message,
                 occurredAt: .now
+            )
+        }
+        return PindropData.FailedMeetingSource(
+            sourceID: sourceID,
+            errorDomain: "PindropSpeech.AudioCapture",
+            errorCode: "no-durable-chunks",
+            message: "The capture source stopped without sealing any durable audio chunks.",
+            occurredAt: .now
+        )
+    }
+
+    private func reconcileMeetingArtifacts(
+        handle: PindropData.MeetingCaptureHandle,
+        spoolPlan: MeetingCaptureSpoolPlan,
+        operationGuard: () throws -> Void
+    ) async throws -> MeetingArtifactRecoveryResult {
+        let recovery = try await mediaIngestionService.recoverMeetingArtifacts(for: spoolPlan)
+        try operationGuard()
+        let failures = recovery.failures.map(meetingChunkFailure(from:))
+        try operationGuard()
+        try captureSessionStore.reconcileMeetingInventory(
+            handle,
+            sealedChunks: recovery.sealedChunks,
+            failures: failures,
+            at: .now
+        )
+        return recovery
+    }
+
+    private func meetingChunkFailure(
+        from failure: MeetingArtifactRecoveryFailure
+    ) -> PindropData.MeetingChunkFailure {
+        PindropData.MeetingChunkFailure(
+            sourceID: failure.sourceID,
+            sequence: failure.sequence,
+            stage: .finalTranscription,
+            invalidatesSource: failure.kind == .sourceUnavailable,
+            errorDomain: "PindropMedia",
+            errorCode: String(describing: failure.kind),
+            message: failure.message,
+            isRetryable: failure.isRetryable,
+            occurredAt: .now
+        )
+    }
+
+    private func finishMeetingSources(
+        handle: PindropData.MeetingCaptureHandle,
+        artifacts: [SealedAudioSourceChunk],
+        recoveryFailures: [MeetingArtifactRecoveryFailure] = [],
+        stopResult: MeetingRecordingStopResult?
+    ) throws {
+        let microphoneHasChunks = artifacts.contains { $0.sourceID == handle.microphoneSourceID }
+        let systemAudioHasChunks = artifacts.contains { $0.sourceID == handle.systemAudioSourceID }
+        func sourceUnavailable(for sourceID: UUID) -> MeetingArtifactRecoveryFailure? {
+            recoveryFailures.first {
+                $0.sourceID == sourceID && $0.kind == .sourceUnavailable
+            }
+        }
+        var failures: [PindropData.FailedMeetingSource] = []
+        if !microphoneHasChunks {
+            failures.append(meetingSourceFailure(
+                sourceID: handle.microphoneSourceID,
+                recoveryFailure: sourceUnavailable(for: handle.microphoneSourceID),
+                failure: stopResult?.microphoneFailure
             ))
+        }
+        if !systemAudioHasChunks {
+            failures.append(meetingSourceFailure(
+                sourceID: handle.systemAudioSourceID,
+                recoveryFailure: sourceUnavailable(for: handle.systemAudioSourceID),
+                failure: stopResult?.systemAudioFailure
+            ))
+        }
+        try captureSessionStore.finishMeetingSources(handle, sourceFailures: failures, at: .now)
+    }
+    private func resolvedMeetingArtifacts(
+        _ artifacts: [SealedAudioSourceChunk],
+        operationGuard: () throws -> Void
+    ) async throws -> [SealedAudioSourceChunk] {
+        var resolved: [SealedAudioSourceChunk] = []
+        resolved.reserveCapacity(artifacts.count)
+        for artifact in artifacts {
+            let fileURL = try await mediaIngestionService.resolveArtifactURL(for: artifact)
+            try operationGuard()
+            resolved.append(SealedAudioSourceChunk(
+                sessionID: artifact.sessionID,
+                sourceID: artifact.sourceID,
+                sequence: artifact.sequence,
+                startOffset: artifact.startOffset,
+                duration: artifact.duration,
+                fileURL: fileURL,
+                relativePath: artifact.relativePath,
+                byteCount: artifact.byteCount,
+                sha256: artifact.sha256
+            ))
+        }
+        return resolved
+    }
+    private func transcriptionOutput(
+        checkpoint: PindropData.MeetingTranscriptionCheckpoint,
+        workItem: MeetingChunkWorkItem
+    ) -> TranscriptionChunkOutput {
+        let segments: [DiarizedTranscriptSegment]? = checkpoint.segmentsJSON.flatMap {
+            (encoded: String) -> [DiarizedTranscriptSegment]? in
+            guard let data = encoded.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode([DiarizedTranscriptSegment].self, from: data)
+        }
+        return TranscriptionChunkOutput(
+            chunkID: workItem.chunkID,
+            sequence: checkpoint.sequence,
+            startOffset: checkpoint.startOffset,
+            duration: checkpoint.duration,
+            plainText: checkpoint.text,
+            diarizedSegments: segments
+        )
+    }
+
+    private func finalizeMeetingCapture(
+        _ handle: PindropData.MeetingCaptureHandle,
+        spoolPlan: MeetingCaptureSpoolPlan,
+        operationGuard: () throws -> Void
+    ) async throws {
+        try operationGuard()
+        let plan = try captureSessionStore.makeMeetingFinalizationPlan(handle)
+        let workItems = try Self.meetingChunkWorkItems(
+            sourceChunks: plan.sourceChunks,
+            failedSequences: plan.failedSequences,
+            handle: handle
+        )
+        let recovery = try await mediaIngestionService.recoverMeetingArtifacts(for: spoolPlan)
+        try operationGuard()
+        let artifacts = try await resolvedMeetingArtifacts(
+            recovery.sealedChunks,
+            operationGuard: operationGuard
+        )
+        try operationGuard()
+        let artifactsBySourceAndSequence = Dictionary(
+            uniqueKeysWithValues: artifacts.map {
+                (MeetingSourceSequence(sourceID: $0.sourceID, sequence: $0.sequence), $0)
+            }
+        )
+        var outputs: [TranscriptionChunkOutput] = plan.completedASRCheckpoints.compactMap { checkpoint -> TranscriptionChunkOutput? in
+            guard let workItem = workItems.first(where: { $0.sequence == checkpoint.sequence }) else {
+                return nil
+            }
+            return transcriptionOutput(checkpoint: checkpoint, workItem: workItem)
+        }
+        var warningCount = 0
+
+        for workItem in workItems where !plan.completedASRSequences.contains(workItem.sequence) {
+            try operationGuard()
+            guard Self.shouldCreateMeetingTranscriptionInput(for: workItem) else {
+                // `failedSequences` retains the persisted scoped failure as an empty timed window.
+                warningCount += 1
+                outputs.append(Self.meetingOutputPlaceholder(for: workItem))
+                recordingState.updateJob(
+                    stage: .transcribing,
+                    progress: Self.meetingChunkProgress(completed: outputs.count, total: workItems.count),
+                    detail: "Chunk \(workItem.sequence + 1) unavailable; preserving its timed gap.",
+                    errorMessage: nil
+                )
+                continue
+            }
+
+            let microphone = workItem.microphone.flatMap {
+                artifactsBySourceAndSequence[MeetingSourceSequence(sourceID: $0.sourceID, sequence: $0.sequence)]
+            }
+            let systemAudio = workItem.systemAudio.flatMap {
+                artifactsBySourceAndSequence[MeetingSourceSequence(sourceID: $0.sourceID, sequence: $0.sequence)]
+            }
+            guard microphone != nil || systemAudio != nil else {
+                try captureSessionStore.recordMeetingFinalizationFailure(
+                    handle,
+                    sequence: workItem.sequence,
+                    stage: .finalTranscription,
+                    domain: "PindropMedia",
+                    code: "missing-meeting-chunk",
+                    message: "No deterministic source artifact was found for this meeting chunk.",
+                    retryable: true,
+                    at: .now
+                )
+                warningCount += 1
+                outputs.append(Self.meetingOutputPlaceholder(for: workItem))
+                recordingState.updateJob(
+                    stage: .transcribing,
+                    progress: Self.meetingChunkProgress(completed: outputs.count, total: workItems.count),
+                    detail: "Chunk \(workItem.sequence + 1) failed; preserving its timed gap.",
+                    errorMessage: nil
+                )
+                continue
+            }
+
+            try await transcribeMeetingWorkItem(
+                workItem,
+                microphone: microphone,
+                systemAudio: systemAudio,
+                handle: handle,
+                spoolPlan: spoolPlan,
+                outputs: &outputs,
+                warningCount: &warningCount,
+                totalChunks: workItems.count,
+                operationGuard: operationGuard
+            )
+        }
+
+        try operationGuard()
+        let refreshedPlan = try captureSessionStore.makeMeetingFinalizationPlan(handle)
+        let refreshedOutputs: [TranscriptionChunkOutput] = refreshedPlan.completedASRCheckpoints.compactMap { checkpoint -> TranscriptionChunkOutput? in
+            guard let workItem = workItems.first(where: { $0.sequence == checkpoint.sequence }) else {
+                return nil
+            }
+            return transcriptionOutput(checkpoint: checkpoint, workItem: workItem)
+        }
+        let merged = try transcriptionService.mergeMeetingChunks(
+            Self.meetingOutputPlaceholders(workItems: workItems, outputs: refreshedOutputs)
+        )
+        let finalText = normalizedTranscriptionText(merged.text)
+        guard !isTranscriptionEffectivelyEmpty(finalText) else {
+            let failure = MeetingCaptureAdmissionError.noRetainedSources
+            try captureSessionStore.failMeetingCapture(
+                handle,
+                stage: .finalTranscription,
+                errorDomain: "PindropSpeech",
+                errorCode: "no-transcribed-output",
+                message: failure.localizedDescription,
+                at: .now
+            )
+            throw failure
+        }
+
+        let recordID: UUID
+        if let reservedRecordID = refreshedPlan.reservedTranscriptionRecordID {
+            recordID = reservedRecordID
+        } else {
+            recordID = try captureSessionStore.reserveMeetingTranscriptionRecordID(handle)
+        }
+        do {
+            let record = try historyStore.save(
+                text: finalText,
+                originalText: nil,
+                duration: workItems.map { $0.startOffset + $0.duration }.max() ?? 0,
+                modelUsed: settingsStore.selectedModel,
+                enhancedWith: nil,
+                diarizationSegmentsJSON: encodeDiarizationSegmentsJSON(merged.diarizedSegments),
+                sourceKind: .manualCapture,
+                sourceDisplayName: "Meeting recording",
+                id: recordID
+            )
+            try operationGuard()
+            try captureSessionStore.completeMeetingCapture(handle, transcriptionRecordID: record.id, at: .now)
+            updateRecentTranscriptsMenu()
+        } catch {
+            let nsError = error as NSError
+            try? captureSessionStore.recordMeetingHistoryFailure(
+                handle,
+                errorDomain: nsError.domain,
+                errorCode: String(nsError.code),
+                message: error.localizedDescription,
+                at: .now
+            )
+            throw error
+        }
+    }
+
+    private func transcribeMeetingWorkItem(
+        _ workItem: MeetingChunkWorkItem,
+        microphone: SealedAudioSourceChunk?,
+        systemAudio: SealedAudioSourceChunk?,
+        handle: PindropData.MeetingCaptureHandle,
+        spoolPlan: MeetingCaptureSpoolPlan,
+        outputs: inout [TranscriptionChunkOutput],
+        warningCount: inout Int,
+        totalChunks: Int,
+        operationGuard: () throws -> Void
+    ) async throws {
+        let mixed = try await mediaIngestionService.makeMixedMeetingChunk(
+            sessionID: handle.sessionID,
+            sequence: workItem.sequence,
+            microphone: microphone,
+            systemAudio: systemAudio
+        )
+        try operationGuard()
+        guard let byteCount = Int(exactly: mixed.byteCount) else {
+            await removeMixedMeetingChunk(
+                mixed,
+                handle: handle,
+                sequence: workItem.sequence,
+                operationGuard: operationGuard
+            )
+            throw MeetingCaptureAdmissionError.missingMixedAudio
+        }
+        let input = TranscriptionChunkInput(
+            chunkID: workItem.chunkID,
+            sequence: workItem.sequence,
+            startOffset: workItem.startOffset,
+            duration: workItem.duration,
+            fileURL: spoolPlan.libraryRootURL.appendingPathComponent(mixed.relativePath),
+            byteCount: byteCount,
+            sha256: mixed.sha256
+        )
+        do {
+            let output = try await transcriptionService.transcribeMeetingChunk(
+                input,
+                options: makeTranscriptionOptions(),
+                diarizationOptions: .init(expectedSpeakerCount: manualExpectedSpeakerCount)
+            )
+            try operationGuard()
+            let segmentsJSON = encodeDiarizationSegmentsJSON(output.diarizedSegments)
+            try captureSessionStore.recordMeetingTranscriptionChunk(
+                handle,
+                sourceChunkSequence: output.sequence,
+                startOffset: output.startOffset,
+                duration: output.duration,
+                text: output.plainText,
+                segmentsJSON: segmentsJSON,
+                languageCode: settingsStore.selectedAppLanguage.rawValue,
+                at: .now
+            )
+            outputs.append(output)
+            if let warning = output.diarizationWarning {
+                warningCount += 1
+                try captureSessionStore.recordMeetingFinalizationFailure(
+                    handle,
+                    sequence: output.sequence,
+                    stage: .diarization,
+                    domain: "PindropSpeech",
+                    code: "best-effort-warning",
+                    message: warning,
+                    retryable: false,
+                    at: .now
+                )
+            }
+            await removeMixedMeetingChunk(
+                mixed,
+                handle: handle,
+                sequence: workItem.sequence,
+                operationGuard: operationGuard
+            )
+            recordingState.updateJob(
+                stage: .transcribing,
+                progress: Self.meetingChunkProgress(completed: outputs.count, total: totalChunks),
+                detail: "Transcribed \(outputs.count) chunk\(outputs.count == 1 ? "" : "s")\(warningCount == 0 ? "" : "; \(warningCount) warning\(warningCount == 1 ? "" : "s")")",
+                errorMessage: nil
+            )
+        } catch is CancellationError {
+            await removeMixedMeetingChunk(
+                mixed,
+                handle: handle,
+                sequence: workItem.sequence,
+                operationGuard: operationGuard
+            )
+            throw CancellationError()
+        } catch {
+            try operationGuard()
+            let nsError = error as NSError
+            try captureSessionStore.recordMeetingFinalizationFailure(
+                handle,
+                sequence: workItem.sequence,
+                stage: .finalTranscription,
+                domain: nsError.domain,
+                code: String(nsError.code),
+                message: error.localizedDescription,
+                retryable: true,
+                at: .now
+            )
+            await removeMixedMeetingChunk(
+                mixed,
+                handle: handle,
+                sequence: workItem.sequence,
+                operationGuard: operationGuard
+            )
+            outputs.append(Self.meetingOutputPlaceholder(for: workItem))
+            recordingState.updateJob(
+                stage: .transcribing,
+                progress: Self.meetingChunkProgress(completed: outputs.count, total: totalChunks),
+                detail: "Chunk \(workItem.sequence + 1) failed; continuing with durable siblings.",
+                errorMessage: error.localizedDescription
+            )
+        }
+    }
+    private func removeMixedMeetingChunk(
+        _ mixed: ManagedMixedMeetingChunkArtifact,
+        handle: PindropData.MeetingCaptureHandle,
+        sequence: Int,
+        operationGuard: () throws -> Void
+    ) async {
+        do {
+            try await mediaIngestionService.removeMixedMeetingChunk(mixed)
+        } catch {
+            guard (try? operationGuard()) != nil else { return }
+            let nsError = error as NSError
+            try? captureSessionStore.recordMeetingFinalizationFailure(
+                handle,
+                sequence: sequence,
+                stage: .finalTranscription,
+                domain: nsError.domain,
+                code: String(nsError.code),
+                message: "Could not remove derived meeting chunk: \(error.localizedDescription)",
+                retryable: true,
+                at: .now
+            )
         }
     }
 
@@ -5901,8 +6570,16 @@ final class AppCoordinator {
             failVoiceNoteCapture(context, stage: "audio-capture", error: failure)
         }
         if let context = meetingCaptureContext {
+            let nsError = failure as NSError
             do {
-                try failMeetingCapture(context, stage: nil, error: failure)
+                try captureSessionStore.interruptMeetingCapture(
+                    context.handle,
+                    errorDomain: nsError.domain,
+                    errorCode: String(nsError.code),
+                    message: failure.localizedDescription,
+                    at: .now
+                )
+                clearMeetingCaptureContext(ifCurrent: context)
             } catch {
                 reportMeetingCaptureTerminalPersistenceFailure(error)
             }
@@ -6301,22 +6978,12 @@ final class AppCoordinator {
             recordingState.message = "Finish the active transcription before starting another one."
             return
         }
-        guard Self.canBeginMeetingCapture(activeHandle: meetingCaptureContext?.handle) else {
+        guard Self.canBeginMeetingCapture(
+            activeHandle: meetingCaptureContext?.handle,
+            recoveryTaskActive: meetingRecoveryTask != nil,
+            isShutdown: isShutdown
+        ) else {
             throw MeetingCaptureAdmissionError.captureAlreadyActive
-        }
-
-        await modelManager.refreshDownloadedFeatureModels()
-        guard !isShutdown else {
-            throw CancellationError()
-        }
-        guard modelManager.isFeatureModelDownloaded(.diarization) else {
-            recordingState.setSetupIssue(
-                localized(
-                    "Download the speaker diarization model before starting recording.",
-                    locale: settingsStore.selectedAppLocale.locale
-                )
-            )
-            return
         }
 
         let startedAt = Date.now
@@ -6330,281 +6997,156 @@ final class AppCoordinator {
             microphoneDisplayName: microphoneDisplayName,
             systemAudioDisplayName: "System Audio"
         )
-        let context = MeetingCaptureContext(handle: handle)
-        meetingCaptureContext = context
 
         do {
-            let didStartRecording = try await audioRecorder.startRecording(
-                configuration: AudioRecordingConfiguration(mode: mode)
+            let spoolPlan = try await mediaIngestionService.makeMeetingCaptureSpoolPlan(
+                sessionID: handle.sessionID,
+                microphoneSourceID: handle.microphoneSourceID,
+                systemAudioSourceID: handle.systemAudioSourceID
+            )
+            meetingCaptureGeneration &+= 1
+            let context = MeetingCaptureContext(
+                handle: handle,
+                spoolPlan: spoolPlan,
+                generation: meetingCaptureGeneration
+            )
+            meetingCaptureContext = context
+            let didStartRecording = try await audioRecorder.startMeetingRecording(
+                spoolPlan: spoolPlan,
+                onChunkSealed: { [weak self] chunk in
+                    Task { @MainActor [weak self] in
+                        self?.recordSealedMeetingChunk(chunk, for: context)
+                    }
+                }
             )
             guard didStartRecording else {
                 throw MeetingCaptureAdmissionError.recorderDidNotStart
             }
-            guard !isShutdown, isMeetingCaptureContextCurrent(context) else {
-                audioRecorder.cancelRecording()
-                throw CancellationError()
-            }
+            try ensureMeetingCaptureCurrent(context)
+
+            manualExpectedSpeakerCount = expectedSpeakerCount
+            isRecording = true
+            isRecordingFeatureCaptureActive = true
+            recordingStartTime = startedAt
+            recordingState.beginRecording(mode: mode, startedAt: startedAt)
+            statusBarController.setRecordingState()
+            statusBarController.updateMenuState()
+            startRecordingIndicatorSession()
         } catch {
-            if Self.isTaskCancellation(error) {
-                try cancelActiveMeetingCapture()
+            let nsError = error as NSError
+            if let context = meetingCaptureContext, context.handle == handle {
+                if Self.isTaskCancellation(error) {
+                    try captureSessionStore.cancelMeetingCapture(handle, at: .now)
+                } else {
+                    try captureSessionStore.failMeetingCapture(
+                        handle,
+                        stage: nil,
+                        errorDomain: nsError.domain,
+                        errorCode: String(nsError.code),
+                        message: error.localizedDescription,
+                        at: .now
+                    )
+                }
+                clearMeetingCaptureContext(ifCurrent: context)
             } else {
-                try failMeetingCapture(context, stage: nil, error: error)
+                try captureSessionStore.failMeetingCapture(
+                    handle,
+                    stage: nil,
+                    errorDomain: nsError.domain,
+                    errorCode: String(nsError.code),
+                    message: error.localizedDescription,
+                    at: .now
+                )
             }
             throw error
         }
-
-        manualExpectedSpeakerCount = expectedSpeakerCount
-        isRecording = true
-        isRecordingFeatureCaptureActive = true
-        recordingStartTime = startedAt
-        recordingState.beginRecording(mode: mode, startedAt: startedAt)
-        statusBarController.setRecordingState()
-        statusBarController.updateMenuState()
-        startRecordingIndicatorSession()
     }
 
-
     private func stopManualTranscriptionRecording(token: DictationOperationToken) async throws {
-        guard isRecordingFeatureCaptureActive,
-              let context = meetingCaptureContext else {
+        guard isRecordingFeatureCaptureActive, let context = meetingCaptureContext else {
             throw AudioRecorderError.notRecording
         }
-
         let mode = recordingState.selectedCaptureMode
-        let duration = recordingStartTime.map { Date.now.timeIntervalSince($0) } ?? 0
-        let expectedSpeakerCount = manualExpectedSpeakerCount
 
         do {
             try captureSessionStore.beginMeetingFinalization(context.handle, at: .now)
-            let stopResult = try await audioRecorder.stopSourceSeparatedRecording()
-            var ownsStoppedSources = true
-            defer {
-                if ownsStoppedSources {
-                    stopResult.discard()
-                }
-            }
-
-            // Check both generation and exact durable handle before storage. A
-            // cancelled stop must never ledger sources against a later meeting.
+            let stopResult = try await audioRecorder.stopMeetingRecording()
             try ensureMeetingCaptureCurrent(context, token: token)
-            let microphoneOutcome = try await retainMeetingSource(
-                stopResult.microphone,
-                sourceID: context.handle.microphoneSourceID,
-                context: context,
-                token: token
+            for chunk in stopResult.sealedChunks {
+                recordSealedMeetingChunk(chunk, for: context)
+            }
+            let recovery = try await reconcileMeetingArtifacts(
+                handle: context.handle,
+                spoolPlan: context.spoolPlan,
+                operationGuard: { try self.ensureMeetingCaptureCurrent(context, token: token) }
             )
             try ensureMeetingCaptureCurrent(context, token: token)
-            let systemAudioOutcome = try await retainMeetingSource(
-                stopResult.systemAudio,
-                sourceID: context.handle.systemAudioSourceID,
-                context: context,
-                token: token
-            )
-            try ensureMeetingCaptureCurrent(context, token: token)
-            let ledgerInputs = Self.meetingStopLedgerInputs(
-                microphone: microphoneOutcome,
-                systemAudio: systemAudioOutcome
-            )
-            try captureSessionStore.recordMeetingStop(
-                context.handle,
-                retained: ledgerInputs.retained,
-                failures: ledgerInputs.failures,
-                at: .now
-            )
-            // Source artifacts are deliberately retained if ledger persistence
-            // fails: their deterministic paths are recovery inputs. When
-            // proceeding, retain the recorder's temporary files until the
-            // projection derived from the durably retained sources materializes.
-            let projectionRetention = Self.meetingProjectionRetention(
-                retainedSources: ledgerInputs.retained,
-                handle: context.handle
+            try finishMeetingSources(
+                handle: context.handle,
+                artifacts: recovery.sealedChunks,
+                recoveryFailures: recovery.failures,
+                stopResult: stopResult
             )
 
-            switch Self.meetingStopDisposition(retainedSources: ledgerInputs.retained) {
-            case .failWithoutTranscription:
-                let message = MeetingCaptureAdmissionError.noRetainedSources.localizedDescription
-                resetStoppedMeetingCaptureState()
-                recordingState.failCurrentJob(message)
-                clearMeetingCaptureContext(ifCurrent: context)
-                return
-            case .proceedToMixedAudio:
-                break
-            }
-
-            guard let audioData = try stopResult.projectionData(
-                retainingMicrophone: projectionRetention.retainingMicrophone,
-                systemAudio: projectionRetention.systemAudio
-            ) else {
-                let failure = MeetingCaptureAdmissionError.missingMixedAudio
-                try failMeetingCapture(context, stage: nil, error: failure)
-                resetStoppedMeetingCaptureState()
-                recordingState.failCurrentJob(failure.localizedDescription)
-                return
-            }
-
-            stopResult.discard()
-            ownsStoppedSources = false
-
+            isRecording = false
+            isRecordingFeatureCaptureActive = false
+            recordingState.endRecording()
+            statusBarController.setProcessingState()
+            statusBarController.updateMenuState()
+            transitionRecordingIndicatorToProcessing()
+            isProcessing = true
             let job = MediaTranscriptionJobState(
                 request: .manualCapture(mode.rawValue),
                 options: TranscriptionJobOptions(
                     modelName: settingsStore.selectedModel,
                     language: settingsStore.selectedAppLanguage,
                     outputFormat: .plainText,
-                    diarizationEnabled: true,
-                    expectedSpeakerCount: expectedSpeakerCount
+                    diarizationEnabled: settingsStore.diarizationFeatureEnabled,
+                    expectedSpeakerCount: manualExpectedSpeakerCount
                 ),
                 destinationFolderID: nil,
-                stage: .preparingAudio,
-                progress: nil,
-                detail: "Preparing captured audio"
+                stage: .transcribing,
+                progress: 0,
+                detail: "Preparing durable meeting chunks"
             )
-            let managedAsset = try await mediaIngestionService.storeRecordedAudio(
-                audioData,
-                jobID: job.id,
-                displayName: mode.libraryDisplayName,
-                sourceKind: .manualCapture
-            )
-            try ensureMeetingCaptureCurrent(context, token: token)
-
-            isRecording = false
-            isRecordingFeatureCaptureActive = false
-            manualExpectedSpeakerCount = nil
-            recordingState.endRecording()
-            statusBarController.setProcessingState()
-            statusBarController.updateMenuState()
-            transitionRecordingIndicatorToProcessing()
-            isProcessing = true
             recordingState.beginJob(job)
-
-            var didResetProcessingState = false
-            defer {
-                if Self.shouldResetProcessingStateOnExit(
-                    didResetProcessingState: didResetProcessingState,
-                    isOperationCurrent: operationController.isCurrent(token)
-                ) {
-                    resetProcessingState()
+            let recordID = try captureSessionStore.reserveMeetingTranscriptionRecordID(context.handle)
+            try await finalizeMeetingCapture(
+                context.handle,
+                spoolPlan: context.spoolPlan,
+                operationGuard: { [weak self] in
+                    guard let self else { throw CancellationError() }
+                    try self.ensureMeetingCaptureCurrent(context, token: token)
                 }
+            )
+            guard isMeetingCaptureContextCurrent(context), operationController.isCurrent(token) else {
+                throw CancellationError()
             }
-
-            do {
-                recordingState.updateJob(
-                    stage: .transcribing,
-                    progress: nil,
-                    detail: "Running diarization and transcription",
-                    errorMessage: nil
-                )
-
-                let transcriptionOutput = try await transcriptionService.transcribe(
-                    audioData: audioData,
-                    diarizationEnabled: true,
-                    options: makeTranscriptionOptions(),
-                    diarizationOptions: .init(expectedSpeakerCount: expectedSpeakerCount),
-                    diarizationFailurePolicy: .required
-                )
-                try ensureMeetingCaptureCurrent(context, token: token)
-                let diarizationSegmentsJSON = encodeDiarizationSegmentsJSON(transcriptionOutput.diarizedSegments)
-
-                recordingState.updateJob(
-                    stage: .saving,
-                    progress: nil,
-                    detail: "Saving transcript to history",
-                    errorMessage: nil
-                )
-
-                let finalText = normalizedTranscriptionText(transcriptionOutput.text)
-                guard !isTranscriptionEffectivelyEmpty(finalText) else {
-                    throw PindropMedia.MediaPreparationError.readFailed("No speech could be transcribed from this recording.")
-                }
-
-                let transcriptionMetadata = await generateTranscriptionMetadataIfNeeded(
-                    from: finalText,
-                    managedAsset: managedAsset
-                )
-                try ensureMeetingCaptureCurrent(context, token: token)
-
-                let record = try historyStore.save(
-                    text: finalText,
-                    originalText: nil,
-                    duration: duration,
-                    modelUsed: settingsStore.selectedModel,
-                    enhancedWith: nil,
-                    diarizationSegmentsJSON: diarizationSegmentsJSON,
-                    sourceKind: managedAsset.sourceKind,
-                    sourceDisplayName: managedAsset.displayName,
-                    generatedTitle: transcriptionMetadata.generatedTitle,
-                    aiSummary: transcriptionMetadata.summary,
-                    sourceTitleOrigin: managedAsset.hasSourceMetadataTitle ? .sourceMetadata : .fallback,
-                    originalSourceURL: managedAsset.originalSourceURL,
-                    managedMediaPath: managedAsset.mediaURL.path,
-                    thumbnailPath: managedAsset.thumbnailURL?.path,
-                    folderID: job.destinationFolderID
-                )
-                try ensureMeetingCaptureCurrent(context, token: token)
-                try captureSessionStore.completeMeetingCapture(
-                    context.handle,
-                    transcriptionRecordID: record.id,
-                    at: .now
-                )
-                clearMeetingCaptureContext(ifCurrent: context)
-                updateRecentTranscriptsMenu()
-
-                if operationController.isCurrent(token) {
-                    resetProcessingState()
-                    didResetProcessingState = true
-                }
-                recordingState.completeCurrentJob(with: record.id, message: "Meeting recording transcribed successfully.")
-                let meetingRecordID = record.id
-                mainWindowController.showHistory()
-                // Post after nav so HistoryView is mounted and listening.
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 150_000_000)
-                    NotificationCenter.default.post(
-                        name: .openHistoryRecord,
-                        object: nil,
-                        userInfo: ["recordID": meetingRecordID.uuidString]
-                    )
-                }
-            } catch is CancellationError {
-                guard operationController.isCurrent(token),
-                      isMeetingCaptureContextCurrent(context) else {
-                    return
-                }
-                try cancelActiveMeetingCapture()
-                resetProcessingState()
-                didResetProcessingState = true
-                recordingState.clearCurrentJob()
-                recordingState.message = localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale)
-            } catch {
-                guard operationController.isCurrent(token),
-                      isMeetingCaptureContextCurrent(context),
-                      !Self.isTaskCancellation(error) else {
-                    return
-                }
-                Log.app.error("Manual media transcription failed: \(error)")
-                try failMeetingCapture(context, stage: .finalTranscription, error: error)
-                resetProcessingState()
-                didResetProcessingState = true
-                recordingState.failCurrentJob(error.localizedDescription)
-            }
-        } catch let persistenceError as MeetingCaptureTerminalPersistenceError {
-            throw persistenceError
+            clearMeetingCaptureContext(ifCurrent: context)
+            manualExpectedSpeakerCount = nil
+            resetProcessingState()
+            recordingState.completeCurrentJob(
+                with: recordID,
+                message: "Meeting recording transcribed successfully."
+            )
         } catch is CancellationError {
-            // User cancellation or a stale operation has already invalidated the
-            // active context; cancel only the exact handle when it still owns it.
-            if operationController.isCurrent(token), isMeetingCaptureContextCurrent(context) {
+            // Explicit cancellation already terminally cancelled the durable session.
+            // Lifecycle interruption retains it for startup recovery instead.
+            if isMeetingCaptureContextCurrent(context), operationController.isCurrent(token) {
                 try cancelActiveMeetingCapture()
                 resetStoppedMeetingCaptureState()
+                recordingState.clearCurrentJob()
+                recordingState.message = localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale)
             }
             throw CancellationError()
         } catch {
-            guard operationController.isCurrent(token),
-                  isMeetingCaptureContextCurrent(context),
-                  !Self.isTaskCancellation(error) else {
-                throw CancellationError()
+            if isMeetingCaptureContextCurrent(context) {
+                // Chunk and History failures are durable/retryable and must remain
+                // finalizing rather than being converted to a terminal failure.
+                clearMeetingCaptureContext(ifCurrent: context)
             }
             resetStoppedMeetingCaptureState()
-            try failMeetingCapture(context, stage: nil, error: error)
+            recordingState.failCurrentJob(error.localizedDescription)
             throw error
         }
     }
@@ -7336,10 +7878,28 @@ final class AppCoordinator {
         escapeEventTapRecoveryTask?.cancel()
         cancelPendingNoteAppendStart()
         cancelActiveVoiceNoteCapture()
-        do {
-            try cancelActiveMeetingCapture()
-        } catch {
-            reportMeetingCaptureTerminalPersistenceFailure(error)
+        meetingRecoveryGeneration &+= 1
+        meetingRecoveryTask?.cancel()
+        meetingRecoveryTask = nil
+        meetingRecoveryHandle = nil
+        let interruptedMeeting = meetingCaptureContext
+        if let interruptedMeeting {
+            // `prepareForTermination()` normally owns and awaits tail sealing. This
+            // synchronous fallback must not launch background work during teardown;
+            // it can only persist an interruption against the exact active handle.
+            do {
+                try captureSessionStore.beginMeetingFinalization(interruptedMeeting.handle, at: .now)
+                try captureSessionStore.interruptMeetingCapture(
+                    interruptedMeeting.handle,
+                    errorDomain: "Pindrop",
+                    errorCode: "lifecycle-sync-shutdown",
+                    message: "Meeting capture was interrupted before its tail could be sealed.",
+                    at: .now
+                )
+            } catch {
+                Log.app.warning("Could not persist synchronous meeting interruption: \(error.localizedDescription)")
+            }
+            meetingCaptureContext = nil
         }
         escapeEventTapRecoveryTask = nil
         modifierEventTapRecoveryTask?.cancel()
@@ -7359,7 +7919,9 @@ final class AppCoordinator {
         mediaTranscriptionState.clearAllJobs()
 
         streamingSession.cancelDetached()
-        audioRecorder.resetAudioEngine()
+        if interruptedMeeting == nil {
+            audioRecorder.resetAudioEngine()
+        }
         mediaPauseService.endRecordingSession()
         isRecording = false
         isProcessing = false

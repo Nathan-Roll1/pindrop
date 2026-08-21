@@ -188,12 +188,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Enqueue tracked mid-debounce drafts, close every live editor window,
         // re-enqueue tracked drafts, then await each note's latest save task.
         Task { @MainActor in
-            await NoteEditorPersistenceController.shared.prepareForTermination()
-            coordinator?.shutdown()
-            NotificationCenter.default.removeObserver(self)
-            NSApp.reply(toApplicationShouldTerminate: true)
+            await performTerminationSequence(
+                preparation: { [weak self] in
+                    await NoteEditorPersistenceController.shared.prepareForTermination()
+                    await self?.coordinator?.prepareForTermination()
+                },
+                shutdown: { [weak self] in
+                    guard let self else { return }
+                    self.coordinator?.shutdown()
+                    NotificationCenter.default.removeObserver(self)
+                },
+                reply: {
+                    NSApp.reply(toApplicationShouldTerminate: true)
+                }
+            )
         }
         return .terminateLater
+    }
+
+    func performTerminationSequence(
+        preparation: @MainActor () async -> Void,
+        shutdown: @MainActor () -> Void,
+        reply: @MainActor () -> Void
+    ) async {
+        await preparation()
+        shutdown()
+        reply()
     }
 
     func applicationWillTerminate(_ notification: Notification) {

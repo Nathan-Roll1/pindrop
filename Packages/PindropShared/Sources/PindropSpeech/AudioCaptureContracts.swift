@@ -275,6 +275,24 @@ public struct SourceSeparatedAudioCaptureStopResult: @unchecked Sendable {
     }
 }
 
+/// File-metadata-only terminal outcome for durable meeting capture. Sealed
+/// chunks are persistent artifacts: this result never owns their deletion.
+public struct MeetingRecordingStopResult: Sendable {
+    public let sealedChunks: [SealedAudioSourceChunk]
+    public let microphoneFailure: AudioCaptureSourceFailure?
+    public let systemAudioFailure: AudioCaptureSourceFailure?
+
+    public init(
+        sealedChunks: [SealedAudioSourceChunk],
+        microphoneFailure: AudioCaptureSourceFailure?,
+        systemAudioFailure: AudioCaptureSourceFailure?
+    ) {
+        self.sealedChunks = sealedChunks
+        self.microphoneFailure = microphoneFailure
+        self.systemAudioFailure = systemAudioFailure
+    }
+}
+
 public struct AudioCaptureSourcesUnavailableError: Error, Equatable, Sendable {
     public let microphone: AudioCaptureSourceFailure
     public let systemAudio: AudioCaptureSourceFailure
@@ -322,4 +340,19 @@ extension AudioCaptureBackend {
 /// `AudioCaptureBackend.stopCapture()` remains the compatibility mixed projection.
 public protocol SourceSeparatedAudioCaptureBackend: AudioCaptureBackend {
     func stopSourceSeparatedCapture() throws -> SourceSeparatedAudioCaptureStopResult
+}
+
+/// Opt-in capability for direct-to-library rotating meeting capture. The
+/// recorder configures each physical source before invoking the ordinary capture
+/// start method, so all existing temporary capture APIs remain unchanged.
+public protocol MeetingAudioCaptureBackend: AudioCaptureBackend {
+    func configureMeetingRecording(
+        spoolPlan: MeetingCaptureSpoolPlan,
+        source: CaptureSourceKind,
+        onChunkSealed: @escaping (SealedAudioSourceChunk) -> Void
+    ) throws
+
+    /// Stops hardware if needed, drains the writer, and seals any non-empty tail.
+    /// It is idempotent after a runtime failure or cancellation.
+    func stopMeetingRecording() -> MeetingRecordingStopResult
 }

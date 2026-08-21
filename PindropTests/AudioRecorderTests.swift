@@ -6,6 +6,7 @@
 //
 
 import AVFoundation
+import CryptoKit
 import Testing
 @testable import Pindrop
 import PindropSpeech
@@ -1900,6 +1901,143 @@ struct AudioPCMFileStorageTests {
             let samples = data.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
             #expect(samples == (0..<4).map { buffer.floatChannelData![0][$0] })
         }
+    }
+
+    @Test func durableSpoolRotatesExactlyAtBoundariesAndSealsTail() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AudioPCMFileStorageTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
+        let fullChunk = try #require(
+            MockAudioCaptureBackend.makeSynthesizedBuffer(format: format, frameCount: 4, frequency: 100)
+        )
+        let tail = try #require(
+            MockAudioCaptureBackend.makeSynthesizedBuffer(format: format, frameCount: 2, frequency: 200)
+        )
+        let storage = AudioPCMFileStorage(pendingWriteLimit: 20)
+        let sealedLock = NSLock()
+        var sealed: [AudioPCMFileStorage.SealedDurableChunk] = []
+
+        try storage.startDurable(
+            chunkByteCount: 4 * MemoryLayout<Float>.size,
+            inProgressURL: { sequence in
+                directory.appendingPathComponent("chunk-\(String(format: "%05d", sequence)).pcm.inprogress")
+            },
+            onChunkSealed: { chunk in
+                sealedLock.withLock { sealed.append(chunk) }
+            },
+            onWriteFailure: { _ in Issue.record("durable writer failed unexpectedly") }
+        )
+        for _ in 0..<18 {
+            #expect(storage.enqueue(fullChunk))
+        }
+        #expect(storage.enqueue(tail))
+
+        let terminal = storage.finishDurable()
+        let chunks = sealedLock.withLock { sealed }
+        #expect(terminal.failure == nil)
+        #expect(chunks.count == 19)
+        #expect(chunks.map(\.sequence) == Array(0..<19))
+        #expect(chunks.dropLast().allSatisfy { $0.byteCount == 16 && $0.duration == 0.00025 })
+        #expect(chunks.last?.byteCount == 8)
+        #expect(abs((chunks.last?.startOffset ?? .infinity) - 18 * 0.00025) <= 1.0 / 16_000.0)
+        for chunk in chunks {
+            #expect(FileManager.default.fileExists(atPath: chunk.fileURL.path))
+            #expect(!FileManager.default.fileExists(atPath: "\(chunk.fileURL.path).inprogress"))
+            let expectedHash = SHA256.hash(data: try Data(contentsOf: chunk.fileURL))
+                .map { String(format: "%02x", $0) }
+                .joined()
+            #expect(chunk.sha256 == expectedHash)
+        }
+    }
+
+    @Test func durableDiscardSealsTailInsteadOfDeletingIt() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AudioPCMFileStorageTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
+        let tail = try #require(
+            MockAudioCaptureBackend.makeSynthesizedBuffer(format: format, frameCount: 3, frequency: 100)
+        )
+        let storage = AudioPCMFileStorage()
+        let sealedLock = NSLock()
+        var sealed: [AudioPCMFileStorage.SealedDurableChunk] = []
+
+        try storage.startDurable(
+            chunkByteCount: 16,
+            inProgressURL: { _ in directory.appendingPathComponent("tail.pcm.inprogress") },
+            onChunkSealed: { chunk in sealedLock.withLock { sealed.append(chunk) } },
+            onWriteFailure: { _ in Issue.record("durable writer failed unexpectedly") }
+        )
+        #expect(storage.enqueue(tail))
+        storage.discard()
+
+        let chunks = sealedLock.withLock { sealed }
+        let chunk = try #require(chunks.first)
+        #expect(chunk.byteCount == 12)
+        #expect(FileManager.default.fileExists(atPath: chunk.fileURL.path))
+    }
+
+    @Test func durableFinishDrainsLaggingSealCallbacks() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AudioPCMFileStorageTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
+        let buffer = try #require(
+            MockAudioCaptureBackend.makeSynthesizedBuffer(format: format, frameCount: 4, frequency: 100)
+        )
+        let callbackCompleted = NSLock()
+        var didCompleteCallback = false
+        let storage = AudioPCMFileStorage()
+
+        try storage.startDurable(
+            chunkByteCount: 16,
+            inProgressURL: { _ in directory.appendingPathComponent("chunk.pcm.inprogress") },
+            onChunkSealed: { _ in
+                Thread.sleep(forTimeInterval: 0.02)
+                callbackCompleted.withLock { didCompleteCallback = true }
+            },
+            onWriteFailure: { _ in Issue.record("durable writer failed unexpectedly") }
+        )
+        #expect(storage.enqueue(buffer))
+        let terminal = storage.finishDurable()
+
+        #expect(terminal.failure == nil)
+        #expect(callbackCompleted.withLock { didCompleteCallback })
+    }
+
+    @Test func oneDurableWriterFailureDoesNotDiscardSiblingChunks() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AudioPCMFileStorageTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
+        let buffer = try #require(
+            MockAudioCaptureBackend.makeSynthesizedBuffer(format: format, frameCount: 4, frequency: 100)
+        )
+        let microphone = AudioPCMFileStorage()
+        let systemAudio = AudioPCMFileStorage()
+
+        try microphone.startDurable(
+            chunkByteCount: 16,
+            inProgressURL: { _ in directory.appendingPathComponent("microphone.pcm.inprogress") },
+            onChunkSealed: { _ in },
+            onWriteFailure: { _ in Issue.record("microphone writer failed unexpectedly") }
+        )
+        try systemAudio.startDurable(
+            chunkByteCount: 16,
+            inProgressURL: { _ in URL(fileURLWithPath: "/dev/null/chunk.pcm.inprogress") },
+            onChunkSealed: { _ in },
+            onWriteFailure: { _ in }
+        )
+        #expect(microphone.enqueue(buffer))
+        #expect(systemAudio.enqueue(buffer))
+
+        let microphoneTerminal = microphone.finishDurable()
+        let systemAudioTerminal = systemAudio.finishDurable()
+        #expect(microphoneTerminal.failure == nil)
+        #expect(microphoneTerminal.chunks.count == 1)
+        #expect(FileManager.default.fileExists(atPath: microphoneTerminal.chunks[0].fileURL.path))
+        #expect(systemAudioTerminal.failure != nil)
     }
 }
 

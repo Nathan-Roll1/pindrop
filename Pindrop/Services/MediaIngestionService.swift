@@ -61,8 +61,8 @@ enum MediaIngestionError: Error, LocalizedError {
     case downloadedMediaMissing
     case metadataLookupFailed(String)
     case captureSourceStorageFailed(String)
+    case captureSourceStorageUnsupported
     case captureSourceStorageContentConflict(String)
-
     var errorDescription: String? {
         switch self {
         case .unsupportedInput(let message):
@@ -79,10 +79,13 @@ enum MediaIngestionError: Error, LocalizedError {
             return "Failed to inspect media link: \(message)"
         case .captureSourceStorageFailed(let message):
             return "Capture source storage failed: \(message)"
+        case .captureSourceStorageUnsupported:
+            return "Capture source storage is not supported by this media library."
         case .captureSourceStorageContentConflict(let relativePath):
             return "Capture source storage content conflicts with the existing artifact at \(relativePath)."
-        }
     }
+    }
+
 
     /// Maps package storage/download errors into the app-facing ingestion surface.
     static func fromMediaLibraryError(_ error: MediaLibraryError) -> MediaIngestionError {
@@ -94,7 +97,7 @@ enum MediaIngestionError: Error, LocalizedError {
         case .downloadFailed(let message):
             return .downloadFailed(message)
         case .captureSourceStorageUnsupported:
-            return .captureSourceStorageFailed("Capture source storage is not supported by this media library.")
+            return .captureSourceStorageUnsupported
         case .captureSourceStorageContentConflict(let relativePath):
             return .captureSourceStorageContentConflict(relativePath)
         case .captureSourceStorageFailed(let message):
@@ -365,6 +368,100 @@ final class MediaIngestionService {
                     sourceID: sourceID,
                     chunkSequence: chunkSequence
                 )
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func makeMeetingCaptureSpoolPlan(
+        sessionID: UUID,
+        microphoneSourceID: UUID,
+        systemAudioSourceID: UUID
+    ) async throws -> MeetingCaptureSpoolPlan {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.makeMeetingCaptureSpoolPlan(
+                    sessionID: sessionID,
+                    microphoneSourceID: microphoneSourceID,
+                    systemAudioSourceID: systemAudioSourceID
+                )
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func recoverMeetingArtifacts(
+        for plan: MeetingCaptureSpoolPlan
+    ) async throws -> MeetingArtifactRecoveryResult {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.recoverMeetingArtifacts(for: plan)
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func resolveArtifactURL(for chunk: SealedAudioSourceChunk) async throws -> URL {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.resolveArtifactURL(for: chunk)
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func makeMixedMeetingChunk(
+        sessionID: UUID,
+        sequence: Int,
+        microphone: SealedAudioSourceChunk?,
+        systemAudio: SealedAudioSourceChunk?
+    ) async throws -> ManagedMixedMeetingChunkArtifact {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.makeMixedMeetingChunk(
+                    sessionID: sessionID,
+                    sequence: sequence,
+                    microphone: microphone,
+                    systemAudio: systemAudio
+                )
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func removeMixedMeetingChunk(
+        _ artifact: ManagedMixedMeetingChunkArtifact
+    ) async throws {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            try await Task.detached {
+                try mediaLibrary.removeMixedMeetingChunk(artifact)
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func removeMixedMeetingChunks(for sessionID: UUID) async throws {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            try await Task.detached {
+                try mediaLibrary.removeMixedMeetingChunks(for: sessionID)
             }.value
         } catch let error as MediaLibraryError {
             throw MediaIngestionError.fromMediaLibraryError(error)
