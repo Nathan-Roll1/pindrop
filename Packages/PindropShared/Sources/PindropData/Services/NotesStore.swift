@@ -14,17 +14,30 @@ extension Notification.Name {
     public static let pindropNoteTagsDidChange = Notification.Name("PindropNoteTagsDidChange")
 }
 
+/// Durable result of a speak-to-append write.
+public struct NoteAppendResult: Sendable, Equatable {
+    public let noteID: UUID
+    public let content: String
+    public let sourceTranscriptionID: UUID
+
+    public init(noteID: UUID, content: String, sourceTranscriptionID: UUID) {
+        self.noteID = noteID
+        self.content = content
+        self.sourceTranscriptionID = sourceTranscriptionID
+    }
+}
+
 @MainActor
 @Observable
 public final class NotesStore {
 
-    public enum NotesStoreError: Error, LocalizedError {
+    public enum NotesStoreError: Error, Equatable, LocalizedError {
         case saveFailed(String)
         case fetchFailed(String)
         case deleteFailed(String)
         case searchFailed(String)
         case metadataGenerationFailed(String)
-
+        case noteNotFound(UUID)
         public var errorDescription: String? {
             switch self {
             case .saveFailed(let message):
@@ -37,6 +50,8 @@ public final class NotesStore {
                 return "Failed to search notes: \(message)"
             case .metadataGenerationFailed(let message):
                 return "Failed to generate metadata: \(message)"
+            case .noteNotFound(let id):
+                return "Note \(id.uuidString) was not found."
             }
         }
     }
@@ -80,13 +95,14 @@ public final class NotesStore {
         noteTagsChangeObserverRegistration.tearDown()
     }
 
+    @discardableResult
     public func create(
         title: String? = nil,
         content: String,
         tags: [String]? = nil,
         sourceTranscriptionID: UUID? = nil,
         generateMetadata: Bool = false
-    ) async throws {
+    ) async throws -> Note {
         var finalTitle = title
         var finalTags = tags
 
@@ -134,15 +150,98 @@ public final class NotesStore {
             tags: finalTags!,
             sourceTranscriptionID: sourceTranscriptionID
         )
-
-        modelContext.insert(note)
+        let creationContext = ModelContext(modelContext.container)
+        creationContext.insert(note)
 
         do {
-            try modelContext.save()
-            invalidateUniqueTagsCache()
+            try creationContext.save()
         } catch {
             throw NotesStoreError.saveFailed(error.localizedDescription)
         }
+        invalidateUniqueTagsCache()
+
+        let noteID = note.id
+        var descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate<Note> { $0.id == noteID }
+        )
+        descriptor.fetchLimit = 1
+        do {
+            guard let durableNote = try modelContext.fetch(descriptor).first else {
+                throw NotesStoreError.noteNotFound(note.id)
+            }
+            return durableNote
+        } catch let error as NotesStoreError {
+            throw error
+        } catch {
+            throw NotesStoreError.fetchFailed(error.localizedDescription)
+        }
+    }
+
+    /// Checks durable note existence from a context that cannot return a stale registered model.
+    public func contains(id: UUID) throws -> Bool {
+        let context = ModelContext(modelContext.container)
+        var descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate<Note> { note in
+                note.id == id
+            }
+        )
+        descriptor.fetchLimit = 1
+
+        do {
+            return try context.fetch(descriptor).first != nil
+        } catch {
+            throw NotesStoreError.fetchFailed(error.localizedDescription)
+        }
+    }
+
+    /// Appends a committed transcript to a durable note.
+    ///
+    /// The first originating transcription remains authoritative when a note
+    /// receives multiple append operations.
+    @discardableResult
+    public func appendTranscript(
+        to noteID: UUID,
+        content: String,
+        sourceTranscriptionID: UUID
+    ) throws -> NoteAppendResult {
+        let context = ModelContext(modelContext.container)
+        var descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate<Note> { note in
+                note.id == noteID
+            }
+        )
+        descriptor.fetchLimit = 1
+
+        let note: Note
+        do {
+            guard let fetchedNote = try context.fetch(descriptor).first else {
+                throw NotesStoreError.noteNotFound(noteID)
+            }
+            note = fetchedNote
+        } catch let error as NotesStoreError {
+            throw error
+        } catch {
+            throw NotesStoreError.fetchFailed(error.localizedDescription)
+        }
+
+        note.content = NoteContentAppend.append(transcript: content, to: note.content)
+        let effectiveSourceTranscriptionID = note.sourceTranscriptionID ?? sourceTranscriptionID
+        if note.sourceTranscriptionID == nil {
+            note.sourceTranscriptionID = effectiveSourceTranscriptionID
+        }
+        note.updatedAt = Date()
+
+        do {
+            try context.save()
+        } catch {
+            throw NotesStoreError.saveFailed(error.localizedDescription)
+        }
+
+        return NoteAppendResult(
+            noteID: note.id,
+            content: note.content,
+            sourceTranscriptionID: effectiveSourceTranscriptionID
+        )
     }
 
     public func fetchAll() throws -> [Note] {

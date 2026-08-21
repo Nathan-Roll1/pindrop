@@ -448,4 +448,82 @@ struct NotesStoreTests {
         #expect(try notesStore.getAllUniqueTags() == ["keep"])
         #expect(try #require(try notesStore.fetchAll().first).isPinned)
     }
+
+    @Test func createReturnsADurableNoteVisibleFromAFreshContext() async throws {
+        let container = try PindropModelContainerFactory.makeInMemoryContainer()
+        let store = NotesStore(
+            modelContext: ModelContext(container),
+            metadataGenerator: { _, _ in nil }
+        )
+
+        let created = try await store.create(
+            title: "Durable",
+            content: "Created through the store."
+        )
+
+        let freshContext = ModelContext(container)
+        let persisted = try #require(
+            freshContext.fetch(FetchDescriptor<Note>()).first { $0.id == created.id }
+        )
+        #expect(persisted.title == "Durable")
+        #expect(persisted.content == "Created through the store.")
+        #expect(try store.contains(id: created.id))
+    }
+
+    @Test func appendTranscriptPersistsThroughAFreshContextAndPreservesFirstSource() async throws {
+        let container = try PindropModelContainerFactory.makeInMemoryContainer()
+        let store = NotesStore(
+            modelContext: ModelContext(container),
+            metadataGenerator: { _, _ in nil }
+        )
+        let firstSourceID = UUID()
+        let created = try await store.create(
+            title: "Append",
+            content: "Opening"
+        )
+        let secondSourceID = UUID()
+
+        let firstAppend = try store.appendTranscript(
+            to: created.id,
+            content: "first transcript",
+            sourceTranscriptionID: firstSourceID
+        )
+        let secondAppend = try store.appendTranscript(
+            to: created.id,
+            content: "second transcript",
+            sourceTranscriptionID: secondSourceID
+        )
+
+        let firstResultSourceID: UUID = firstAppend.sourceTranscriptionID
+        #expect(firstAppend.content == "Opening first transcript")
+        #expect(firstResultSourceID == firstSourceID)
+        let repeatedResultSourceID: UUID = secondAppend.sourceTranscriptionID
+        #expect(secondAppend.content == "Opening first transcript second transcript")
+        #expect(repeatedResultSourceID == firstSourceID)
+
+        let freshContext = ModelContext(container)
+        let persisted = try #require(
+            freshContext.fetch(FetchDescriptor<Note>()).first { $0.id == created.id }
+        )
+        #expect(persisted.content == secondAppend.content)
+        #expect(persisted.sourceTranscriptionID == firstSourceID)
+    }
+
+    @Test func appendTranscriptRejectsMissingDurableNote() throws {
+        let container = try PindropModelContainerFactory.makeInMemoryContainer()
+        let store = NotesStore(
+            modelContext: ModelContext(container),
+            metadataGenerator: { _, _ in nil }
+        )
+        let missingNoteID = UUID()
+
+        #expect(throws: NotesStore.NotesStoreError.noteNotFound(missingNoteID)) {
+            try store.appendTranscript(
+                to: missingNoteID,
+                content: "Transcript",
+                sourceTranscriptionID: UUID()
+            )
+        }
+        #expect(try !store.contains(id: missingNoteID))
+    }
 }

@@ -59,11 +59,11 @@ struct HistoryStoreTests {
         try? FileManager.default.removeItem(at: referenceStoreURL.deletingLastPathComponent())
     }
 
-    @Test func repairServiceRecreatesMissingPromptPresetTableWhenMetadataVersionMatches() throws {
+    @Test func repairServiceRecreatesMissingV13CaptureTableWithV13Metadata() throws {
         try requireSQLiteSupport()
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let storeURL = directoryURL.appendingPathComponent("missing-prompt-preset.store")
+        let storeURL = directoryURL.appendingPathComponent("missing-v13-capture-table.store")
         let repairService = SwiftDataStoreRepairService()
 
         let seedContainer = try makeCurrentContainer(at: storeURL)
@@ -76,17 +76,21 @@ struct HistoryStoreTests {
             )
         )
         try seedContext.save()
+        try flushSQLiteStore(at: storeURL)
+        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v13.rawValue)
+        #expect(try tableExists(named: "ZCAPTURESESSIONMODEL", at: storeURL))
 
         try withDatabase(at: storeURL) { database in
-            try execute("DROP TABLE ZPROMPTPRESET", on: database)
+            try execute("DROP TABLE ZCAPTURESTAGEPROVIDERSNAPSHOTMODEL", on: database)
         }
 
-        #expect(try tableExists(named: "ZPROMPTPRESET", at: storeURL) == false)
+        #expect(try tableExists(named: "ZCAPTURESTAGEPROVIDERSNAPSHOTMODEL", at: storeURL) == false)
 
         let repairOutcome = try repairService.repairIfNeeded(storeURL: storeURL)
         #expect(repairOutcome.repaired)
         #expect(repairOutcome.backupDirectoryURL != nil)
-        #expect(try tableExists(named: "ZPROMPTPRESET", at: storeURL))
+        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v13.rawValue)
+        #expect(try tableExists(named: "ZCAPTURESTAGEPROVIDERSNAPSHOTMODEL", at: storeURL))
 
         let repairedContainer = try makeCurrentContainer(at: storeURL)
         let repairedContext = ModelContext(repairedContainer)
@@ -280,12 +284,12 @@ struct HistoryStoreTests {
         try? FileManager.default.removeItem(at: directoryURL)
     }
 
-    @Test func repairServiceLeavesHealthyCurrentStoreUntouched() throws {
+    @Test func repairServiceLeavesHealthyV13StoreUntouched() throws {
         try requireSQLiteSupport()
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        let storeURL = directoryURL.appendingPathComponent("healthy-current.store")
+        let storeURL = directoryURL.appendingPathComponent("healthy-v13.store")
         let repairService = SwiftDataStoreRepairService()
 
         try autoreleasepool {
@@ -301,22 +305,46 @@ struct HistoryStoreTests {
             try context.save()
         }
         try flushSQLiteStore(at: storeURL)
+        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v13.rawValue)
+        #expect(try tableExists(named: "ZCAPTURESESSIONMODEL", at: storeURL))
 
         let outcome = try repairService.repairIfNeeded(storeURL: storeURL)
         #expect(outcome.repaired == false)
+        #expect(outcome.backupDirectoryURL == nil)
 
         try? FileManager.default.removeItem(at: directoryURL)
     }
 
-    // Regression for https://github.com/watzon/pindrop/issues/78: a store can
-    // carry current V12 metadata while still missing columns from earlier
-    // lightweight migrations. Version metadata and object-name checks alone
-    // must not cause the repair path to treat that store as healthy.
-    @Test func repairServiceRestoresCurrentMetadataStoreWithMissingColumns() throws {
+    @Test func repairServiceRepairsV12StoreWithoutCaptureTablesUsingV12Artifacts() throws {
         try requireSQLiteSupport()
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let storeURL = directoryURL.appendingPathComponent("incomplete-current.store")
+        let storeURL = directoryURL.appendingPathComponent("bricked-v12.store")
+        let v11ReferenceStoreURL = directoryURL.appendingPathComponent("v11-reference.store")
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let repairService = SwiftDataStoreRepairService()
+
+        try createV12Store(at: storeURL)
+        try createV11Store(at: v11ReferenceStoreURL)
+        #expect(try tableExists(named: "ZCAPTURESESSIONMODEL", at: storeURL) == false)
+
+        try overwriteMetadataAndModelCache(at: storeURL, using: v11ReferenceStoreURL)
+
+        let outcome = try repairService.repairIfNeeded(storeURL: storeURL)
+        #expect(outcome.repaired)
+        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v12.rawValue)
+        #expect(try tableExists(named: "ZCAPTURESESSIONMODEL", at: storeURL) == false)
+    }
+
+    // Regression for https://github.com/watzon/pindrop/issues/78: a store can
+    // carry current V13 metadata while still missing columns from earlier
+    // lightweight migrations. Version metadata and object-name checks alone
+    // must not cause the repair path to treat that store as healthy.
+    @Test func repairServiceRestoresV13MetadataStoreWithMissingColumns() throws {
+        try requireSQLiteSupport()
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let storeURL = directoryURL.appendingPathComponent("incomplete-v13.store")
         defer { try? FileManager.default.removeItem(at: directoryURL) }
         let repairService = SwiftDataStoreRepairService(
             fileManager: .default,
@@ -386,6 +414,8 @@ struct HistoryStoreTests {
             try context.save()
         }
         try flushSQLiteStore(at: storeURL)
+        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v13.rawValue)
+        #expect(try tableExists(named: "ZCAPTURESESSIONMODEL", at: storeURL))
 
         try withDatabase(at: storeURL) { database in
             for missingColumn in missingColumns {
@@ -405,6 +435,7 @@ struct HistoryStoreTests {
         let outcome = try repairService.repairIfNeeded(storeURL: storeURL)
         #expect(outcome.repaired)
         #expect(outcome.backupDirectoryURL != nil)
+        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v13.rawValue)
 
         let repairedContainer = try AppDelegate.makeModelContainer(at: storeURL)
         let repairedContext = ModelContext(repairedContainer)
@@ -642,6 +673,17 @@ struct HistoryStoreTests {
         try flushSQLiteStore(at: storeURL)
     }
 
+    private func createV12Store(at storeURL: URL) throws {
+        try FileManager.default.createDirectory(at: storeURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try autoreleasepool {
+            let schema = Schema(versionedSchema: TranscriptionRecordSchemaV12.self)
+            let configuration = ModelConfiguration(schema: schema, url: storeURL)
+            let container = try ModelContainer(for: schema, configurations: configuration)
+            try container.mainContext.save()
+        }
+        try flushSQLiteStore(at: storeURL)
+    }
+
     private func createV11Store(at storeURL: URL) throws {
         try FileManager.default.createDirectory(at: storeURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try autoreleasepool {
@@ -740,6 +782,16 @@ struct HistoryStoreTests {
             let count = Int(sqlite3_column_bytes(statement, 0))
             return Data(bytes: bytes, count: count)
         }
+    }
+
+    private func metadataVersionIdentifier(at storeURL: URL) throws -> String? {
+        let metadataBlob = try fetchBlob(
+            sql: "SELECT Z_PLIST FROM Z_METADATA LIMIT 1",
+            at: storeURL
+        )
+        let plist = try PropertyListSerialization.propertyList(from: metadataBlob, format: nil)
+        let dictionary = plist as? [String: Any]
+        return (dictionary?["NSStoreModelVersionIdentifiers"] as? [String])?.first
     }
 
     private func updateBlob(sql: String, blob: Data, on database: OpaquePointer) throws {

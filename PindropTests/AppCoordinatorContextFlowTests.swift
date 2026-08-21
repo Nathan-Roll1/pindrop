@@ -12,6 +12,7 @@ import Testing
 @testable import Pindrop
 import PindropSpeech
 import PindropCore
+import PindropData
 
 @MainActor
 @Suite
@@ -68,6 +69,157 @@ struct AppCoordinatorContextFlowTests {
         #expect(admission.claim(.noteAppend(UUID())) == nil)
         admission.release(second)
         #expect(admission.claim(.dictation)?.route == .dictation)
+    }
+    @Test func voiceNoteLinkageUsesHistoryIDsForNotesAndRevisionIDsForCompletion() {
+        let historyRecordID = UUID()
+        let finalRevisionID = UUID()
+        let linkageIDs = VoiceNoteLinkageIDs(
+            historyRecordID: historyRecordID,
+            finalTranscriptRevisionID: finalRevisionID
+        )
+
+        #expect(linkageIDs.historyRecordID == historyRecordID)
+        #expect(linkageIDs.finalTranscriptRevisionID == finalRevisionID)
+        #expect(linkageIDs.historyRecordID != linkageIDs.finalTranscriptRevisionID)
+    }
+
+    @Test func voiceNoteCaptureAdmissionAndComparisonAreHandleExact() {
+        let activeHandle = VoiceNoteCaptureHandle(
+            sessionID: UUID(),
+            microphoneSourceID: UUID()
+        )
+        let differentHandle = VoiceNoteCaptureHandle(
+            sessionID: activeHandle.sessionID,
+            microphoneSourceID: UUID()
+        )
+
+        #expect(AppCoordinator.canBeginVoiceNoteCapture(activeHandle: nil))
+        #expect(!AppCoordinator.canBeginVoiceNoteCapture(activeHandle: activeHandle))
+        #expect(
+            AppCoordinator.isVoiceNoteCaptureCurrent(
+                activeHandle: activeHandle,
+                candidateHandle: activeHandle
+            )
+        )
+        #expect(
+            !AppCoordinator.isVoiceNoteCaptureCurrent(
+                activeHandle: activeHandle,
+                candidateHandle: differentHandle
+            )
+        )
+    }
+
+    @Test func postTranscriptionFailureOnlyTerminatesCurrentExactVoiceNoteCapture() {
+        struct PostProcessingError: Error {}
+
+        let controller = DictationOperationController()
+        let token = controller.begin()
+        let handle = VoiceNoteCaptureHandle(
+            sessionID: UUID(),
+            microphoneSourceID: UUID()
+        )
+        let differentHandle = VoiceNoteCaptureHandle(
+            sessionID: handle.sessionID,
+            microphoneSourceID: UUID()
+        )
+
+        #expect(
+            AppCoordinator.shouldEmitOperationFailureSideEffects(
+                isOperationCurrent: controller.isCurrent(token),
+                error: PostProcessingError()
+            )
+        )
+        #expect(
+            AppCoordinator.isVoiceNoteCaptureCurrent(
+                activeHandle: handle,
+                candidateHandle: handle
+            )
+        )
+        #expect(
+            !AppCoordinator.isVoiceNoteCaptureCurrent(
+                activeHandle: handle,
+                candidateHandle: differentHandle
+            )
+        )
+
+        controller.cancel()
+        let newerToken = controller.begin()
+        #expect(controller.isCurrent(newerToken))
+        #expect(
+            !AppCoordinator.shouldEmitOperationFailureSideEffects(
+                isOperationCurrent: controller.isCurrent(token),
+                error: PostProcessingError()
+            )
+        )
+        #expect(
+            !AppCoordinator.shouldEmitOperationFailureSideEffects(
+                isOperationCurrent: true,
+                error: CancellationError()
+            )
+        )
+    }
+
+    @Test func pendingNoteAppendCaptureOwnershipIsRequestAndHandleExact() {
+        let editorID = UUID()
+        let noteID = UUID()
+        let handle = VoiceNoteCaptureHandle(
+            sessionID: UUID(),
+            microphoneSourceID: UUID()
+        )
+        let differentHandle = VoiceNoteCaptureHandle(
+            sessionID: handle.sessionID,
+            microphoneSourceID: UUID()
+        )
+
+        #expect(
+            AppCoordinator.isPendingNoteAppendCaptureCurrent(
+                pendingEditorID: editorID,
+                pendingNoteID: noteID,
+                pendingHandle: handle,
+                candidateEditorID: editorID,
+                candidateNoteID: noteID,
+                candidateHandle: handle
+            )
+        )
+        #expect(
+            !AppCoordinator.isPendingNoteAppendCaptureCurrent(
+                pendingEditorID: editorID,
+                pendingNoteID: noteID,
+                pendingHandle: handle,
+                candidateEditorID: UUID(),
+                candidateNoteID: noteID,
+                candidateHandle: handle
+            )
+        )
+        #expect(
+            !AppCoordinator.isPendingNoteAppendCaptureCurrent(
+                pendingEditorID: editorID,
+                pendingNoteID: noteID,
+                pendingHandle: handle,
+                candidateEditorID: editorID,
+                candidateNoteID: noteID,
+                candidateHandle: differentHandle
+            )
+        )
+    }
+
+    @Test func noteAppendNotificationKeepsEffectiveSourceTranscriptionID() {
+        let firstSourceTranscriptionID = UUID()
+        let newAppendHistoryRecordID = UUID()
+        let append = NoteAppendResult(
+            noteID: UUID(),
+            content: "First transcript\n\nSecond transcript",
+            sourceTranscriptionID: firstSourceTranscriptionID
+        )
+
+        #expect(
+            AppCoordinator.noteAppendNotificationSourceTranscriptionID(append)
+                == firstSourceTranscriptionID
+        )
+        #expect(
+            AppCoordinator.noteAppendNotificationSourceTranscriptionID(append)
+                != newAppendHistoryRecordID
+        )
     }
 
     private func makeContextEngine() -> (

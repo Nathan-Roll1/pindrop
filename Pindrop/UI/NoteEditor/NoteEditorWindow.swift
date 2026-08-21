@@ -216,6 +216,9 @@ struct NoteEditorView: View {
     @State private var autosaveTask: Task<Void, Never>?
     @State private var lastSavedSnapshot: NoteSnapshot?
     @State private var editorID = UUID()
+    @State private var appendRequestState = NoteAppendEditorRequestState()
+    @State private var appendStartPreflightTask: Task<Void, Never>?
+    @State private var appendStopFlushTask: Task<Void, Never>?
     @State private var lastEditedAt = Date()
     /// Displayed word count — updated independently of Markdown editor rendering.
     @State private var displayedWordCount = 0
@@ -239,15 +242,28 @@ struct NoteEditorView: View {
         onPinChange: @escaping (Bool) -> Void = { _ in }
     ) {
         self.note = note
+        self._currentNote = State(initialValue: note)
         self.isNewNote = isNewNote
         self.onClose = onClose
         self.onSave = onSave
         self.onPinChange = onPinChange
     }
-
     private var isThisEditorListening: Bool {
         appendSessionState.activeEditorID == editorID
+            && appendSessionState.activeNoteID == currentNote?.id
             && (appendSessionState.isListening || appendSessionState.isProcessing)
+    }
+
+    private var isAppendRequested: Bool {
+        appendRequestState.isLocked(for: currentNote?.id)
+    }
+
+    private var isAppendLocked: Bool {
+        isAppendRequested || isThisEditorListening
+    }
+
+    private var shouldStopSpeakToAppend: Bool {
+        isAppendRequested || isThisEditorListening
     }
 
     private var wordCountLabel: String {
@@ -299,9 +315,7 @@ struct NoteEditorView: View {
                         isPinned = refreshed.isPinned
                         tags = refreshed.tags
                         lastEditedAt = refreshed.updatedAt
-                        if !isNewNote {
-                            currentNote = refreshed
-                        }
+                        currentNote = refreshed
                         lastSavedSnapshot = NoteSnapshot(note: refreshed)
                         displayedWordCount = refreshed.content.wordCount
                     } else {
@@ -328,13 +342,22 @@ struct NoteEditorView: View {
         }
         .onDisappear {
             savedConfirmationTask?.cancel()
+            let requestedNoteID = appendRequestState.requestedNoteID
+            appendStartPreflightTask?.cancel()
+            appendStartPreflightTask = nil
+            appendStopFlushTask?.cancel()
+            appendStopFlushTask = nil
             autosaveTask?.cancel()
             wordCountTask?.cancel()
             // Synchronously enqueue the newest draft on the shared owner, then
             // retain a flush task so close/quit can await durability.
             enqueueCloseSaveIfNeeded()
-            if appendSessionState.activeEditorID == editorID {
-                NoteAppendListeningCoordinator.shared.requestStop(editorID: editorID)
+            if let noteID = requestedNoteID
+                ?? (isThisEditorListening ? currentNote?.id : nil) {
+                NoteAppendListeningCoordinator.shared.requestStop(
+                    editorID: editorID,
+                    noteID: noteID
+                )
             }
         }
         .onChange(of: title) { _, _ in
@@ -351,11 +374,56 @@ struct NoteEditorView: View {
         .onChange(of: tags) { _, _ in
             noteDidChange()
         }
+        .onChange(of: appendSessionState.isListening) { _, _ in
+            clearAppendRequestAfterSessionFinish()
+        }
+        .onChange(of: appendSessionState.isProcessing) { _, _ in
+            clearAppendRequestAfterSessionFinish()
+        }
+        .onChange(of: appendSessionState.activeEditorID) { _, _ in
+            clearAppendRequestAfterSessionFinish()
+        }
+        .onChange(of: appendSessionState.activeNoteID) { _, _ in
+            clearAppendRequestAfterSessionFinish()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .noteSpeakToAppendTranscript)) { notification in
-            guard let targetID = notification.userInfo?["editorID"] as? UUID,
-                  targetID == editorID,
-                  let text = notification.userInfo?["text"] as? String else { return }
-            content = NoteContentAppend.append(transcript: text, to: content)
+            guard let payload = NoteAppendCommittedPayload(notification: notification),
+                  let currentNote
+            else {
+                return
+            }
+
+            let isAlreadyCommitted = content == payload.content
+                && currentNote.sourceTranscriptionID == payload.sourceTranscriptionID
+            guard payload.apply(to: currentNote, for: editorID) else { return }
+
+            appendRequestState.clearAfterCommittedDelivery(noteID: payload.noteID)
+            guard !isAlreadyCommitted else { return }
+
+            // Record the committed durable body before changing the binding so the
+            // binding observer cannot queue an autosave over the coordinator write.
+            lastSavedSnapshot = NoteSnapshot(
+                title: title.isEmpty ? "Untitled Note" : title,
+                content: payload.content,
+                isPinned: isPinned,
+                tags: tags
+            )
+            content = payload.content
+            onSave(currentNote)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .noteSpeakToAppendRejected)) { notification in
+            guard let payload = NoteAppendRejectedPayload(notification: notification),
+                  let requestedNoteID = appendRequestState.requestedNoteID,
+                  payload.matches(editorID: editorID, noteID: requestedNoteID)
+            else {
+                return
+            }
+
+            appendRequestState.clearAfterStartRejected(noteID: payload.noteID)
+            appendStartPreflightTask?.cancel()
+            appendStartPreflightTask = nil
+            appendStopFlushTask?.cancel()
+            appendStopFlushTask = nil
         }
     }
 
@@ -392,6 +460,7 @@ struct NoteEditorView: View {
                     ? localized("Unpin from screen", locale: locale)
                     : localized("Pin to screen (always on top)", locale: locale)
             )
+            .disabled(isAppendLocked)
         }
         .padding(.horizontal, 24)
         .frame(height: 46)
@@ -406,23 +475,24 @@ struct NoteEditorView: View {
     private var speakToAppendButton: some View {
         Button(action: toggleSpeakToAppend) {
             HStack(spacing: 4) {
-                Image(systemName: isThisEditorListening ? "stop.circle.fill" : "mic.fill")
+                Image(systemName: shouldStopSpeakToAppend ? "stop.circle.fill" : "mic.fill")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(isThisEditorListening ? AppColors.recording : AppColors.textSecondary)
+                    .foregroundStyle(
+                        shouldStopSpeakToAppend ? AppColors.recording : AppColors.textSecondary
+                    )
             }
         }
         .buttonStyle(.plain)
         .help(
-            isThisEditorListening
+            shouldStopSpeakToAppend
                 ? localized("Stop listening", locale: locale)
                 : localized("Speak to append", locale: locale)
         )
         .accessibilityLabel(
-            isThisEditorListening
+            shouldStopSpeakToAppend
                 ? localized("Stop listening", locale: locale)
                 : localized("Speak to append", locale: locale)
         )
-        .disabled(appendSessionState.isProcessing && isThisEditorListening)
     }
 
     // MARK: - Editor content
@@ -443,6 +513,7 @@ struct NoteEditorView: View {
             MarkdownEditor(text: $content)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .disabled(isAppendLocked)
         .padding(.horizontal, 24)
         .padding(.top, 16)
         .padding(.bottom, 8)
@@ -523,10 +594,169 @@ struct NoteEditorView: View {
     // MARK: - Actions
 
     private func toggleSpeakToAppend() {
-        if isThisEditorListening {
-            NoteAppendListeningCoordinator.shared.requestStop(editorID: editorID)
+        if shouldStopSpeakToAppend {
+            requestSpeakToAppendStop()
         } else {
-            NoteAppendListeningCoordinator.shared.requestStart(editorID: editorID)
+            requestSpeakToAppendStart()
+        }
+    }
+
+    /// Synchronously claims local ownership before its asynchronous preflight,
+    /// preventing any post-Start draft mutation from racing the append commit.
+    private func requestSpeakToAppendStart() {
+        guard appendRequestState.requestedNoteID == nil,
+              let noteToSave = currentNote
+        else {
+            return
+        }
+
+        let modelID = noteToSave.persistentModelID
+        let noteID = noteToSave.id
+        let container = modelContext.container
+        appendRequestState.requestStart(noteID: noteID)
+        autosaveTask?.cancel()
+        autosaveTask = nil
+
+        appendStartPreflightTask = Task { @MainActor in
+            defer {
+                appendStartPreflightTask = nil
+            }
+
+            while !Task.isCancelled {
+                guard let currentNote,
+                      currentNote.persistentModelID == modelID,
+                      currentNote.id == noteID,
+                      appendRequestState.isLocked(for: noteID)
+                else {
+                    return
+                }
+
+                let snapshot = currentSnapshot()
+                let editedAt = lastEditedAt
+                lastSavedSnapshot = snapshot
+
+                let result = await NoteEditorPersistenceController.shared.saveAndWait(
+                    container: container,
+                    modelID: modelID,
+                    snapshot: snapshot,
+                    editedAt: editedAt
+                )
+
+                guard !Task.isCancelled else { return }
+                guard appendRequestState.isLocked(for: noteID),
+                      currentSnapshot() == snapshot
+                else {
+                    continue
+                }
+                guard let result,
+                      result.applied,
+                      result.generation == NoteEditorPersistenceController.shared.currentGeneration(for: modelID)
+                else {
+                    if lastSavedSnapshot == snapshot {
+                        lastSavedSnapshot = nil
+                    }
+                    appendRequestState.clearAfterCommittedDelivery(noteID: noteID)
+                    return
+                }
+
+                await handlePersistenceResult(
+                    result,
+                    modelID: modelID,
+                    noteToSave: currentNote,
+                    snapshot: snapshot,
+                    editedAt: editedAt
+                )
+
+                guard appendRequestState.isLocked(for: noteID),
+                      currentSnapshot() == snapshot,
+                      currentNote.id == noteID
+                else {
+                    continue
+                }
+
+                NoteAppendListeningCoordinator.shared.requestStart(
+                    editorID: editorID,
+                    noteID: noteID
+                )
+                return
+            }
+        }
+    }
+
+    /// Cancels deferred work and posts Stop only after the exact current
+    /// snapshot has been durably saved.
+    private func requestSpeakToAppendStop() {
+        guard let noteToSave = currentNote,
+              let noteID = appendRequestState.requestedNoteID
+                ?? (isThisEditorListening ? currentNote?.id : nil)
+        else {
+            return
+        }
+
+        appendStartPreflightTask?.cancel()
+        appendStartPreflightTask = nil
+        autosaveTask?.cancel()
+        autosaveTask = nil
+
+        let modelID = noteToSave.persistentModelID
+        let container = modelContext.container
+        appendStopFlushTask?.cancel()
+        appendStopFlushTask = Task { @MainActor in
+            defer {
+                appendStopFlushTask = nil
+            }
+
+            while !Task.isCancelled {
+                guard let currentNote,
+                      currentNote.persistentModelID == modelID,
+                      currentNote.id == noteID,
+                      appendRequestState.isLocked(for: noteID) || isThisEditorListening
+                else {
+                    return
+                }
+
+                let snapshot = currentSnapshot()
+                let editedAt = lastEditedAt
+                lastSavedSnapshot = snapshot
+                let result = await NoteEditorPersistenceController.shared.saveAndWait(
+                    container: container,
+                    modelID: modelID,
+                    snapshot: snapshot,
+                    editedAt: editedAt
+                )
+
+                guard !Task.isCancelled else { return }
+                guard currentSnapshot() == snapshot else { continue }
+                guard let result,
+                      result.applied,
+                      result.generation == NoteEditorPersistenceController.shared.currentGeneration(for: modelID)
+                else {
+                    if lastSavedSnapshot == snapshot {
+                        lastSavedSnapshot = nil
+                    }
+                    return
+                }
+
+                await handlePersistenceResult(
+                    result,
+                    modelID: modelID,
+                    noteToSave: currentNote,
+                    snapshot: snapshot,
+                    editedAt: editedAt
+                )
+
+                guard currentSnapshot() == snapshot,
+                      currentNote.id == noteID
+                else {
+                    continue
+                }
+
+                NoteAppendListeningCoordinator.shared.requestStop(
+                    editorID: editorID,
+                    noteID: noteID
+                )
+                return
+            }
         }
     }
 
@@ -537,9 +767,7 @@ struct NoteEditorView: View {
             isPinned = note.isPinned
             tags = note.tags
             lastEditedAt = note.updatedAt
-            if !isNewNote {
-                currentNote = note
-            }
+            currentNote = note
             lastSavedSnapshot = NoteSnapshot(note: note)
             displayedWordCount = note.content.wordCount
         } else {
@@ -653,6 +881,15 @@ struct NoteEditorView: View {
         )
     }
 
+    private func clearAppendRequestAfterSessionFinish() {
+        appendRequestState.clearAfterSessionFinishes(
+            isListening: appendSessionState.isListening,
+            isProcessing: appendSessionState.isProcessing,
+            activeEditorID: appendSessionState.activeEditorID,
+            activeNoteID: appendSessionState.activeNoteID
+        )
+    }
+
     private func handlePersistenceResult(
         _ result: NotePersistenceResult?,
         modelID: PersistentIdentifier,
@@ -687,12 +924,21 @@ struct NoteEditorView: View {
     }
 
     private func saveNow() {
+        // The preflight/stop paths own durable snapshots while appending; a
+        // concurrent manual save could otherwise overwrite the committed append.
+        guard !isAppendLocked else { return }
+
         autosaveTask?.cancel()
         saveNote(immediate: true)
         showSavedFlash()
     }
 
     private func noteDidChange() {
+        let snapshot = currentSnapshot()
+        // A committed append sets this first, so its binding update cannot queue
+        // an autosave that races the coordinator's direct store commit.
+        guard snapshot != lastSavedSnapshot else { return }
+
         lastEditedAt = Date()
         // Capture the latest draft synchronously before the 500ms debounce so quit
         // can persist mid-debounce edits without relying on onDisappear timing.
@@ -700,7 +946,7 @@ struct NoteEditorView: View {
             NoteEditorPersistenceController.shared.trackDraft(
                 container: modelContext.container,
                 modelID: noteToSave.persistentModelID,
-                snapshot: currentSnapshot(),
+                snapshot: snapshot,
                 editedAt: lastEditedAt
             )
         }
@@ -1147,11 +1393,18 @@ final class NoteAppendSessionState: ObservableObject {
     @Published private(set) var isListening = false
     @Published private(set) var isProcessing = false
     @Published private(set) var activeEditorID: UUID?
+    @Published private(set) var activeNoteID: UUID?
 
-    fileprivate func apply(isListening: Bool, isProcessing: Bool, activeEditorID: UUID?) {
+    fileprivate func apply(
+        isListening: Bool,
+        isProcessing: Bool,
+        activeEditorID: UUID?,
+        activeNoteID: UUID?
+    ) {
         if self.isListening != isListening { self.isListening = isListening }
         if self.isProcessing != isProcessing { self.isProcessing = isProcessing }
         if self.activeEditorID != activeEditorID { self.activeEditorID = activeEditorID }
+        if self.activeNoteID != activeNoteID { self.activeNoteID = activeNoteID }
     }
 }
 
@@ -1162,19 +1415,22 @@ final class NoteAppendListeningCoordinatorBox {
     let sessionState = NoteAppendSessionState()
 
     private var sessionStateCancellable: AnyCancellable?
+    private let notificationCenter: NotificationCenter
 
-    init() {
+    init(notificationCenter: NotificationCenter = .default) {
+        self.notificationCenter = notificationCenter
         // All source mutations are main-actor isolated, so mirror synchronously.
         // Scheduling onto RunLoop.main introduced a stale-state window between a
         // session transition and the editor deciding whether Start or Stop applies.
         sessionStateCancellable = state.$isListening
-            .combineLatest(state.$isProcessing, state.$activeEditorID)
-            .sink { [weak self] isListening, isProcessing, activeEditorID in
+            .combineLatest(state.$isProcessing, state.$activeEditorID, state.$activeNoteID)
+            .sink { [weak self] isListening, isProcessing, activeEditorID, activeNoteID in
                 guard let self else { return }
                 self.sessionState.apply(
                     isListening: isListening,
                     isProcessing: isProcessing,
-                    activeEditorID: activeEditorID
+                    activeEditorID: activeEditorID,
+                    activeNoteID: activeNoteID
                 )
             }
     }
@@ -1183,19 +1439,27 @@ final class NoteAppendListeningCoordinatorBox {
         sessionStateCancellable?.cancel()
     }
 
-    func requestStart(editorID: UUID) {
-        NotificationCenter.default.post(
+    func requestStart(editorID: UUID, noteID: UUID) {
+        notificationCenter.post(
             name: .noteSpeakToAppendRequest,
             object: nil,
-            userInfo: ["editorID": editorID, "action": "start"]
+            userInfo: [
+                "editorID": editorID,
+                "noteID": noteID,
+                "action": "start"
+            ]
         )
     }
 
-    func requestStop(editorID: UUID) {
-        NotificationCenter.default.post(
+    func requestStop(editorID: UUID, noteID: UUID) {
+        notificationCenter.post(
             name: .noteSpeakToAppendRequest,
             object: nil,
-            userInfo: ["editorID": editorID, "action": "stop"]
+            userInfo: [
+                "editorID": editorID,
+                "noteID": noteID,
+                "action": "stop"
+            ]
         )
     }
 }

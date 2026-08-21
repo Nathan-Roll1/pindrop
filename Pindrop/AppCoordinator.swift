@@ -239,6 +239,15 @@ enum RecordingStopRoute: Equatable {
         return .dictation
     }
 }
+/// IDs that cross persistence boundaries during voice-note linkage.
+///
+/// History owns the transcription record ID used by notes and editor notifications;
+/// capture owns the final revision ID used only to complete the capture session.
+struct VoiceNoteLinkageIDs: Equatable, Sendable {
+    let historyRecordID: UUID
+    let finalTranscriptRevisionID: UUID
+}
+
 
 /// A synchronous, coordinator-owned admission gate shared by every stop source.
 /// It lets only the first user/limit event own a recording's finalization route.
@@ -421,6 +430,47 @@ final class AppCoordinator {
         case noteAppend = "note-append"
     }
 
+    private struct VoiceNoteCaptureContext {
+        let handle: PindropData.VoiceNoteCaptureHandle
+        let noteID: UUID?
+    }
+
+    private struct VoiceNoteCaptureResult {
+        let context: VoiceNoteCaptureContext
+        let rawText: String
+        let finalText: String
+        let duration: TimeInterval
+        let languageCode: String
+        let enhancedWithModel: String?
+        let title: String?
+        let tags: [String]
+    }
+
+    private struct PendingNoteAppendStart: Equatable {
+        let generation: UInt64
+        let editorID: UUID
+        let noteID: UUID
+    }
+
+    private struct PendingNoteAppendCapture {
+        let request: PendingNoteAppendStart
+        let context: VoiceNoteCaptureContext
+    }
+
+    private enum VoiceNoteCaptureAdmissionError: LocalizedError {
+        case captureAlreadyActive
+        case recorderDidNotStart
+
+        var errorDescription: String? {
+            switch self {
+            case .captureAlreadyActive:
+                "A voice-note capture is already active."
+            case .recorderDidNotStart:
+                "The recorder did not begin recording."
+            }
+        }
+    }
+
     enum EventTapRecoveryAction: Equatable {
         case reenable
         case recreate
@@ -505,6 +555,7 @@ final class AppCoordinator {
     let dictionaryStore: PindropData.DictionaryStore
     let settingsStore: SettingsStore
     let notesStore: PindropData.NotesStore
+    let captureSessionStore: PindropData.CaptureSessionStore
     let contextCaptureService: ContextCaptureService
     let contextEngineService: ContextEngineService
     let toastService: ToastService
@@ -558,6 +609,18 @@ final class AppCoordinator {
     private var manualExpectedSpeakerCount: Int?
     private var quickCaptureTranscription: String?
     private var noteAppendEditorID: UUID?
+    private var voiceNoteCaptureContext: VoiceNoteCaptureContext?
+    /// The exact capture allocated for a pending editor request. Stop must only
+    /// cancel this handle, never whichever capture happens to be active later.
+    private var pendingNoteAppendStartCapture: PendingNoteAppendCapture?
+    /// Retained until the cancelled start task unwinds so its stale catch can
+    /// clean recorder startup without clobbering a newer start.
+    private var pendingNoteAppendAudioStartupRequest: PendingNoteAppendStart?
+    /// A start request is installed before its task can run so Stop/teardown can
+    /// synchronously invalidate it while the editor is still closing.
+    private var pendingNoteAppendStartTask: Task<Void, Never>?
+    private var pendingNoteAppendStart: PendingNoteAppendStart?
+    private var nextNoteAppendStartGeneration: UInt64 = 0
     private var mediaTranscriptionTask: Task<Void, Never>? {
         didSet {
             refreshEscapeSuppression()
@@ -781,6 +844,7 @@ final class AppCoordinator {
                 return NoteMetadata(title: metadata.title, tags: metadata.tags)
             }
         )
+        self.captureSessionStore = PindropData.CaptureSessionStore(modelContext: modelContext)
         self.contextCaptureService = ContextCaptureService()
         self.contextEngineService = ContextEngineService()
         self.floatingIndicatorFocusTracker = FloatingIndicatorFocusTracker(
@@ -1125,15 +1189,10 @@ final class AppCoordinator {
                 object: nil,
                 queue: .main
             ) { [weak self] notification in
-                Task { @MainActor [weak self] in
-                    guard let self, !self.isShutdown,
-                          let editorID = notification.userInfo?["editorID"] as? UUID,
-                          let action = notification.userInfo?["action"] as? String else { return }
-                    if action == "start" {
-                        await self.handleNoteAppendStart(editorID: editorID)
-                    } else if action == "stop" {
-                        await self.handleNoteAppendStop(editorID: editorID)
-                    }
+                // `queue: .main` delivers on MainActor. Install/cancel the task
+                // before returning so a Stop cannot race a deferred Start task.
+                MainActor.assumeIsolated {
+                    self?.handleNoteAppendRequestNotification(notification)
                 }
             }
         )
@@ -2810,19 +2869,15 @@ final class AppCoordinator {
         case .dictation:
             try await stopRecordingAndTranscribe(token: token)
         case .quickCapture:
-            if let enhancedNote = try await stopRecordingAndTranscribeForQuickCapture(token: token) {
+            if let result = try await stopRecordingAndTranscribeForQuickCapture(token: token) {
+                let note = try await persistQuickCapture(result, token: token)
                 try ensureOperationCurrent(token)
-                openNoteEditorWithEnhancedNote(enhancedNote)
+                openNoteEditor(note)
             }
             isQuickCaptureMode = false
         case .noteAppend(let editorID):
-            if let text = try await stopRecordingAndTranscribeForNoteAppend(token: token) {
-                try ensureOperationCurrent(token)
-                NotificationCenter.default.post(
-                    name: .noteSpeakToAppendTranscript,
-                    object: nil,
-                    userInfo: ["editorID": editorID, "text": text]
-                )
+            if let result = try await stopRecordingAndTranscribeForNoteAppend(token: token) {
+                try await persistNoteAppend(result, editorID: editorID, token: token)
             }
             clearNoteAppendMode()
         case .manualTranscription:
@@ -2832,7 +2887,9 @@ final class AppCoordinator {
     
     private func handlePushToTalkStart() async {
         guard !isRecording && !isProcessing else { return }
-        guard NoteAppendGate.canStartGlobalDictation(isNoteAppendListening: isNoteAppendMode) else {
+        guard NoteAppendGate.canStartGlobalDictation(
+            isNoteAppendListening: isNoteAppendMode || pendingNoteAppendStart != nil
+        ) else {
             Log.app.info("Refuse global dictation: note-append listening is active")
             return
         }
@@ -2869,7 +2926,9 @@ final class AppCoordinator {
 
     private func handleQuickCapturePTTStart() async {
         guard !isRecording && !isProcessing else { return }
-        guard NoteAppendGate.canStartGlobalDictation(isNoteAppendListening: isNoteAppendMode) else {
+        guard NoteAppendGate.canStartGlobalDictation(
+            isNoteAppendListening: isNoteAppendMode || pendingNoteAppendStart != nil
+        ) else {
             Log.app.info("Refuse quick-capture: note-append listening is active")
             return
         }
@@ -2877,10 +2936,25 @@ final class AppCoordinator {
         isQuickCaptureMode = true
         quickCaptureTranscription = nil
 
+        var context: VoiceNoteCaptureContext?
         do {
+            try beginVoiceNoteCapture(noteID: nil)
+            guard let activeContext = voiceNoteCaptureContext else {
+                throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
+            }
+            context = activeContext
             try await startRecording(source: .hotkeyQuickCapturePTT)
+            guard isVoiceNoteCaptureContextCurrent(activeContext) else {
+                throw CancellationError()
+            }
         } catch {
+            guard let context, isVoiceNoteCaptureContextCurrent(context) else {
+                guard voiceNoteCaptureContext == nil else { return }
+                isQuickCaptureMode = false
+                return
+            }
             self.error = error
+            failVoiceNoteCapture(context, stage: "recording-start", error: error)
             isQuickCaptureMode = false
             audioRecorder.resetAudioEngine()
             Log.app.error("Failed to start quick capture recording: \(error)")
@@ -2915,17 +2989,34 @@ final class AppCoordinator {
             }
             isQuickCaptureMode = false
         } else if !isRecording && !isProcessing {
-            guard NoteAppendGate.canStartGlobalDictation(isNoteAppendListening: isNoteAppendMode) else {
+            guard NoteAppendGate.canStartGlobalDictation(
+                isNoteAppendListening: isNoteAppendMode || pendingNoteAppendStart != nil
+            ) else {
                 Log.app.info("Refuse quick-capture toggle: note-append listening is active")
                 return
             }
             isQuickCaptureMode = true
             quickCaptureTranscription = nil
 
+            var context: VoiceNoteCaptureContext?
             do {
+                try beginVoiceNoteCapture(noteID: nil)
+                guard let activeContext = voiceNoteCaptureContext else {
+                    throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
+                }
+                context = activeContext
                 try await startRecording(source: .hotkeyQuickCaptureToggle)
+                guard isVoiceNoteCaptureContextCurrent(activeContext) else {
+                    throw CancellationError()
+                }
             } catch {
+                guard let context, isVoiceNoteCaptureContextCurrent(context) else {
+                    guard voiceNoteCaptureContext == nil else { return }
+                    isQuickCaptureMode = false
+                    return
+                }
                 self.error = error
+                failVoiceNoteCapture(context, stage: "recording-start", error: error)
                 isQuickCaptureMode = false
                 audioRecorder.resetAudioEngine()
                 Log.app.error("Failed to start quick capture recording: \(error)")
@@ -2936,37 +3027,293 @@ final class AppCoordinator {
 
     // MARK: - Speak-to-Append (open note editor)
 
-    private func handleNoteAppendStart(editorID: UUID) async {
-        guard NoteAppendGate.canStartNoteAppend(isRecording: isRecording, isProcessing: isProcessing) else {
-            Log.app.info("Refuse note-append listening: global dictation or processing is active")
+    private func handleNoteAppendRequestNotification(_ notification: Notification) {
+        guard !isShutdown,
+              let editorID = notification.userInfo?["editorID"] as? UUID,
+              let noteID = notification.userInfo?["noteID"] as? UUID,
+              let action = notification.userInfo?["action"] as? String else {
             return
         }
 
-        isNoteAppendMode = true
-        noteAppendEditorID = editorID
-        NoteAppendListeningCoordinator.shared.state.startListening(editorID: editorID)
-
-        do {
-            try await startRecording(source: .noteAppend)
-        } catch {
-            self.error = error
-            clearNoteAppendMode()
-            audioRecorder.resetAudioEngine()
-            Log.app.error("Failed to start note-append recording: \(error)")
-            handleRecordingStartFailure(error, source: .noteAppend)
+        switch action {
+        case "start":
+            installPendingNoteAppendStart(editorID: editorID, noteID: noteID)
+        case "stop":
+            // This happens before creating the stop task. A closed editor can
+            // therefore cancel an installed Start before its async body runs.
+            cancelPendingNoteAppendStart(editorID: editorID, noteID: noteID)
+            Task { @MainActor [weak self] in
+                await self?.handleNoteAppendStop(editorID: editorID, noteID: noteID)
+            }
+        default:
+            return
         }
     }
 
-    private func handleNoteAppendStop(editorID: UUID) async {
-        guard isRecording && isNoteAppendMode else {
-            // Allow stop when only processing state is stuck, or ignore stale stop.
-            if noteAppendEditorID == editorID, !isProcessing {
-                clearNoteAppendMode()
-            }
+    private func installPendingNoteAppendStart(editorID: UUID, noteID: UUID) {
+        guard Self.canBeginVoiceNoteCapture(activeHandle: voiceNoteCaptureContext?.handle),
+              pendingNoteAppendStart == nil else {
+            Log.app.info("Refuse note-append listening: a voice-note capture start is already active")
+            postNoteAppendStartRejected(editorID: editorID, noteID: noteID)
             return
         }
-        guard noteAppendEditorID == editorID else {
-            Log.app.info("Ignore note-append stop for non-active editor")
+
+        nextNoteAppendStartGeneration &+= 1
+        let request = PendingNoteAppendStart(
+            generation: nextNoteAppendStartGeneration,
+            editorID: editorID,
+            noteID: noteID
+        )
+        pendingNoteAppendStart = request
+        pendingNoteAppendStartTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.handleNoteAppendStart(request)
+        }
+    }
+
+    private func postNoteAppendStartRejected(editorID: UUID, noteID: UUID) {
+        NotificationCenter.default.post(
+            name: .noteSpeakToAppendRejected,
+            object: nil,
+            userInfo: [
+                "editorID": editorID,
+                "noteID": noteID
+            ]
+        )
+    }
+
+    private func cancelPendingNoteAppendStart(editorID: UUID, noteID: UUID) {
+        guard let request = pendingNoteAppendStart,
+              request.editorID == editorID,
+              request.noteID == noteID else {
+            return
+        }
+
+        let capture = pendingNoteAppendStartCapture
+        pendingNoteAppendStartTask?.cancel()
+        pendingNoteAppendStartTask = nil
+        pendingNoteAppendStart = nil
+        clearPendingNoteAppendStartCapture(ifCurrent: capture, request: request)
+        nextNoteAppendStartGeneration &+= 1
+
+        if let capture {
+            cancelPendingNoteAppendCapture(
+                capture.context,
+                request: request,
+                preservingAudioStartupOwnership: true
+            )
+        }
+    }
+
+    private func isPendingNoteAppendStartCurrent(_ request: PendingNoteAppendStart) -> Bool {
+        pendingNoteAppendStart == request && !Task.isCancelled
+    }
+
+    private func cancelPendingNoteAppendStart() {
+        guard let request = pendingNoteAppendStart else { return }
+        let capture = pendingNoteAppendStartCapture
+        pendingNoteAppendStartTask?.cancel()
+        pendingNoteAppendStartTask = nil
+        if let capture, capture.request == request {
+            cancelPendingNoteAppendCapture(capture.context, request: request)
+        }
+        pendingNoteAppendStart = nil
+        clearPendingNoteAppendStartCapture(ifCurrent: capture, request: request)
+        if pendingNoteAppendAudioStartupRequest == request {
+            pendingNoteAppendAudioStartupRequest = nil
+        }
+        nextNoteAppendStartGeneration &+= 1
+    }
+
+    private func clearPendingNoteAppendStart(ifCurrent request: PendingNoteAppendStart) {
+        guard pendingNoteAppendStart == request else { return }
+        pendingNoteAppendStartTask = nil
+        pendingNoteAppendStart = nil
+        clearPendingNoteAppendStartCapture(
+            ifCurrent: pendingNoteAppendStartCapture,
+            request: request
+        )
+        if pendingNoteAppendAudioStartupRequest == request {
+            pendingNoteAppendAudioStartupRequest = nil
+        }
+    }
+
+    private func trackPendingNoteAppendStartCapture(
+        _ context: VoiceNoteCaptureContext,
+        for request: PendingNoteAppendStart
+    ) throws {
+        try ensurePendingNoteAppendStartCurrent(request, context: context)
+        pendingNoteAppendStartCapture = PendingNoteAppendCapture(
+            request: request,
+            context: context
+        )
+        pendingNoteAppendAudioStartupRequest = request
+    }
+
+    private func clearPendingNoteAppendStartCapture(
+        ifCurrent capture: PendingNoteAppendCapture?,
+        request: PendingNoteAppendStart
+    ) {
+        guard let capture,
+              capture.request == request,
+              Self.isPendingNoteAppendCaptureCurrent(
+                pendingEditorID: pendingNoteAppendStartCapture?.request.editorID,
+                pendingNoteID: pendingNoteAppendStartCapture?.request.noteID,
+                pendingHandle: pendingNoteAppendStartCapture?.context.handle,
+                candidateEditorID: request.editorID,
+                candidateNoteID: request.noteID,
+                candidateHandle: capture.context.handle
+              ) else {
+            return
+        }
+        pendingNoteAppendStartCapture = nil
+    }
+
+    @discardableResult
+    private func resetPendingNoteAppendAudioStartup(
+        ifOwnedBy request: PendingNoteAppendStart,
+        preservingOwnership: Bool = false
+    ) -> Bool {
+        guard pendingNoteAppendAudioStartupRequest == request else { return false }
+        audioRecorder.cancelRecording()
+        audioRecorder.resetAudioEngine()
+        streamingSession.cancelDetached()
+        if !preservingOwnership {
+            pendingNoteAppendAudioStartupRequest = nil
+        }
+        return true
+    }
+
+    private func cancelPendingNoteAppendCapture(
+        _ context: VoiceNoteCaptureContext,
+        request: PendingNoteAppendStart,
+        preservingAudioStartupOwnership: Bool = false
+    ) {
+        do {
+            try captureSessionStore.cancel(context.handle, at: .now)
+        } catch {
+            Log.app.error("Failed to cancel pending voice-note capture: \(error)")
+        }
+
+        let ownsActiveCapture = isVoiceNoteCaptureContextCurrent(context)
+        _ = resetPendingNoteAppendAudioStartup(
+            ifOwnedBy: request,
+            preservingOwnership: preservingAudioStartupOwnership
+        )
+        guard ownsActiveCapture else { return }
+
+        clearNoteAppendMode(
+            ifCurrent: context,
+            editorID: request.editorID,
+            noteID: request.noteID
+        )
+        clearVoiceNoteCaptureContext(ifCurrent: context)
+        mediaPauseService.endRecordingSession()
+        recordingState.endRecording(
+            message: localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale)
+        )
+        recordingState.clearCurrentJob()
+        isRecording = false
+        isProcessing = false
+        recordingStartTime = nil
+        statusBarController.setIdleState()
+        statusBarController.updateMenuState()
+    }
+
+    private func ensurePendingNoteAppendStartCurrent(
+        _ request: PendingNoteAppendStart,
+        context: VoiceNoteCaptureContext? = nil
+    ) throws {
+        guard isPendingNoteAppendStartCurrent(request) else {
+            throw CancellationError()
+        }
+        if let context {
+            guard isVoiceNoteCaptureContextCurrent(context) else {
+                throw CancellationError()
+            }
+        }
+    }
+    private func handleNoteAppendStart(_ request: PendingNoteAppendStart) async {
+        guard isPendingNoteAppendStartCurrent(request) else { return }
+        guard NoteAppendGate.canStartNoteAppend(
+            isRecording: isRecording,
+            isProcessing: isProcessing
+        ) else {
+            clearPendingNoteAppendStart(ifCurrent: request)
+            postNoteAppendStartRejected(editorID: request.editorID, noteID: request.noteID)
+            return
+        }
+
+        var context: VoiceNoteCaptureContext?
+        do {
+            let noteExists = try notesStore.contains(id: request.noteID)
+            try ensurePendingNoteAppendStartCurrent(request)
+            guard noteExists else {
+                Log.app.info("Refuse note-append listening: note is no longer durable")
+                clearPendingNoteAppendStart(ifCurrent: request)
+                postNoteAppendStartRejected(editorID: request.editorID, noteID: request.noteID)
+                return
+            }
+
+            isNoteAppendMode = true
+            noteAppendEditorID = request.editorID
+            NoteAppendListeningCoordinator.shared.state.startListening(
+                editorID: request.editorID,
+                noteID: request.noteID
+            )
+
+            try beginVoiceNoteCapture(noteID: request.noteID)
+            guard let activeContext = voiceNoteCaptureContext else {
+                throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
+            }
+            context = activeContext
+            try trackPendingNoteAppendStartCapture(activeContext, for: request)
+            try await startRecording(
+                source: .noteAppend,
+                voiceNoteContext: activeContext,
+                pendingNoteAppendStart: request
+            )
+            try ensurePendingNoteAppendStartCurrent(request, context: activeContext)
+            guard isRecording else {
+                throw VoiceNoteCaptureAdmissionError.recorderDidNotStart
+            }
+            clearPendingNoteAppendStart(ifCurrent: request)
+        } catch {
+            guard isPendingNoteAppendStartCurrent(request) else {
+                if let context {
+                    cancelPendingNoteAppendCapture(context, request: request)
+                }
+                return
+            }
+
+            self.error = error
+            _ = resetPendingNoteAppendAudioStartup(ifOwnedBy: request)
+            if let context, isVoiceNoteCaptureContextCurrent(context) {
+                clearNoteAppendMode(
+                    ifCurrent: context,
+                    editorID: request.editorID,
+                    noteID: request.noteID
+                )
+                failVoiceNoteCapture(context, stage: "recording-start", error: error)
+            } else if noteAppendEditorID == request.editorID {
+                clearNoteAppendMode()
+            }
+            clearPendingNoteAppendStart(ifCurrent: request)
+            Log.app.error("Failed to start note-append recording: \(error)")
+            handleRecordingStartFailure(error, source: .noteAppend)
+            postNoteAppendStartRejected(editorID: request.editorID, noteID: request.noteID)
+        }
+    }
+
+    private func handleNoteAppendStop(editorID: UUID, noteID: UUID) async {
+        guard isNoteAppendRequestCurrent(editorID: editorID, noteID: noteID) else {
+            Log.app.info("Ignore note-append stop for non-active editor or note")
+            return
+        }
+        guard isRecording && isNoteAppendMode else {
+            if !isProcessing {
+                clearNoteAppendMode()
+            }
             return
         }
 
@@ -2981,15 +3328,147 @@ final class AppCoordinator {
         if !isRecording { clearNoteAppendMode() }
     }
 
+    private func isNoteAppendRequestCurrent(editorID: UUID, noteID: UUID) -> Bool {
+        noteAppendEditorID == editorID && voiceNoteCaptureContext?.noteID == noteID
+    }
+
+    private func clearNoteAppendMode(
+        ifCurrent context: VoiceNoteCaptureContext,
+        editorID: UUID,
+        noteID: UUID
+    ) {
+        guard isVoiceNoteCaptureContextCurrent(context),
+              isNoteAppendRequestCurrent(editorID: editorID, noteID: noteID) else {
+            return
+        }
+        clearNoteAppendMode()
+    }
+
     private func clearNoteAppendMode() {
         isNoteAppendMode = false
         noteAppendEditorID = nil
         NoteAppendListeningCoordinator.shared.state.finishSession()
     }
 
-    private func stopRecordingAndTranscribeForNoteAppend(token: DictationOperationToken) async throws -> String? {
-        guard recordingStartTime != nil else {
-            Log.app.warning("stopRecordingAndTranscribeForNoteAppend called but recordingStartTime is nil")
+    static func canBeginVoiceNoteCapture(
+        activeHandle: PindropData.VoiceNoteCaptureHandle?
+    ) -> Bool {
+        activeHandle == nil
+    }
+
+    static func isVoiceNoteCaptureCurrent(
+        activeHandle: PindropData.VoiceNoteCaptureHandle?,
+        candidateHandle: PindropData.VoiceNoteCaptureHandle
+    ) -> Bool {
+        activeHandle == candidateHandle
+    }
+
+    static func isPendingNoteAppendCaptureCurrent(
+        pendingEditorID: UUID?,
+        pendingNoteID: UUID?,
+        pendingHandle: PindropData.VoiceNoteCaptureHandle?,
+        candidateEditorID: UUID,
+        candidateNoteID: UUID,
+        candidateHandle: PindropData.VoiceNoteCaptureHandle
+    ) -> Bool {
+        pendingEditorID == candidateEditorID
+            && pendingNoteID == candidateNoteID
+            && pendingHandle == candidateHandle
+    }
+
+    static func noteAppendNotificationSourceTranscriptionID(
+        _ append: PindropData.NoteAppendResult
+    ) -> UUID {
+        append.sourceTranscriptionID
+    }
+
+    private func isVoiceNoteCaptureContextCurrent(_ context: VoiceNoteCaptureContext) -> Bool {
+        Self.isVoiceNoteCaptureCurrent(
+            activeHandle: voiceNoteCaptureContext?.handle,
+            candidateHandle: context.handle
+        )
+    }
+
+    private func ensureVoiceNoteCaptureCurrent(
+        _ context: VoiceNoteCaptureContext,
+        token: DictationOperationToken
+    ) throws {
+        try ensureOperationCurrent(token)
+        guard isVoiceNoteCaptureContextCurrent(context) else {
+            throw CancellationError()
+        }
+    }
+
+    private func clearVoiceNoteCaptureContext(ifCurrent context: VoiceNoteCaptureContext) {
+        guard isVoiceNoteCaptureContextCurrent(context) else { return }
+        voiceNoteCaptureContext = nil
+    }
+
+    private func beginVoiceNoteCapture(noteID: UUID?) throws {
+        guard Self.canBeginVoiceNoteCapture(activeHandle: voiceNoteCaptureContext?.handle) else {
+            throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
+        }
+        let preferredInputUID = audioRecorder.currentPreferredInputDeviceUID
+            ?? settingsStore.selectedInputDeviceUID
+        let microphoneDisplayName = AudioDeviceManager.inputDevices()
+            .first(where: { $0.uid == preferredInputUID })?
+            .displayName ?? "Microphone"
+        let handle = try captureSessionStore.startVoiceNoteCapture(
+            startedAt: .now,
+            microphoneDisplayName: microphoneDisplayName
+        )
+        voiceNoteCaptureContext = VoiceNoteCaptureContext(handle: handle, noteID: noteID)
+    }
+
+    private func failVoiceNoteCapture(
+        _ context: VoiceNoteCaptureContext,
+        stage: String,
+        error: Error
+    ) {
+        guard isVoiceNoteCaptureContextCurrent(context) else { return }
+        let nsError = error as NSError
+        let captureStage: CapturePipelineStage? = switch stage {
+        case "transcribe", "no-speech":
+            .finalTranscription
+        case "persist":
+            .noteGeneration
+        default:
+            nil
+        }
+        do {
+            try captureSessionStore.fail(
+                context.handle,
+                stage: captureStage,
+                errorDomain: nsError.domain,
+                errorCode: String(nsError.code),
+                message: error.localizedDescription,
+                at: .now
+            )
+        } catch {
+            Log.app.error("Failed to mark voice-note capture as failed: \(error)")
+        }
+        clearVoiceNoteCaptureContext(ifCurrent: context)
+    }
+
+    private func failActiveVoiceNoteCapture(stage: String, error: Error) {
+        guard let context = voiceNoteCaptureContext else { return }
+        failVoiceNoteCapture(context, stage: stage, error: error)
+    }
+
+    private func cancelActiveVoiceNoteCapture() {
+        guard let context = voiceNoteCaptureContext else { return }
+        do {
+            try captureSessionStore.cancel(context.handle, at: .now)
+        } catch {
+            Log.app.error("Failed to cancel voice-note capture: \(error)")
+        }
+        clearVoiceNoteCaptureContext(ifCurrent: context)
+    }
+
+    private func stopRecordingAndTranscribeForNoteAppend(token: DictationOperationToken) async throws -> VoiceNoteCaptureResult? {
+        guard let recordingStartTime, let context = voiceNoteCaptureContext, context.noteID != nil else {
+            Log.app.warning("stopRecordingAndTranscribeForNoteAppend called without an active voice-note capture")
+
             return nil
         }
 
@@ -3001,7 +3480,6 @@ final class AppCoordinator {
 
         statusBarController.setProcessingState()
         NoteAppendListeningCoordinator.shared.state.transitionToProcessing()
-        // No global indicator session was started for note-append.
 
         defer {
             if Self.shouldResetProcessingStateOnExit(
@@ -3015,36 +3493,46 @@ final class AppCoordinator {
         let audioData: Data
         do {
             audioData = try await audioRecorder.stopRecording()
-            try ensureOperationCurrent(token)
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
+            try captureSessionStore.beginFinalization(context.handle, at: .now)
         } catch {
             if Self.isTaskCancellation(error) { throw CancellationError() }
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
+            failVoiceNoteCapture(context, stage: "recording-stop", error: error)
             Log.app.error("Failed to stop note-append recording: \(error)")
             throw error
         }
 
         guard !audioData.isEmpty else {
+            let noSpeechError = NSError(
+                domain: "tech.watzon.pindrop.capture",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "No audio data recorded"]
+            )
+            failVoiceNoteCapture(context, stage: "no-speech", error: noSpeechError)
             Log.app.warning("No audio data recorded for note-append")
             handleNoSpeechDetected(context: "note-append")
             return nil
         }
-
-        let diarizationEnabled = Self.dictationUsesSpeakerDiarization
+        let duration = Date.now.timeIntervalSince(recordingStartTime)
 
         let transcriptionOutput: TranscriptionOutput
         do {
             transcriptionOutput = try await transcriptionService.transcribe(
                 audioData: audioData,
-                diarizationEnabled: diarizationEnabled,
+                diarizationEnabled: Self.dictationUsesSpeakerDiarization,
                 options: makeTranscriptionOptions(),
                 diarizationOptions: .init(),
                 diarizationFailurePolicy: .bestEffort
             )
-            try ensureOperationCurrent(token)
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
         } catch let error as PindropSpeech.TranscriptionService.TranscriptionError {
-            // Stale/cancelled operations must not toast or mutate UI after a newer session started.
-            guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else {
+            guard operationController.isCurrent(token),
+                  isVoiceNoteCaptureContextCurrent(context),
+                  !Self.isTaskCancellation(error) else {
                 throw CancellationError()
             }
+            failVoiceNoteCapture(context, stage: "transcribe", error: error)
             Log.app.error("Note-append transcription failed: \(error)")
             reportTranscriptionFailureSignal(error, stage: "transcribe")
             resetProcessingState()
@@ -3057,9 +3545,12 @@ final class AppCoordinator {
             toastService.show(ToastPayload(message: message, style: .error))
             throw error
         } catch {
-            guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else {
+            guard operationController.isCurrent(token),
+                  isVoiceNoteCaptureContextCurrent(context),
+                  !Self.isTaskCancellation(error) else {
                 throw CancellationError()
             }
+            failVoiceNoteCapture(context, stage: "transcribe", error: error)
             Log.app.error("Note-append transcription failed: \(error)")
             reportTranscriptionFailureSignal(error, stage: "transcribe")
             resetProcessingState()
@@ -3074,29 +3565,54 @@ final class AppCoordinator {
             throw error
         }
 
-        try ensureOperationCurrent(token)
-        let transcribedText = transcriptionOutput.text
-        var (textAfterReplacements, appliedReplacements) = try dictionaryStore.applyReplacements(to: transcribedText)
-        textAfterReplacements = normalizedTranscriptionText(textAfterReplacements)
+        do {
+            let rawText = transcriptionOutput.text
+            var (finalText, appliedReplacements) = try dictionaryStore.applyReplacements(to: rawText)
+            finalText = normalizedTranscriptionText(finalText)
 
-        guard !isTranscriptionEffectivelyEmpty(textAfterReplacements) else {
-            handleNoSpeechDetected(context: "note-append")
-            return nil
+            guard !isTranscriptionEffectivelyEmpty(finalText) else {
+                let noSpeechError = NSError(
+                    domain: "tech.watzon.pindrop.capture",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "No speech detected"]
+                )
+                failVoiceNoteCapture(context, stage: "no-speech", error: noSpeechError)
+                handleNoSpeechDetected(context: "note-append")
+                return nil
+            }
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
+            self.lastAppliedReplacements = appliedReplacements
+            try dictionaryStore.recordVocabularyHits(in: finalText)
+
+            if !appliedReplacements.isEmpty {
+                Log.app.info("Applied \(appliedReplacements.count) dictionary replacements (note-append)")
+            }
+
+            return VoiceNoteCaptureResult(
+                context: context,
+                rawText: rawText,
+                finalText: finalText,
+                duration: duration,
+                languageCode: settingsStore.selectedAppLanguage.rawValue,
+                enhancedWithModel: nil,
+                title: nil,
+                tags: []
+            )
+        } catch {
+            guard Self.shouldEmitOperationFailureSideEffects(
+                isOperationCurrent: operationController.isCurrent(token),
+                error: error
+            ), isVoiceNoteCaptureContextCurrent(context) else {
+                throw CancellationError()
+            }
+            failVoiceNoteCapture(context, stage: "transcribe", error: error)
+            throw error
         }
-        self.lastAppliedReplacements = appliedReplacements
-        try? dictionaryStore.recordVocabularyHits(in: textAfterReplacements)
-
-        if !appliedReplacements.isEmpty {
-            Log.app.info("Applied \(appliedReplacements.count) dictionary replacements (note-append)")
-        }
-
-        Log.app.info("Note-append transcript ready (\(textAfterReplacements.count) chars)")
-        return textAfterReplacements
     }
 
-    private func stopRecordingAndTranscribeForQuickCapture(token: DictationOperationToken) async throws -> PindropAI.AIEnhancementService.EnhancedNote? {
-        guard recordingStartTime != nil else {
-            Log.app.warning("stopRecordingAndTranscribeForQuickCapture called but recordingStartTime is nil")
+    private func stopRecordingAndTranscribeForQuickCapture(token: DictationOperationToken) async throws -> VoiceNoteCaptureResult? {
+        guard let recordingStartTime, let context = voiceNoteCaptureContext, context.noteID == nil else {
+            Log.app.warning("stopRecordingAndTranscribeForQuickCapture called without an active quick-capture session")
             return nil
         }
 
@@ -3107,7 +3623,6 @@ final class AppCoordinator {
         var didResetProcessingState = false
 
         statusBarController.setProcessingState()
-
         transitionRecordingIndicatorToProcessing()
 
         defer {
@@ -3122,36 +3637,47 @@ final class AppCoordinator {
         let audioData: Data
         do {
             audioData = try await audioRecorder.stopRecording()
-            try ensureOperationCurrent(token)
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
+            try captureSessionStore.beginFinalization(context.handle, at: .now)
         } catch {
             if Self.isTaskCancellation(error) { throw CancellationError() }
-            Log.app.error("Failed to stop recording: \(error)")
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
+            failVoiceNoteCapture(context, stage: "recording-stop", error: error)
+            Log.app.error("Failed to stop quick-capture recording: \(error)")
             throw error
         }
 
         guard !audioData.isEmpty else {
+            let noSpeechError = NSError(
+                domain: "tech.watzon.pindrop.capture",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "No audio data recorded"]
+            )
+            failVoiceNoteCapture(context, stage: "no-speech", error: noSpeechError)
             Log.app.warning("No audio data recorded")
             handleNoSpeechDetected(context: "quick-capture")
             return nil
         }
-
-        let diarizationEnabled = Self.dictationUsesSpeakerDiarization
+        let duration = Date.now.timeIntervalSince(recordingStartTime)
 
         let transcriptionOutput: TranscriptionOutput
         do {
             transcriptionOutput = try await transcriptionService.transcribe(
                 audioData: audioData,
-                diarizationEnabled: diarizationEnabled,
+                diarizationEnabled: Self.dictationUsesSpeakerDiarization,
                 options: makeTranscriptionOptions(),
                 diarizationOptions: .init(),
                 diarizationFailurePolicy: .bestEffort
             )
-            try ensureOperationCurrent(token)
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
         } catch let error as PindropSpeech.TranscriptionService.TranscriptionError {
-            guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else {
+            guard operationController.isCurrent(token),
+                  isVoiceNoteCaptureContextCurrent(context),
+                  !Self.isTaskCancellation(error) else {
                 throw CancellationError()
             }
-            Log.app.error("Transcription failed: \(error)")
+            failVoiceNoteCapture(context, stage: "transcribe", error: error)
+            Log.app.error("Quick-capture transcription failed: \(error)")
             reportTranscriptionFailureSignal(error, stage: "transcribe")
             resetProcessingState()
             didResetProcessingState = true
@@ -3161,15 +3687,16 @@ final class AppCoordinator {
             } else {
                 String(format: localized("Transcription failed: %@", locale: locale), locale: locale, error.localizedDescription)
             }
-            toastService.show(
-                ToastPayload(message: message, style: .error)
-            )
+            toastService.show(ToastPayload(message: message, style: .error))
             throw error
         } catch {
-            guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else {
+            guard operationController.isCurrent(token),
+                  isVoiceNoteCaptureContextCurrent(context),
+                  !Self.isTaskCancellation(error) else {
                 throw CancellationError()
             }
-            Log.app.error("Transcription failed: \(error)")
+            failVoiceNoteCapture(context, stage: "transcribe", error: error)
+            Log.app.error("Quick-capture transcription failed: \(error)")
             reportTranscriptionFailureSignal(error, stage: "transcribe")
             resetProcessingState()
             didResetProcessingState = true
@@ -3183,105 +3710,246 @@ final class AppCoordinator {
             throw error
         }
 
-        if diarizationEnabled {
-            let segmentCount = transcriptionOutput.diarizedSegments?.count ?? 0
-            if segmentCount > 0 {
-                Log.app.info("Quick capture diarization produced \(segmentCount) segments")
-            } else {
-                Log.app.info("Quick capture diarization produced no attributed segments")
-            }
-        }
+        do {
+            let rawText = transcriptionOutput.text
+            var (fallbackText, appliedReplacements) = try dictionaryStore.applyReplacements(to: rawText)
+            fallbackText = normalizedTranscriptionText(fallbackText)
 
-        let transcribedText = transcriptionOutput.text
-
-        var (textAfterReplacements, appliedReplacements) = try dictionaryStore.applyReplacements(to: transcribedText)
-        textAfterReplacements = normalizedTranscriptionText(textAfterReplacements)
-
-        guard !isTranscriptionEffectivelyEmpty(textAfterReplacements) else {
-            handleNoSpeechDetected(context: "quick-capture")
-            return nil
-        }
-        self.lastAppliedReplacements = appliedReplacements
-        try? dictionaryStore.recordVocabularyHits(in: textAfterReplacements)
-
-        if !appliedReplacements.isEmpty {
-            Log.app.info("Applied \(appliedReplacements.count) dictionary replacements")
-        }
-
-        if let noteAssignment = settingsStore.resolveAssignment(for: .noteEnhancement) {
-            do {
-                let notePrompt = resolvedPrompt(
-                    for: noteAssignment,
-                    fallback: SettingsStore.Defaults.noteEnhancementPrompt
+            guard !isTranscriptionEffectivelyEmpty(fallbackText) else {
+                let noSpeechError = NSError(
+                    domain: "tech.watzon.pindrop.capture",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "No speech detected"]
                 )
+                failVoiceNoteCapture(context, stage: "no-speech", error: noSpeechError)
+                handleNoSpeechDetected(context: "quick-capture")
+                return nil
+            }
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
+            self.lastAppliedReplacements = appliedReplacements
+            try dictionaryStore.recordVocabularyHits(in: fallbackText)
+
+            if !appliedReplacements.isEmpty {
+                Log.app.info("Applied \(appliedReplacements.count) dictionary replacements")
+            }
+
+            if let noteAssignment = settingsStore.resolveAssignment(for: .noteEnhancement) {
                 let vocabularyWords = try dictionaryStore.fetchAllVocabularyWords().map(\.word)
-                let replacementCorrections = appliedReplacements.map {
-                    PindropAI.AIEnhancementService.ContextMetadata.ReplacementCorrection(
-                        original: $0.original,
-                        replacement: $0.replacement
+                do {
+                    let notePrompt = resolvedPrompt(
+                        for: noteAssignment,
+                        fallback: SettingsStore.Defaults.noteEnhancementPrompt
                     )
-                }
-                let enhancementContext = PindropAI.AIEnhancementService.ContextMetadata(
-                    hasClipboardText: false,
-                    clipboardText: nil,
-                    hasClipboardImage: false,
-                    appContext: nil,
-                    vocabularyWords: vocabularyWords,
-                    replacementCorrections: replacementCorrections
-                )
+                    let replacementCorrections = appliedReplacements.map {
+                        PindropAI.AIEnhancementService.ContextMetadata.ReplacementCorrection(
+                            original: $0.original,
+                            replacement: $0.replacement
+                        )
+                    }
+                    let enhancementContext = PindropAI.AIEnhancementService.ContextMetadata(
+                        hasClipboardText: false,
+                        clipboardText: nil,
+                        hasClipboardImage: false,
+                        appContext: nil,
+                        vocabularyWords: vocabularyWords,
+                        replacementCorrections: replacementCorrections
+                    )
 
-                let existingTags = (try? notesStore.getAllUniqueTags()) ?? []
-                let enhancedNote = try await aiEnhancementService.enhanceNote(
-                    content: textAfterReplacements,
-                    apiEndpoint: noteAssignment.endpoint ?? "",
-                    apiKey: noteAssignment.apiKey,
-                    model: noteAssignment.modelID,
-                    contentPrompt: notePrompt,
-                    generateMetadata: true,
-                    existingTags: existingTags,
-                    context: enhancementContext,
-                    provider: noteAssignment.kind
-                )
-                try ensureOperationCurrent(token)
-                Log.app.info("Note enhancement completed: title='\(enhancedNote.title)', tags=\(enhancedNote.tags.count)")
-                let normalizedEnhancedContent = normalizedTranscriptionText(enhancedNote.content)
-                guard !isTranscriptionEffectivelyEmpty(normalizedEnhancedContent) else {
-                    handleNoSpeechDetected(context: "quick-capture")
-                    return nil
+                    let existingTags = (try? notesStore.getAllUniqueTags()) ?? []
+                    let enhancedNote = try await aiEnhancementService.enhanceNote(
+                        content: fallbackText,
+                        apiEndpoint: noteAssignment.endpoint ?? "",
+                        apiKey: noteAssignment.apiKey,
+                        model: noteAssignment.modelID,
+                        contentPrompt: notePrompt,
+                        generateMetadata: true,
+                        existingTags: existingTags,
+                        context: enhancementContext,
+                        provider: noteAssignment.kind
+                    )
+                    try ensureVoiceNoteCaptureCurrent(context, token: token)
+                    let finalText = normalizedTranscriptionText(enhancedNote.content)
+                    if !isTranscriptionEffectivelyEmpty(finalText) {
+                        Log.app.info("Note enhancement completed: title='\(enhancedNote.title)', tags=\(enhancedNote.tags.count)")
+                        return VoiceNoteCaptureResult(
+                            context: context,
+                            rawText: rawText,
+                            finalText: finalText,
+                            duration: duration,
+                            languageCode: settingsStore.selectedAppLanguage.rawValue,
+                            enhancedWithModel: noteAssignment.modelID,
+                            title: enhancedNote.title,
+                            tags: enhancedNote.tags
+                        )
+                    }
+                    Log.app.error("Note enhancement returned empty content; using raw transcription")
+                } catch {
+                    if Self.isTaskCancellation(error)
+                        || !operationController.isCurrent(token)
+                        || !isVoiceNoteCaptureContextCurrent(context) {
+                        throw CancellationError()
+                    }
+                    Log.app.error("Note enhancement failed: \(error)")
                 }
-                return PindropAI.AIEnhancementService.EnhancedNote(
-                    content: normalizedEnhancedContent,
-                    title: enhancedNote.title,
-                    tags: enhancedNote.tags
-                )
-            } catch {
-                if Self.isTaskCancellation(error) || !operationController.isCurrent(token) {
-                    throw CancellationError()
-                }
-                Log.app.error("Note enhancement failed: \(error)")
             }
-        }
 
-        try ensureOperationCurrent(token)
-        let fallbackTitle = aiEnhancementService.generateFallbackTitle(from: textAfterReplacements)
-        return PindropAI.AIEnhancementService.EnhancedNote(
-            content: textAfterReplacements,
-            title: fallbackTitle,
-            tags: []
-        )
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
+            return VoiceNoteCaptureResult(
+                context: context,
+                rawText: rawText,
+                finalText: fallbackText,
+                duration: duration,
+                languageCode: settingsStore.selectedAppLanguage.rawValue,
+                enhancedWithModel: nil,
+                title: aiEnhancementService.generateFallbackTitle(from: fallbackText),
+                tags: []
+            )
+        } catch {
+            guard Self.shouldEmitOperationFailureSideEffects(
+                isOperationCurrent: operationController.isCurrent(token),
+                error: error
+            ), isVoiceNoteCaptureContextCurrent(context) else {
+                throw CancellationError()
+            }
+            failVoiceNoteCapture(context, stage: "transcribe", error: error)
+            throw error
+        }
     }
 
-    private func openNoteEditorWithEnhancedNote(_ enhancedNote: PindropAI.AIEnhancementService.EnhancedNote) {
-        let newNote = PindropData.NoteSchema.Note(
-            title: enhancedNote.title,
-            content: enhancedNote.content,
-            tags: enhancedNote.tags,
-            sourceTranscriptionID: nil
-        )
+    private func persistQuickCapture(
+        _ result: VoiceNoteCaptureResult,
+        token: DictationOperationToken
+    ) async throws -> PindropData.NoteSchema.Note {
+        do {
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            let revisions = try captureSessionStore.saveTranscriptRevisions(
+                for: result.context.handle,
+                rawText: result.rawText,
+                finalText: result.finalText,
+                duration: result.duration,
+                languageCode: result.languageCode,
+                createdAt: .now
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            let record = try historyStore.save(
+                text: result.finalText,
+                originalText: result.rawText,
+                duration: result.duration,
+                modelUsed: settingsStore.selectedModel,
+                enhancedWith: result.enhancedWithModel,
+                sourceKind: .voiceRecording
+            )
+            let linkageIDs = VoiceNoteLinkageIDs(
+                historyRecordID: record.id,
+                finalTranscriptRevisionID: revisions.finalRevisionID
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            try captureSessionStore.linkTranscriptionRecord(
+                linkageIDs.historyRecordID,
+                to: result.context.handle,
+                at: .now
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            let note = try await notesStore.create(
+                title: result.title,
+                content: result.finalText,
+                tags: result.tags,
+                sourceTranscriptionID: linkageIDs.historyRecordID
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            try captureSessionStore.complete(
+                result.context.handle,
+                noteID: note.id,
+                finalTranscriptRevisionID: linkageIDs.finalTranscriptRevisionID,
+                at: .now
+            )
+            clearVoiceNoteCaptureContext(ifCurrent: result.context)
+            return note
+        } catch {
+            guard operationController.isCurrent(token),
+                  isVoiceNoteCaptureContextCurrent(result.context) else {
+                throw CancellationError()
+            }
+            failVoiceNoteCapture(result.context, stage: "persist", error: error)
+            throw error
+        }
+    }
 
-        noteEditorWindowController.show(note: newNote, isNewNote: true)
+    private func persistNoteAppend(
+        _ result: VoiceNoteCaptureResult,
+        editorID: UUID,
+        token: DictationOperationToken
+    ) async throws {
+        guard let noteID = result.context.noteID else {
+            throw CancellationError()
+        }
 
-        Log.app.info("Opened note editor with enhanced note")
+        do {
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            let revisions = try captureSessionStore.saveTranscriptRevisions(
+                for: result.context.handle,
+                rawText: result.rawText,
+                finalText: result.finalText,
+                duration: result.duration,
+                languageCode: result.languageCode,
+                createdAt: .now
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            let record = try historyStore.save(
+                text: result.finalText,
+                originalText: result.rawText,
+                duration: result.duration,
+                modelUsed: settingsStore.selectedModel,
+                enhancedWith: nil,
+                sourceKind: .voiceRecording
+            )
+            let linkageIDs = VoiceNoteLinkageIDs(
+                historyRecordID: record.id,
+                finalTranscriptRevisionID: revisions.finalRevisionID
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            try captureSessionStore.linkTranscriptionRecord(
+                linkageIDs.historyRecordID,
+                to: result.context.handle,
+                at: .now
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            let append = try notesStore.appendTranscript(
+                to: noteID,
+                content: result.finalText,
+                sourceTranscriptionID: linkageIDs.historyRecordID
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            try captureSessionStore.complete(
+                result.context.handle,
+                noteID: append.noteID,
+                finalTranscriptRevisionID: linkageIDs.finalTranscriptRevisionID,
+                at: .now
+            )
+            clearVoiceNoteCaptureContext(ifCurrent: result.context)
+            NotificationCenter.default.post(
+                name: .noteSpeakToAppendTranscript,
+                object: nil,
+                userInfo: [
+                    "editorID": editorID,
+                    "noteID": append.noteID,
+                    "content": append.content,
+                    "sourceTranscriptionID": Self.noteAppendNotificationSourceTranscriptionID(append)
+                ]
+            )
+        } catch {
+            guard operationController.isCurrent(token),
+                  isVoiceNoteCaptureContextCurrent(result.context) else {
+                throw CancellationError()
+            }
+            failVoiceNoteCapture(result.context, stage: "persist", error: error)
+            throw error
+        }
+    }
+
+    private func openNoteEditor(_ note: PindropData.NoteSchema.Note) {
+        noteEditorWindowController.show(note: note, isNewNote: true)
+        Log.app.info("Opened note editor with durable quick-capture note")
     }
 
     private func handleToggleRecording(source: RecordingTriggerSource) async {
@@ -3299,7 +3967,9 @@ final class AppCoordinator {
                 Log.app.error("Failed to stop recording: \(error)")
             }
         } else if !isProcessing {
-            guard NoteAppendGate.canStartGlobalDictation(isNoteAppendListening: isNoteAppendMode) else {
+            guard NoteAppendGate.canStartGlobalDictation(
+                isNoteAppendListening: isNoteAppendMode || pendingNoteAppendStart != nil
+            ) else {
                 Log.app.info("Refuse global dictation toggle: note-append listening is active")
                 return
             }
@@ -3314,7 +3984,11 @@ final class AppCoordinator {
         }
     }
     
-    private func startRecording(source: RecordingTriggerSource) async throws {
+    private func startRecording(
+        source: RecordingTriggerSource,
+        voiceNoteContext: VoiceNoteCaptureContext? = nil,
+        pendingNoteAppendStart: PendingNoteAppendStart? = nil
+    ) async throws {
         automaticDictionaryLearningService.cancelObservation()
         logRecordingStartAttempt(source: source)
 
@@ -3323,6 +3997,12 @@ final class AppCoordinator {
         ensureGlobalKeyMonitorsIfPossible()
 
         await beginStreamingSessionIfAvailable()
+        if let voiceNoteContext, let pendingNoteAppendStart {
+            try ensurePendingNoteAppendStartCurrent(
+                pendingNoteAppendStart,
+                context: voiceNoteContext
+            )
+        }
 
         // Retention encodes a native-rate copy so kept audio isn't the 16 kHz ASR feed.
         audioRecorder.retainNativeAudioForSession =
@@ -3331,7 +4011,19 @@ final class AppCoordinator {
         let didStartRecording: Bool
         do {
             didStartRecording = try await audioRecorder.startRecording()
+        if let voiceNoteContext, let pendingNoteAppendStart {
+            try ensurePendingNoteAppendStartCurrent(
+                pendingNoteAppendStart,
+                context: voiceNoteContext
+            )
+        }
         } catch {
+            if let voiceNoteContext, let pendingNoteAppendStart {
+                try ensurePendingNoteAppendStartCurrent(
+                    pendingNoteAppendStart,
+                    context: voiceNoteContext
+                )
+            }
             if streamingSession.isSessionActive {
                 await streamingSession.cancel()
             }
@@ -3339,12 +4031,22 @@ final class AppCoordinator {
             throw error
         }
 
+        if didStartRecording {
+            switch source {
+            case .noteAppend:
+                break
+            default:
+                // A newer capture owns the recorder now, so a cancelled
+                // note-append start must not reset it when its task unwinds.
+                pendingNoteAppendAudioStartupRequest = nil
+            }
+        }
+
         guard didStartRecording else {
             if streamingSession.isSessionActive {
                 await streamingSession.cancel()
             }
-            Log.app.debug("Recording start already in progress; ignoring duplicate start request")
-            return
+            throw VoiceNoteCaptureAdmissionError.recorderDidNotStart
         }
 
         if settingsStore.pauseMediaOnRecording || settingsStore.muteAudioDuringRecording {
@@ -4897,11 +5599,13 @@ final class AppCoordinator {
         // Invalidate any in-flight stop/transcribe/enhance pipeline first so post-await
         // stages discard results even if cooperative cancellation is delayed.
         operationController.cancel()
+        cancelPendingNoteAppendStart()
         activeOperationTask?.cancel()
         activeOperationTask = nil
         // Free stop admission immediately so a new recording can stop even while the
         // cancelled finalize task is still unwinding its defer.
         recordingStopAdmission.invalidateCurrentClaim()
+        cancelActiveVoiceNoteCapture()
 
         streamingSession.cancelDetached()
         recordingState.endRecording(message: localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale))
@@ -4947,6 +5651,9 @@ final class AppCoordinator {
             failure.localizedDescription
         )
         recordingState.endRecording(message: captureFailureMessage)
+        if let context = voiceNoteCaptureContext {
+            failVoiceNoteCapture(context, stage: "audio-capture", error: failure)
+        }
         recordingState.clearCurrentJob()
         if hadStreamingSession {
             Log.transcription.info("Cancelled streaming transcription after audio capture failure")
@@ -4958,7 +5665,6 @@ final class AppCoordinator {
         isRecordingFeatureCaptureActive = false
         isQuickCaptureMode = false
         clearNoteAppendMode()
-        recordingStartTime = nil
         manualExpectedSpeakerCount = nil
         capturedContext = nil
         capturedSnapshot = nil
@@ -5937,6 +6643,7 @@ final class AppCoordinator {
             return
         }
 
+        cancelPendingNoteAppendStart()
         Log.app.info("Clearing audio buffer")
         // Mirror cancel's teardown: invalidate any in-flight operation and stop
         // admission so a half-dispatched stop can't run against the cleared audio.
@@ -5944,6 +6651,7 @@ final class AppCoordinator {
         activeOperationTask?.cancel()
         activeOperationTask = nil
         recordingStopAdmission.invalidateCurrentClaim()
+        cancelActiveVoiceNoteCapture()
 
         audioRecorder.cancelRecording()
         if streamingSession.isSessionActive {
@@ -6232,6 +6940,8 @@ final class AppCoordinator {
         floatingIndicatorHiddenTask?.cancel()
         floatingIndicatorHiddenTask = nil
         escapeEventTapRecoveryTask?.cancel()
+        cancelPendingNoteAppendStart()
+        cancelActiveVoiceNoteCapture()
         escapeEventTapRecoveryTask = nil
         modifierEventTapRecoveryTask?.cancel()
         modifierEventTapRecoveryTask = nil

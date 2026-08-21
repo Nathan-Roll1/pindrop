@@ -761,6 +761,12 @@ final class SwiftDataStoreRepairService {
 
             // Newest first: every check below is a feature the next-older
             // version lacks, so the first hit is the store's actual version.
+            // CaptureSessionModel was added in V13, and its table is present
+            // in every valid V13 store.
+            if try tableExists(named: "ZCAPTURESESSIONMODEL", on: database) {
+                return .v13
+            }
+
             if columns.contains("ZPIPELINEMETRICSJSON") {
                 return .v12
             }
