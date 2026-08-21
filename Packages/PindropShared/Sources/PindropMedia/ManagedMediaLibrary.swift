@@ -6,6 +6,7 @@
 //
 
 import AVFoundation
+import CryptoKit
 import Foundation
 import ImageIO
 import PindropCore
@@ -17,6 +18,7 @@ import UniformTypeIdentifiers
 /// or a sandbox container path on iOS). This type never reconstructs Application Support.
 public final class ManagedMediaLibrary: MediaLibraryManaging, @unchecked Sendable {
     private let fileManager: FileManager
+    private static let captureSourceStorageLock = NSLock()
 
     /// Root directory for job folders and derived areas such as DictationAudio.
     public let baseURL: URL
@@ -29,6 +31,11 @@ public final class ManagedMediaLibrary: MediaLibraryManaging, @unchecked Sendabl
     /// Alias for `baseURL` kept for call-site clarity at composition roots.
     public var libraryBaseURL: URL {
         baseURL
+    }
+
+    /// Resolves a durable capture artifact's library-relative path.
+    public func captureSourceURL(for artifact: ManagedCaptureSourceArtifact) -> URL {
+        baseURL.appendingPathComponent(artifact.relativePath)
     }
 
     public init(baseURL: URL, fileManager: FileManager = .default) {
@@ -121,6 +128,114 @@ public final class ManagedMediaLibrary: MediaLibraryManaging, @unchecked Sendabl
             displayName: displayName,
             hasSourceMetadataTitle: false,
             originalSourceURL: nil
+        )
+    }
+
+    public func storeCapturePCMFile(
+        at sourceURL: URL,
+        sessionID: UUID,
+        sourceID: UUID,
+        chunkSequence: Int
+    ) throws -> ManagedCaptureSourceArtifact {
+        guard chunkSequence >= 0 else {
+            throw MediaLibraryError.captureSourceStorageFailed("Chunk sequence must not be negative.")
+        }
+
+        let relativePath = CaptureSourceArtifactPath.relativePath(
+            sessionID: sessionID,
+            sourceID: sourceID,
+            chunkSequence: chunkSequence
+        )
+        let destinationURL = baseURL.appendingPathComponent(relativePath)
+        let partialURL = destinationURL
+            .appendingPathExtension("partial-\(UUID().uuidString)")
+
+        Self.captureSourceStorageLock.lock()
+        defer { Self.captureSourceStorageLock.unlock() }
+
+        var shouldRemovePartial = false
+        defer {
+            if shouldRemovePartial {
+                try? fileManager.removeItem(at: partialURL)
+            }
+        }
+
+        do {
+            try fileManager.createDirectory(
+                at: destinationURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            guard fileManager.createFile(atPath: partialURL.path, contents: nil) else {
+                throw MediaLibraryError.captureSourceStorageFailed("Unable to create staging file.")
+            }
+            shouldRemovePartial = true
+
+            try streamPCMFile(at: sourceURL, to: partialURL)
+            let stagedMetadata = try captureSourceMetadata(at: partialURL)
+
+            if fileManager.fileExists(atPath: destinationURL.path) {
+                let destinationMetadata = try captureSourceMetadata(at: destinationURL)
+                guard destinationMetadata == stagedMetadata else {
+                    throw MediaLibraryError.captureSourceStorageContentConflict(relativePath: relativePath)
+                }
+
+                return ManagedCaptureSourceArtifact(
+                    sessionID: sessionID,
+                    sourceID: sourceID,
+                    chunkSequence: chunkSequence,
+                    relativePath: relativePath,
+                    byteCount: destinationMetadata.byteCount,
+                    sha256: destinationMetadata.sha256
+                )
+            }
+
+            try fileManager.moveItem(at: partialURL, to: destinationURL)
+            shouldRemovePartial = false
+            let destinationMetadata = try captureSourceMetadata(at: destinationURL)
+            return ManagedCaptureSourceArtifact(
+                sessionID: sessionID,
+                sourceID: sourceID,
+                chunkSequence: chunkSequence,
+                relativePath: relativePath,
+                byteCount: destinationMetadata.byteCount,
+                sha256: destinationMetadata.sha256
+            )
+        } catch let error as MediaLibraryError {
+            throw error
+        } catch {
+            throw MediaLibraryError.captureSourceStorageFailed(error.localizedDescription)
+        }
+    }
+
+    private func streamPCMFile(
+        at sourceURL: URL,
+        to destinationURL: URL
+    ) throws {
+        let sourceHandle = try FileHandle(forReadingFrom: sourceURL)
+        defer { try? sourceHandle.close() }
+        let destinationHandle = try FileHandle(forWritingTo: destinationURL)
+        defer { try? destinationHandle.close() }
+
+        while let data = try sourceHandle.read(upToCount: 64 * 1024), !data.isEmpty {
+            try destinationHandle.write(contentsOf: data)
+        }
+    }
+
+    private func captureSourceMetadata(at url: URL) throws -> (byteCount: Int64, sha256: String) {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+
+        var hasher = SHA256()
+        var byteCount: Int64 = 0
+
+        while let data = try handle.read(upToCount: 64 * 1024), !data.isEmpty {
+            hasher.update(data: data)
+            byteCount += Int64(data.count)
+        }
+
+        return (
+            byteCount: byteCount,
+            sha256: hasher.finalize().map { String(format: "%02x", $0) }.joined()
         )
     }
 

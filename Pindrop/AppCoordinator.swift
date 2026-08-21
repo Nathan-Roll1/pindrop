@@ -445,6 +445,44 @@ final class AppCoordinator {
         let title: String?
         let tags: [String]
     }
+    private struct MeetingCaptureContext {
+        let handle: PindropData.MeetingCaptureHandle
+    }
+
+    private enum MeetingCaptureAdmissionError: LocalizedError {
+        case captureAlreadyActive
+        case recorderDidNotStart
+        case noRetainedSources
+        case missingMixedAudio
+
+        var errorDescription: String? {
+            switch self {
+            case .captureAlreadyActive:
+                "A meeting capture is already active."
+            case .recorderDidNotStart:
+                "The recorder did not begin meeting capture."
+            case .noRetainedSources:
+                "Neither meeting audio source could be retained."
+            case .missingMixedAudio:
+                "Meeting audio could not be prepared for transcription."
+            }
+        }
+    }
+
+    enum MeetingSourceLedgerOutcome {
+        case retained(PindropData.RetainedMeetingSource)
+        case failed(PindropData.FailedMeetingSource)
+    }
+
+    enum MeetingStopDisposition: Equatable {
+        case proceedToMixedAudio
+        case failWithoutTranscription
+    }
+
+    private enum MeetingCaptureTerminalPersistenceError: Error {
+        case failure(Error)
+        case cancellation(Error)
+    }
 
     private struct PendingNoteAppendStart: Equatable {
         let generation: UInt64
@@ -608,6 +646,7 @@ final class AppCoordinator {
     private var isRecordingFeatureCaptureActive = false
     private var manualExpectedSpeakerCount: Int?
     private var quickCaptureTranscription: String?
+    private var meetingCaptureContext: MeetingCaptureContext?
     private var noteAppendEditorID: UUID?
     private var voiceNoteCaptureContext: VoiceNoteCaptureContext?
     /// The exact capture allocated for a pending editor request. Stop must only
@@ -3363,6 +3402,55 @@ final class AppCoordinator {
         activeHandle == candidateHandle
     }
 
+    static func canBeginMeetingCapture(
+        activeHandle: PindropData.MeetingCaptureHandle?
+    ) -> Bool {
+        activeHandle == nil
+    }
+
+    static func isMeetingCaptureCurrent(
+        activeHandle: PindropData.MeetingCaptureHandle?,
+        candidateHandle: PindropData.MeetingCaptureHandle
+    ) -> Bool {
+        activeHandle == candidateHandle
+    }
+
+    static func meetingStopLedgerInputs(
+        microphone: MeetingSourceLedgerOutcome,
+        systemAudio: MeetingSourceLedgerOutcome
+    ) -> (
+        retained: [PindropData.RetainedMeetingSource],
+        failures: [PindropData.FailedMeetingSource]
+    ) {
+        let outcomes = [microphone, systemAudio]
+        return (
+            retained: outcomes.compactMap {
+                guard case .retained(let source) = $0 else { return nil }
+                return source
+            },
+            failures: outcomes.compactMap {
+                guard case .failed(let source) = $0 else { return nil }
+                return source
+            }
+        )
+    }
+
+    static func meetingStopDisposition(
+        retainedSources: [PindropData.RetainedMeetingSource]
+    ) -> MeetingStopDisposition {
+        retainedSources.isEmpty ? .failWithoutTranscription : .proceedToMixedAudio
+    }
+
+    static func meetingProjectionRetention(
+        retainedSources: [PindropData.RetainedMeetingSource],
+        handle: PindropData.MeetingCaptureHandle
+    ) -> (retainingMicrophone: Bool, systemAudio: Bool) {
+        (
+            retainingMicrophone: retainedSources.contains { $0.sourceID == handle.microphoneSourceID },
+            systemAudio: retainedSources.contains { $0.sourceID == handle.systemAudioSourceID }
+        )
+    }
+
     static func isPendingNoteAppendCaptureCurrent(
         pendingEditorID: UUID?,
         pendingNoteID: UUID?,
@@ -3402,6 +3490,157 @@ final class AppCoordinator {
     private func clearVoiceNoteCaptureContext(ifCurrent context: VoiceNoteCaptureContext) {
         guard isVoiceNoteCaptureContextCurrent(context) else { return }
         voiceNoteCaptureContext = nil
+    }
+
+    private func isMeetingCaptureContextCurrent(_ context: MeetingCaptureContext) -> Bool {
+        Self.isMeetingCaptureCurrent(
+            activeHandle: meetingCaptureContext?.handle,
+            candidateHandle: context.handle
+        )
+    }
+
+    private func ensureMeetingCaptureCurrent(
+        _ context: MeetingCaptureContext,
+        token: DictationOperationToken
+    ) throws {
+        try ensureOperationCurrent(token)
+        guard isMeetingCaptureContextCurrent(context) else {
+            throw CancellationError()
+        }
+    }
+
+    private func clearMeetingCaptureContext(ifCurrent context: MeetingCaptureContext) {
+        guard isMeetingCaptureContextCurrent(context) else { return }
+        meetingCaptureContext = nil
+    }
+
+    private func failMeetingCapture(
+        _ context: MeetingCaptureContext,
+        stage: CapturePipelineStage?,
+        error: Error
+    ) throws {
+        guard isMeetingCaptureContextCurrent(context) else {
+            throw CancellationError()
+        }
+
+        let nsError = error as NSError
+        do {
+            try captureSessionStore.failMeetingCapture(
+                context.handle,
+                stage: stage,
+                errorDomain: nsError.domain,
+                errorCode: String(nsError.code),
+                message: error.localizedDescription,
+                at: .now
+            )
+        } catch {
+            Log.app.error("Failed to mark meeting capture as failed: \(error)")
+            throw MeetingCaptureTerminalPersistenceError.failure(error)
+        }
+
+        clearMeetingCaptureContext(ifCurrent: context)
+    }
+
+    private func cancelActiveMeetingCapture() throws {
+        guard let context = meetingCaptureContext else { return }
+
+        do {
+            try captureSessionStore.cancelMeetingCapture(context.handle, at: .now)
+        } catch {
+            Log.app.error("Failed to cancel meeting capture: \(error)")
+            throw MeetingCaptureTerminalPersistenceError.cancellation(error)
+        }
+
+        clearMeetingCaptureContext(ifCurrent: context)
+    }
+
+    private func reportMeetingCaptureTerminalPersistenceFailure(_ error: Error) {
+        self.error = error
+        Log.app.error("Meeting capture terminal persistence failed; retaining capture ownership: \(error)")
+    }
+
+    private func resetStoppedMeetingCaptureState() {
+        isRecording = false
+        isRecordingFeatureCaptureActive = false
+        manualExpectedSpeakerCount = nil
+        resetProcessingState()
+    }
+
+    private func retainMeetingSource(
+        _ outcome: AudioCaptureSourceStopOutcome,
+        sourceID: UUID,
+        context: MeetingCaptureContext,
+        token: DictationOperationToken
+    ) async throws -> MeetingSourceLedgerOutcome {
+        switch outcome {
+        case .captured(let file):
+            let artifact: ManagedCaptureSourceArtifact
+            do {
+                artifact = try await mediaIngestionService.storeCapturePCMFile(
+                    at: file.fileURL,
+                    sessionID: context.handle.sessionID,
+                    sourceID: sourceID,
+                    chunkSequence: 0
+                )
+            } catch {
+                let nsError = error as NSError
+                return .failed(PindropData.FailedMeetingSource(
+                    sourceID: sourceID,
+                    errorDomain: nsError.domain,
+                    errorCode: String(nsError.code),
+                    message: error.localizedDescription,
+                    occurredAt: .now
+                ))
+            }
+
+            try ensureMeetingCaptureCurrent(context, token: token)
+
+            let expectedRelativePath = CaptureSourceArtifactPath.relativePath(
+                sessionID: context.handle.sessionID,
+                sourceID: sourceID,
+                chunkSequence: 0
+            )
+            guard artifact.sessionID == context.handle.sessionID,
+                  artifact.sourceID == sourceID,
+                  artifact.chunkSequence == 0,
+                  artifact.relativePath == expectedRelativePath else {
+                return .failed(PindropData.FailedMeetingSource(
+                    sourceID: sourceID,
+                    errorDomain: "PindropMedia",
+                    errorCode: "capture-source-artifact-mismatch",
+                    message: "Stored meeting audio source metadata did not match its deterministic artifact path.",
+                    occurredAt: .now
+                ))
+            }
+            guard let byteCount = Int(exactly: artifact.byteCount) else {
+                return .failed(PindropData.FailedMeetingSource(
+                    sourceID: sourceID,
+                    errorDomain: "PindropMedia",
+                    errorCode: "capture-source-byte-count-overflow",
+                    message: "The stored meeting audio source is too large to ledger.",
+                    occurredAt: .now
+                ))
+            }
+            let duration = Double(artifact.byteCount)
+                / (file.sampleRate * Double(MemoryLayout<Float>.size))
+            return .retained(PindropData.RetainedMeetingSource(
+                sourceID: sourceID,
+                sampleRate: file.sampleRate,
+                channelCount: 1,
+                duration: duration,
+                managedMediaPath: artifact.managedMediaPath,
+                byteCount: byteCount,
+                sha256: artifact.sha256
+            ))
+        case .failed(let failure):
+            return .failed(PindropData.FailedMeetingSource(
+                sourceID: sourceID,
+                errorDomain: failure.errorDomain,
+                errorCode: failure.errorCode,
+                message: failure.message,
+                occurredAt: .now
+            ))
+        }
     }
 
     private func beginVoiceNoteCapture(noteID: UUID?) throws {
@@ -5594,6 +5833,7 @@ final class AppCoordinator {
         }
 
         Log.app.info("Cancelling current operation via \(source)")
+        var meetingTerminalPersistenceError: Error?
 
         escapeCancelArmedAt = nil
         // Invalidate any in-flight stop/transcribe/enhance pipeline first so post-await
@@ -5606,6 +5846,12 @@ final class AppCoordinator {
         // cancelled finalize task is still unwinding its defer.
         recordingStopAdmission.invalidateCurrentClaim()
         cancelActiveVoiceNoteCapture()
+        do {
+            try cancelActiveMeetingCapture()
+        } catch {
+            meetingTerminalPersistenceError = error
+            reportMeetingCaptureTerminalPersistenceFailure(error)
+        }
 
         streamingSession.cancelDetached()
         recordingState.endRecording(message: localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale))
@@ -5626,7 +5872,7 @@ final class AppCoordinator {
         capturedRoutingSignal = nil
         stopLiveContextSession()
         updateVibeRuntimeStateFromSettings()
-        error = nil
+        error = meetingTerminalPersistenceError
 
         statusBarController.setIdleState()
         statusBarController.updateMenuState()
@@ -5653,6 +5899,13 @@ final class AppCoordinator {
         recordingState.endRecording(message: captureFailureMessage)
         if let context = voiceNoteCaptureContext {
             failVoiceNoteCapture(context, stage: "audio-capture", error: failure)
+        }
+        if let context = meetingCaptureContext {
+            do {
+                try failMeetingCapture(context, stage: nil, error: failure)
+            } catch {
+                reportMeetingCaptureTerminalPersistenceFailure(error)
+            }
         }
         recordingState.clearCurrentJob()
         if hadStreamingSession {
@@ -6030,6 +6283,7 @@ final class AppCoordinator {
                     expectedSpeakerCount: expectedSpeakerCount
                 )
             } catch {
+                guard !self.isShutdown else { return }
                 self.error = error
                 self.audioRecorder.resetAudioEngine()
                 self.isRecordingFeatureCaptureActive = false
@@ -6047,8 +6301,14 @@ final class AppCoordinator {
             recordingState.message = "Finish the active transcription before starting another one."
             return
         }
+        guard Self.canBeginMeetingCapture(activeHandle: meetingCaptureContext?.handle) else {
+            throw MeetingCaptureAdmissionError.captureAlreadyActive
+        }
 
         await modelManager.refreshDownloadedFeatureModels()
+        guard !isShutdown else {
+            throw CancellationError()
+        }
         guard modelManager.isFeatureModelDownloaded(.diarization) else {
             recordingState.setSetupIssue(
                 localized(
@@ -6059,16 +6319,45 @@ final class AppCoordinator {
             return
         }
 
-        let didStartRecording = try await audioRecorder.startRecording(
-            configuration: AudioRecordingConfiguration(mode: mode)
+        let startedAt = Date.now
+        let preferredInputUID = audioRecorder.currentPreferredInputDeviceUID
+            ?? settingsStore.selectedInputDeviceUID
+        let microphoneDisplayName = AudioDeviceManager.inputDevices()
+            .first(where: { $0.uid == preferredInputUID })?
+            .displayName ?? "Microphone"
+        let handle = try captureSessionStore.startMeetingCapture(
+            startedAt: startedAt,
+            microphoneDisplayName: microphoneDisplayName,
+            systemAudioDisplayName: "System Audio"
         )
-        guard didStartRecording else { return }
-        manualExpectedSpeakerCount = expectedSpeakerCount
+        let context = MeetingCaptureContext(handle: handle)
+        meetingCaptureContext = context
 
+        do {
+            let didStartRecording = try await audioRecorder.startRecording(
+                configuration: AudioRecordingConfiguration(mode: mode)
+            )
+            guard didStartRecording else {
+                throw MeetingCaptureAdmissionError.recorderDidNotStart
+            }
+            guard !isShutdown, isMeetingCaptureContextCurrent(context) else {
+                audioRecorder.cancelRecording()
+                throw CancellationError()
+            }
+        } catch {
+            if Self.isTaskCancellation(error) {
+                try cancelActiveMeetingCapture()
+            } else {
+                try failMeetingCapture(context, stage: nil, error: error)
+            }
+            throw error
+        }
+
+        manualExpectedSpeakerCount = expectedSpeakerCount
         isRecording = true
         isRecordingFeatureCaptureActive = true
-        recordingStartTime = Date()
-        recordingState.beginRecording(mode: mode, startedAt: recordingStartTime ?? Date())
+        recordingStartTime = startedAt
+        recordingState.beginRecording(mode: mode, startedAt: startedAt)
         statusBarController.setRecordingState()
         statusBarController.updateMenuState()
         startRecordingIndicatorSession()
@@ -6076,147 +6365,247 @@ final class AppCoordinator {
 
 
     private func stopManualTranscriptionRecording(token: DictationOperationToken) async throws {
-        guard isRecordingFeatureCaptureActive else {
+        guard isRecordingFeatureCaptureActive,
+              let context = meetingCaptureContext else {
             throw AudioRecorderError.notRecording
         }
 
         let mode = recordingState.selectedCaptureMode
-        let duration = recordingStartTime.map { Date().timeIntervalSince($0) } ?? 0
-        let audioData = try await audioRecorder.stopRecording()
-        // Ownership check immediately after the first await — before any global
-        // mutation/store that would clobber a newer session started after cancel.
-        try ensureOperationCurrent(token)
-
-        isRecording = false
-        isRecordingFeatureCaptureActive = false
-        recordingState.endRecording()
-        statusBarController.setProcessingState()
-        statusBarController.updateMenuState()
-        transitionRecordingIndicatorToProcessing()
-        isProcessing = true
+        let duration = recordingStartTime.map { Date.now.timeIntervalSince($0) } ?? 0
         let expectedSpeakerCount = manualExpectedSpeakerCount
-        manualExpectedSpeakerCount = nil
-
-        let job = MediaTranscriptionJobState(
-            request: .manualCapture(mode.rawValue),
-            options: TranscriptionJobOptions(
-                modelName: settingsStore.selectedModel,
-                language: settingsStore.selectedAppLanguage,
-                outputFormat: .plainText,
-                diarizationEnabled: true,
-                expectedSpeakerCount: expectedSpeakerCount
-            ),
-            destinationFolderID: nil,
-            stage: .preparingAudio,
-            progress: nil,
-            detail: "Preparing captured audio"
-        )
-
-        recordingState.beginJob(job)
-
-        var didResetProcessingState = false
-        defer {
-            if Self.shouldResetProcessingStateOnExit(
-                didResetProcessingState: didResetProcessingState,
-                isOperationCurrent: operationController.isCurrent(token)
-            ) {
-                resetProcessingState()
-            }
-        }
 
         do {
-            let managedAsset = try mediaIngestionService.storeRecordedAudio(
+            try captureSessionStore.beginMeetingFinalization(context.handle, at: .now)
+            let stopResult = try await audioRecorder.stopSourceSeparatedRecording()
+            var ownsStoppedSources = true
+            defer {
+                if ownsStoppedSources {
+                    stopResult.discard()
+                }
+            }
+
+            // Check both generation and exact durable handle before storage. A
+            // cancelled stop must never ledger sources against a later meeting.
+            try ensureMeetingCaptureCurrent(context, token: token)
+            let microphoneOutcome = try await retainMeetingSource(
+                stopResult.microphone,
+                sourceID: context.handle.microphoneSourceID,
+                context: context,
+                token: token
+            )
+            try ensureMeetingCaptureCurrent(context, token: token)
+            let systemAudioOutcome = try await retainMeetingSource(
+                stopResult.systemAudio,
+                sourceID: context.handle.systemAudioSourceID,
+                context: context,
+                token: token
+            )
+            try ensureMeetingCaptureCurrent(context, token: token)
+            let ledgerInputs = Self.meetingStopLedgerInputs(
+                microphone: microphoneOutcome,
+                systemAudio: systemAudioOutcome
+            )
+            try captureSessionStore.recordMeetingStop(
+                context.handle,
+                retained: ledgerInputs.retained,
+                failures: ledgerInputs.failures,
+                at: .now
+            )
+            // Source artifacts are deliberately retained if ledger persistence
+            // fails: their deterministic paths are recovery inputs. When
+            // proceeding, retain the recorder's temporary files until the
+            // projection derived from the durably retained sources materializes.
+            let projectionRetention = Self.meetingProjectionRetention(
+                retainedSources: ledgerInputs.retained,
+                handle: context.handle
+            )
+
+            switch Self.meetingStopDisposition(retainedSources: ledgerInputs.retained) {
+            case .failWithoutTranscription:
+                let message = MeetingCaptureAdmissionError.noRetainedSources.localizedDescription
+                resetStoppedMeetingCaptureState()
+                recordingState.failCurrentJob(message)
+                clearMeetingCaptureContext(ifCurrent: context)
+                return
+            case .proceedToMixedAudio:
+                break
+            }
+
+            guard let audioData = try stopResult.projectionData(
+                retainingMicrophone: projectionRetention.retainingMicrophone,
+                systemAudio: projectionRetention.systemAudio
+            ) else {
+                let failure = MeetingCaptureAdmissionError.missingMixedAudio
+                try failMeetingCapture(context, stage: nil, error: failure)
+                resetStoppedMeetingCaptureState()
+                recordingState.failCurrentJob(failure.localizedDescription)
+                return
+            }
+
+            stopResult.discard()
+            ownsStoppedSources = false
+
+            let job = MediaTranscriptionJobState(
+                request: .manualCapture(mode.rawValue),
+                options: TranscriptionJobOptions(
+                    modelName: settingsStore.selectedModel,
+                    language: settingsStore.selectedAppLanguage,
+                    outputFormat: .plainText,
+                    diarizationEnabled: true,
+                    expectedSpeakerCount: expectedSpeakerCount
+                ),
+                destinationFolderID: nil,
+                stage: .preparingAudio,
+                progress: nil,
+                detail: "Preparing captured audio"
+            )
+            let managedAsset = try await mediaIngestionService.storeRecordedAudio(
                 audioData,
                 jobID: job.id,
                 displayName: mode.libraryDisplayName,
                 sourceKind: .manualCapture
             )
-            try ensureOperationCurrent(token)
+            try ensureMeetingCaptureCurrent(context, token: token)
 
-            recordingState.updateJob(
-                stage: .transcribing,
-                progress: nil,
-                detail: job.options.diarizationEnabled ? "Running diarization and transcription" : "Running transcription",
-                errorMessage: nil
-            )
+            isRecording = false
+            isRecordingFeatureCaptureActive = false
+            manualExpectedSpeakerCount = nil
+            recordingState.endRecording()
+            statusBarController.setProcessingState()
+            statusBarController.updateMenuState()
+            transitionRecordingIndicatorToProcessing()
+            isProcessing = true
+            recordingState.beginJob(job)
 
-            let transcriptionOutput = try await transcriptionService.transcribe(
-                audioData: audioData,
-                diarizationEnabled: job.options.diarizationEnabled,
-                options: makeTranscriptionOptions(),
-                diarizationOptions: .init(expectedSpeakerCount: job.options.expectedSpeakerCount),
-                diarizationFailurePolicy: .required
-            )
-            try ensureOperationCurrent(token)
-            let diarizationSegmentsJSON = encodeDiarizationSegmentsJSON(transcriptionOutput.diarizedSegments)
-
-            recordingState.updateJob(
-                stage: .saving,
-                progress: nil,
-                detail: "Saving transcript to history",
-                errorMessage: nil
-            )
-
-            let finalText = normalizedTranscriptionText(transcriptionOutput.text)
-            guard !isTranscriptionEffectivelyEmpty(finalText) else {
-                throw PindropMedia.MediaPreparationError.readFailed("No speech could be transcribed from this recording.")
+            var didResetProcessingState = false
+            defer {
+                if Self.shouldResetProcessingStateOnExit(
+                    didResetProcessingState: didResetProcessingState,
+                    isOperationCurrent: operationController.isCurrent(token)
+                ) {
+                    resetProcessingState()
+                }
             }
 
-            let transcriptionMetadata = await generateTranscriptionMetadataIfNeeded(
-                from: finalText,
-                managedAsset: managedAsset
-            )
-            try ensureOperationCurrent(token)
+            do {
+                recordingState.updateJob(
+                    stage: .transcribing,
+                    progress: nil,
+                    detail: "Running diarization and transcription",
+                    errorMessage: nil
+                )
 
-            let record = try historyStore.save(
-                text: finalText,
-                originalText: nil,
-                duration: duration,
-                modelUsed: settingsStore.selectedModel,
-                enhancedWith: nil,
-                diarizationSegmentsJSON: diarizationSegmentsJSON,
-                sourceKind: managedAsset.sourceKind,
-                sourceDisplayName: managedAsset.displayName,
-                generatedTitle: transcriptionMetadata.generatedTitle,
-                aiSummary: transcriptionMetadata.summary,
-                sourceTitleOrigin: managedAsset.hasSourceMetadataTitle ? .sourceMetadata : .fallback,
-                originalSourceURL: managedAsset.originalSourceURL,
-                managedMediaPath: managedAsset.mediaURL.path,
-                thumbnailPath: managedAsset.thumbnailURL?.path,
-                folderID: job.destinationFolderID
-            )
-            updateRecentTranscriptsMenu()
+                let transcriptionOutput = try await transcriptionService.transcribe(
+                    audioData: audioData,
+                    diarizationEnabled: true,
+                    options: makeTranscriptionOptions(),
+                    diarizationOptions: .init(expectedSpeakerCount: expectedSpeakerCount),
+                    diarizationFailurePolicy: .required
+                )
+                try ensureMeetingCaptureCurrent(context, token: token)
+                let diarizationSegmentsJSON = encodeDiarizationSegmentsJSON(transcriptionOutput.diarizedSegments)
 
-            if operationController.isCurrent(token) {
+                recordingState.updateJob(
+                    stage: .saving,
+                    progress: nil,
+                    detail: "Saving transcript to history",
+                    errorMessage: nil
+                )
+
+                let finalText = normalizedTranscriptionText(transcriptionOutput.text)
+                guard !isTranscriptionEffectivelyEmpty(finalText) else {
+                    throw PindropMedia.MediaPreparationError.readFailed("No speech could be transcribed from this recording.")
+                }
+
+                let transcriptionMetadata = await generateTranscriptionMetadataIfNeeded(
+                    from: finalText,
+                    managedAsset: managedAsset
+                )
+                try ensureMeetingCaptureCurrent(context, token: token)
+
+                let record = try historyStore.save(
+                    text: finalText,
+                    originalText: nil,
+                    duration: duration,
+                    modelUsed: settingsStore.selectedModel,
+                    enhancedWith: nil,
+                    diarizationSegmentsJSON: diarizationSegmentsJSON,
+                    sourceKind: managedAsset.sourceKind,
+                    sourceDisplayName: managedAsset.displayName,
+                    generatedTitle: transcriptionMetadata.generatedTitle,
+                    aiSummary: transcriptionMetadata.summary,
+                    sourceTitleOrigin: managedAsset.hasSourceMetadataTitle ? .sourceMetadata : .fallback,
+                    originalSourceURL: managedAsset.originalSourceURL,
+                    managedMediaPath: managedAsset.mediaURL.path,
+                    thumbnailPath: managedAsset.thumbnailURL?.path,
+                    folderID: job.destinationFolderID
+                )
+                try ensureMeetingCaptureCurrent(context, token: token)
+                try captureSessionStore.completeMeetingCapture(
+                    context.handle,
+                    transcriptionRecordID: record.id,
+                    at: .now
+                )
+                clearMeetingCaptureContext(ifCurrent: context)
+                updateRecentTranscriptsMenu()
+
+                if operationController.isCurrent(token) {
+                    resetProcessingState()
+                    didResetProcessingState = true
+                }
+                recordingState.completeCurrentJob(with: record.id, message: "Meeting recording transcribed successfully.")
+                let meetingRecordID = record.id
+                mainWindowController.showHistory()
+                // Post after nav so HistoryView is mounted and listening.
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 150_000_000)
+                    NotificationCenter.default.post(
+                        name: .openHistoryRecord,
+                        object: nil,
+                        userInfo: ["recordID": meetingRecordID.uuidString]
+                    )
+                }
+            } catch is CancellationError {
+                guard operationController.isCurrent(token),
+                      isMeetingCaptureContextCurrent(context) else {
+                    return
+                }
+                try cancelActiveMeetingCapture()
                 resetProcessingState()
                 didResetProcessingState = true
+                recordingState.clearCurrentJob()
+                recordingState.message = localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale)
+            } catch {
+                guard operationController.isCurrent(token),
+                      isMeetingCaptureContextCurrent(context),
+                      !Self.isTaskCancellation(error) else {
+                    return
+                }
+                Log.app.error("Manual media transcription failed: \(error)")
+                try failMeetingCapture(context, stage: .finalTranscription, error: error)
+                resetProcessingState()
+                didResetProcessingState = true
+                recordingState.failCurrentJob(error.localizedDescription)
             }
-            recordingState.completeCurrentJob(with: record.id, message: "Meeting recording transcribed successfully.")
-            let meetingRecordID = record.id
-            mainWindowController.showHistory()
-            // Post after nav so HistoryView is mounted and listening.
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 150_000_000)
-                NotificationCenter.default.post(
-                    name: .openHistoryRecord,
-                    object: nil,
-                    userInfo: ["recordID": meetingRecordID.uuidString]
-                )
-            }
+        } catch let persistenceError as MeetingCaptureTerminalPersistenceError {
+            throw persistenceError
         } catch is CancellationError {
-            // Only the current operation may mutate shared RecordingState after cancel.
-            guard operationController.isCurrent(token) else { return }
-            resetProcessingState()
-            didResetProcessingState = true
-            recordingState.clearCurrentJob()
-            recordingState.message = localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale)
+            // User cancellation or a stale operation has already invalidated the
+            // active context; cancel only the exact handle when it still owns it.
+            if operationController.isCurrent(token), isMeetingCaptureContextCurrent(context) {
+                try cancelActiveMeetingCapture()
+                resetStoppedMeetingCaptureState()
+            }
+            throw CancellationError()
         } catch {
-            // Stale cancelled work completing after a newer session started: no state mutation.
-            guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else { return }
-            Log.app.error("Manual media transcription failed: \(error)")
-            resetProcessingState()
-            didResetProcessingState = true
-            recordingState.failCurrentJob(error.localizedDescription)
+            guard operationController.isCurrent(token),
+                  isMeetingCaptureContextCurrent(context),
+                  !Self.isTaskCancellation(error) else {
+                throw CancellationError()
+            }
+            resetStoppedMeetingCaptureState()
+            try failMeetingCapture(context, stage: nil, error: error)
+            throw error
         }
     }
 
@@ -6652,6 +7041,11 @@ final class AppCoordinator {
         activeOperationTask = nil
         recordingStopAdmission.invalidateCurrentClaim()
         cancelActiveVoiceNoteCapture()
+        do {
+            try cancelActiveMeetingCapture()
+        } catch {
+            reportMeetingCaptureTerminalPersistenceFailure(error)
+        }
 
         audioRecorder.cancelRecording()
         if streamingSession.isSessionActive {
@@ -6942,6 +7336,11 @@ final class AppCoordinator {
         escapeEventTapRecoveryTask?.cancel()
         cancelPendingNoteAppendStart()
         cancelActiveVoiceNoteCapture()
+        do {
+            try cancelActiveMeetingCapture()
+        } catch {
+            reportMeetingCaptureTerminalPersistenceFailure(error)
+        }
         escapeEventTapRecoveryTask = nil
         modifierEventTapRecoveryTask?.cancel()
         modifierEventTapRecoveryTask = nil

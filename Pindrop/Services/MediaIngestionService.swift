@@ -60,6 +60,8 @@ enum MediaIngestionError: Error, LocalizedError {
     case localFileImportFailed(String)
     case downloadedMediaMissing
     case metadataLookupFailed(String)
+    case captureSourceStorageFailed(String)
+    case captureSourceStorageContentConflict(String)
 
     var errorDescription: String? {
         switch self {
@@ -75,6 +77,10 @@ enum MediaIngestionError: Error, LocalizedError {
             return "Download finished but no playable media file was found."
         case .metadataLookupFailed(let message):
             return "Failed to inspect media link: \(message)"
+        case .captureSourceStorageFailed(let message):
+            return "Capture source storage failed: \(message)"
+        case .captureSourceStorageContentConflict(let relativePath):
+            return "Capture source storage content conflicts with the existing artifact at \(relativePath)."
         }
     }
 
@@ -87,6 +93,12 @@ enum MediaIngestionError: Error, LocalizedError {
             return .downloadedMediaMissing
         case .downloadFailed(let message):
             return .downloadFailed(message)
+        case .captureSourceStorageUnsupported:
+            return .captureSourceStorageFailed("Capture source storage is not supported by this media library.")
+        case .captureSourceStorageContentConflict(let relativePath):
+            return .captureSourceStorageContentConflict(relativePath)
+        case .captureSourceStorageFailed(let message):
+            return .captureSourceStorageFailed(message)
         }
     }
 }
@@ -302,6 +314,28 @@ final class MediaIngestionService {
         jobID: UUID,
         displayName: String,
         sourceKind: MediaSourceKind
+    ) async throws -> ManagedMediaAsset {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.storeRecordedAudio(
+                    audioData,
+                    jobID: jobID,
+                    displayName: displayName,
+                    sourceKind: sourceKind
+                )
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func storeRecordedAudio(
+        _ audioData: Data,
+        jobID: UUID,
+        displayName: String,
+        sourceKind: MediaSourceKind
     ) throws -> ManagedMediaAsset {
         do {
             return try mediaLibrary.storeRecordedAudio(
@@ -309,6 +343,46 @@ final class MediaIngestionService {
                 jobID: jobID,
                 displayName: displayName,
                 sourceKind: sourceKind
+            )
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func storeCapturePCMFile(
+        at sourceURL: URL,
+        sessionID: UUID,
+        sourceID: UUID,
+        chunkSequence: Int
+    ) async throws -> ManagedCaptureSourceArtifact {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.storeCapturePCMFile(
+                    at: sourceURL,
+                    sessionID: sessionID,
+                    sourceID: sourceID,
+                    chunkSequence: chunkSequence
+                )
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func storeCapturePCMFile(
+        at sourceURL: URL,
+        sessionID: UUID,
+        sourceID: UUID,
+        chunkSequence: Int
+    ) throws -> ManagedCaptureSourceArtifact {
+        do {
+            return try mediaLibrary.storeCapturePCMFile(
+                at: sourceURL,
+                sessionID: sessionID,
+                sourceID: sourceID,
+                chunkSequence: chunkSequence
             )
         } catch let error as MediaLibraryError {
             throw MediaIngestionError.fromMediaLibraryError(error)

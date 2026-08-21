@@ -58,6 +58,17 @@ public enum CaptureFailureDisposition: String, Codable, Sendable {
     case terminal
 }
 
+/// The canonical managed-media location for a capture source artifact.
+public enum CaptureSourceArtifactPath {
+    public static func relativePath(
+        sessionID: UUID,
+        sourceID: UUID,
+        chunkSequence: Int
+    ) -> String {
+        "CaptureSessions/\(sessionID.uuidString)/Sources/\(sourceID.uuidString)/chunk-\(String(format: "%05d", chunkSequence)).pcm"
+    }
+}
+
 public struct CaptureFailure: Codable, Sendable, Equatable, Identifiable {
     public let id: UUID
     public let sessionID: UUID

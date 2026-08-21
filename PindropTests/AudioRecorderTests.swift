@@ -353,6 +353,35 @@ struct AudioRecorderTests {
         #expect(reportedError != nil)
     }
 
+    @Test func delayedCallbacksFromStoppedSessionCannotAffectNewSession() async throws {
+        let fixture = try makeFixture()
+        fixture.mockPermission.grantPermission = true
+        let sampleBuffer = try #require(
+            MockAudioCaptureBackend.makeSynthesizedBuffer(format: fixture.mockBackend.targetFormat)
+        )
+        fixture.mockBackend.simulatedBuffers = [sampleBuffer]
+
+        var deliveredBuffers = 0
+        fixture.sut.onAudioBuffer = { _ in
+            deliveredBuffers += 1
+        }
+
+        try await fixture.sut.startRecording()
+        let staleBuffer = try #require(fixture.mockBackend.capturedOnBuffer)
+        let staleError = try #require(fixture.mockBackend.capturedOnError)
+        _ = try await fixture.sut.stopRecording()
+
+        try await fixture.sut.startRecording()
+        staleBuffer(sampleBuffer)
+        staleError(AudioRecorderError.engineStartFailed("late callback from session A"))
+        await Task.yield()
+        await Task.yield()
+
+        #expect(fixture.sut.isRecording)
+        #expect(deliveredBuffers == 0)
+        #expect(fixture.mockBackend.cancelCaptureCallCount == 0)
+    }
+
     @Test func captureLimitKeepsRecorderActiveForControlledFinalization() async throws {
         let fixture = try makeFixture()
         fixture.mockPermission.grantPermission = true
@@ -632,6 +661,579 @@ struct AudioRecorderTests {
         }
     }
 
+
+    @Test func sourceSeparatedStopRetainsBothSourcesAndMixedProjection() async throws {
+        let fixture = try makeFixture()
+        let microphoneBuffer = try #require(
+            MockAudioCaptureBackend.makeSynthesizedBuffer(
+                format: fixture.mockBackend.targetFormat,
+                frameCount: 20_000,
+                frequency: 100
+            )
+        )
+        let systemBuffer = try #require(
+            MockAudioCaptureBackend.makeSynthesizedBuffer(
+                format: fixture.mockSystemBackend.targetFormat,
+                frameCount: 20_000,
+                frequency: 200
+            )
+        )
+        fixture.mockBackend.simulatedBuffers = [microphoneBuffer]
+        fixture.mockSystemBackend.simulatedBuffers = [systemBuffer]
+
+        try await fixture.sut.startRecording(
+            configuration: AudioRecordingConfiguration(mode: .microphoneAndSystemAudio)
+        )
+        let result = try await fixture.sut.stopSourceSeparatedRecording()
+        let microphone = try #require(result.microphone.capturedFile)
+        let systemAudio = try #require(result.systemAudio.capturedFile)
+
+        #expect(result.mixedAudioData?.count == Int(microphoneBuffer.frameLength) * MemoryLayout<Float>.size)
+        #expect(FileManager.default.fileExists(atPath: microphone.fileURL.path))
+        #expect(FileManager.default.fileExists(atPath: systemAudio.fileURL.path))
+
+        result.discard()
+        result.discard()
+        #expect(!FileManager.default.fileExists(atPath: microphone.fileURL.path))
+        #expect(!FileManager.default.fileExists(atPath: systemAudio.fileURL.path))
+    }
+
+    @Test func sourceSeparatedStartKeepsMicrophoneWhenSystemFails() async throws {
+        let fixture = try makeFixture()
+        fixture.mockSystemBackend.shouldThrowOnStart = AudioRecorderError.engineStartFailed("system unavailable")
+        fixture.mockBackend.simulatedBuffers = [
+            try #require(MockAudioCaptureBackend.makeSynthesizedBuffer(format: fixture.mockBackend.targetFormat))
+        ]
+
+        try await fixture.sut.startRecording(
+            configuration: AudioRecordingConfiguration(mode: .microphoneAndSystemAudio)
+        )
+        let result = try await fixture.sut.stopSourceSeparatedRecording()
+        defer { result.discard() }
+
+        #expect(result.mixedAudioData?.isEmpty == false)
+        #expect(result.microphone.capturedFile != nil)
+        #expect(result.systemAudio.capturedFile == nil)
+        #expect(result.systemAudio.failure?.stage == .start)
+        #expect(fixture.mockBackend.stopCaptureCallCount == 1)
+        #expect(fixture.mockSystemBackend.stopCaptureCallCount == 0)
+    }
+
+    @Test func sourceSeparatedStartKeepsSystemWhenMicrophoneFails() async throws {
+        let fixture = try makeFixture()
+        fixture.mockBackend.shouldThrowOnStart = AudioRecorderError.engineStartFailed("microphone unavailable")
+        fixture.mockSystemBackend.simulatedBuffers = [
+            try #require(MockAudioCaptureBackend.makeSynthesizedBuffer(format: fixture.mockSystemBackend.targetFormat))
+        ]
+
+        try await fixture.sut.startRecording(
+            configuration: AudioRecordingConfiguration(mode: .microphoneAndSystemAudio)
+        )
+        let result = try await fixture.sut.stopSourceSeparatedRecording()
+        defer { result.discard() }
+
+        #expect(result.mixedAudioData?.isEmpty == false)
+        #expect(result.microphone.capturedFile == nil)
+        #expect(result.microphone.failure?.stage == .start)
+        #expect(result.systemAudio.capturedFile != nil)
+        #expect(fixture.mockBackend.stopCaptureCallCount == 0)
+        #expect(fixture.mockSystemBackend.stopCaptureCallCount == 1)
+    }
+
+    @Test func sourceSeparatedStartReportsAggregateOnlyWhenBothSourcesFail() async throws {
+        let fixture = try makeFixture()
+        fixture.mockBackend.shouldThrowOnStart = AudioRecorderError.engineStartFailed("microphone unavailable")
+        fixture.mockSystemBackend.shouldThrowOnStart = AudioRecorderError.engineStartFailed("system unavailable")
+
+        do {
+            try await fixture.sut.startRecording(
+                configuration: AudioRecordingConfiguration(mode: .microphoneAndSystemAudio)
+            )
+            Issue.record("Expected aggregate source failure")
+        } catch let error as AudioCaptureSourcesUnavailableError {
+            #expect(error.microphone.stage == .start)
+            #expect(error.systemAudio.stage == .start)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+
+        #expect(fixture.mockBackend.startCaptureCallCount == 1)
+        #expect(fixture.mockSystemBackend.startCaptureCallCount == 1)
+        #expect(fixture.sut.isRecording == false)
+    }
+
+    @Test func sourceSeparatedRuntimeFailureKeepsSiblingRecording() async throws {
+        let fixture = try makeFixture()
+        fixture.mockSystemBackend.simulatedBuffers = [
+            try #require(MockAudioCaptureBackend.makeSynthesizedBuffer(format: fixture.mockSystemBackend.targetFormat))
+        ]
+        var terminalError: Error?
+        fixture.sut.onCaptureError = { terminalError = $0 }
+
+        try await fixture.sut.startRecording(
+            configuration: AudioRecordingConfiguration(mode: .microphoneAndSystemAudio)
+        )
+        fixture.mockBackend.capturedOnError?(AudioRecorderError.engineStartFailed("microphone disconnected"))
+        await Task.yield()
+        await Task.yield()
+
+        #expect(fixture.sut.isRecording)
+        #expect(terminalError == nil)
+        let result = try await fixture.sut.stopSourceSeparatedRecording()
+        defer { result.discard() }
+        #expect(result.microphone.failure?.stage == .runtime)
+        #expect(result.systemAudio.capturedFile != nil)
+        #expect(result.mixedAudioData?.isEmpty == false)
+    }
+
+    @Test func mixedRuntimeFailureSchedulesChildCancellationOutsideChildCallback() async throws {
+        let microphone = CallbackQueueAudioCaptureBackend(identifier: "microphone")
+        let systemAudio = CallbackQueueAudioCaptureBackend(identifier: "system")
+        let backend = MixedAudioCaptureBackend(
+            microphoneBackend: microphone,
+            systemAudioBackend: systemAudio
+        )
+
+        try backend.startCapture(onBuffer: { _ in }, onAudioLevel: { _ in }, onError: { _ in })
+        microphone.emitDeferredError(AudioRecorderError.engineStartFailed("microphone disconnected"))
+        await microphone.waitUntilCancelled()
+
+        #expect(microphone.cancelWasCalledFromCallbackQueue == false)
+        #expect(systemAudio.isCapturing)
+        backend.cancelCapture()
+    }
+
+    @Test func sourceSeparatedStopReportsBothSourceFailuresWithoutThrowing() async throws {
+        let fixture = try makeFixture()
+        fixture.mockBackend.shouldThrowOnStop = AudioRecorderError.engineStartFailed("microphone stop failed")
+        fixture.mockSystemBackend.shouldThrowOnStop = AudioRecorderError.engineStartFailed("system stop failed")
+
+        try await fixture.sut.startRecording(
+            configuration: AudioRecordingConfiguration(mode: .microphoneAndSystemAudio)
+        )
+        let result = try await fixture.sut.stopSourceSeparatedRecording()
+        defer { result.discard() }
+
+        #expect(result.mixedAudioData == nil)
+        #expect(result.microphone.failure?.stage == .stop)
+        #expect(result.systemAudio.failure?.stage == .stop)
+        #expect(fixture.mockBackend.stopCaptureCallCount == 1)
+        #expect(fixture.mockSystemBackend.stopCaptureCallCount == 1)
+    }
+
+    @Test func legacyMixedStopStillReturnsACompatibilityProjection() async throws {
+        let fixture = try makeFixture()
+        fixture.mockBackend.simulatedBuffers = [
+            try #require(MockAudioCaptureBackend.makeSynthesizedBuffer(format: fixture.mockBackend.targetFormat))
+        ]
+        fixture.mockSystemBackend.simulatedBuffers = [
+            try #require(MockAudioCaptureBackend.makeSynthesizedBuffer(format: fixture.mockSystemBackend.targetFormat))
+        ]
+
+        try await fixture.sut.startRecording(
+            configuration: AudioRecordingConfiguration(mode: .microphoneAndSystemAudio)
+        )
+        let data = try await fixture.sut.stopRecording()
+
+        #expect(data.isEmpty == false)
+        #expect(fixture.mockBackend.stopCaptureCallCount == 1)
+        #expect(fixture.mockSystemBackend.stopCaptureCallCount == 1)
+    }
+
+    @Test func cancellingSourceSeparatedStopDrainsAndDiscardsEverySourceFile() async throws {
+        let permission = MockPermissionProvider()
+        let microphone = DelayedMockAudioCaptureBackend()
+        let systemAudio = MockAudioCaptureBackend(identifier: "system")
+        let sut = try AudioRecorder(
+            permissionManager: permission,
+            captureBackend: microphone,
+            systemAudioCaptureBackend: systemAudio
+        )
+        microphone.simulatedBuffers = [
+            try #require(MockAudioCaptureBackend.makeSynthesizedBuffer(format: microphone.targetFormat))
+        ]
+        systemAudio.simulatedBuffers = [
+            try #require(MockAudioCaptureBackend.makeSynthesizedBuffer(format: systemAudio.targetFormat))
+        ]
+
+        try await sut.startRecording(configuration: AudioRecordingConfiguration(mode: .microphoneAndSystemAudio))
+        let stopTask = Task { @MainActor () -> Bool in
+            do {
+                _ = try await sut.stopSourceSeparatedRecording()
+                return false
+            } catch is CancellationError {
+                return true
+            } catch {
+                return false
+            }
+        }
+        await microphone.waitUntilStopCaptureStarts()
+        stopTask.cancel()
+        microphone.allowStopCaptureToFinish()
+
+        #expect(await stopTask.value)
+        let microphoneFile = try #require(microphone.producedFileURL)
+        let systemAudioFile = try #require(systemAudio.producedFileURL)
+        #expect(!FileManager.default.fileExists(atPath: microphoneFile.path))
+        #expect(!FileManager.default.fileExists(atPath: systemAudioFile.path))
+    }
+#if DEBUG
+    @Test func mixedStartJoinsDeferredChildCancellationBeforeReusingChild() async throws {
+        let microphone = BlockingCancellationAudioCaptureBackend(identifier: "microphone")
+        let systemAudio = CallbackQueueAudioCaptureBackend(identifier: "system")
+        let backend = MixedAudioCaptureBackend(
+            microphoneBackend: microphone,
+            systemAudioBackend: systemAudio
+        )
+        let joinAttempted = TestAsyncSignal()
+        let joinFinished = TestJoinProbe()
+        let shouldObserveJoins = TestBoolean()
+        backend.configureTestingChildTeardownJoinObservers(
+            beforeJoin: {
+                if shouldObserveJoins.value {
+                    joinAttempted.signal()
+                }
+            },
+            afterJoin: {
+                if shouldObserveJoins.value {
+                    joinFinished.record(cancellationFinished: microphone.cancellationHasFinished)
+                }
+            }
+        )
+
+        try backend.startCapture(onBuffer: { _ in }, onAudioLevel: { _ in }, onError: { _ in })
+        shouldObserveJoins.set(true)
+        microphone.emitRuntimeFailure(AudioRecorderError.engineStartFailed("microphone disconnected"))
+        await microphone.waitUntilCancellationStarts()
+
+        let startFinished = TestAsyncSignal()
+        let sendableBackend = UnsafeSendableBox(backend)
+        let startTask = Task.detached { [sendableBackend, startFinished] in
+            defer { startFinished.signal() }
+            return (try? sendableBackend.value.startCapture(
+                onBuffer: { _ in },
+                onAudioLevel: { _ in },
+                onError: { _ in }
+            )) != nil
+        }
+        await joinAttempted.wait()
+
+        #expect(microphone.startCaptureCallCount == 1)
+        microphone.allowCancellationToFinish()
+        await startFinished.wait()
+
+        #expect(await startTask.value)
+        #expect(joinFinished.observedOnlyAfterCancellationFinished)
+        #expect(microphone.cancelledCaptureGenerations == [1])
+        #expect(microphone.isCapturing)
+        backend.cancelCapture()
+    }
+
+    @Test func systemTapCallbackLifecycleTeardownReturnsBeforeControlQueueAndBarriersNextStart() async throws {
+        guard #available(macOS 14.2, *) else { return }
+
+        let tap = UnsafeSendableBox(try SystemAudioTapCaptureBackend())
+        let callbackStarted = TestAsyncSignal()
+        let controlTeardownEntered = TestAsyncSignal()
+        let callbackActionsMayRun = DispatchSemaphore(value: 0)
+        let callbackActionsReturned = TestAsyncSignal()
+        let callbackMayFinish = DispatchSemaphore(value: 0)
+        let callbackFinished = TestBoolean()
+        let callbackStartWasRejected = TestBoolean()
+        let callbackStopWasRejected = TestBoolean()
+        let startAttempted = TestAsyncSignal()
+        let startFinished = TestAsyncSignal()
+        let successfulStartCount = TestCounter()
+        let storageDiscardCount = TestCounter()
+
+        tap.value.configureTestingStorageDiscardObserver {
+            storageDiscardCount.increment()
+        }
+        tap.value.configureTestingStartCaptureOverride(
+            {
+                successfulStartCount.increment()
+            },
+            onAttempt: {
+                startAttempted.signal()
+            }
+        )
+        tap.value.enqueueTestingCallback {
+            callbackStarted.signal()
+            callbackActionsMayRun.wait()
+
+            do {
+                try tap.value.startCapture(onBuffer: { _ in }, onAudioLevel: { _ in }, onError: { _ in })
+            } catch let error as AudioRecorderError {
+                if case let .systemAudioCaptureFailed(message) = error,
+                   message == "System audio capture cannot be started from its audio callback" {
+                    callbackStartWasRejected.set(true)
+                }
+            } catch {
+            }
+            tap.value.cancelCapture()
+            tap.value.reset()
+            do {
+                _ = try tap.value.stopCapture()
+            } catch let error as AudioRecorderError {
+                if case let .systemAudioCaptureFailed(message) = error,
+                   message == "System audio capture cannot be stopped from its audio callback" {
+                    callbackStopWasRejected.set(true)
+                }
+            } catch {
+            }
+
+            callbackActionsReturned.signal()
+            callbackMayFinish.wait()
+            callbackFinished.set(true)
+        }
+        await callbackStarted.wait()
+        tap.value.enqueueTestingFailureTeardown {
+            controlTeardownEntered.signal()
+        }
+        await controlTeardownEntered.wait()
+
+        callbackActionsMayRun.signal()
+        await callbackActionsReturned.wait()
+
+        #expect(callbackStartWasRejected.value)
+        #expect(callbackStopWasRejected.value)
+        #expect(successfulStartCount.value == 0)
+        #expect(storageDiscardCount.value == 0)
+
+        let startTask = Task.detached { [tap, startFinished] in
+            defer { startFinished.signal() }
+            try tap.value.startCapture(onBuffer: { _ in }, onAudioLevel: { _ in }, onError: { _ in })
+        }
+        await startAttempted.wait()
+        #expect(successfulStartCount.value == 0)
+
+        callbackMayFinish.signal()
+        await startFinished.wait()
+        try await startTask.value
+
+        #expect(callbackFinished.value)
+        #expect(successfulStartCount.value == 1)
+        #expect(storageDiscardCount.value == 5)
+    }
+
+    @Test func systemTapFailureTeardownJoinsCallbacksBeforeConcurrentCancelAndReset() async throws {
+        guard #available(macOS 14.2, *) else { return }
+
+        let tap = UnsafeSendableBox(try SystemAudioTapCaptureBackend())
+        let callbackStarted = TestAsyncSignal()
+        let callbackMayFinish = DispatchSemaphore(value: 0)
+        let callbackFinished = TestBoolean()
+        let resetProbe = TestConverterResetProbe()
+        tap.value.configureTestingConverterResetObserver {
+            resetProbe.record(callbackFinished: callbackFinished.value)
+        }
+        tap.value.enqueueTestingCallback {
+            callbackStarted.signal()
+            callbackMayFinish.wait()
+            callbackFinished.set(true)
+        }
+        tap.value.enqueueTestingFailureTeardown()
+        await callbackStarted.wait()
+
+        let cancelEntered = TestAsyncSignal()
+        let cancelFinished = TestAsyncSignal()
+        let cancelTask = Task.detached { [tap, cancelEntered, cancelFinished] in
+            cancelEntered.signal()
+            tap.value.cancelCapture()
+            cancelFinished.signal()
+        }
+        let resetEntered = TestAsyncSignal()
+        let resetFinished = TestAsyncSignal()
+        let resetTask = Task.detached { [tap, resetEntered, resetFinished] in
+            resetEntered.signal()
+            tap.value.reset()
+            resetFinished.signal()
+        }
+        await cancelEntered.wait()
+        await resetEntered.wait()
+        await Task.yield()
+
+        #expect(resetProbe.resetCount == 0)
+        callbackMayFinish.signal()
+        await cancelFinished.wait()
+        await resetFinished.wait()
+        _ = await cancelTask.value
+        _ = await resetTask.value
+
+        #expect(resetProbe.resetCount == 3)
+        #expect(resetProbe.didResetBeforeCallbackFinished == false)
+    }
+#endif
+
+    @Test func audioPCMFileTakeFileURLTransfersNativeRetentionOwnershipOnce() throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("pindrop-native-transfer-\(UUID().uuidString).pcm")
+        try Data([1, 2, 3, 4]).write(to: fileURL)
+
+        let transferredURL: URL
+        do {
+            let spool = AudioPCMFile(fileURL: fileURL, byteCount: 4, sampleRate: 48_000)
+            transferredURL = try #require(spool.takeFileURL())
+            #expect(spool.takeFileURL() == nil)
+            spool.discard()
+        }
+
+        #expect(transferredURL == fileURL)
+        #expect(FileManager.default.fileExists(atPath: transferredURL.path))
+
+        let nativeAudio = AudioCaptureNativeAudio(fileURL: transferredURL, sampleRate: 48_000)
+        nativeAudio.discard()
+        nativeAudio.discard()
+        #expect(!FileManager.default.fileExists(atPath: transferredURL.path))
+    }
+
+    @Test func sourceProjectionReusesEagerDataForBothCapturedSources() throws {
+        let eagerProjection = Data([9, 8, 7, 6])
+        let fixture = try makeSourceSeparatedResult(
+            microphoneData: Data([1, 1, 1, 1]),
+            systemAudioData: Data([2, 2, 2, 2]),
+            eagerProjection: eagerProjection
+        )
+        defer { fixture.result.discard() }
+
+        let projection = try fixture.result.projectionData(
+            retainingMicrophone: true,
+            systemAudio: true
+        )
+        #expect(projection == eagerProjection)
+    }
+
+    @Test func sourceProjectionMaterializesEachSoleRetainedSourceWithoutDeletingOwners() throws {
+        let microphoneData = Data([1, 2, 3, 4])
+        let systemAudioData = Data([5, 6, 7, 8])
+        let fixture = try makeSourceSeparatedResult(
+            microphoneData: microphoneData,
+            systemAudioData: systemAudioData,
+            eagerProjection: Data([9, 9, 9, 9])
+        )
+
+        let microphoneURL = try #require(fixture.microphoneURL)
+        let systemAudioURL = try #require(fixture.systemAudioURL)
+
+        let microphoneProjection = try fixture.result.projectionData(
+            retainingMicrophone: true,
+            systemAudio: false
+        )
+        let systemAudioProjection = try fixture.result.projectionData(
+            retainingMicrophone: false,
+            systemAudio: true
+        )
+
+        #expect(microphoneProjection == microphoneData)
+        #expect(systemAudioProjection == systemAudioData)
+        #expect(FileManager.default.fileExists(atPath: microphoneURL.path))
+        #expect(FileManager.default.fileExists(atPath: systemAudioURL.path))
+
+        fixture.result.discard()
+        #expect(!FileManager.default.fileExists(atPath: microphoneURL.path))
+        #expect(!FileManager.default.fileExists(atPath: systemAudioURL.path))
+    }
+
+    @Test func sourceProjectionUsesTheCapturedPartialBackendSource() async throws {
+        let fixture = try makeFixture()
+        let microphoneBuffer = try #require(
+            MockAudioCaptureBackend.makeSynthesizedBuffer(
+                format: fixture.mockBackend.targetFormat,
+                frameCount: 8,
+                frequency: 100
+            )
+        )
+        fixture.mockBackend.simulatedBuffers = [microphoneBuffer]
+        fixture.mockSystemBackend.shouldThrowOnStart = AudioRecorderError.engineStartFailed("system unavailable")
+
+        try await fixture.sut.startRecording(
+            configuration: AudioRecordingConfiguration(mode: .microphoneAndSystemAudio)
+        )
+        let result = try await fixture.sut.stopSourceSeparatedRecording()
+        defer { result.discard() }
+
+        let expected = Data(
+            bytes: microphoneBuffer.floatChannelData![0],
+            count: Int(microphoneBuffer.frameLength) * MemoryLayout<Float>.size
+        )
+        let projection = try result.projectionData(retainingMicrophone: true, systemAudio: false)
+        #expect(projection == expected)
+    }
+
+    @Test func sourceProjectionReturnsNilWhenNoSourcesAreRetained() throws {
+        let fixture = try makeSourceSeparatedResult(
+            microphoneData: nil,
+            systemAudioData: nil,
+            eagerProjection: nil
+        )
+        defer { fixture.result.discard() }
+
+        let projection = try fixture.result.projectionData(
+            retainingMicrophone: false,
+            systemAudio: false
+        )
+        #expect(projection == nil)
+    }
+
+    @Test func sourceProjectionRejectsAnUncapturedRequestedSource() throws {
+        let fixture = try makeSourceSeparatedResult(
+            microphoneData: Data([1, 2, 3, 4]),
+            systemAudioData: nil,
+            eagerProjection: Data([1, 2, 3, 4])
+        )
+        defer { fixture.result.discard() }
+
+        #expect(throws: AudioRecorderError.self) {
+            _ = try fixture.result.projectionData(retainingMicrophone: false, systemAudio: true)
+        }
+    }
+
+    private func makeSourceSeparatedResult(
+        microphoneData: Data?,
+        systemAudioData: Data?,
+        eagerProjection: Data?
+    ) throws -> (result: SourceSeparatedRecordingResult, microphoneURL: URL?, systemAudioURL: URL?) {
+        let microphone = try makeSourceOutcome(data: microphoneData, isMicrophone: true)
+        let systemAudio = try makeSourceOutcome(data: systemAudioData, isMicrophone: false)
+        return (
+            SourceSeparatedRecordingResult(
+                mixedAudioData: eagerProjection,
+                microphone: microphone.outcome,
+                systemAudio: systemAudio.outcome
+            ),
+            microphone.url,
+            systemAudio.url
+        )
+    }
+
+    private func makeSourceOutcome(
+        data: Data?,
+        isMicrophone: Bool
+    ) throws -> (outcome: AudioCaptureSourceStopOutcome, url: URL?) {
+        guard let data else {
+            return (
+                .failed(
+                    AudioCaptureSourceFailure(
+                        source: isMicrophone ? .microphone : .systemAudio,
+                        stage: .start,
+                        error: AudioRecorderError.notRecording
+                    )
+                ),
+                nil
+            )
+        }
+
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("pindrop-source-projection-\(UUID().uuidString).pcm")
+        try data.write(to: fileURL)
+        return (
+            .captured(
+                AudioPCMFile(fileURL: fileURL, byteCount: data.count, sampleRate: 16_000)
+            ),
+            fileURL
+        )
+    }
+
     private static func makeFloatStreamDescription(
         sampleRate: Double
     ) -> AudioStreamBasicDescription {
@@ -650,6 +1252,211 @@ struct AudioRecorderTests {
 
 }
 
+#if DEBUG
+private final class UnsafeSendableBox<Value>: @unchecked Sendable {
+    let value: Value
+
+    init(_ value: Value) {
+        self.value = value
+    }
+}
+
+private final class TestAsyncSignal: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isSignalled = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func signal() {
+        let drainedWaiters = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            guard !isSignalled else { return [] }
+            isSignalled = true
+            let currentWaiters = self.waiters
+            self.waiters.removeAll()
+            return currentWaiters
+        }
+        for waiter in drainedWaiters {
+            waiter.resume()
+        }
+    }
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            let shouldResume = lock.withLock { () -> Bool in
+                if isSignalled {
+                    return true
+                }
+                waiters.append(continuation)
+                return false
+            }
+            if shouldResume {
+                continuation.resume()
+            }
+        }
+    }
+}
+
+private final class TestBoolean: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage = false
+
+    var value: Bool {
+        lock.withLock { storage }
+    }
+
+    func set(_ value: Bool) {
+        lock.withLock {
+            storage = value
+        }
+    }
+}
+
+private final class TestCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage = 0
+
+    var value: Int {
+        lock.withLock { storage }
+    }
+
+    func increment() {
+        lock.withLock {
+            storage += 1
+        }
+    }
+}
+
+private final class TestJoinProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var didObserveEarlyJoin = false
+
+    var observedOnlyAfterCancellationFinished: Bool {
+        lock.withLock { !didObserveEarlyJoin }
+    }
+
+    func record(cancellationFinished: Bool) {
+        lock.withLock {
+            didObserveEarlyJoin = didObserveEarlyJoin || !cancellationFinished
+        }
+    }
+}
+
+private final class TestConverterResetProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var resetCountStorage = 0
+    private var didResetBeforeCallbackFinishedStorage = false
+
+    var resetCount: Int {
+        lock.withLock { resetCountStorage }
+    }
+
+    var didResetBeforeCallbackFinished: Bool {
+        lock.withLock { didResetBeforeCallbackFinishedStorage }
+    }
+
+    func record(callbackFinished: Bool) {
+        lock.withLock {
+            resetCountStorage += 1
+            didResetBeforeCallbackFinishedStorage =
+                didResetBeforeCallbackFinishedStorage || !callbackFinished
+        }
+    }
+}
+
+private final class BlockingCancellationAudioCaptureBackend: AudioCaptureBackend, @unchecked Sendable {
+    let identifier: String
+    let targetFormat = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
+
+    private let stateLock = NSLock()
+    private let cancellationMayFinish = DispatchSemaphore(value: 0)
+    private let cancellationStarted = TestAsyncSignal()
+    private var isCapturingStorage = false
+    private var cancellationHasFinishedStorage = false
+    private var shouldBlockNextCancellation = true
+    private var captureGeneration = 0
+    private var startCaptureCallCountStorage = 0
+    private var cancelledCaptureGenerationsStorage: [Int] = []
+    private var capturedOnError: ((Error) -> Void)?
+
+    var isCapturing: Bool {
+        stateLock.withLock { isCapturingStorage }
+    }
+
+    var cancellationHasFinished: Bool {
+        stateLock.withLock { cancellationHasFinishedStorage }
+    }
+
+    var startCaptureCallCount: Int {
+        stateLock.withLock { startCaptureCallCountStorage }
+    }
+
+    var cancelledCaptureGenerations: [Int] {
+        stateLock.withLock { cancelledCaptureGenerationsStorage }
+    }
+
+    init(identifier: String) {
+        self.identifier = identifier
+    }
+
+    func startCapture(
+        onBuffer: @escaping (AVAudioPCMBuffer) -> Void,
+        onAudioLevel: @escaping (Float) -> Void,
+        onError: @escaping (Error) -> Void
+    ) throws {
+        stateLock.withLock {
+            captureGeneration += 1
+            startCaptureCallCountStorage += 1
+            isCapturingStorage = true
+            capturedOnError = onError
+        }
+        _ = onBuffer
+        _ = onAudioLevel
+    }
+
+    func stopCapture() throws -> AudioPCMFile {
+        stateLock.withLock {
+            isCapturingStorage = false
+        }
+        throw AudioRecorderError.notRecording
+    }
+
+    func cancelCapture() {
+        let shouldBlock = stateLock.withLock { () -> Bool in
+            cancelledCaptureGenerationsStorage.append(captureGeneration)
+            isCapturingStorage = false
+            let shouldBlock = shouldBlockNextCancellation
+            shouldBlockNextCancellation = false
+            return shouldBlock
+        }
+        cancellationStarted.signal()
+        if shouldBlock {
+            cancellationMayFinish.wait()
+        }
+        stateLock.withLock {
+            cancellationHasFinishedStorage = true
+        }
+    }
+
+    func reset() {
+        cancelCapture()
+    }
+
+    func setPreferredInputDeviceUID(_ uid: String) throws {}
+
+    func emitRuntimeFailure(_ error: Error) {
+        let callback = stateLock.withLock { capturedOnError }
+        callback?(error)
+    }
+
+    func waitUntilCancellationStarts() async {
+        await cancellationStarted.wait()
+    }
+
+    func allowCancellationToFinish() {
+        cancellationMayFinish.signal()
+    }
+}
+#endif
+
 /// Backend that blocks inside `stopCapture` so stop finalization can be observed
 /// yielding the main actor. Lives only in this test file (production mocks stay lean).
 private final class DelayedMockAudioCaptureBackend: AudioCaptureBackend, @unchecked Sendable {
@@ -667,6 +1474,7 @@ private final class DelayedMockAudioCaptureBackend: AudioCaptureBackend, @unchec
     private let stopMayFinish = DispatchSemaphore(value: 0)
     private var stopStartedStorage = false
     private var stopStartWaiters: [CheckedContinuation<Void, Never>] = []
+    private var producedFileURLStorage: URL?
 
     private(set) var startCaptureCallCount = 0
     private(set) var stopCaptureCallCount = 0
@@ -681,6 +1489,12 @@ private final class DelayedMockAudioCaptureBackend: AudioCaptureBackend, @unchec
         stateLock.lock()
         defer { stateLock.unlock() }
         return stopStartedStorage
+    }
+
+    var producedFileURL: URL? {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return producedFileURLStorage
     }
 
     init(identifier: String = "delayed-microphone") {
@@ -739,6 +1553,9 @@ private final class DelayedMockAudioCaptureBackend: AudioCaptureBackend, @unchec
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("pindrop-test-delayed-audio-\(UUID().uuidString).pcm")
         try data.write(to: fileURL)
+        stateLock.lock()
+        producedFileURLStorage = fileURL
+        stateLock.unlock()
         return AudioPCMFile(
             fileURL: fileURL,
             byteCount: data.count,
@@ -778,6 +1595,98 @@ private final class DelayedMockAudioCaptureBackend: AudioCaptureBackend, @unchec
     }
 
     func setPreferredInputDeviceUID(_ uid: String) throws {}
+}
+
+/// Delivers errors from a dedicated callback queue and records whether teardown
+/// was re-entered on that queue.
+private final class CallbackQueueAudioCaptureBackend: AudioCaptureBackend, @unchecked Sendable {
+    let identifier: String
+    let targetFormat = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
+
+    private let stateLock = NSLock()
+    private let callbackQueue: DispatchQueue
+    private let callbackQueueKey = DispatchSpecificKey<Bool>()
+    private var isCapturingStorage = false
+    private var capturedOnError: ((Error) -> Void)?
+    private var cancellationWaiters: [CheckedContinuation<Void, Never>] = []
+    private var cancelCallCount = 0
+    private var cancelWasCalledFromCallbackQueueStorage = false
+
+    var isCapturing: Bool {
+        stateLock.withLock { isCapturingStorage }
+    }
+
+    var cancelWasCalledFromCallbackQueue: Bool {
+        stateLock.withLock { cancelWasCalledFromCallbackQueueStorage }
+    }
+
+    init(identifier: String) {
+        self.identifier = identifier
+        self.callbackQueue = DispatchQueue(label: "tech.watzon.pindrop.tests.\(identifier)")
+        callbackQueue.setSpecific(key: callbackQueueKey, value: true)
+    }
+
+    func startCapture(
+        onBuffer: @escaping (AVAudioPCMBuffer) -> Void,
+        onAudioLevel: @escaping (Float) -> Void,
+        onError: @escaping (Error) -> Void
+    ) throws {
+        stateLock.withLock {
+            isCapturingStorage = true
+            capturedOnError = onError
+        }
+        _ = onBuffer
+        _ = onAudioLevel
+    }
+
+    func stopCapture() throws -> AudioPCMFile {
+        stateLock.withLock {
+            isCapturingStorage = false
+        }
+        throw AudioRecorderError.notRecording
+    }
+
+    func cancelCapture() {
+        let waiters = stateLock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            cancelCallCount += 1
+            cancelWasCalledFromCallbackQueueStorage =
+                cancelWasCalledFromCallbackQueueStorage ||
+                DispatchQueue.getSpecific(key: callbackQueueKey) == true
+            isCapturingStorage = false
+            let waiters = cancellationWaiters
+            cancellationWaiters.removeAll()
+            return waiters
+        }
+        for waiter in waiters {
+            waiter.resume()
+        }
+    }
+
+    func reset() {
+        cancelCapture()
+    }
+
+    func setPreferredInputDeviceUID(_ uid: String) throws {}
+
+    func emitDeferredError(_ error: Error) {
+        callbackQueue.async { [weak self] in
+            guard let self else { return }
+            let callback = self.stateLock.withLock { self.capturedOnError }
+            callback?(error)
+        }
+    }
+
+    func waitUntilCancelled() async {
+        await withCheckedContinuation { continuation in
+            stateLock.withLock {
+                if cancelCallCount > 0 {
+                    continuation.resume()
+                } else {
+                    cancellationWaiters.append(continuation)
+                }
+            }
+        }
+    }
 }
 
 /// Immutable capture-thread work item. The callbacks are supplied by AudioRecorder and are
