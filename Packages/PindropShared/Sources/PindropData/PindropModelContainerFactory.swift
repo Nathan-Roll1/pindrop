@@ -42,6 +42,7 @@ public enum PindropModelContainerFactory {
         }
 
         try validateStoreAccess(on: container)
+        try CapturePromptSnapshotBackfill.apply(in: container.mainContext)
         return container
     }
 
@@ -55,6 +56,7 @@ public enum PindropModelContainerFactory {
             configurations: configuration
         )
         try validateStoreAccess(on: container)
+        try CapturePromptSnapshotBackfill.apply(in: container.mainContext)
         return container
     }
 

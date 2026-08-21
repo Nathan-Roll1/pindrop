@@ -1958,6 +1958,64 @@ private enum PromptSnapshotMigrationError: Error {
     case duplicatePromptSnapshot(UUID)
 }
 
+enum CapturePromptSnapshotBackfill {
+    static func apply(in context: ModelContext) throws {
+        let providerSnapshots = try context.fetch(
+            FetchDescriptor<CaptureStageProviderSnapshotModel>()
+        )
+
+        for providerSnapshot in providerSnapshots {
+            let providerSnapshotID = providerSnapshot.id
+            guard let promptPresetID = providerSnapshot.promptPresetID else {
+                continue
+            }
+
+            let promptSnapshotDescriptor = FetchDescriptor<CaptureStagePromptSnapshotModel>(
+                predicate: #Predicate<CaptureStagePromptSnapshotModel> {
+                    $0.providerSnapshotID == providerSnapshotID
+                }
+            )
+            let promptSnapshots = try context.fetch(promptSnapshotDescriptor)
+            guard promptSnapshots.count <= 1 else {
+                throw PromptSnapshotMigrationError.duplicatePromptSnapshot(providerSnapshot.id)
+            }
+            guard promptSnapshots.isEmpty else {
+                continue
+            }
+
+            let presetDescriptor = FetchDescriptor<PromptPreset>(
+                predicate: #Predicate<PromptPreset> { $0.id == promptPresetID }
+            )
+            let presets = try context.fetch(presetDescriptor)
+            guard presets.count <= 1 else {
+                throw PromptSnapshotMigrationError.duplicatePromptPreset(promptPresetID)
+            }
+
+            let prompt: CapturePromptSnapshot
+            if let preset = presets.first {
+                prompt = CapturePromptSnapshot(
+                    presetIdentifier: preset.builtInIdentifier ?? promptPresetID.uuidString,
+                    resolvedPrompt: preset.prompt
+                )
+            } else {
+                prompt = CapturePromptSnapshot(
+                    presetIdentifier: promptPresetID.uuidString,
+                    resolvedPrompt: nil
+                )
+            }
+            context.insert(
+                CaptureStagePromptSnapshotModel(
+                    sessionID: providerSnapshot.sessionID,
+                    providerSnapshotID: providerSnapshot.id,
+                    prompt: prompt
+                )
+            )
+        }
+
+        try context.save()
+    }
+}
+
 // Migration Plan
 enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
@@ -2092,59 +2150,7 @@ enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
         toVersion: TranscriptionRecordSchemaV14.self,
         willMigrate: nil,
         didMigrate: { context in
-            let providerSnapshots = try context.fetch(
-                FetchDescriptor<CaptureStageProviderSnapshotModel>()
-            )
-
-            for providerSnapshot in providerSnapshots {
-                let providerSnapshotID = providerSnapshot.id
-                guard let promptPresetID = providerSnapshot.promptPresetID else {
-                    continue
-                }
-
-                let promptSnapshotDescriptor = FetchDescriptor<CaptureStagePromptSnapshotModel>(
-                    predicate: #Predicate<CaptureStagePromptSnapshotModel> {
-                        $0.providerSnapshotID == providerSnapshotID
-                    }
-                )
-                let promptSnapshots = try context.fetch(promptSnapshotDescriptor)
-                guard promptSnapshots.count <= 1 else {
-                    throw PromptSnapshotMigrationError.duplicatePromptSnapshot(providerSnapshot.id)
-                }
-                guard promptSnapshots.isEmpty else {
-                    continue
-                }
-
-                let presetDescriptor = FetchDescriptor<PromptPreset>(
-                    predicate: #Predicate<PromptPreset> { $0.id == promptPresetID }
-                )
-                let presets = try context.fetch(presetDescriptor)
-                guard presets.count <= 1 else {
-                    throw PromptSnapshotMigrationError.duplicatePromptPreset(promptPresetID)
-                }
-
-                let prompt: CapturePromptSnapshot
-                if let preset = presets.first {
-                    prompt = CapturePromptSnapshot(
-                        presetIdentifier: preset.builtInIdentifier ?? promptPresetID.uuidString,
-                        resolvedPrompt: preset.prompt
-                    )
-                } else {
-                    prompt = CapturePromptSnapshot(
-                        presetIdentifier: promptPresetID.uuidString,
-                        resolvedPrompt: nil
-                    )
-                }
-                context.insert(
-                    CaptureStagePromptSnapshotModel(
-                        sessionID: providerSnapshot.sessionID,
-                        providerSnapshotID: providerSnapshot.id,
-                        prompt: prompt
-                    )
-                )
-            }
-
-            try context.save()
+            try CapturePromptSnapshotBackfill.apply(in: context)
         }
     )
 }
