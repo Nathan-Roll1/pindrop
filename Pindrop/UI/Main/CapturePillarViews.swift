@@ -1040,7 +1040,7 @@ private struct DashboardActivityHeatmap: View {
                     onShowMoreStats?()
                 } label: {
                     HStack(spacing: 3) {
-                        Text(localized("Show more stats", locale: locale))
+                        Text(localized("View all", locale: locale))
                         Image(systemName: "arrow.right")
                             .flipsForRightToLeftLayoutDirection(true)
                     }
@@ -1050,7 +1050,7 @@ private struct DashboardActivityHeatmap: View {
                 .buttonStyle(.plain)
                 .keyboardFocusRing(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 .accessibilityIdentifier("capture.dictate.showMoreStats")
-                .help(localized("Show more stats", locale: locale))
+                .help(localized("View all", locale: locale))
             }
 
             if let startDate, let gridStartDate {
