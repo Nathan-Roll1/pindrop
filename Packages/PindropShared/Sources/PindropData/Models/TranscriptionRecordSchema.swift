@@ -1901,6 +1901,32 @@ public enum TranscriptionRecordSchemaV12: VersionedSchema {
     }
 }
 
+// V13: Adds flat capture session lifecycle records.
+public enum TranscriptionRecordSchemaV13: VersionedSchema {
+    public static var versionIdentifier = Schema.Version(1, 0, 12)
+
+    public static var models: [any PersistentModel.Type] {
+        [
+            TranscriptionRecord.self,
+            MediaFolder.self,
+            ParticipantProfile.self,
+            ParticipantTrainingEvidence.self,
+            WordReplacement.self,
+            VocabularyWord.self,
+            Note.self,
+            PromptPreset.self,
+            TrainingContribution.self,
+            CaptureSessionModel.self,
+            CaptureSourceModel.self,
+            CaptureChunkModel.self,
+            CaptureTranscriptRevisionModel.self,
+            CaptureStageProviderSnapshotModel.self,
+            CaptureNoteReferenceModel.self,
+            CaptureFailureRecordModel.self
+        ]
+    }
+}
+
 // Migration Plan
 enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
@@ -1916,7 +1942,8 @@ enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
             TranscriptionRecordSchemaV9.self,
             TranscriptionRecordSchemaV10.self,
             TranscriptionRecordSchemaV11.self,
-            TranscriptionRecordSchemaV12.self
+            TranscriptionRecordSchemaV12.self,
+            TranscriptionRecordSchemaV13.self
         ]
     }
 
@@ -1932,7 +1959,8 @@ enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
             migrateV8toV9,
             migrateV9toV10,
             migrateV10toV11,
-            migrateV11toV12
+            migrateV11toV12,
+            migrateV12toV13
         ]
     }
 
@@ -2014,5 +2042,12 @@ enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
     static let migrateV11toV12 = MigrationStage.lightweight(
         fromVersion: TranscriptionRecordSchemaV11.self,
         toVersion: TranscriptionRecordSchemaV12.self
+    )
+
+    // Lightweight migration from V12 to V13.
+    // Adds flat capture session lifecycle tables without changing existing models.
+    static let migrateV12toV13 = MigrationStage.lightweight(
+        fromVersion: TranscriptionRecordSchemaV12.self,
+        toVersion: TranscriptionRecordSchemaV13.self
     )
 }

@@ -14,18 +14,27 @@ import PindropCore
 @MainActor
 @Suite(.serialized)
 struct SchemaV12MigrationTests {
-    @Test func currentSchemaIsV12WithPipelineMetricsColumn() throws {
+    @Test func schemaV12AddsPipelineMetricsColumn() {
         #expect(TranscriptionRecordSchemaV12.versionIdentifier == .init(1, 0, 11))
-        #expect(TranscriptionRecordSchemaV12.models.contains { $0 == TranscriptionRecord.self })
+        #expect(TranscriptionRecordSchemaV12.models.contains { $0 == TranscriptionRecordSchemaV12.TranscriptionRecord.self })
         #expect(PindropPersistentSchemaVersion.v12.rawValue == "1.0.11")
-        #expect(PindropPersistentSchemaVersion.allCases.count == 12)
+        #expect(TranscriptionRecordMigrationPlan.schemas.last == TranscriptionRecordSchemaV13.self)
+
+        let record = TranscriptionRecordSchemaV12.TranscriptionRecord(
+            text: "hello world",
+            duration: 1.0,
+            modelUsed: "test",
+            pipelineMetricsJSON: "{\"kind\":\"batch\"}"
+        )
+        #expect(record.pipelineMetricsJSON == "{\"kind\":\"batch\"}")
     }
 
-    @Test func migrationPlanEndsWithV11ToV12LightweightStage() {
-        #expect(TranscriptionRecordMigrationPlan.schemas.count == 12)
-        #expect(TranscriptionRecordMigrationPlan.stages.count == 11)
-        #expect(TranscriptionRecordMigrationPlan.schemas.last == TranscriptionRecordSchemaV12.self)
-        #expect(TranscriptionRecordMigrationPlan.schemas.contains { $0 == TranscriptionRecordSchemaV11.self })
+    @Test func migrationPlanOrdersV11BeforeV12() throws {
+        let schemas = TranscriptionRecordMigrationPlan.schemas
+        let v11Index = try #require(schemas.firstIndex { $0 == TranscriptionRecordSchemaV11.self })
+        let v12Index = try #require(schemas.firstIndex { $0 == TranscriptionRecordSchemaV12.self })
+
+        #expect(v12Index == v11Index + 1)
     }
 
     @Test func pipelineMetricsRoundTripsThroughRecord() throws {
