@@ -150,6 +150,62 @@ struct AppCoordinatorContextFlowTests {
         #expect(!AppCoordinator.shouldCreateMeetingTranscriptionInput(for: workItem))
     }
 
+    @Test func meetingFinalizerSkipsModelActivationWhenEveryASRCheckpointCompleted() {
+        let workItems = [
+            AppCoordinator.MeetingChunkWorkItem(
+                sequence: 0,
+                chunkID: UUID(),
+                startOffset: 0,
+                duration: 300,
+                microphone: nil,
+                systemAudio: nil
+            ),
+            AppCoordinator.MeetingChunkWorkItem(
+                sequence: 1,
+                chunkID: UUID(),
+                startOffset: 300,
+                duration: 300,
+                microphone: nil,
+                systemAudio: nil
+            )
+        ]
+
+        #expect(
+            !AppCoordinator.meetingFinalizationNeedsFinalModelActivation(
+                workItems: workItems,
+                completedASRSequences: [0, 1]
+            )
+        )
+    }
+
+    @Test func meetingFinalizerActivatesModelWhenAnyASRCheckpointIsPending() {
+        let workItems = [
+            AppCoordinator.MeetingChunkWorkItem(
+                sequence: 0,
+                chunkID: UUID(),
+                startOffset: 0,
+                duration: 300,
+                microphone: nil,
+                systemAudio: nil
+            ),
+            AppCoordinator.MeetingChunkWorkItem(
+                sequence: 1,
+                chunkID: UUID(),
+                startOffset: 300,
+                duration: 300,
+                microphone: nil,
+                systemAudio: nil
+            )
+        ]
+
+        #expect(
+            AppCoordinator.meetingFinalizationNeedsFinalModelActivation(
+                workItems: workItems,
+                completedASRSequences: [0]
+            )
+        )
+    }
+
     @Test func meetingRecoveryAdmissionAndGenerationAreExact() {
         let activeHandle = MeetingCaptureHandle(
             sessionID: UUID(),
@@ -806,6 +862,17 @@ struct AppCoordinatorContextFlowTests {
         // Dictation output is a single-speaker paste; "Speaker N:" attribution is
         // reserved for meeting and media transcription jobs.
         #expect(AppCoordinator.dictationUsesSpeakerDiarization == false)
+    }
+
+    @Test func sessionBackedCaptureStagesStartAtAttemptOne() {
+        for stage in [
+            CapturePipelineStage.liveTranscription,
+            .finalTranscription,
+            .diarization,
+            .noteGeneration
+        ] {
+            #expect(AppCoordinator.captureAssignmentAttempt(for: stage) == 1)
+        }
     }
 
     @Test func escapeCancelDecisionTruthTable() {

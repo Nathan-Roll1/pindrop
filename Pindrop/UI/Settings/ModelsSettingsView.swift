@@ -9,6 +9,7 @@
 
 import SwiftUI
 import PindropCore
+import PindropAI
 import PindropSpeech
 
 struct ModelsSettingsView: View {
@@ -80,6 +81,7 @@ struct ModelsSettingsView: View {
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 0) {
                     speechToTextSection
+                    advancedAssignmentsSection
                     helpersSection
                     privacyFootnote
                         .padding(.top, 20)
@@ -338,6 +340,122 @@ struct ModelsSettingsView: View {
         .keyboardFocusRing(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
+    // MARK: - NEXT-SESSION ASSIGNMENTS
+
+    private var assignmentSummaryRows: [CaptureStageAssignmentPreview] {
+        CaptureStageAssignmentResolver.previewAssignments(
+            settings: settings,
+            modelManager: modelManager,
+            activeBatchModelName: nil
+        )
+    }
+
+    private var advancedAssignmentsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(
+                title: localized("Advanced assignments", locale: locale),
+                isFirst: false
+            )
+            .padding(.horizontal, 20)
+            Text(nextRecordingAssignmentsLabel)
+                .font(AppTypography.label)
+                .foregroundStyle(AppColors.textSecondary)
+                .padding(.horizontal, 20)
+
+            VStack(spacing: 0) {
+                ForEach(assignmentSummaryRows) { row in
+                    assignmentSummaryRow(row)
+
+                    if row.stage != .noteGeneration {
+                        Divider()
+                            .overlay(AppColors.border)
+                            .padding(.leading, 16)
+                    }
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(AppColors.windowBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(AppColors.border, lineWidth: 1)
+            )
+            .padding(.horizontal, 20)
+        }
+        .padding(.top, 8)
+    }
+
+    private func assignmentSummaryRow(_ row: CaptureStageAssignmentPreview) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 16) {
+            Text(localized(assignmentSummaryTitleKey(row.stage), locale: locale))
+                .font(AppTypography.labelStrong)
+                .foregroundStyle(AppColors.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 12)
+
+            Text(assignmentSummaryStatusText(row))
+                .font(AppTypography.label)
+                .foregroundStyle(assignmentSummaryStatusColor(row.state))
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 11)
+        .padding(.horizontal, 16)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(assignmentSummaryAccessibilityLabel(row))
+    }
+
+    private func assignmentSummaryTitleKey(_ stage: CapturePipelineStage) -> String {
+        switch stage {
+        case .liveTranscription:
+            "Live Streaming Refinement"
+        case .finalTranscription:
+            "Speech to text"
+        case .diarization:
+            "Speaker diarization"
+        case .noteGeneration:
+            "Note Enhancement"
+        }
+    }
+
+    private var nextRecordingAssignmentsLabel: String {
+        String(
+            format: localized("%1$@ %2$@", locale: locale),
+            localized("Next", locale: locale),
+            localized("Recording", locale: locale)
+        )
+    }
+
+    private func assignmentSummaryAccessibilityLabel(_ row: CaptureStageAssignmentPreview) -> String {
+        String(
+            format: localized("%1$@ %2$@", locale: locale),
+            localized(assignmentSummaryTitleKey(row.stage), locale: locale),
+            assignmentSummaryStatusText(row)
+        )
+    }
+
+    private func assignmentSummaryStatusText(_ row: CaptureStageAssignmentPreview) -> String {
+        switch row.state {
+        case .disabled:
+            localized("Off", locale: locale)
+        case .unavailable:
+            localized("Setup required", locale: locale)
+        case .ready:
+            row.value ?? localized("Ready", locale: locale)
+        }
+    }
+
+    private func assignmentSummaryStatusColor(_ state: CaptureStageAssignmentPreview.State) -> Color {
+        switch state {
+        case .unavailable:
+            AppColors.warning
+        case .disabled, .ready:
+            AppColors.textSecondary
+        }
+    }
+
     // MARK: - ON-DEVICE HELPERS
 
     private var helpersSection: some View {
@@ -543,6 +661,7 @@ struct ModelsSettingsView: View {
         }
     }
 }
+
 
 private struct OpenAITranscriptionCredentialsSheet: View {
     @ObservedObject var settings: SettingsStore

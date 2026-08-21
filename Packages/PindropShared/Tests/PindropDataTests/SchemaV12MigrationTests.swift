@@ -18,7 +18,6 @@ struct SchemaV12MigrationTests {
         #expect(TranscriptionRecordSchemaV12.versionIdentifier == .init(1, 0, 11))
         #expect(TranscriptionRecordSchemaV12.models.contains { $0 == TranscriptionRecordSchemaV12.TranscriptionRecord.self })
         #expect(PindropPersistentSchemaVersion.v12.rawValue == "1.0.11")
-        #expect(TranscriptionRecordMigrationPlan.schemas.last == TranscriptionRecordSchemaV13.self)
 
         let record = TranscriptionRecordSchemaV12.TranscriptionRecord(
             text: "hello world",

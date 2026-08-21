@@ -1926,6 +1926,37 @@ public enum TranscriptionRecordSchemaV13: VersionedSchema {
         ]
     }
 }
+// V14: Adds immutable prompt snapshots for capture-stage provider assignments.
+public enum TranscriptionRecordSchemaV14: VersionedSchema {
+    public static var versionIdentifier = Schema.Version(1, 0, 13)
+
+    public static var models: [any PersistentModel.Type] {
+        [
+            TranscriptionRecord.self,
+            MediaFolder.self,
+            ParticipantProfile.self,
+            ParticipantTrainingEvidence.self,
+            WordReplacement.self,
+            VocabularyWord.self,
+            Note.self,
+            PromptPreset.self,
+            TrainingContribution.self,
+            CaptureSessionModel.self,
+            CaptureSourceModel.self,
+            CaptureChunkModel.self,
+            CaptureTranscriptRevisionModel.self,
+            CaptureStageProviderSnapshotModel.self,
+            CaptureNoteReferenceModel.self,
+            CaptureFailureRecordModel.self,
+            CaptureStagePromptSnapshotModel.self
+        ]
+    }
+}
+
+private enum PromptSnapshotMigrationError: Error {
+    case duplicatePromptPreset(UUID)
+    case duplicatePromptSnapshot(UUID)
+}
 
 // Migration Plan
 enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
@@ -1943,7 +1974,8 @@ enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
             TranscriptionRecordSchemaV10.self,
             TranscriptionRecordSchemaV11.self,
             TranscriptionRecordSchemaV12.self,
-            TranscriptionRecordSchemaV13.self
+            TranscriptionRecordSchemaV13.self,
+            TranscriptionRecordSchemaV14.self
         ]
     }
 
@@ -1960,7 +1992,8 @@ enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
             migrateV9toV10,
             migrateV10toV11,
             migrateV11toV12,
-            migrateV12toV13
+            migrateV12toV13,
+            migrateV13toV14
         ]
     }
 
@@ -2049,5 +2082,69 @@ enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
     static let migrateV12toV13 = MigrationStage.lightweight(
         fromVersion: TranscriptionRecordSchemaV12.self,
         toVersion: TranscriptionRecordSchemaV13.self
+    )
+
+    // Custom migration from V13 to V14.
+    // Snapshots the prompt content while it is still available, so later reads do
+    // not depend on mutable prompt presets.
+    static let migrateV13toV14 = MigrationStage.custom(
+        fromVersion: TranscriptionRecordSchemaV13.self,
+        toVersion: TranscriptionRecordSchemaV14.self,
+        willMigrate: nil,
+        didMigrate: { context in
+            let providerSnapshots = try context.fetch(
+                FetchDescriptor<CaptureStageProviderSnapshotModel>()
+            )
+
+            for providerSnapshot in providerSnapshots {
+                let providerSnapshotID = providerSnapshot.id
+                guard let promptPresetID = providerSnapshot.promptPresetID else {
+                    continue
+                }
+
+                let promptSnapshotDescriptor = FetchDescriptor<CaptureStagePromptSnapshotModel>(
+                    predicate: #Predicate<CaptureStagePromptSnapshotModel> {
+                        $0.providerSnapshotID == providerSnapshotID
+                    }
+                )
+                let promptSnapshots = try context.fetch(promptSnapshotDescriptor)
+                guard promptSnapshots.count <= 1 else {
+                    throw PromptSnapshotMigrationError.duplicatePromptSnapshot(providerSnapshot.id)
+                }
+                guard promptSnapshots.isEmpty else {
+                    continue
+                }
+
+                let presetDescriptor = FetchDescriptor<PromptPreset>(
+                    predicate: #Predicate<PromptPreset> { $0.id == promptPresetID }
+                )
+                let presets = try context.fetch(presetDescriptor)
+                guard presets.count <= 1 else {
+                    throw PromptSnapshotMigrationError.duplicatePromptPreset(promptPresetID)
+                }
+
+                let prompt: CapturePromptSnapshot
+                if let preset = presets.first {
+                    prompt = CapturePromptSnapshot(
+                        presetIdentifier: preset.builtInIdentifier ?? promptPresetID.uuidString,
+                        resolvedPrompt: preset.prompt
+                    )
+                } else {
+                    prompt = CapturePromptSnapshot(
+                        presetIdentifier: promptPresetID.uuidString,
+                        resolvedPrompt: nil
+                    )
+                }
+                context.insert(
+                    CaptureStagePromptSnapshotModel(
+                        sessionID: providerSnapshot.sessionID,
+                        providerSnapshotID: providerSnapshot.id,
+                        prompt: prompt
+                    )
+                )
+            }
+
+            try context.save()
+        }
     )
 }

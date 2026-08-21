@@ -441,6 +441,7 @@ final class AppCoordinator {
         let finalText: String
         let duration: TimeInterval
         let languageCode: String
+        let finalModelIdentifier: String
         let enhancedWithModel: String?
         let title: String?
         let tags: [String]
@@ -491,6 +492,24 @@ final class AppCoordinator {
 
     private enum MeetingCaptureTerminalPersistenceError: Error {
         case cancellation(Error)
+    }
+
+    enum CaptureAssignmentExecutionDecision: Equatable {
+        case execute
+        case skip
+    }
+
+    enum CaptureAssignmentExecutionStep: Equatable {
+        case assignmentSnapshot
+        case stageCall
+    }
+
+    enum NoteGenerationExecutionStep: Equatable {
+        case assignmentSnapshot
+        case runtimeResolution
+        case stageFailureRecorded
+        case stageCall
+        case rawFallback
     }
 
     private struct PendingNoteAppendStart: Equatable {
@@ -603,6 +622,7 @@ final class AppCoordinator {
     let settingsStore: SettingsStore
     let notesStore: PindropData.NotesStore
     let captureSessionStore: PindropData.CaptureSessionStore
+    let captureAssignmentResolver: CaptureStageAssignmentResolver
     let contextCaptureService: ContextCaptureService
     let contextEngineService: ContextEngineService
     let toastService: ToastService
@@ -911,6 +931,11 @@ final class AppCoordinator {
             toastService: toastService
         )
         self.promptPresetStore = PindropData.PromptPresetStore(modelContext: modelContext)
+        self.captureAssignmentResolver = CaptureStageAssignmentResolver(
+            settings: settingsStore,
+            modelManager: modelManager,
+            promptPresetStore: promptPresetStore
+        )
         self.mentionRewriteService = MentionRewriteService()
         self.mediaPauseService = MediaPauseService()
         self.mediaIngestionService = MediaIngestionService()
@@ -3590,9 +3615,90 @@ final class AppCoordinator {
     }
 
     private func clearNoteAppendMode() {
+
         isNoteAppendMode = false
         noteAppendEditorID = nil
         NoteAppendListeningCoordinator.shared.state.finishSession()
+    }
+
+    static func captureAssignmentAttempt(for stage: CapturePipelineStage) -> Int {
+        // Capture retries are represented by new attempts. Initial execution, recovery,
+        // and every meeting chunk share the durable first attempt.
+        1
+    }
+
+    static func captureAssignmentExecutionDecision(
+        for assignment: CaptureStageAssignment
+    ) -> CaptureAssignmentExecutionDecision {
+        switch assignment.providerKind {
+        case .disabled, .bestEffortUnavailable:
+            .skip
+        case .streamingSpeech, .batchSpeech, .localDiarization, .generativeAI:
+            .execute
+        }
+    }
+
+    static func captureAssignmentExecutionOrder(
+        for assignment: CaptureStageAssignment
+    ) -> [CaptureAssignmentExecutionStep] {
+        switch captureAssignmentExecutionDecision(for: assignment) {
+        case .execute:
+            [.assignmentSnapshot, .stageCall]
+        case .skip:
+            [.assignmentSnapshot]
+        }
+    }
+
+    static func assignedFinalModelNeedsActivation(
+        _ assignment: CaptureStageAssignment,
+        activeModelName: String?
+    ) -> Bool {
+        guard case .finalTranscription = assignment.stage else { return false }
+        return assignment.modelIdentifier != nil
+            && assignment.modelIdentifier != activeModelName
+    }
+
+    static func noteGenerationRuntimeAssignment(
+        from persistedAssignment: CaptureStageAssignment
+    ) -> CaptureStageAssignment? {
+        guard case .noteGeneration = persistedAssignment.stage,
+              persistedAssignment.providerKind == .generativeAI else {
+            return nil
+        }
+        return persistedAssignment
+    }
+    static func canExecutePersistedNoteGeneration(resolvedPrompt: String?) -> Bool {
+        resolvedPrompt != nil
+    }
+
+
+    static func noteGenerationExecutionOrder(
+        for persistedAssignment: CaptureStageAssignment,
+        runtimeAvailable: Bool,
+        resolvedPrompt: String?
+    ) -> [NoteGenerationExecutionStep] {
+        guard noteGenerationRuntimeAssignment(from: persistedAssignment) != nil else {
+            return [.assignmentSnapshot, .rawFallback]
+        }
+        guard runtimeAvailable,
+              canExecutePersistedNoteGeneration(resolvedPrompt: resolvedPrompt) else {
+            return [.assignmentSnapshot, .runtimeResolution, .stageFailureRecorded, .rawFallback]
+        }
+        return [.assignmentSnapshot, .runtimeResolution, .stageCall]
+    }
+
+    static func meetingFinalizationNeedsFinalModelActivation(
+        workItems: [MeetingChunkWorkItem],
+        completedASRSequences: Set<Int>
+    ) -> Bool {
+        workItems.contains { !completedASRSequences.contains($0.sequence) }
+    }
+
+    static func finalHistoryModelIdentifier(
+        from assignment: CaptureStageAssignment
+    ) -> String? {
+        guard case .finalTranscription = assignment.stage else { return nil }
+        return assignment.modelIdentifier
     }
 
     static func canBeginVoiceNoteCapture(
@@ -4037,6 +4143,44 @@ final class AppCoordinator {
             failedSequences: plan.failedSequences,
             handle: handle
         )
+        let needsFinalModelActivation = Self.meetingFinalizationNeedsFinalModelActivation(
+            workItems: workItems,
+            completedASRSequences: plan.completedASRSequences
+        )
+        let finalAssignment = try captureAssignment(
+            sessionID: handle.sessionID,
+            stage: .finalTranscription,
+            attempt: Self.captureAssignmentAttempt(for: .finalTranscription)
+        )
+        guard let finalModelIdentifier = Self.finalHistoryModelIdentifier(from: finalAssignment) else {
+            throw CaptureStageAssignmentError.missingModelIdentifier(
+                providerKind: finalAssignment.providerKind
+            )
+        }
+        if needsFinalModelActivation {
+            try await activateAssignedFinalModel(finalAssignment)
+            try operationGuard()
+        }
+
+        let diarizationAssignment = try captureAssignment(
+            sessionID: handle.sessionID,
+            stage: .diarization,
+            attempt: Self.captureAssignmentAttempt(for: .diarization)
+        )
+        let diarizationDecision = Self.captureAssignmentExecutionDecision(
+            for: diarizationAssignment
+        )
+        if case .bestEffortUnavailable = diarizationAssignment.providerKind {
+            try captureSessionStore.recordMeetingFinalizationFailure(
+                handle,
+                stage: .diarization,
+                domain: "PindropSpeech",
+                code: "assignment-unavailable",
+                message: "Diarization was unavailable at capture assignment and was skipped.",
+                retryable: false,
+                at: .now
+            )
+        }
         let recovery = try await mediaIngestionService.recoverMeetingArtifacts(for: spoolPlan)
         try operationGuard()
         let artifacts = try await resolvedMeetingArtifacts(
@@ -4106,6 +4250,7 @@ final class AppCoordinator {
                 systemAudio: systemAudio,
                 handle: handle,
                 spoolPlan: spoolPlan,
+                diarizationEnabled: diarizationDecision == .execute,
                 outputs: &outputs,
                 warningCount: &warningCount,
                 totalChunks: workItems.count,
@@ -4149,7 +4294,7 @@ final class AppCoordinator {
                 text: finalText,
                 originalText: nil,
                 duration: workItems.map { $0.startOffset + $0.duration }.max() ?? 0,
-                modelUsed: settingsStore.selectedModel,
+                modelUsed: finalModelIdentifier,
                 enhancedWith: nil,
                 diarizationSegmentsJSON: encodeDiarizationSegmentsJSON(merged.diarizedSegments),
                 sourceKind: .manualCapture,
@@ -4178,6 +4323,7 @@ final class AppCoordinator {
         systemAudio: SealedAudioSourceChunk?,
         handle: PindropData.MeetingCaptureHandle,
         spoolPlan: MeetingCaptureSpoolPlan,
+        diarizationEnabled: Bool,
         outputs: inout [TranscriptionChunkOutput],
         warningCount: inout Int,
         totalChunks: Int,
@@ -4212,7 +4358,8 @@ final class AppCoordinator {
             let output = try await transcriptionService.transcribeMeetingChunk(
                 input,
                 options: makeTranscriptionOptions(),
-                diarizationOptions: .init(expectedSpeakerCount: manualExpectedSpeakerCount)
+                diarizationOptions: .init(expectedSpeakerCount: manualExpectedSpeakerCount),
+                diarizationEnabled: diarizationEnabled
             )
             try operationGuard()
             let segmentsJSON = encodeDiarizationSegmentsJSON(output.diarizedSegments)
@@ -4312,6 +4459,78 @@ final class AppCoordinator {
         }
     }
 
+    private func recordUnavailablePersistedNoteGenerationRuntime(
+        sessionID: UUID,
+        assignment: CaptureStageAssignment,
+        error: CaptureStageAssignmentResolverError
+    ) throws {
+        let failureCode: String
+        switch error {
+        case .persistedNoteProviderUnavailable:
+            failureCode = "persisted-provider-unavailable"
+        case .persistedNotePromptUnavailable:
+            failureCode = "persisted-prompt-unavailable"
+        case .missingPersistedNoteProviderCredential:
+            failureCode = "persisted-provider-credential-unavailable"
+        default:
+            throw error
+        }
+
+        let warning = "Warning: Note enhancement could not use the provider assigned when capture started: \(error.localizedDescription). Saving the raw transcription instead."
+        try captureSessionStore.recordStageFailure(
+            sessionID: sessionID,
+            stage: .noteGeneration,
+            attempt: assignment.attempt,
+            domain: "PindropAssignment",
+            code: failureCode,
+            message: warning,
+            retryable: false,
+            at: .now
+        )
+        Log.app.warning("\(warning)")
+        toastService.show(ToastPayload(message: warning, style: .standard))
+    }
+
+    private func captureAssignment(
+        sessionID: UUID,
+        stage: CapturePipelineStage,
+        attempt: Int
+    ) throws -> CaptureStageAssignment {
+        let activeBatchModelName = activeModelName
+        return try captureSessionStore.resolveAssignment(
+            sessionID: sessionID,
+            stage: stage,
+            attempt: attempt
+        ) { [captureAssignmentResolver] in
+            try captureAssignmentResolver.select(
+                stage: stage,
+                attempt: attempt,
+                activeBatchModelName: activeBatchModelName
+            )
+        }
+    }
+
+    private func activateAssignedFinalModel(
+        _ assignment: CaptureStageAssignment
+    ) async throws {
+        guard Self.assignedFinalModelNeedsActivation(
+            assignment,
+            activeModelName: activeModelName
+        ) else {
+            return
+        }
+        guard let modelName = assignment.modelIdentifier,
+              let model = modelManager.availableModels.first(where: {
+                  $0.name == modelName && $0.provider.rawValue == assignment.providerIdentifier
+              })
+        else {
+            throw CaptureStageAssignmentResolverError.unknownBatchModel(
+                assignment.modelIdentifier ?? "missing-final-model"
+            )
+        }
+        try await loadAndActivateModel(named: model.name, provider: model.provider)
+    }
+
     private func beginVoiceNoteCapture(noteID: UUID?) throws {
         guard Self.canBeginVoiceNoteCapture(activeHandle: voiceNoteCaptureContext?.handle) else {
             throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
@@ -4325,7 +4544,18 @@ final class AppCoordinator {
             startedAt: .now,
             microphoneDisplayName: microphoneDisplayName
         )
-        voiceNoteCaptureContext = VoiceNoteCaptureContext(handle: handle, noteID: noteID)
+        let context = VoiceNoteCaptureContext(handle: handle, noteID: noteID)
+        voiceNoteCaptureContext = context
+        do {
+            _ = try captureAssignment(
+                sessionID: handle.sessionID,
+                stage: .liveTranscription,
+                attempt: Self.captureAssignmentAttempt(for: .liveTranscription)
+            )
+        } catch {
+            failVoiceNoteCapture(context, stage: "recording-start", error: error)
+            throw error
+        }
     }
 
     private func failVoiceNoteCapture(
@@ -4425,7 +4655,20 @@ final class AppCoordinator {
         let duration = Date.now.timeIntervalSince(recordingStartTime)
 
         let transcriptionOutput: TranscriptionOutput
+        let finalModelIdentifier: String
         do {
+            let finalAssignment = try captureAssignment(
+                sessionID: context.handle.sessionID,
+                stage: .finalTranscription,
+                attempt: Self.captureAssignmentAttempt(for: .finalTranscription)
+            )
+            guard let modelIdentifier = Self.finalHistoryModelIdentifier(from: finalAssignment) else {
+                throw CaptureStageAssignmentError.missingModelIdentifier(
+                    providerKind: finalAssignment.providerKind
+                )
+            }
+            finalModelIdentifier = modelIdentifier
+            try await activateAssignedFinalModel(finalAssignment)
             transcriptionOutput = try await transcriptionService.transcribe(
                 audioData: audioData,
                 diarizationEnabled: Self.dictationUsesSpeakerDiarization,
@@ -4502,6 +4745,7 @@ final class AppCoordinator {
                 finalText: finalText,
                 duration: duration,
                 languageCode: settingsStore.selectedAppLanguage.rawValue,
+                finalModelIdentifier: finalModelIdentifier,
                 enhancedWithModel: nil,
                 title: nil,
                 tags: []
@@ -4569,7 +4813,20 @@ final class AppCoordinator {
         let duration = Date.now.timeIntervalSince(recordingStartTime)
 
         let transcriptionOutput: TranscriptionOutput
+        let finalModelIdentifier: String
         do {
+            let finalAssignment = try captureAssignment(
+                sessionID: context.handle.sessionID,
+                stage: .finalTranscription,
+                attempt: Self.captureAssignmentAttempt(for: .finalTranscription)
+            )
+            guard let modelIdentifier = Self.finalHistoryModelIdentifier(from: finalAssignment) else {
+                throw CaptureStageAssignmentError.missingModelIdentifier(
+                    providerKind: finalAssignment.providerKind
+                )
+            }
+            finalModelIdentifier = modelIdentifier
+            try await activateAssignedFinalModel(finalAssignment)
             transcriptionOutput = try await transcriptionService.transcribe(
                 audioData: audioData,
                 diarizationEnabled: Self.dictationUsesSpeakerDiarization,
@@ -4641,63 +4898,94 @@ final class AppCoordinator {
                 Log.app.info("Applied \(appliedReplacements.count) dictionary replacements")
             }
 
-            if let noteAssignment = settingsStore.resolveAssignment(for: .noteEnhancement) {
-                let vocabularyWords = try dictionaryStore.fetchAllVocabularyWords().map(\.word)
+            let noteGenerationAssignment = try captureAssignment(
+                sessionID: context.handle.sessionID,
+                stage: .noteGeneration,
+                attempt: Self.captureAssignmentAttempt(for: .noteGeneration)
+            )
+            if let persistedNoteGenerationAssignment = Self.noteGenerationRuntimeAssignment(
+                from: noteGenerationAssignment
+            ) {
+                let noteRuntime: ResolvedAssignment?
                 do {
-                    let notePrompt = resolvedPrompt(
-                        for: noteAssignment,
-                        fallback: SettingsStore.Defaults.noteEnhancementPrompt
+                    noteRuntime = try captureAssignmentResolver.resolveNoteGenerationRuntime(
+                        for: persistedNoteGenerationAssignment
                     )
-                    let replacementCorrections = appliedReplacements.map {
-                        PindropAI.AIEnhancementService.ContextMetadata.ReplacementCorrection(
-                            original: $0.original,
-                            replacement: $0.replacement
-                        )
-                    }
-                    let enhancementContext = PindropAI.AIEnhancementService.ContextMetadata(
-                        hasClipboardText: false,
-                        clipboardText: nil,
-                        hasClipboardImage: false,
-                        appContext: nil,
-                        vocabularyWords: vocabularyWords,
-                        replacementCorrections: replacementCorrections
+                } catch let error as CaptureStageAssignmentResolverError {
+                    try recordUnavailablePersistedNoteGenerationRuntime(
+                        sessionID: context.handle.sessionID,
+                        assignment: persistedNoteGenerationAssignment,
+                        error: error
                     )
+                    noteRuntime = nil
+                }
 
-                    let existingTags = (try? notesStore.getAllUniqueTags()) ?? []
-                    let enhancedNote = try await aiEnhancementService.enhanceNote(
-                        content: fallbackText,
-                        apiEndpoint: noteAssignment.endpoint ?? "",
-                        apiKey: noteAssignment.apiKey,
-                        model: noteAssignment.modelID,
-                        contentPrompt: notePrompt,
-                        generateMetadata: true,
-                        existingTags: existingTags,
-                        context: enhancementContext,
-                        provider: noteAssignment.kind
-                    )
-                    try ensureVoiceNoteCaptureCurrent(context, token: token)
-                    let finalText = normalizedTranscriptionText(enhancedNote.content)
-                    if !isTranscriptionEffectivelyEmpty(finalText) {
-                        Log.app.info("Note enhancement completed: title='\(enhancedNote.title)', tags=\(enhancedNote.tags.count)")
-                        return VoiceNoteCaptureResult(
-                            context: context,
-                            rawText: rawText,
-                            finalText: finalText,
-                            duration: duration,
-                            languageCode: settingsStore.selectedAppLanguage.rawValue,
-                            enhancedWithModel: noteAssignment.modelID,
-                            title: enhancedNote.title,
-                            tags: enhancedNote.tags
+
+                if let noteRuntime,
+                   Self.canExecutePersistedNoteGeneration(resolvedPrompt: noteRuntime.prompt),
+                   let notePrompt = noteRuntime.prompt {
+                    let vocabularyWords = try dictionaryStore.fetchAllVocabularyWords().map(\.word)
+                    do {
+                        let replacementCorrections = appliedReplacements.map {
+                            PindropAI.AIEnhancementService.ContextMetadata.ReplacementCorrection(
+                                original: $0.original,
+                                replacement: $0.replacement
+                            )
+                        }
+                        let enhancementContext = PindropAI.AIEnhancementService.ContextMetadata(
+                            hasClipboardText: false,
+                            clipboardText: nil,
+                            hasClipboardImage: false,
+                            appContext: nil,
+                            vocabularyWords: vocabularyWords,
+                            replacementCorrections: replacementCorrections
                         )
+
+                        let existingTags = (try? notesStore.getAllUniqueTags()) ?? []
+                        let enhancedNote = try await aiEnhancementService.enhanceNote(
+                            content: fallbackText,
+                            apiEndpoint: noteRuntime.endpoint ?? "",
+                            apiKey: noteRuntime.apiKey,
+                            model: noteRuntime.modelID,
+                            contentPrompt: notePrompt,
+                            generateMetadata: true,
+                            existingTags: existingTags,
+                            context: enhancementContext,
+                            provider: noteRuntime.kind
+                        )
+                        try ensureVoiceNoteCaptureCurrent(context, token: token)
+                        let finalText = normalizedTranscriptionText(enhancedNote.content)
+                        if !isTranscriptionEffectivelyEmpty(finalText) {
+                            Log.app.info("Note enhancement completed: title='\(enhancedNote.title)', tags=\(enhancedNote.tags.count)")
+                            return VoiceNoteCaptureResult(
+                                context: context,
+                                rawText: rawText,
+                                finalText: finalText,
+                                duration: duration,
+                                languageCode: settingsStore.selectedAppLanguage.rawValue,
+                                finalModelIdentifier: finalModelIdentifier,
+                                enhancedWithModel: noteRuntime.modelID,
+                                title: enhancedNote.title,
+                                tags: enhancedNote.tags
+                            )
+                        }
+                        Log.app.error("Note enhancement returned empty content; using raw transcription")
+                    } catch {
+                        if Self.isTaskCancellation(error)
+                            || !operationController.isCurrent(token)
+                            || !isVoiceNoteCaptureContextCurrent(context) {
+                            throw CancellationError()
+                        }
+                        Log.app.error("Note enhancement failed: \(error)")
                     }
-                    Log.app.error("Note enhancement returned empty content; using raw transcription")
-                } catch {
-                    if Self.isTaskCancellation(error)
-                        || !operationController.isCurrent(token)
-                        || !isVoiceNoteCaptureContextCurrent(context) {
-                        throw CancellationError()
-                    }
-                    Log.app.error("Note enhancement failed: \(error)")
+                } else if let noteRuntime {
+                    try recordUnavailablePersistedNoteGenerationRuntime(
+                        sessionID: context.handle.sessionID,
+                        assignment: persistedNoteGenerationAssignment,
+                        error: .persistedNotePromptUnavailable(
+                            noteRuntime.promptPresetID ?? "missing-persisted-prompt"
+                        )
+                    )
                 }
             }
 
@@ -4708,6 +4996,7 @@ final class AppCoordinator {
                 finalText: fallbackText,
                 duration: duration,
                 languageCode: settingsStore.selectedAppLanguage.rawValue,
+                finalModelIdentifier: finalModelIdentifier,
                 enhancedWithModel: nil,
                 title: aiEnhancementService.generateFallbackTitle(from: fallbackText),
                 tags: []
@@ -4743,7 +5032,7 @@ final class AppCoordinator {
                 text: result.finalText,
                 originalText: result.rawText,
                 duration: result.duration,
-                modelUsed: settingsStore.selectedModel,
+                modelUsed: result.finalModelIdentifier,
                 enhancedWith: result.enhancedWithModel,
                 sourceKind: .voiceRecording
             )
@@ -4807,7 +5096,7 @@ final class AppCoordinator {
                 text: result.finalText,
                 originalText: result.rawText,
                 duration: result.duration,
-                modelUsed: settingsStore.selectedModel,
+                modelUsed: result.finalModelIdentifier,
                 enhancedWith: nil,
                 sourceKind: .voiceRecording
             )
@@ -6998,7 +7287,13 @@ final class AppCoordinator {
             systemAudioDisplayName: "System Audio"
         )
 
+
         do {
+            _ = try captureAssignment(
+                sessionID: handle.sessionID,
+                stage: .liveTranscription,
+                attempt: Self.captureAssignmentAttempt(for: .liveTranscription)
+            )
             let spoolPlan = try await mediaIngestionService.makeMeetingCaptureSpoolPlan(
                 sessionID: handle.sessionID,
                 microphoneSourceID: handle.microphoneSourceID,

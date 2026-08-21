@@ -14,8 +14,11 @@ public enum CaptureSessionProjectionError: Error, Equatable, LocalizedError {
     case invalidStateRawValue(String)
     case invalidRecoveryTargetRawValue(String)
     case invalidNoteRoleRawValue(String)
+    case invalidPipelineStageRawValue(String)
+    case invalidAssignmentProviderKindRawValue(String)
     case stateChangedAtMismatch(expected: Date, actual: Date)
     case invalidPersistedSession
+    case invalidPersistedAssignment
     case sessionIDMismatch(expected: UUID, actual: UUID)
     case modeMismatch(expected: CaptureSessionMode, actual: CaptureSessionMode)
     case revisionRegression(current: Int, attempted: Int)
@@ -30,10 +33,16 @@ public enum CaptureSessionProjectionError: Error, Equatable, LocalizedError {
             "Capture session recovery target '\(rawValue)' is not recognized."
         case .invalidNoteRoleRawValue(let rawValue):
             "Capture note reference role '\(rawValue)' is not recognized."
+        case .invalidPipelineStageRawValue(let rawValue):
+            "Capture pipeline stage '\(rawValue)' is not recognized."
+        case .invalidAssignmentProviderKindRawValue(let rawValue):
+            "Capture assignment provider kind '\(rawValue)' is not recognized."
         case .stateChangedAtMismatch:
             "Capture session state change time must match its update time."
         case .invalidPersistedSession:
             "Capture session persistence does not describe a valid session."
+        case .invalidPersistedAssignment:
+            "Capture assignment persistence does not describe a valid assignment."
         case .sessionIDMismatch:
             "Capture session projection cannot be updated from a different session."
         case .modeMismatch:
@@ -329,17 +338,17 @@ public final class CaptureTranscriptRevisionModel {
 
 @Model
 public final class CaptureStageProviderSnapshotModel {
-    @Attribute(.unique) public var id: UUID
-    public var sessionID: UUID
-    public var stageRawValue: String
-    public var attempt: Int
-    public var providerKindRawValue: String
-    public var providerIdentifier: String
-    public var modelIdentifier: String?
-    public var promptPresetID: UUID?
-    public var selectedAt: Date
+    @Attribute(.unique) public private(set) var id: UUID
+    public private(set) var sessionID: UUID
+    public private(set) var stageRawValue: String
+    public private(set) var attempt: Int
+    public private(set) var providerKindRawValue: String
+    public private(set) var providerIdentifier: String
+    public private(set) var modelIdentifier: String?
+    public private(set) var promptPresetID: UUID?
+    public private(set) var selectedAt: Date
 
-    public init(
+    init(
         id: UUID = UUID(),
         sessionID: UUID,
         stage: CapturePipelineStage,
@@ -359,6 +368,84 @@ public final class CaptureStageProviderSnapshotModel {
         self.modelIdentifier = modelIdentifier
         self.promptPresetID = promptPresetID
         self.selectedAt = selectedAt
+    }
+
+    convenience init(sessionID: UUID, assignment: CaptureStageAssignment) {
+        self.init(
+            sessionID: sessionID,
+            stage: assignment.stage,
+            attempt: assignment.attempt,
+            providerKindRawValue: assignment.providerKind.rawValue,
+            providerIdentifier: assignment.providerIdentifier,
+            modelIdentifier: assignment.modelIdentifier,
+            selectedAt: assignment.selectedAt
+        )
+    }
+
+    public func restoreAssignment() throws -> CaptureStageAssignment {
+        guard let stage = CapturePipelineStage(rawValue: stageRawValue) else {
+            throw CaptureSessionProjectionError.invalidPipelineStageRawValue(stageRawValue)
+        }
+        guard let providerKind = CaptureAssignmentProviderKind(rawValue: providerKindRawValue) else {
+            throw CaptureSessionProjectionError.invalidAssignmentProviderKindRawValue(providerKindRawValue)
+        }
+
+        do {
+            return try CaptureStageAssignment(
+                stage: stage,
+                providerKind: providerKind,
+                providerIdentifier: providerIdentifier,
+                modelIdentifier: modelIdentifier,
+                prompt: nil,
+                selectedAt: selectedAt,
+                attempt: attempt
+            )
+        } catch {
+            throw CaptureSessionProjectionError.invalidPersistedAssignment
+        }
+    }
+}
+
+@Model
+public final class CaptureStagePromptSnapshotModel {
+    @Attribute(.unique) public private(set) var id: UUID
+    public private(set) var providerSnapshotID: UUID
+    public private(set) var sessionID: UUID
+    public private(set) var presetIdentifier: String?
+    public private(set) var resolvedPrompt: String?
+
+    init(
+        id: UUID = UUID(),
+        providerSnapshotID: UUID,
+        sessionID: UUID,
+        presetIdentifier: String?,
+        resolvedPrompt: String?
+    ) {
+        self.id = id
+        self.providerSnapshotID = providerSnapshotID
+        self.sessionID = sessionID
+        self.presetIdentifier = presetIdentifier
+        self.resolvedPrompt = resolvedPrompt
+    }
+
+    convenience init(
+        sessionID: UUID,
+        providerSnapshotID: UUID,
+        prompt: CapturePromptSnapshot
+    ) {
+        self.init(
+            providerSnapshotID: providerSnapshotID,
+            sessionID: sessionID,
+            presetIdentifier: prompt.presetIdentifier,
+            resolvedPrompt: prompt.resolvedPrompt
+        )
+    }
+
+    public func restorePrompt() -> CapturePromptSnapshot {
+        CapturePromptSnapshot(
+            presetIdentifier: presetIdentifier,
+            resolvedPrompt: resolvedPrompt
+        )
     }
 }
 

@@ -685,7 +685,14 @@ final class SwiftDataStoreRepairService {
         }
 
         let metadataVersion = try readMetadataVersionIdentifier(at: targetStoreURL)
-        let referenceArtifacts = try makeReferenceArtifacts(for: inferredVersion)
+        let metadataMatchesInferredVersion = metadataVersion == inferredVersion.rawValue
+        // Keep a V14 reference when V14 metadata identifies a store that has
+        // lost its V14-only prompt snapshot table. Otherwise, a matching
+        // metadata/inferred version must repair strictly from that version.
+        let referenceVersion = metadataVersion == StoreSchemaVersion.v14.rawValue
+            ? .v14
+            : inferredVersion
+        let referenceArtifacts = try makeReferenceArtifacts(for: referenceVersion)
         let (missingSchemaDefinitions, missingColumnDefinitions) = try withDatabase(at: targetStoreURL) { database in
             let existingObjectNames = try fetchSchemaObjectNames(on: database)
             let existingTableNames = try fetchTableNames(on: database)
@@ -706,7 +713,7 @@ final class SwiftDataStoreRepairService {
             return (missingSchemaDefinitions, missingColumnDefinitions)
         }
 
-        guard metadataVersion != inferredVersion.rawValue
+        guard metadataVersion != referenceVersion.rawValue
             || !missingSchemaDefinitions.isEmpty
             || !missingColumnDefinitions.isEmpty else {
             return RepairOutcome(repaired: false, backupDirectoryURL: nil)
@@ -727,8 +734,10 @@ final class SwiftDataStoreRepairService {
                 for schemaDefinition in missingSchemaDefinitions {
                     try execute(schemaDefinition.sql, on: database)
                 }
-                try updateMetadata(referenceArtifacts.metadataBlob, on: database)
-                try replaceModelCache(referenceArtifacts.modelCacheBlob, on: database)
+                if !metadataMatchesInferredVersion {
+                    try updateMetadata(referenceArtifacts.metadataBlob, on: database)
+                    try replaceModelCache(referenceArtifacts.modelCacheBlob, on: database)
+                }
                 try execute("COMMIT TRANSACTION", on: database)
             } catch {
                 try? execute("ROLLBACK TRANSACTION", on: database)
@@ -738,7 +747,7 @@ final class SwiftDataStoreRepairService {
 
         if missingSchemaDefinitions.isEmpty && missingColumnDefinitions.isEmpty {
             Log.app.info(
-                "Repaired SwiftData store metadata from \(metadataVersion ?? "unknown") to \(inferredVersion.rawValue); backup: \(backupDirectoryURL.path)"
+                "Repaired SwiftData store metadata from \(metadataVersion ?? "unknown") to \(referenceVersion.rawValue); backup: \(backupDirectoryURL.path)"
             )
         } else {
             var repairDetails: [String] = []
@@ -752,8 +761,11 @@ final class SwiftDataStoreRepairService {
                 let recreatedNames = missingSchemaDefinitions.map(\.name).joined(separator: ", ")
                 repairDetails.append("recreated missing schema objects (\(recreatedNames))")
             }
+            let metadataAction = metadataMatchesInferredVersion
+                ? "preserving \(referenceVersion.rawValue) metadata and model cache"
+                : "refreshing metadata to \(referenceVersion.rawValue)"
             Log.app.info(
-                "Repaired SwiftData store by \(repairDetails.joined(separator: " and ")) and refreshing metadata to \(inferredVersion.rawValue); backup: \(backupDirectoryURL.path)"
+                "Repaired SwiftData store by \(repairDetails.joined(separator: " and ")) and \(metadataAction); backup: \(backupDirectoryURL.path)"
             )
         }
         return RepairOutcome(repaired: true, backupDirectoryURL: backupDirectoryURL)
@@ -781,6 +793,12 @@ final class SwiftDataStoreRepairService {
 
             // Newest first: every check below is a feature the next-older
             // version lacks, so the first hit is the store's actual version.
+            // CaptureStagePromptSnapshotModel was added in V14. Its table
+            // distinguishes V14 from otherwise-complete V13 stores.
+            if try tableExists(named: "ZCAPTURESTAGEPROMPTSNAPSHOTMODEL", on: database) {
+                return .v14
+            }
+
             // CaptureSessionModel was added in V13, and its table is present
             // in every valid V13 store.
             if try tableExists(named: "ZCAPTURESESSIONMODEL", on: database) {
@@ -908,7 +926,9 @@ final class SwiftDataStoreRepairService {
             }
 
             let schemaDefinitions = try fetchSchemaDefinitions(on: database)
+                .filter { version == .v14 || !$0.name.contains("ZCAPTURESTAGEPROMPTSNAPSHOTMODEL") }
             let columnDefinitions = try fetchSchemaColumnDefinitions(on: database)
+                .filter { version == .v14 || $0.tableName != "ZCAPTURESTAGEPROMPTSNAPSHOTMODEL" }
             return ReferenceArtifacts(
                 metadataBlob: metadataBlob,
                 modelCacheBlob: modelCacheBlob,

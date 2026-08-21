@@ -115,6 +115,26 @@ struct CaptureSessionStoreTests {
         )
     }
 
+    private func assignment(
+        stage: CapturePipelineStage,
+        providerKind: CaptureAssignmentProviderKind = .batchSpeech,
+        providerIdentifier: String = "catalog-provider",
+        modelIdentifier: String? = "catalog-model",
+        prompt: CapturePromptSnapshot? = nil,
+        selectedAt: Date = Date(timeIntervalSinceReferenceDate: 20_000),
+        attempt: Int = 1
+    ) throws -> CaptureStageAssignment {
+        try CaptureStageAssignment(
+            stage: stage,
+            providerKind: providerKind,
+            providerIdentifier: providerIdentifier,
+            modelIdentifier: modelIdentifier,
+            prompt: prompt,
+            selectedAt: selectedAt,
+            attempt: attempt
+        )
+    }
+
     @Test func captureSourceArtifactPathUsesCanonicalMeetingLocation() throws {
         let sessionID = try #require(UUID(uuidString: "00000000-0000-0000-0000-000000000001"))
         let sourceID = try #require(UUID(uuidString: "00000000-0000-0000-0000-000000000002"))
@@ -1761,5 +1781,464 @@ struct CaptureSessionStoreTests {
             $0.stageRawValue == CapturePipelineStage.diarization.rawValue &&
                 $0.detailsJSON == #"{"sequence":0}"#
         })
+    }
+
+    @Test func stageFailuresRemainSessionScopedAndAreIdempotentOnlyForTheirExactKey() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let handle = try store.startVoiceNoteCapture()
+        let occurredAt = Date(timeIntervalSinceReferenceDate: 16_100)
+
+        try store.recordStageFailure(
+            sessionID: handle.sessionID,
+            stage: .finalTranscription,
+            attempt: 1,
+            domain: "Transcription",
+            code: "unavailable",
+            message: "The assigned model is unavailable.",
+            retryable: true,
+            at: occurredAt
+        )
+        try store.recordStageFailure(
+            sessionID: handle.sessionID,
+            stage: .finalTranscription,
+            attempt: 1,
+            domain: "Transcription",
+            code: "unavailable",
+            message: "The assigned model is unavailable.",
+            retryable: true,
+            at: occurredAt
+        )
+        try store.recordStageFailure(
+            sessionID: handle.sessionID,
+            stage: .finalTranscription,
+            attempt: 1,
+            domain: "Transcription",
+            code: "credential-unavailable",
+            message: "The assigned credential is unavailable.",
+            retryable: true,
+            at: occurredAt
+        )
+
+        let context = ModelContext(container)
+        let failures = try context.fetch(FetchDescriptor<CaptureFailureRecordModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        let session = try #require(
+            context.fetch(FetchDescriptor<CaptureSessionModel>())
+                .first { $0.id == handle.sessionID }
+        )
+        let modelFailure = try #require(
+            failures.first { $0.errorCode == "unavailable" }
+        )
+
+        #expect(failures.count == 2)
+        #expect(modelFailure.sourceID == nil)
+        #expect(modelFailure.chunkID == nil)
+        #expect(modelFailure.transcriptRevisionID == nil)
+        #expect(modelFailure.providerSnapshotID == nil)
+        #expect(modelFailure.stageRawValue == CapturePipelineStage.finalTranscription.rawValue)
+        #expect(modelFailure.attempt == 1)
+        #expect(modelFailure.isRetryable)
+        #expect(modelFailure.recoveryDispositionRawValue == CaptureFailureDisposition.recoverable.rawValue)
+        #expect(session.lastActivityAt == occurredAt)
+    }
+
+    @Test func captureStageAssignmentRejectsInvalidImmutableValues() throws {
+        #expect(throws: CaptureStageAssignmentError.invalidAttempt(0)) {
+            try assignment(stage: .finalTranscription, attempt: 0)
+        }
+        #expect(
+            throws: CaptureStageAssignmentError.promptNotAllowed(stage: .finalTranscription)
+        ) {
+            try assignment(
+                stage: .finalTranscription,
+                prompt: CapturePromptSnapshot(
+                    presetIdentifier: "meeting-summary",
+                    resolvedPrompt: "Summarize this meeting."
+                )
+            )
+        }
+        #expect(
+            throws: CaptureStageAssignmentError.missingModelIdentifier(providerKind: .generativeAI)
+        ) {
+            try assignment(
+                stage: .noteGeneration,
+                providerKind: .generativeAI,
+                modelIdentifier: nil
+            )
+        }
+
+        let disabled = try assignment(
+            stage: .liveTranscription,
+            providerKind: .disabled,
+            providerIdentifier: "disabled",
+            modelIdentifier: nil
+        )
+        #expect(disabled.modelIdentifier == nil)
+    }
+
+    @Test func resolveAssignmentInsertsOnceAndDoesNotReevaluateSelector() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let handle = try store.startVoiceNoteCapture()
+        let expected = try assignment(stage: .finalTranscription)
+        var selectionCount = 0
+
+        let first = try store.resolveAssignment(
+            sessionID: handle.sessionID,
+            stage: .finalTranscription,
+            attempt: 1
+        ) {
+            selectionCount += 1
+            return expected
+        }
+        let reused = try store.resolveAssignment(
+            sessionID: handle.sessionID,
+            stage: .finalTranscription,
+            attempt: 1
+        ) {
+            selectionCount += 1
+            return try assignment(
+                stage: .finalTranscription,
+                providerIdentifier: "different-provider",
+                modelIdentifier: "different-model"
+            )
+        }
+
+        let context = ModelContext(container)
+        let snapshots = try context.fetch(FetchDescriptor<CaptureStageProviderSnapshotModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        #expect(first == expected)
+        #expect(reused == expected)
+        #expect(selectionCount == 1)
+        #expect(snapshots.count == 1)
+    }
+
+    @Test func resolveAssignmentKeepsAttemptsAndStagesAsSeparateImmutableKeys() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let handle = try store.startMeetingCapture()
+        let assignments = try [
+            assignment(stage: .liveTranscription, attempt: 1),
+            assignment(stage: .finalTranscription, attempt: 1),
+            assignment(stage: .finalTranscription, attempt: 2),
+            assignment(stage: .diarization, attempt: 1)
+        ]
+
+        for assignment in assignments {
+            let resolved = try store.resolveAssignment(
+                sessionID: handle.sessionID,
+                stage: assignment.stage,
+                attempt: assignment.attempt
+            ) {
+                assignment
+            }
+            #expect(resolved == assignment)
+        }
+
+        let context = ModelContext(container)
+        let snapshots = try context.fetch(FetchDescriptor<CaptureStageProviderSnapshotModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        #expect(snapshots.count == assignments.count)
+        #expect(Set(snapshots.map { "\($0.stageRawValue)-\($0.attempt)" }).count == assignments.count)
+    }
+
+    @Test func assignmentPersistenceReportsMissingMismatchedDuplicateAndCorruptRows() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let missingSessionID = UUID()
+        #expect(throws: CaptureSessionStoreError.assignmentSessionNotFound(missingSessionID)) {
+            try store.persistedAssignment(
+                sessionID: missingSessionID,
+                stage: .finalTranscription,
+                attempt: 1
+            )
+        }
+
+        let handle = try store.startVoiceNoteCapture()
+        let mismatched = try assignment(stage: .diarization)
+        #expect(throws: CaptureSessionStoreError.assignmentKeyMismatch) {
+            try store.resolveAssignment(
+                sessionID: handle.sessionID,
+                stage: .finalTranscription,
+                attempt: 1
+            ) {
+                mismatched
+            }
+        }
+
+        let context = ModelContext(container)
+        context.insert(
+            CaptureStageProviderSnapshotModel(
+                sessionID: handle.sessionID,
+                stage: .finalTranscription,
+                attempt: 1,
+                providerKindRawValue: CaptureAssignmentProviderKind.batchSpeech.rawValue,
+                providerIdentifier: "first-provider",
+                modelIdentifier: "first-model"
+            )
+        )
+        context.insert(
+            CaptureStageProviderSnapshotModel(
+                sessionID: handle.sessionID,
+                stage: .finalTranscription,
+                attempt: 1,
+                providerKindRawValue: CaptureAssignmentProviderKind.batchSpeech.rawValue,
+                providerIdentifier: "second-provider",
+                modelIdentifier: "second-model"
+            )
+        )
+        try context.save()
+
+        #expect(
+            throws: CaptureSessionStoreError.duplicateAssignments(
+                sessionID: handle.sessionID,
+                stage: .finalTranscription,
+                attempt: 1
+            )
+        ) {
+            try store.persistedAssignment(
+                sessionID: handle.sessionID,
+                stage: .finalTranscription,
+                attempt: 1
+            )
+        }
+
+        let corruptHandle = try store.startVoiceNoteCapture()
+        let corruptContext = ModelContext(container)
+        corruptContext.insert(
+            CaptureStageProviderSnapshotModel(
+                sessionID: corruptHandle.sessionID,
+                stage: .finalTranscription,
+                attempt: 1,
+                providerKindRawValue: "not-a-provider-kind",
+                providerIdentifier: "catalog-provider",
+                modelIdentifier: "catalog-model"
+            )
+        )
+        try corruptContext.save()
+
+        #expect(
+            throws: CaptureSessionProjectionError.invalidAssignmentProviderKindRawValue(
+                "not-a-provider-kind"
+            )
+        ) {
+            try store.persistedAssignment(
+                sessionID: corruptHandle.sessionID,
+                stage: .finalTranscription,
+                attempt: 1
+            )
+        }
+    }
+
+    @Test func snapshotModelsExposeReadOnlyProjectionValuesWithoutConnectionDetails() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let handle = try store.startVoiceNoteCapture()
+        let prompt = CapturePromptSnapshot(
+            presetIdentifier: "meeting-summary",
+            resolvedPrompt: "Create concise meeting notes."
+        )
+        let expected = try assignment(
+            stage: .noteGeneration,
+            providerKind: .generativeAI,
+            providerIdentifier: "catalog-provider",
+            modelIdentifier: "catalog-model",
+            prompt: prompt
+        )
+
+        let resolved = try store.resolveAssignment(
+            sessionID: handle.sessionID,
+            stage: .noteGeneration,
+            attempt: 1
+        ) {
+            expected
+        }
+        let restored = try #require(
+            try store.persistedAssignment(
+                sessionID: handle.sessionID,
+                stage: .noteGeneration,
+                attempt: 1
+            )
+        )
+        let context = ModelContext(container)
+        let providerSnapshots = try context.fetch(FetchDescriptor<CaptureStageProviderSnapshotModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        let promptSnapshots = try context.fetch(FetchDescriptor<CaptureStagePromptSnapshotModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        let providerSnapshot = try #require(providerSnapshots.first)
+        let promptSnapshot = try #require(promptSnapshots.first)
+        let observableFields = Set(Mirror(reflecting: restored).children.compactMap(\.label))
+
+        #expect(resolved == expected)
+        #expect(restored == expected)
+        #expect(providerSnapshots.count == 1)
+        #expect(try providerSnapshot.restoreAssignment().prompt == nil)
+        #expect(providerSnapshot.sessionID == handle.sessionID)
+        #expect(promptSnapshots.count == 1)
+        #expect(promptSnapshot.restorePrompt() == prompt)
+        #expect(
+            observableFields == [
+                "stage",
+                "providerKind",
+                "providerIdentifier",
+                "modelIdentifier",
+                "prompt",
+                "selectedAt",
+                "attempt"
+            ]
+        )
+    }
+
+    @Test func legacyProviderSnapshotWithMissingPromptPresetReturnsUnresolvedPromptWithoutCompanion() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let handle = try store.startVoiceNoteCapture()
+        let legacyPromptPresetID = UUID()
+        let context = ModelContext(container)
+        context.insert(
+            CaptureStageProviderSnapshotModel(
+                sessionID: handle.sessionID,
+                stage: .noteGeneration,
+                attempt: 1,
+                providerKindRawValue: CaptureAssignmentProviderKind.generativeAI.rawValue,
+                providerIdentifier: "catalog-provider",
+                modelIdentifier: "catalog-model",
+                promptPresetID: legacyPromptPresetID
+            )
+        )
+        try context.save()
+
+        let restored = try #require(
+            try store.persistedAssignment(
+                sessionID: handle.sessionID,
+                stage: .noteGeneration,
+                attempt: 1
+            )
+        )
+        let promptSnapshots = try context.fetch(FetchDescriptor<CaptureStagePromptSnapshotModel>())
+            .filter { $0.sessionID == handle.sessionID }
+
+        #expect(
+            restored.prompt == CapturePromptSnapshot(
+                presetIdentifier: legacyPromptPresetID.uuidString,
+                resolvedPrompt: nil
+            )
+        )
+        #expect(promptSnapshots.isEmpty)
+    }
+
+    @Test func legacyProviderSnapshotWithoutCompanionRemainsFailClosedAfterPresetCreationAndMutation() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let handle = try store.startVoiceNoteCapture()
+        let providerSnapshotID = UUID()
+        let legacyPromptPresetID = UUID()
+        let expectedPrompt = CapturePromptSnapshot(
+            presetIdentifier: legacyPromptPresetID.uuidString,
+            resolvedPrompt: nil
+        )
+        let context = ModelContext(container)
+        context.insert(
+            CaptureStageProviderSnapshotModel(
+                id: providerSnapshotID,
+                sessionID: handle.sessionID,
+                stage: .noteGeneration,
+                attempt: 1,
+                providerKindRawValue: CaptureAssignmentProviderKind.generativeAI.rawValue,
+                providerIdentifier: "catalog-provider",
+                modelIdentifier: "catalog-model",
+                promptPresetID: legacyPromptPresetID
+            )
+        )
+        try context.save()
+
+        let beforePresetCreation = try #require(
+            try store.persistedAssignment(
+                sessionID: handle.sessionID,
+                stage: .noteGeneration,
+                attempt: 1
+            )
+        )
+
+        let preset = PromptPreset(
+            id: legacyPromptPresetID,
+            name: "Legacy custom preset",
+            prompt: "Created prompt"
+        )
+        context.insert(preset)
+        try context.save()
+
+        let afterPresetCreation = try #require(
+            try store.persistedAssignment(
+                sessionID: handle.sessionID,
+                stage: .noteGeneration,
+                attempt: 1
+            )
+        )
+
+        preset.prompt = "Mutated prompt"
+        try context.save()
+
+        let afterPresetMutation = try #require(
+            try store.persistedAssignment(
+                sessionID: handle.sessionID,
+                stage: .noteGeneration,
+                attempt: 1
+            )
+        )
+        let inspectionContext = ModelContext(container)
+        let companions = try inspectionContext.fetch(
+            FetchDescriptor<CaptureStagePromptSnapshotModel>()
+        )
+        .filter { $0.providerSnapshotID == providerSnapshotID }
+
+        #expect(beforePresetCreation.prompt == expectedPrompt)
+        #expect(afterPresetCreation.prompt == expectedPrompt)
+        #expect(afterPresetMutation.prompt == expectedPrompt)
+        #expect(companions.isEmpty)
+    }
+
+    @Test func promptCompanionRemainsAuthoritativeOverLegacyPromptPresetIdentifier() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let handle = try store.startVoiceNoteCapture()
+        let providerSnapshotID = UUID()
+        let context = ModelContext(container)
+        context.insert(
+            CaptureStageProviderSnapshotModel(
+                id: providerSnapshotID,
+                sessionID: handle.sessionID,
+                stage: .noteGeneration,
+                attempt: 1,
+                providerKindRawValue: CaptureAssignmentProviderKind.generativeAI.rawValue,
+                providerIdentifier: "catalog-provider",
+                modelIdentifier: "catalog-model",
+                promptPresetID: UUID()
+            )
+        )
+        context.insert(
+            CaptureStagePromptSnapshotModel(
+                providerSnapshotID: providerSnapshotID,
+                sessionID: handle.sessionID,
+                presetIdentifier: "companion-preset",
+                resolvedPrompt: "Companion prompt."
+            )
+        )
+        try context.save()
+
+        let restored = try #require(
+            try store.persistedAssignment(
+                sessionID: handle.sessionID,
+                stage: .noteGeneration,
+                attempt: 1
+            )
+        )
+        #expect(
+            restored.prompt == CapturePromptSnapshot(
+                presetIdentifier: "companion-preset",
+                resolvedPrompt: "Companion prompt."
+            )
+        )
     }
 }

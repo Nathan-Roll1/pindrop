@@ -620,10 +620,13 @@ public final class TranscriptionService {
     public func transcribeMeetingChunk(
         _ input: TranscriptionChunkInput,
         options: TranscriptionOptions = .init(),
-        diarizationOptions: PindropCore.DiarizationOptions = .init()
+        diarizationOptions: PindropCore.DiarizationOptions = .init(),
+        diarizationEnabled: Bool = true
     ) async throws -> TranscriptionChunkOutput {
         try Task.checkCancellation()
-        try validateExpectedSpeakerCount(diarizationOptions.expectedSpeakerCount)
+        if diarizationEnabled {
+            try validateExpectedSpeakerCount(diarizationOptions.expectedSpeakerCount)
+        }
         let audioData = try materializeMeetingChunk(input)
         try Task.checkCancellation()
 
@@ -644,12 +647,17 @@ public final class TranscriptionService {
             let plainText = try await engine.transcribe(audioData: audioData, options: options)
             try Task.checkCancellation()
 
-            let diarization = try await diarizeMeetingChunk(
-                engine: engine,
-                audioData: audioData,
-                options: options,
-                diarizationOptions: diarizationOptions
-            )
+            let diarization: (segments: [DiarizedTranscriptSegment]?, warning: String?)
+            if diarizationEnabled {
+                diarization = try await diarizeMeetingChunk(
+                    engine: engine,
+                    audioData: audioData,
+                    options: options,
+                    diarizationOptions: diarizationOptions
+                )
+            } else {
+                diarization = (nil, nil)
+            }
             try Task.checkCancellation()
 
             let output = TranscriptionChunkOutput(

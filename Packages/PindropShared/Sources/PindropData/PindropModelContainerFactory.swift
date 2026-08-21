@@ -11,10 +11,10 @@ import SwiftData
 
 @MainActor
 public enum PindropModelContainerFactory {
-    /// Opens a durable store at `storeURL` with the complete V13 schema and migration plan.
+    /// Opens a durable store at `storeURL` with the complete V14 schema and migration plan.
     /// Performs a health fetch for every current model so store damage surfaces immediately.
     public static func makeContainer(at storeURL: URL) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: TranscriptionRecordSchemaV13.self)
+        let schema = Schema(versionedSchema: TranscriptionRecordSchemaV14.self)
         let configuration = ModelConfiguration(schema: schema, url: storeURL)
         let container: ModelContainer
 
@@ -45,9 +45,9 @@ public enum PindropModelContainerFactory {
         return container
     }
 
-    /// In-memory container using the complete current V13 schema for store tests and previews.
+    /// In-memory container using the complete current V14 schema for store tests and previews.
     public static func makeInMemoryContainer() throws -> ModelContainer {
-        let schema = Schema(versionedSchema: TranscriptionRecordSchemaV13.self)
+        let schema = Schema(versionedSchema: TranscriptionRecordSchemaV14.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(
             for: schema,
@@ -79,7 +79,7 @@ public enum PindropModelContainerFactory {
     }
 
     private static func makeLegacyCompatibleContainer(at storeURL: URL) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: TranscriptionRecordSchemaV13.self)
+        let schema = Schema(versionedSchema: TranscriptionRecordSchemaV14.self)
         let configuration = ModelConfiguration(schema: schema, url: storeURL)
         return try ModelContainer(for: schema, configurations: configuration)
     }
@@ -105,6 +105,7 @@ public enum PindropModelContainerFactory {
         try validateStoreAccess(CaptureChunkModel.self)
         try validateStoreAccess(CaptureTranscriptRevisionModel.self)
         try validateStoreAccess(CaptureStageProviderSnapshotModel.self)
+        try validateStoreAccess(CaptureStagePromptSnapshotModel.self)
         try validateStoreAccess(CaptureNoteReferenceModel.self)
         try validateStoreAccess(CaptureFailureRecordModel.self)
     }

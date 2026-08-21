@@ -14,25 +14,41 @@ import PindropCore
 @MainActor
 @Suite(.serialized)
 struct SchemaV13MigrationTests {
-    @Test func currentSchemaRegistersEveryCaptureModelAtV13() {
+    @Test func schemaV13RemainsAnOrderedHistoricalSnapshot() {
+        let expectedModels: [any PersistentModel.Type] = [
+            TranscriptionRecord.self,
+            MediaFolder.self,
+            ParticipantProfile.self,
+            ParticipantTrainingEvidence.self,
+            WordReplacement.self,
+            VocabularyWord.self,
+            Note.self,
+            PromptPreset.self,
+            TrainingContribution.self,
+            CaptureSessionModel.self,
+            CaptureSourceModel.self,
+            CaptureChunkModel.self,
+            CaptureTranscriptRevisionModel.self,
+            CaptureStageProviderSnapshotModel.self,
+            CaptureNoteReferenceModel.self,
+            CaptureFailureRecordModel.self
+        ]
+
         #expect(TranscriptionRecordSchemaV13.versionIdentifier == .init(1, 0, 12))
-        #expect(TranscriptionRecordSchemaV13.models.count == 16)
-        #expect(TranscriptionRecordSchemaV13.models.contains { $0 == CaptureSessionModel.self })
-        #expect(TranscriptionRecordSchemaV13.models.contains { $0 == CaptureSourceModel.self })
-        #expect(TranscriptionRecordSchemaV13.models.contains { $0 == CaptureChunkModel.self })
-        #expect(TranscriptionRecordSchemaV13.models.contains { $0 == CaptureTranscriptRevisionModel.self })
-        #expect(TranscriptionRecordSchemaV13.models.contains { $0 == CaptureStageProviderSnapshotModel.self })
-        #expect(TranscriptionRecordSchemaV13.models.contains { $0 == CaptureNoteReferenceModel.self })
-        #expect(TranscriptionRecordSchemaV13.models.contains { $0 == CaptureFailureRecordModel.self })
+        #expect(TranscriptionRecordSchemaV13.models.count == expectedModels.count)
+        for (model, expectedModel) in zip(TranscriptionRecordSchemaV13.models, expectedModels) {
+            #expect(model == expectedModel)
+        }
         #expect(PindropPersistentSchemaVersion.v13.rawValue == "1.0.12")
-        #expect(PindropPersistentSchemaVersion.allCases.count == 13)
+        #expect(PindropPersistentSchemaVersion.v13.versionedSchema == TranscriptionRecordSchemaV13.self)
     }
 
-    @Test func migrationPlanHasOneStageForEachSchemaUpgrade() {
-        #expect(TranscriptionRecordMigrationPlan.schemas.count == 13)
-        #expect(TranscriptionRecordMigrationPlan.stages.count == 12)
-        #expect(TranscriptionRecordMigrationPlan.schemas[11] == TranscriptionRecordSchemaV12.self)
-        #expect(TranscriptionRecordMigrationPlan.schemas[12] == TranscriptionRecordSchemaV13.self)
+    @Test func migrationPlanKeepsV13ImmediatelyAfterV12() throws {
+        let schemas = TranscriptionRecordMigrationPlan.schemas
+        let v12Index = try #require(schemas.firstIndex { $0 == TranscriptionRecordSchemaV12.self })
+        let v13Index = try #require(schemas.firstIndex { $0 == TranscriptionRecordSchemaV13.self })
+
+        #expect(v13Index == v12Index + 1)
     }
 
     @Test func diskBackedMigrationFromV12PreservesExistingDataAndRegistersCaptureModels() throws {

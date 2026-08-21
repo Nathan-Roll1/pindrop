@@ -301,6 +301,10 @@ public enum CaptureSessionStoreError: Error, Equatable, LocalizedError {
     case transcriptRevisionSessionMismatch(revisionID: UUID, expectedSessionID: UUID, actualSessionID: UUID)
     case transcriptRevisionSourceMismatch(revisionID: UUID, expectedSourceID: UUID, actualSourceID: UUID?)
     case invalidFinalTranscriptRevision(UUID)
+    case invalidAssignmentAttempt(Int)
+    case assignmentSessionNotFound(UUID)
+    case assignmentKeyMismatch
+    case duplicateAssignments(sessionID: UUID, stage: CapturePipelineStage, attempt: Int)
     case noteNotFound(UUID)
     case fetchFailed(String)
     case saveFailed(String)
@@ -360,6 +364,14 @@ public enum CaptureSessionStoreError: Error, Equatable, LocalizedError {
             return "Transcript revision \(revisionID.uuidString) belongs to \(actualSourceDescription), not \(expectedSourceID.uuidString)."
         case .invalidFinalTranscriptRevision(let revisionID):
             return "Transcript revision \(revisionID.uuidString) is not a completed final child of this capture."
+        case .invalidAssignmentAttempt(let attempt):
+            return "Capture assignment attempt \(attempt) must be at least one."
+        case .assignmentSessionNotFound(let id):
+            return "Capture session \(id.uuidString) was not found for assignment persistence."
+        case .assignmentKeyMismatch:
+            return "Capture assignment does not match its requested stage and attempt."
+        case .duplicateAssignments(let sessionID, let stage, let attempt):
+            return "Capture session \(sessionID.uuidString) has duplicate \(stage.rawValue) assignments for attempt \(attempt)."
         case .noteNotFound(let id):
             return "Note \(id.uuidString) was not found."
         case .fetchFailed(let message):
@@ -391,6 +403,124 @@ public final class CaptureSessionStore {
 
     public init(modelContext: ModelContext) {
         modelContainer = modelContext.container
+    }
+
+    public func persistedAssignment(
+        sessionID: UUID,
+        stage: CapturePipelineStage,
+        attempt: Int
+    ) throws -> CaptureStageAssignment? {
+        guard attempt >= 1 else {
+            throw CaptureSessionStoreError.invalidAssignmentAttempt(attempt)
+        }
+
+        let context = ModelContext(modelContainer)
+        _ = try fetchAssignmentSession(id: sessionID, in: context)
+        return try persistedAssignment(
+            sessionID: sessionID,
+            stage: stage,
+            attempt: attempt,
+            in: context
+        )
+    }
+
+    @discardableResult
+    public func resolveAssignment(
+        sessionID: UUID,
+        stage: CapturePipelineStage,
+        attempt: Int,
+        selecting: () throws -> CaptureStageAssignment
+    ) throws -> CaptureStageAssignment {
+        guard attempt >= 1 else {
+            throw CaptureSessionStoreError.invalidAssignmentAttempt(attempt)
+        }
+
+        let context = ModelContext(modelContainer)
+        _ = try fetchAssignmentSession(id: sessionID, in: context)
+        if let assignment = try persistedAssignment(
+            sessionID: sessionID,
+            stage: stage,
+            attempt: attempt,
+            in: context
+        ) {
+            return assignment
+        }
+
+        let assignment = try selecting()
+        guard assignment.stage == stage, assignment.attempt == attempt else {
+            throw CaptureSessionStoreError.assignmentKeyMismatch
+        }
+
+        let providerSnapshot = CaptureStageProviderSnapshotModel(
+            sessionID: sessionID,
+            assignment: assignment
+        )
+        context.insert(providerSnapshot)
+        if let prompt = assignment.prompt {
+            context.insert(
+                CaptureStagePromptSnapshotModel(
+                    sessionID: sessionID,
+                    providerSnapshotID: providerSnapshot.id,
+                    prompt: prompt
+                )
+            )
+        }
+        try save(context)
+
+        return assignment
+    }
+
+    /// Records an idempotent pipeline-stage failure without attributing session work to a source or chunk.
+    public func recordStageFailure(
+        sessionID: UUID,
+        stage: CapturePipelineStage,
+        attempt: Int,
+        domain: String,
+        code: String? = nil,
+        message: String,
+        retryable: Bool,
+        at timestamp: Date = Date()
+    ) throws {
+        guard attempt >= 1 else {
+            throw CaptureSessionStoreError.invalidAssignmentAttempt(attempt)
+        }
+
+        let context = ModelContext(modelContainer)
+        let session = try fetchAssignmentSession(id: sessionID, in: context)
+        let failures = try fetchMeetingFailures(sessionID: sessionID, in: context)
+        let duplicate = failures.contains {
+            $0.sourceID == nil &&
+                $0.chunkID == nil &&
+                $0.transcriptRevisionID == nil &&
+                $0.providerSnapshotID == nil &&
+                $0.stageRawValue == stage.rawValue &&
+                $0.attempt == attempt &&
+                $0.errorDomain == domain &&
+                $0.errorCode == code &&
+                $0.message == message &&
+                $0.isRetryable == retryable &&
+                $0.detailsJSON == nil &&
+                $0.occurredAt == timestamp
+        }
+        guard !duplicate else {
+            return
+        }
+
+        context.insert(
+            CaptureFailureRecordModel(
+                sessionID: sessionID,
+                stage: stage,
+                attempt: attempt,
+                errorDomain: domain,
+                errorCode: code,
+                message: message,
+                isRetryable: retryable,
+                occurredAt: timestamp,
+                recoveryDisposition: retryable ? .recoverable : .terminal
+            )
+        )
+        session.lastActivityAt = timestamp
+        try save(context)
     }
 
     @discardableResult
@@ -1979,6 +2109,139 @@ public final class CaptureSessionStore {
             throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
         }
     }
+    private func persistedAssignment(
+        sessionID: UUID,
+        stage: CapturePipelineStage,
+        attempt: Int,
+        in context: ModelContext
+    ) throws -> CaptureStageAssignment? {
+        let snapshots = try fetchAssignmentSnapshots(
+            sessionID: sessionID,
+            stage: stage,
+            attempt: attempt,
+            in: context
+        )
+        guard snapshots.count <= 1 else {
+            throw CaptureSessionStoreError.duplicateAssignments(
+                sessionID: sessionID,
+                stage: stage,
+                attempt: attempt
+            )
+        }
+        guard let snapshot = snapshots.first else {
+            return nil
+        }
+
+        guard snapshot.sessionID == sessionID else {
+            throw CaptureSessionProjectionError.invalidPersistedAssignment
+        }
+
+        let promptSnapshots = try fetchPromptSnapshots(
+            providerSnapshotID: snapshot.id,
+            in: context
+        )
+        guard promptSnapshots.count <= 1 else {
+            throw CaptureSessionStoreError.duplicateAssignments(
+                sessionID: sessionID,
+                stage: stage,
+                attempt: attempt
+            )
+        }
+        if let promptSnapshot = promptSnapshots.first {
+            guard
+                promptSnapshot.providerSnapshotID == snapshot.id,
+                promptSnapshot.sessionID == sessionID
+            else {
+                throw CaptureSessionProjectionError.invalidPersistedAssignment
+            }
+
+            let providerAssignment = try snapshot.restoreAssignment()
+            do {
+                return try CaptureStageAssignment(
+                    stage: providerAssignment.stage,
+                    providerKind: providerAssignment.providerKind,
+                    providerIdentifier: providerAssignment.providerIdentifier,
+                    modelIdentifier: providerAssignment.modelIdentifier,
+                    prompt: promptSnapshot.restorePrompt(),
+                    selectedAt: providerAssignment.selectedAt,
+                    attempt: providerAssignment.attempt
+                )
+            } catch {
+                throw CaptureSessionProjectionError.invalidPersistedAssignment
+            }
+        }
+
+        let providerAssignment = try snapshot.restoreAssignment()
+        guard let legacyPromptPresetID = snapshot.promptPresetID else {
+            return providerAssignment
+        }
+
+        do {
+            return try CaptureStageAssignment(
+                stage: providerAssignment.stage,
+                providerKind: providerAssignment.providerKind,
+                providerIdentifier: providerAssignment.providerIdentifier,
+                modelIdentifier: providerAssignment.modelIdentifier,
+                prompt: CapturePromptSnapshot(
+                    presetIdentifier: legacyPromptPresetID.uuidString,
+                    resolvedPrompt: nil
+                ),
+                selectedAt: providerAssignment.selectedAt,
+                attempt: providerAssignment.attempt
+            )
+        } catch {
+            throw CaptureSessionProjectionError.invalidPersistedAssignment
+        }
+    }
+
+    private func fetchAssignmentSession(
+        id: UUID,
+        in context: ModelContext
+    ) throws -> CaptureSessionModel {
+        do {
+            return try fetchSession(id: id, in: context)
+        } catch CaptureSessionStoreError.sessionNotFound {
+            throw CaptureSessionStoreError.assignmentSessionNotFound(id)
+        }
+    }
+
+    private func fetchAssignmentSnapshots(
+        sessionID: UUID,
+        stage: CapturePipelineStage,
+        attempt: Int,
+        in context: ModelContext
+    ) throws -> [CaptureStageProviderSnapshotModel] {
+        let stageRawValue = stage.rawValue
+        let descriptor = FetchDescriptor<CaptureStageProviderSnapshotModel>(
+            predicate: #Predicate<CaptureStageProviderSnapshotModel> {
+                $0.sessionID == sessionID &&
+                    $0.stageRawValue == stageRawValue &&
+                    $0.attempt == attempt
+            }
+        )
+        do {
+            return try context.fetch(descriptor)
+        } catch {
+            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
+        }
+    }
+
+    private func fetchPromptSnapshots(
+        providerSnapshotID: UUID,
+        in context: ModelContext
+    ) throws -> [CaptureStagePromptSnapshotModel] {
+        let descriptor = FetchDescriptor<CaptureStagePromptSnapshotModel>(
+            predicate: #Predicate<CaptureStagePromptSnapshotModel> {
+                $0.providerSnapshotID == providerSnapshotID
+            }
+        )
+        do {
+            return try context.fetch(descriptor)
+        } catch {
+            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
+        }
+    }
+
     private func fetchOwnedMeeting(
         for handle: MeetingCaptureHandle,
         in context: ModelContext

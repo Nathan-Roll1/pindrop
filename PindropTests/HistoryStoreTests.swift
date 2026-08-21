@@ -46,6 +46,7 @@ struct HistoryStoreTests {
         let repairOutcome = try repairService.repairIfNeeded(storeURL: brokenStoreURL)
         #expect(repairOutcome.repaired)
         #expect(repairOutcome.backupDirectoryURL != nil)
+        #expect(try metadataVersionIdentifier(at: brokenStoreURL) == PindropPersistentSchemaVersion.v3.rawValue)
 
         let repairedContainer = try makeCurrentContainer(at: brokenStoreURL)
         let repairedContext = ModelContext(repairedContainer)
@@ -59,11 +60,11 @@ struct HistoryStoreTests {
         try? FileManager.default.removeItem(at: referenceStoreURL.deletingLastPathComponent())
     }
 
-    @Test func repairServiceRecreatesMissingV13CaptureTableWithV13Metadata() throws {
+    @Test func repairServiceRecreatesMissingV14PromptSnapshotTableWithV14Metadata() throws {
         try requireSQLiteSupport()
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let storeURL = directoryURL.appendingPathComponent("missing-v13-capture-table.store")
+        let storeURL = directoryURL.appendingPathComponent("missing-v14-prompt-snapshot-table.store")
         let repairService = SwiftDataStoreRepairService()
 
         let seedContainer = try makeCurrentContainer(at: storeURL)
@@ -77,20 +78,20 @@ struct HistoryStoreTests {
         )
         try seedContext.save()
         try flushSQLiteStore(at: storeURL)
-        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v13.rawValue)
-        #expect(try tableExists(named: "ZCAPTURESESSIONMODEL", at: storeURL))
+        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v14.rawValue)
+        #expect(try tableExists(named: "ZCAPTURESTAGEPROMPTSNAPSHOTMODEL", at: storeURL))
 
         try withDatabase(at: storeURL) { database in
-            try execute("DROP TABLE ZCAPTURESTAGEPROVIDERSNAPSHOTMODEL", on: database)
+            try execute("DROP TABLE ZCAPTURESTAGEPROMPTSNAPSHOTMODEL", on: database)
         }
 
-        #expect(try tableExists(named: "ZCAPTURESTAGEPROVIDERSNAPSHOTMODEL", at: storeURL) == false)
+        #expect(try tableExists(named: "ZCAPTURESTAGEPROMPTSNAPSHOTMODEL", at: storeURL) == false)
 
         let repairOutcome = try repairService.repairIfNeeded(storeURL: storeURL)
         #expect(repairOutcome.repaired)
         #expect(repairOutcome.backupDirectoryURL != nil)
-        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v13.rawValue)
-        #expect(try tableExists(named: "ZCAPTURESTAGEPROVIDERSNAPSHOTMODEL", at: storeURL))
+        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v14.rawValue)
+        #expect(try tableExists(named: "ZCAPTURESTAGEPROMPTSNAPSHOTMODEL", at: storeURL))
 
         let repairedContainer = try makeCurrentContainer(at: storeURL)
         let repairedContext = ModelContext(repairedContainer)
@@ -284,12 +285,12 @@ struct HistoryStoreTests {
         try? FileManager.default.removeItem(at: directoryURL)
     }
 
-    @Test func repairServiceLeavesHealthyV13StoreUntouched() throws {
+    @Test func repairServiceLeavesHealthyV14StoreUntouched() throws {
         try requireSQLiteSupport()
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        let storeURL = directoryURL.appendingPathComponent("healthy-v13.store")
+        let storeURL = directoryURL.appendingPathComponent("healthy-v14.store")
         let repairService = SwiftDataStoreRepairService()
 
         try autoreleasepool {
@@ -305,8 +306,8 @@ struct HistoryStoreTests {
             try context.save()
         }
         try flushSQLiteStore(at: storeURL)
-        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v13.rawValue)
-        #expect(try tableExists(named: "ZCAPTURESESSIONMODEL", at: storeURL))
+        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v14.rawValue)
+        #expect(try tableExists(named: "ZCAPTURESTAGEPROMPTSNAPSHOTMODEL", at: storeURL))
 
         let outcome = try repairService.repairIfNeeded(storeURL: storeURL)
         #expect(outcome.repaired == false)
@@ -336,8 +337,8 @@ struct HistoryStoreTests {
         #expect(try tableExists(named: "ZCAPTURESESSIONMODEL", at: storeURL) == false)
     }
 
-    // Regression for https://github.com/watzon/pindrop/issues/78: a store can
-    // carry current V13 metadata while still missing columns from earlier
+    // Regression for https://github.com/watzon/pindrop/issues/78: a V13 store
+    // can carry V13 metadata while still missing columns from earlier
     // lightweight migrations. Version metadata and object-name checks alone
     // must not cause the repair path to treat that store as healthy.
     @Test func repairServiceRestoresV13MetadataStoreWithMissingColumns() throws {
@@ -365,7 +366,9 @@ struct HistoryStoreTests {
         ]
 
         try autoreleasepool {
-            let container = try AppDelegate.makeModelContainer(at: storeURL)
+            let schema = Schema(versionedSchema: TranscriptionRecordSchemaV13.self)
+            let configuration = ModelConfiguration(schema: schema, url: storeURL)
+            let container = try ModelContainer(for: schema, configurations: configuration)
             let context = ModelContext(container)
             let profile = ParticipantProfile(
                 normalizedName: "alice",
@@ -416,6 +419,7 @@ struct HistoryStoreTests {
         try flushSQLiteStore(at: storeURL)
         #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v13.rawValue)
         #expect(try tableExists(named: "ZCAPTURESESSIONMODEL", at: storeURL))
+        #expect(try tableExists(named: "ZCAPTURESTAGEPROMPTSNAPSHOTMODEL", at: storeURL) == false)
 
         try withDatabase(at: storeURL) { database in
             for missingColumn in missingColumns {
@@ -424,18 +428,50 @@ struct HistoryStoreTests {
                 try execute("ALTER TABLE \(tableName) DROP COLUMN \(columnName)", on: database)
             }
         }
+        // ALTER TABLE damage must retain the V13 identity and table set; otherwise
+        // this regression would accidentally exercise the V14 repair path.
+        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v13.rawValue)
+        #expect(try tableExists(named: "ZCAPTURESESSIONMODEL", at: storeURL))
+        #expect(try tableExists(named: "ZCAPTURESTAGEPROMPTSNAPSHOTMODEL", at: storeURL) == false)
+        let metadataBeforeRepair = try fetchBlob(
+            sql: "SELECT Z_PLIST FROM Z_METADATA LIMIT 1",
+            at: storeURL
+        )
+        let modelCacheBeforeRepair = try fetchBlob(
+            sql: "SELECT Z_CONTENT FROM Z_MODELCACHE LIMIT 1",
+            at: storeURL
+        )
 
         do {
-            _ = try AppDelegate.makeModelContainer(at: storeURL)
-            Issue.record("Expected current container health check to fail before repair")
+            try autoreleasepool {
+                let schema = Schema(versionedSchema: TranscriptionRecordSchemaV13.self)
+                let configuration = ModelConfiguration(schema: schema, url: storeURL)
+                let container = try ModelContainer(for: schema, configurations: configuration)
+                let context = ModelContext(container)
+                var healthCheck = FetchDescriptor<TranscriptionRecord>()
+                healthCheck.fetchLimit = 1
+                _ = try context.fetch(healthCheck)
+            }
+            Issue.record("Expected V13 container health check to reject the incomplete store")
         } catch {
             #expect(!error.localizedDescription.isEmpty)
         }
+        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v13.rawValue)
+        #expect(try tableExists(named: "ZCAPTURESTAGEPROMPTSNAPSHOTMODEL", at: storeURL) == false)
 
         let outcome = try repairService.repairIfNeeded(storeURL: storeURL)
         #expect(outcome.repaired)
         #expect(outcome.backupDirectoryURL != nil)
         #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v13.rawValue)
+        #expect(try tableExists(named: "ZCAPTURESTAGEPROMPTSNAPSHOTMODEL", at: storeURL) == false)
+        #expect(
+            try fetchBlob(sql: "SELECT Z_PLIST FROM Z_METADATA LIMIT 1", at: storeURL)
+                == metadataBeforeRepair
+        )
+        #expect(
+            try fetchBlob(sql: "SELECT Z_CONTENT FROM Z_MODELCACHE LIMIT 1", at: storeURL)
+                == modelCacheBeforeRepair
+        )
 
         let repairedContainer = try AppDelegate.makeModelContainer(at: storeURL)
         let repairedContext = ModelContext(repairedContainer)

@@ -1951,6 +1951,37 @@ struct TranscriptionServiceTests {
         #expect(mockEngine.receivedAudioByteCounts == [maximumByteCount])
     }
 
+    @Test func meetingChunkWithDiarizationDisabledSkipsDiarizer() async throws {
+        var diarizerFactoryCallCount = 0
+        let mockEngine = MockDiarizationTranscriptionEngine()
+        mockEngine.transcribeResponses = ["plain transcript"]
+        let diarizer = MockSpeakerDiarizer()
+        let service = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            engineFactory: { _ in mockEngine },
+            diarizerFactory: { _ in
+                diarizerFactoryCallCount += 1
+                return diarizer
+            }
+        )
+        try await service.loadModel(modelName: "tiny", provider: .whisperKit)
+
+        let fixture = try makeMeetingChunkFixture(data: makeFloatAudioData(seconds: 0.001))
+        defer { try? FileManager.default.removeItem(at: fixture.rootURL) }
+        let output = try await service.transcribeMeetingChunk(
+            fixture.input,
+            diarizationEnabled: false
+        )
+
+        #expect(output.plainText == "plain transcript")
+        #expect(output.diarizedSegments == nil)
+        #expect(output.diarizationWarning == nil)
+        #expect(mockEngine.transcribeCallCount == 1)
+        #expect(diarizerFactoryCallCount == 0)
+        #expect(diarizer.loadModelsCallCount == 0)
+        #expect(diarizer.diarizeCallCount == 0)
+    }
+
     @Test func meetingChunkRunsPlainASRBeforeDiarization() async throws {
         var events: [String] = []
         let mockEngine = MockDiarizationTranscriptionEngine()
@@ -1958,10 +1989,14 @@ struct TranscriptionServiceTests {
         mockEngine.eventSink = { events.append($0) }
         let diarizer = MockSpeakerDiarizer()
         diarizer.eventSink = { events.append($0) }
+        var diarizerFactoryCallCount = 0
         let service = TranscriptionService(
             storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
             engineFactory: { _ in mockEngine },
-            diarizerFactory: { _ in diarizer }
+            diarizerFactory: { _ in
+                diarizerFactoryCallCount += 1
+                return diarizer
+            }
         )
         try await service.loadModel(modelName: "tiny", provider: .whisperKit)
 
@@ -1974,6 +2009,10 @@ struct TranscriptionServiceTests {
         #expect(output.plainText == "plain first")
         #expect(output.diarizedSegments?.count == 1)
         #expect(events == ["asr", "loadDiarizer", "diarize", "asr"])
+        #expect(mockEngine.transcribeCallCount == 2)
+        #expect(diarizerFactoryCallCount == 1)
+        #expect(diarizer.loadModelsCallCount == 1)
+        #expect(diarizer.diarizeCallCount == 1)
     }
 
     @Test func meetingChunkPreservesPlainASRForEveryDiarizationFallback() async throws {
@@ -2012,6 +2051,9 @@ struct TranscriptionServiceTests {
             #expect(output.plainText == "plain")
             #expect(output.diarizedSegments == nil)
             #expect(output.diarizationWarning != nil)
+            #expect(mockEngine.transcribeCallCount == (fallback == .emptyDiarizedText ? 2 : 1))
+            #expect(diarizer.loadModelsCallCount == 1)
+            #expect(diarizer.diarizeCallCount == (fallback == .missingModel ? 0 : 1))
         }
     }
 

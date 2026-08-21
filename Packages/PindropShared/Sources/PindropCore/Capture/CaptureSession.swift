@@ -38,6 +38,87 @@ public enum CapturePipelineStage: String, Codable, Sendable {
     case noteGeneration
 }
 
+/// A provider category selected for one immutable capture pipeline stage.
+public enum CaptureAssignmentProviderKind: String, Codable, Sendable {
+    case streamingSpeech
+    case batchSpeech
+    case localDiarization
+    case generativeAI
+    case disabled
+    case bestEffortUnavailable
+}
+
+/// The resolved prompt context used by a note-generation assignment.
+public struct CapturePromptSnapshot: Codable, Sendable, Equatable {
+    public let presetIdentifier: String?
+    public let resolvedPrompt: String?
+
+    public init(presetIdentifier: String?, resolvedPrompt: String?) {
+        self.presetIdentifier = presetIdentifier
+        self.resolvedPrompt = resolvedPrompt
+    }
+}
+
+public enum CaptureStageAssignmentError: Error, Codable, Sendable, Equatable, LocalizedError {
+    case invalidAttempt(Int)
+    case promptNotAllowed(stage: CapturePipelineStage)
+    case missingModelIdentifier(providerKind: CaptureAssignmentProviderKind)
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidAttempt(let attempt):
+            "Capture assignment attempt \(attempt) must be at least one."
+        case .promptNotAllowed(let stage):
+            "Capture assignment prompts are only valid for note generation, not \(stage.rawValue)."
+        case .missingModelIdentifier(let providerKind):
+            "Capture assignment provider \(providerKind.rawValue) requires a model identifier."
+        }
+    }
+}
+
+/// An immutable provider selection for a single capture pipeline stage attempt.
+public struct CaptureStageAssignment: Codable, Sendable, Equatable {
+    public let stage: CapturePipelineStage
+    public let providerKind: CaptureAssignmentProviderKind
+    public let providerIdentifier: String
+    public let modelIdentifier: String?
+    public let prompt: CapturePromptSnapshot?
+    public let selectedAt: Date
+    public let attempt: Int
+
+    public init(
+        stage: CapturePipelineStage,
+        providerKind: CaptureAssignmentProviderKind,
+        providerIdentifier: String,
+        modelIdentifier: String?,
+        prompt: CapturePromptSnapshot?,
+        selectedAt: Date,
+        attempt: Int
+    ) throws {
+        guard attempt >= 1 else {
+            throw CaptureStageAssignmentError.invalidAttempt(attempt)
+        }
+        guard prompt == nil || stage == .noteGeneration else {
+            throw CaptureStageAssignmentError.promptNotAllowed(stage: stage)
+        }
+        guard
+            modelIdentifier != nil ||
+                providerKind == .disabled ||
+                providerKind == .bestEffortUnavailable
+        else {
+            throw CaptureStageAssignmentError.missingModelIdentifier(providerKind: providerKind)
+        }
+
+        self.stage = stage
+        self.providerKind = providerKind
+        self.providerIdentifier = providerIdentifier
+        self.modelIdentifier = modelIdentifier
+        self.prompt = prompt
+        self.selectedAt = selectedAt
+        self.attempt = attempt
+    }
+}
+
 public enum CaptureSessionState: String, Codable, Sendable {
     case created
     case capturing
