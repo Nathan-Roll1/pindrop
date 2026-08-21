@@ -108,6 +108,53 @@ struct AppCoordinatorContextFlowTests {
             )
         )
     }
+    @Test func staleArtifactAdmissionTearsDownStreamingBeforeReturningFailure() async {
+        var events: [String] = []
+
+        await #expect(throws: CancellationError.self) {
+            try await AppCoordinator.revalidateVoiceCaptureAfterArtifactAdmission(
+                ensureCurrent: {
+                    events.append("context-checked")
+                    throw CancellationError()
+                },
+                tearDownStreaming: {
+                    events.append("streaming-torn-down")
+                }
+            )
+        }
+
+        #expect(events == ["context-checked", "streaming-torn-down"])
+    }
+
+
+    @Test func artifactFinishPrecedesFinalizationAndCancellationBlocksTransition() async {
+        var events: [String] = []
+        var isCurrent = true
+
+        await #expect(throws: CancellationError.self) {
+            try await AppCoordinator.finishArtifactCaptureThenBeginFinalization(
+                finishArtifactCapture: {
+                    events.append("artifact-finished")
+                    isCurrent = false
+                },
+                ensureCurrent: {
+                    events.append("context-checked")
+                    guard isCurrent else {
+                        throw CancellationError()
+                    }
+                },
+                beginFinalization: {
+                    events.append("finalization-began")
+                }
+            )
+        }
+
+        #expect(events == [
+            "context-checked",
+            "artifact-finished",
+            "context-checked"
+        ])
+    }
 
     @Test func meetingCaptureAdmissionAndComparisonAreHandleExact() {
         let activeHandle = MeetingCaptureHandle(

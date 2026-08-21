@@ -10,10 +10,8 @@
 //  finishes — there is no live keystroke synthesis, no diffing, and nothing to undo
 //  on cancel.
 //
-//  Final insertion is injected as a closure (`finalOutput`) rather than a direct
-//  OutputManager dependency so the sink is trivially testable; AppCoordinator wires it
-//  to `outputManager.output(_:)`, which routes by the user's output mode (directInsert
-//  → paste, clipboard → copy/paste flow).
+//  `StreamingSessionController` injects final output so the sink stays testable.
+//  `OutputManager` pastes in direct-insert mode and copies in clipboard mode.
 //
 
 import Foundation
@@ -23,17 +21,21 @@ import PindropSpeech
 final class OverlayStreamingSink: StreamingRefinementOutputSink {
 
     private let transcriptState: LiveTranscriptState
-    private let finalOutput: @MainActor (String) async throws -> OutputManager.OutputResult
+    private let finalOutput: @MainActor (
+        String,
+        @MainActor () throws -> Void
+    ) async throws -> OutputManager.OutputResult
     private let onClipboardFallback: (@MainActor (OutputManager.OutputResult) -> Void)?
 
-    /// Result of the most recent successful `finishStreamingInsertion` call.
-    /// Cleared at the start of each finish attempt so callers can distinguish
-    /// "no output yet" from a prior session's result.
-    private(set) var lastOutputResult: OutputManager.OutputResult?
+    private var nextGeneration: UInt64 = 0
+    private var currentGeneration: UInt64?
 
     init(
         transcriptState: LiveTranscriptState,
-        finalOutput: @escaping @MainActor (String) async throws -> OutputManager.OutputResult,
+        finalOutput: @escaping @MainActor (
+            String,
+            @MainActor () throws -> Void
+        ) async throws -> OutputManager.OutputResult,
         onClipboardFallback: (@MainActor (OutputManager.OutputResult) -> Void)? = nil
     ) {
         self.transcriptState = transcriptState
@@ -42,6 +44,8 @@ final class OverlayStreamingSink: StreamingRefinementOutputSink {
     }
 
     func beginStreamingInsertion() {
+        nextGeneration &+= 1
+        currentGeneration = nextGeneration
         transcriptState.begin()
     }
 
@@ -50,21 +54,37 @@ final class OverlayStreamingSink: StreamingRefinementOutputSink {
     }
 
     func finishStreamingInsertion(finalText: String, appendTrailingSpace: Bool) async throws {
-        // The overlay always collapses, even when the final output throws — the caller's
-        // error path must not leave a stranded transcript panel on screen.
-        defer { transcriptState.end() }
-        lastOutputResult = nil
-        guard !finalText.isEmpty else { return }
+        _ = try await finishStreamingInsertionReturningResult(
+            finalText: finalText,
+            appendTrailingSpace: appendTrailingSpace,
+            ownerValidation: {}
+        )
+    }
+
+    func finishStreamingInsertionReturningResult(
+        finalText: String,
+        appendTrailingSpace: Bool,
+        ownerValidation: @escaping @MainActor () throws -> Void
+    ) async throws -> OutputManager.OutputResult? {
+        let generation = currentGeneration
+        defer { endTranscript(for: generation) }
+        guard !finalText.isEmpty else { return nil }
 
         let output = appendTrailingSpace ? finalText + " " : finalText
-        let result = try await finalOutput(output)
-        lastOutputResult = result
+        let result = try await finalOutput(output, ownerValidation)
         if result.didCopyToClipboard {
             onClipboardFallback?(result)
         }
+        return result
     }
 
     func cancelStreamingInsertion() async {
+        endTranscript(for: currentGeneration)
+    }
+
+    private func endTranscript(for generation: UInt64?) {
+        guard let generation, currentGeneration == generation else { return }
+        currentGeneration = nil
         transcriptState.end()
     }
 }

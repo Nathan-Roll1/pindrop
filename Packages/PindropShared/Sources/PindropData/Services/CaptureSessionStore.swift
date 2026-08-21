@@ -110,6 +110,58 @@ public struct VoiceNoteTranscriptRevisions: Sendable, Equatable {
         self.finalRevisionID = finalRevisionID
     }
 }
+/// An immutable, committed live-transcript revision for a voice-note capture.
+public struct VoiceNoteLiveTranscriptCheckpoint: Sendable, Equatable {
+    public let revisionID: UUID
+    public let sequence: Int
+    public let parentRevisionID: UUID?
+    public let committedText: String
+    public let providerSnapshotID: UUID
+    public let createdAt: Date
+
+    public init(
+        revisionID: UUID,
+        sequence: Int,
+        parentRevisionID: UUID?,
+        committedText: String,
+        providerSnapshotID: UUID,
+        createdAt: Date
+    ) {
+        self.revisionID = revisionID
+        self.sequence = sequence
+        self.parentRevisionID = parentRevisionID
+        self.committedText = committedText
+        self.providerSnapshotID = providerSnapshotID
+        self.createdAt = createdAt
+    }
+}
+
+/// Persisted discovery data containing salvageable committed text for a voice-note capture.
+/// User-facing resume or delivery is deferred until capture intent is persisted.
+public struct VoiceNoteRecoverySnapshot: Sendable, Equatable {
+    public let handle: VoiceNoteCaptureHandle
+    public let state: CaptureSessionState
+    public let recoveryTarget: CaptureRecoveryTarget?
+    public let startedAt: Date?
+    public let lastActivityAt: Date?
+    public let latestCheckpoint: VoiceNoteLiveTranscriptCheckpoint
+
+    public init(
+        handle: VoiceNoteCaptureHandle,
+        state: CaptureSessionState,
+        recoveryTarget: CaptureRecoveryTarget?,
+        startedAt: Date?,
+        lastActivityAt: Date?,
+        latestCheckpoint: VoiceNoteLiveTranscriptCheckpoint
+    ) {
+        self.handle = handle
+        self.state = state
+        self.recoveryTarget = recoveryTarget
+        self.startedAt = startedAt
+        self.lastActivityAt = lastActivityAt
+        self.latestCheckpoint = latestCheckpoint
+    }
+}
 /// A persisted view of one immutable, sealed raw-audio chunk for a meeting source.
 public struct MeetingChunkCheckpoint: Sendable, Equatable {
     public let chunkID: UUID
@@ -301,6 +353,15 @@ public enum CaptureSessionStoreError: Error, Equatable, LocalizedError {
     case transcriptRevisionSessionMismatch(revisionID: UUID, expectedSessionID: UUID, actualSessionID: UUID)
     case transcriptRevisionSourceMismatch(revisionID: UUID, expectedSourceID: UUID, actualSourceID: UUID?)
     case invalidFinalTranscriptRevision(UUID)
+    case emptyLiveTranscript(UUID)
+    case voiceNoteSessionNotCapturing(sessionID: UUID, actualStateRawValue: String)
+    case voiceNoteSessionNotFinalizing(sessionID: UUID, actualStateRawValue: String)
+    case liveTranscriptAssignmentNotFound(sessionID: UUID, attempt: Int)
+    case liveTranscriptAssignmentUnavailable(sessionID: UUID, attempt: Int)
+    case duplicateLiveTranscriptAssignments(sessionID: UUID, attempt: Int)
+    case liveTranscriptRegression(sessionID: UUID)
+    case liveTranscriptConflict(sessionID: UUID, sequence: Int)
+    case voiceNoteFinalTranscriptConflict(sessionID: UUID)
     case invalidAssignmentAttempt(Int)
     case assignmentSessionNotFound(UUID)
     case assignmentKeyMismatch
@@ -364,6 +425,24 @@ public enum CaptureSessionStoreError: Error, Equatable, LocalizedError {
             return "Transcript revision \(revisionID.uuidString) belongs to \(actualSourceDescription), not \(expectedSourceID.uuidString)."
         case .invalidFinalTranscriptRevision(let revisionID):
             return "Transcript revision \(revisionID.uuidString) is not a completed final child of this capture."
+        case .emptyLiveTranscript(let sessionID):
+            return "Live transcript for capture session \(sessionID.uuidString) is empty."
+        case .voiceNoteSessionNotCapturing(let sessionID, let actualStateRawValue):
+            return "Voice-note capture session \(sessionID.uuidString) is \(actualStateRawValue), not capturing."
+        case .voiceNoteSessionNotFinalizing(let sessionID, let actualStateRawValue):
+            return "Voice-note capture session \(sessionID.uuidString) is \(actualStateRawValue), not finalizing."
+        case .liveTranscriptAssignmentNotFound(let sessionID, let attempt):
+            return "Voice-note capture session \(sessionID.uuidString) has no live-transcription assignment for attempt \(attempt)."
+        case .liveTranscriptAssignmentUnavailable(let sessionID, let attempt):
+            return "Voice-note capture session \(sessionID.uuidString) has an unavailable live-transcription assignment for attempt \(attempt)."
+        case .duplicateLiveTranscriptAssignments(let sessionID, let attempt):
+            return "Voice-note capture session \(sessionID.uuidString) has duplicate live-transcription assignments for attempt \(attempt)."
+        case .liveTranscriptRegression(let sessionID):
+            return "Live transcript for capture session \(sessionID.uuidString) does not extend the committed prefix."
+        case .liveTranscriptConflict(let sessionID, let sequence):
+            return "Live transcript revision \(sequence) for capture session \(sessionID.uuidString) is corrupt or conflicts with its persisted chain."
+        case .voiceNoteFinalTranscriptConflict(let sessionID):
+            return "Final transcript revisions for voice-note capture session \(sessionID.uuidString) conflict with the committed lineage."
         case .invalidAssignmentAttempt(let attempt):
             return "Capture assignment attempt \(attempt) must be at least one."
         case .assignmentSessionNotFound(let id):
@@ -1436,6 +1515,133 @@ public final class CaptureSessionStore {
         sessionModel.lastActivityAt = timestamp
         try save(context)
     }
+    /// Persists one cumulative committed-text checkpoint for an active voice-note capture.
+    @discardableResult
+    public func checkpointVoiceNoteLiveTranscript(
+        for handle: VoiceNoteCaptureHandle,
+        committedText: String,
+        assignmentAttempt: Int = 1,
+        at timestamp: Date = Date()
+    ) throws -> VoiceNoteLiveTranscriptCheckpoint {
+        guard !committedText.isEmpty else {
+            throw CaptureSessionStoreError.emptyLiveTranscript(handle.sessionID)
+        }
+        guard assignmentAttempt >= 1 else {
+            throw CaptureSessionStoreError.invalidAssignmentAttempt(assignmentAttempt)
+        }
+
+        let context = ModelContext(modelContainer)
+        let sessionModel = try fetchOwnedSession(for: handle, in: context)
+        let providerSnapshot = try liveTranscriptProviderSnapshot(
+            sessionID: handle.sessionID,
+            attempt: assignmentAttempt,
+            in: context
+        )
+        let checkpoints = try validatedLiveTranscriptCheckpoints(
+            sessionID: handle.sessionID,
+            sourceID: handle.microphoneSourceID,
+            providerSnapshotID: providerSnapshot.id,
+            in: context
+        )
+        if let latest = checkpoints.last {
+            if latest.committedText == committedText {
+                return latest
+            }
+            guard committedText.hasPrefix(latest.committedText) else {
+                throw CaptureSessionStoreError.liveTranscriptRegression(
+                    sessionID: handle.sessionID
+                )
+            }
+        }
+
+        let session = try sessionModel.restoreSession()
+        guard session.state == .capturing else {
+            throw CaptureSessionStoreError.voiceNoteSessionNotCapturing(
+                sessionID: handle.sessionID,
+                actualStateRawValue: sessionModel.stateRawValue
+            )
+        }
+
+        let revision = CaptureTranscriptRevisionModel(
+            sessionID: handle.sessionID,
+            sourceID: handle.microphoneSourceID,
+            sequence: checkpoints.last.map { $0.sequence + 1 } ?? 0,
+            parentRevisionID: checkpoints.last?.revisionID,
+            stage: .liveTranscription,
+            statusRawValue: "completed",
+            startOffset: 0,
+            duration: 0,
+            text: committedText,
+            providerSnapshotID: providerSnapshot.id,
+            createdAt: timestamp
+        )
+        context.insert(revision)
+        sessionModel.lastActivityAt = timestamp
+        try save(context)
+
+        return try liveTranscriptCheckpoint(from: revision)
+    }
+
+    /// Returns only nonterminal voice-note captures with a valid committed live checkpoint.
+    public func voiceNoteRecoveryCandidates() throws -> [VoiceNoteRecoverySnapshot] {
+        let context = ModelContext(modelContainer)
+        let voiceNoteModeRawValue = CaptureSessionMode.voiceNote.rawValue
+        let descriptor = FetchDescriptor<CaptureSessionModel>(
+            predicate: #Predicate<CaptureSessionModel> {
+                $0.modeRawValue == voiceNoteModeRawValue
+            }
+        )
+        do {
+            var candidates: [VoiceNoteRecoverySnapshot] = []
+            for sessionModel in try context.fetch(descriptor) {
+                guard
+                    let session = try? sessionModel.restoreSession(),
+                    [.capturing, .finalizing, .interrupted].contains(session.state)
+                else {
+                    continue
+                }
+                let microphoneSources = try fetchSources(sessionID: session.id, in: context)
+                    .filter { $0.kindRawValue == CaptureSourceKind.microphone.rawValue }
+                guard microphoneSources.count == 1, let microphone = microphoneSources.first else {
+                    continue
+                }
+                guard let latestCheckpoint = try? latestValidLiveTranscriptCheckpoint(
+                    sessionID: session.id,
+                    sourceID: microphone.id,
+                    in: context
+                ) else {
+                    continue
+                }
+
+                candidates.append(
+                    VoiceNoteRecoverySnapshot(
+                        handle: VoiceNoteCaptureHandle(
+                            sessionID: session.id,
+                            microphoneSourceID: microphone.id
+                        ),
+                        state: session.state,
+                        recoveryTarget: session.recoveryTarget,
+                        startedAt: session.startedAt,
+                        lastActivityAt: sessionModel.lastActivityAt,
+                        latestCheckpoint: latestCheckpoint
+                    )
+                )
+            }
+            return candidates.sorted {
+                let lhsActivity = $0.lastActivityAt ?? .distantPast
+                let rhsActivity = $1.lastActivityAt ?? .distantPast
+                if lhsActivity != rhsActivity {
+                    return lhsActivity > rhsActivity
+                }
+                return $0.handle.sessionID.uuidString < $1.handle.sessionID.uuidString
+            }
+        } catch let error as CaptureSessionStoreError {
+            throw error
+        } catch {
+            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
+        }
+    }
+
 
     @discardableResult
     public func saveTranscriptRevisions(
@@ -1447,12 +1653,42 @@ public final class CaptureSessionStore {
         createdAt: Date = Date()
     ) throws -> VoiceNoteTranscriptRevisions {
         let context = ModelContext(modelContainer)
-        _ = try fetchOwnedSession(for: handle, in: context)
-        let sequence = try nextTranscriptSequence(for: handle.sessionID, in: context)
+        let sessionModel = try fetchOwnedSession(for: handle, in: context)
+        let latestLiveCheckpoint = try latestValidLiveTranscriptCheckpoint(
+            sessionID: handle.sessionID,
+            sourceID: handle.microphoneSourceID,
+            in: context
+        )
+        let finalStageRawValue = CapturePipelineStage.finalTranscription.rawValue
+        let finalRevisions = try fetchTranscriptRevisions(sessionID: handle.sessionID, in: context)
+            .filter { $0.stageRawValue == finalStageRawValue }
+
+        if !finalRevisions.isEmpty {
+            return try existingVoiceNoteTranscriptRevisions(
+                finalRevisions,
+                for: handle,
+                latestLiveCheckpoint: latestLiveCheckpoint,
+                rawText: rawText,
+                finalText: finalText,
+                duration: duration,
+                languageCode: languageCode
+            )
+        }
+
+        let session = try sessionModel.restoreSession()
+        guard session.state == .finalizing else {
+            throw CaptureSessionStoreError.voiceNoteSessionNotFinalizing(
+                sessionID: handle.sessionID,
+                actualStateRawValue: sessionModel.stateRawValue
+            )
+        }
+
+        let sequence = latestLiveCheckpoint.map { $0.sequence + 1 } ?? 0
         let rawRevision = CaptureTranscriptRevisionModel(
             sessionID: handle.sessionID,
             sourceID: handle.microphoneSourceID,
             sequence: sequence,
+            parentRevisionID: latestLiveCheckpoint?.revisionID,
             stage: .finalTranscription,
             statusRawValue: "completed",
             startOffset: 0,
@@ -2241,6 +2477,182 @@ public final class CaptureSessionStore {
             throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
         }
     }
+    private func fetchLiveTranscriptProviderSnapshots(
+        sessionID: UUID,
+        in context: ModelContext
+    ) throws -> [CaptureStageProviderSnapshotModel] {
+        let stageRawValue = CapturePipelineStage.liveTranscription.rawValue
+        let descriptor = FetchDescriptor<CaptureStageProviderSnapshotModel>(
+            predicate: #Predicate<CaptureStageProviderSnapshotModel> {
+                $0.sessionID == sessionID && $0.stageRawValue == stageRawValue
+            }
+        )
+        do {
+            return try context.fetch(descriptor)
+        } catch {
+            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
+        }
+    }
+    private func liveTranscriptProviderSnapshot(
+        sessionID: UUID,
+        attempt: Int,
+        in context: ModelContext
+    ) throws -> CaptureStageProviderSnapshotModel {
+        let snapshots = try fetchAssignmentSnapshots(
+            sessionID: sessionID,
+            stage: .liveTranscription,
+            attempt: attempt,
+            in: context
+        )
+        guard snapshots.count <= 1 else {
+            throw CaptureSessionStoreError.duplicateLiveTranscriptAssignments(
+                sessionID: sessionID,
+                attempt: attempt
+            )
+        }
+        guard let snapshot = snapshots.first else {
+            throw CaptureSessionStoreError.liveTranscriptAssignmentNotFound(
+                sessionID: sessionID,
+                attempt: attempt
+            )
+        }
+        guard
+            let assignment = try? snapshot.restoreAssignment(),
+            assignment.providerKind == .streamingSpeech,
+            assignment.modelIdentifier != nil
+        else {
+            throw CaptureSessionStoreError.liveTranscriptAssignmentUnavailable(
+                sessionID: sessionID,
+                attempt: attempt
+            )
+        }
+        return snapshot
+    }
+
+    private func latestValidLiveTranscriptCheckpoint(
+        sessionID: UUID,
+        sourceID: UUID,
+        in context: ModelContext
+    ) throws -> VoiceNoteLiveTranscriptCheckpoint? {
+        try validatedLiveTranscriptCheckpoints(
+            sessionID: sessionID,
+            sourceID: sourceID,
+            providerSnapshotID: nil,
+            in: context
+        ).last
+    }
+
+    private func validatedLiveTranscriptCheckpoints(
+        sessionID: UUID,
+        sourceID: UUID,
+        providerSnapshotID: UUID?,
+        in context: ModelContext
+    ) throws -> [VoiceNoteLiveTranscriptCheckpoint] {
+        let liveStageRawValue = CapturePipelineStage.liveTranscription.rawValue
+        let revisions = try fetchTranscriptRevisions(sessionID: sessionID, in: context)
+            .filter { $0.stageRawValue == liveStageRawValue }
+            .sorted {
+                if $0.sequence != $1.sequence {
+                    return $0.sequence < $1.sequence
+                }
+                return $0.id.uuidString < $1.id.uuidString
+            }
+        guard !revisions.isEmpty else {
+            return []
+        }
+
+        let persistedProviderSnapshotID = revisions[0].providerSnapshotID
+        guard let persistedProviderSnapshotID else {
+            throw CaptureSessionStoreError.liveTranscriptConflict(
+                sessionID: sessionID,
+                sequence: revisions[0].sequence
+            )
+        }
+        guard providerSnapshotID == nil || providerSnapshotID == persistedProviderSnapshotID else {
+            throw CaptureSessionStoreError.liveTranscriptConflict(
+                sessionID: sessionID,
+                sequence: revisions[0].sequence
+            )
+        }
+        let snapshots = try fetchLiveTranscriptProviderSnapshots(
+            sessionID: sessionID,
+            in: context
+        )
+        let persistedSnapshot = snapshots.first { $0.id == persistedProviderSnapshotID }
+        guard
+            let persistedSnapshot,
+            !snapshots.contains(where: { snapshot in
+                snapshot.id != persistedProviderSnapshotID && snapshot.attempt == persistedSnapshot.attempt
+            }),
+            let assignment = try? persistedSnapshot.restoreAssignment(),
+            assignment.providerKind == .streamingSpeech,
+            assignment.modelIdentifier != nil
+        else {
+            throw CaptureSessionStoreError.liveTranscriptConflict(
+                sessionID: sessionID,
+                sequence: revisions[0].sequence
+            )
+        }
+
+        var checkpoints: [VoiceNoteLiveTranscriptCheckpoint] = []
+        for revision in revisions {
+            guard
+                revision.sourceID == sourceID,
+                revision.parentRevisionID == checkpoints.last?.revisionID,
+                revision.statusRawValue == "completed",
+                revision.startOffset == 0,
+                revision.duration == 0,
+                revision.segmentsJSON == nil,
+                revision.languageCode == nil,
+                revision.providerSnapshotID == persistedProviderSnapshotID,
+                !revision.text.isEmpty
+            else {
+                throw CaptureSessionStoreError.liveTranscriptConflict(
+                    sessionID: sessionID,
+                    sequence: revision.sequence
+                )
+            }
+            if let previous = checkpoints.last {
+                guard
+                    revision.sequence == previous.sequence + 1,
+                    revision.text != previous.committedText,
+                    revision.text.hasPrefix(previous.committedText)
+                else {
+                    throw CaptureSessionStoreError.liveTranscriptConflict(
+                        sessionID: sessionID,
+                        sequence: revision.sequence
+                    )
+                }
+            } else if revision.sequence != 0 {
+                throw CaptureSessionStoreError.liveTranscriptConflict(
+                    sessionID: sessionID,
+                    sequence: revision.sequence
+                )
+            }
+            checkpoints.append(try liveTranscriptCheckpoint(from: revision))
+        }
+        return checkpoints
+    }
+
+    private func liveTranscriptCheckpoint(
+        from revision: CaptureTranscriptRevisionModel
+    ) throws -> VoiceNoteLiveTranscriptCheckpoint {
+        guard let providerSnapshotID = revision.providerSnapshotID else {
+            throw CaptureSessionStoreError.liveTranscriptConflict(
+                sessionID: revision.sessionID,
+                sequence: revision.sequence
+            )
+        }
+        return VoiceNoteLiveTranscriptCheckpoint(
+            revisionID: revision.id,
+            sequence: revision.sequence,
+            parentRevisionID: revision.parentRevisionID,
+            committedText: revision.text,
+            providerSnapshotID: providerSnapshotID,
+            createdAt: revision.createdAt
+        )
+    }
+
 
     private func fetchOwnedMeeting(
         for handle: MeetingCaptureHandle,
@@ -2297,6 +2709,69 @@ public final class CaptureSessionStore {
         return source
     }
 
+    private func existingVoiceNoteTranscriptRevisions(
+        _ revisions: [CaptureTranscriptRevisionModel],
+        for handle: VoiceNoteCaptureHandle,
+        latestLiveCheckpoint: VoiceNoteLiveTranscriptCheckpoint?,
+        rawText: String,
+        finalText: String,
+        duration: TimeInterval,
+        languageCode: String?
+    ) throws -> VoiceNoteTranscriptRevisions {
+        guard revisions.count == 2 else {
+            throw CaptureSessionStoreError.voiceNoteFinalTranscriptConflict(
+                sessionID: handle.sessionID
+            )
+        }
+
+        let orderedRevisions = revisions.sorted {
+            if $0.sequence != $1.sequence {
+                return $0.sequence < $1.sequence
+            }
+            return $0.id.uuidString < $1.id.uuidString
+        }
+        let rawRevision = orderedRevisions[0]
+        let finalRevision = orderedRevisions[1]
+        let expectedRawSequence = latestLiveCheckpoint.map { $0.sequence + 1 } ?? 0
+        let finalStageRawValue = CapturePipelineStage.finalTranscription.rawValue
+
+        guard
+            rawRevision.sessionID == handle.sessionID,
+            rawRevision.sourceID == handle.microphoneSourceID,
+            rawRevision.sequence == expectedRawSequence,
+            rawRevision.parentRevisionID == latestLiveCheckpoint?.revisionID,
+            rawRevision.stageRawValue == finalStageRawValue,
+            rawRevision.statusRawValue == "completed",
+            rawRevision.startOffset == 0,
+            rawRevision.duration == duration,
+            rawRevision.text == rawText,
+            rawRevision.segmentsJSON == nil,
+            rawRevision.languageCode == languageCode,
+            rawRevision.providerSnapshotID == nil,
+            finalRevision.sessionID == handle.sessionID,
+            finalRevision.sourceID == handle.microphoneSourceID,
+            finalRevision.sequence == expectedRawSequence + 1,
+            finalRevision.parentRevisionID == rawRevision.id,
+            finalRevision.stageRawValue == finalStageRawValue,
+            finalRevision.statusRawValue == "completed",
+            finalRevision.startOffset == 0,
+            finalRevision.duration == duration,
+            finalRevision.text == finalText,
+            finalRevision.segmentsJSON == nil,
+            finalRevision.languageCode == languageCode,
+            finalRevision.providerSnapshotID == nil
+        else {
+            throw CaptureSessionStoreError.voiceNoteFinalTranscriptConflict(
+                sessionID: handle.sessionID
+            )
+        }
+
+        return VoiceNoteTranscriptRevisions(
+            rawRevisionID: rawRevision.id,
+            finalRevisionID: finalRevision.id
+        )
+    }
+
     private func validateFinalTranscriptRevision(
         _ revision: CaptureTranscriptRevisionModel,
         for handle: VoiceNoteCaptureHandle,
@@ -2325,10 +2800,20 @@ public final class CaptureSessionStore {
         }
 
         let parent = try fetchTranscriptRevision(id: parentRevisionID, in: context)
+        let latestLiveCheckpoint = try latestValidLiveTranscriptCheckpoint(
+            sessionID: handle.sessionID,
+            sourceID: handle.microphoneSourceID,
+            in: context
+        )
+        let expectedRawParentSequence = latestLiveCheckpoint.map { $0.sequence + 1 } ?? 0
+
         guard
             parent.sessionID == handle.sessionID,
             parent.sourceID == handle.microphoneSourceID,
-            parent.parentRevisionID == nil,
+            parent.parentRevisionID == latestLiveCheckpoint?.revisionID,
+            parent.stageRawValue == CapturePipelineStage.finalTranscription.rawValue,
+            parent.statusRawValue == "completed",
+            parent.sequence == expectedRawParentSequence,
             revision.sequence == parent.sequence + 1
         else {
             throw CaptureSessionStoreError.invalidFinalTranscriptRevision(revision.id)
@@ -2340,6 +2825,13 @@ public final class CaptureSessionStore {
         in context: ModelContext
     ) throws -> CaptureSessionModel {
         let session = try fetchSession(id: handle.sessionID, in: context)
+        guard session.modeRawValue == CaptureSessionMode.voiceNote.rawValue else {
+            throw CaptureSessionStoreError.sessionModeMismatch(
+                sessionID: handle.sessionID,
+                expected: .voiceNote,
+                actualRawValue: session.modeRawValue
+            )
+        }
         let source = try fetchSource(id: handle.microphoneSourceID, in: context)
         guard source.sessionID == handle.sessionID else {
             throw CaptureSessionStoreError.sourceSessionMismatch(

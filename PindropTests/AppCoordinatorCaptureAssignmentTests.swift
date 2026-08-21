@@ -69,6 +69,39 @@ struct AppCoordinatorCaptureAssignmentTests {
         #expect(events == ["selected", "assignment-persisted", "stage-called"])
     }
 
+    @Test func liveAssignmentIsSelectedBeforeVoiceContextExposure() throws {
+        let (store, handle) = try makeStore()
+        var events: [String] = []
+
+        let selected = try store.resolveAssignment(
+            sessionID: handle.sessionID,
+            stage: .liveTranscription,
+            attempt: AppCoordinator.captureAssignmentAttempt(for: .liveTranscription)
+        ) {
+            events.append("assignment-selected")
+            return try assignment(
+                stage: .liveTranscription,
+                providerKind: .streamingSpeech,
+                providerIdentifier: "streaming-provider",
+                modelIdentifier: "streaming-model"
+            )
+        }
+        let persisted = try store.persistedAssignment(
+            sessionID: handle.sessionID,
+            stage: .liveTranscription,
+            attempt: selected.attempt
+        )
+        events.append("assignment-persisted")
+        events.append("context-exposed")
+
+        #expect(persisted == selected)
+        #expect(events == [
+            "assignment-selected",
+            "assignment-persisted",
+            "context-exposed"
+        ])
+    }
+
     @Test func persistedAssignmentIsReusedWhenSettingsWouldNowChooseAnotherModel() throws {
         let (store, handle) = try makeStore()
         var settingsModel = "model-selected-at-start"
@@ -156,6 +189,42 @@ struct AppCoordinatorCaptureAssignmentTests {
         #expect(
             AppCoordinator.captureAssignmentExecutionOrder(for: unavailable)
                 == [.assignmentSnapshot]
+        )
+    }
+
+    @Test func liveArtifactAdmissionOnlyStartsExecutableStreamingAssignments() throws {
+        let executable = try assignment(
+            stage: .liveTranscription,
+            providerKind: .streamingSpeech,
+            providerIdentifier: "streaming-provider",
+            modelIdentifier: "streaming-model"
+        )
+        let disabled = try assignment(
+            stage: .liveTranscription,
+            providerKind: .disabled,
+            modelIdentifier: nil
+        )
+        let unavailable = try assignment(
+            stage: .liveTranscription,
+            providerKind: .bestEffortUnavailable,
+            modelIdentifier: nil
+        )
+        let batch = try assignment(
+            stage: .liveTranscription,
+            providerKind: .batchSpeech
+        )
+
+        #expect(
+            AppCoordinator.liveArtifactCaptureAdmission(for: executable) == .capture
+        )
+        #expect(
+            AppCoordinator.liveArtifactCaptureAdmission(for: disabled) == .deactivate
+        )
+        #expect(
+            AppCoordinator.liveArtifactCaptureAdmission(for: unavailable) == .deactivate
+        )
+        #expect(
+            AppCoordinator.liveArtifactCaptureAdmission(for: batch) == .deactivate
         )
     }
 

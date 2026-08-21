@@ -11,6 +11,20 @@ import Foundation
 import FluidAudio
 import PindropCore
 import os.log
+/// The provider and model that the service has actually prepared for streaming.
+///
+/// This is deliberately the effective engine identity, rather than the requested
+/// settings: Apple SpeechTranscriber can fall back to Parakeet at runtime.
+public struct StreamingEngineIdentity: Sendable, Equatable {
+    public let providerIdentifier: String
+    public let modelIdentifier: String
+
+    public init(providerIdentifier: String, modelIdentifier: String) {
+        self.providerIdentifier = providerIdentifier
+        self.modelIdentifier = modelIdentifier
+    }
+}
+
 
 public struct TranscriptionChunkInput: Sendable, Equatable {
     public let chunkID: UUID
@@ -169,6 +183,10 @@ public final class TranscriptionService {
     /// detached task and calls the engine directly — routing each buffer through
     /// this @MainActor service would re-serialize decode behind UI work.
     public var activeStreamingEngine: (any StreamingTranscriptionEngine)? { streamingEngine }
+    /// The provider/model pair of `activeStreamingEngine`, after backend fallback
+    /// and Parakeet profile selection have been resolved.
+    public private(set) var activeStreamingEngineIdentity: StreamingEngineIdentity?
+
     /// In-flight streaming-engine preparation, shared by concurrent callers so a
     /// session starting during the launch prewarm awaits the same load instead of
     /// hitting the engine's `.loading` state and falling back to batch. Class
@@ -294,9 +312,9 @@ public final class TranscriptionService {
     /// specializes a model. A deadline is therefore test-only and opt-in.
     private let modelLoadTimeoutSeconds: TimeInterval?
 
-    /// True once this service substituted Parakeet for a user-requested Apple backend
-    /// that couldn't be provisioned this run. AppCoordinator reads it to surface a
-    /// one-time toast. Consumed and reset by `consumeAppleBackendFallbackFlag()`.
+    /// True once this service substituted Parakeet for a requested Apple backend.
+    /// `StreamingSessionController` surfaces one generic-session toast and consumes
+    /// artifact-session fallback silently.
     public private(set) var appleBackendFellBackToParakeet: Bool = false
 
     public init(
@@ -952,6 +970,7 @@ public final class TranscriptionService {
         // are cooperative, so their epoch/lease checks — not task cancellation —
         // prevent late completions from committing or being re-adopted.
         streamingLifecycleEpoch &+= 1
+        appleBackendFellBackToParakeet = false
         streamingPrepareHandle?.task.cancel()
         streamingPrepareHandle = nil
         streamingResetHandle?.finish()
@@ -967,6 +986,8 @@ public final class TranscriptionService {
         engine = nil
         speakerDiarizer = nil
         self.streamingEngine = nil
+        activeStreamingEngineIdentity = nil
+
         currentProvider = nil
         batchModelIdentity = nil
         state = .unloaded
@@ -1085,6 +1106,8 @@ public final class TranscriptionService {
                 if recreate {
                     invalidateAndDiscardStreamingCallbackSource()
                     streamingEngine = nil
+                    activeStreamingEngineIdentity = nil
+
                     beginStreamingEngineRetirement(existing)
                     await existing.unloadModel()
                     completeStreamingEngineRetirement(existing)
@@ -1135,11 +1158,18 @@ public final class TranscriptionService {
             }
             try requireCurrentStreamingLifecycle(epoch, owning: preparedEngine)
             streamingCallbackSource = source
+            let preparedIdentity = Self.streamingEngineIdentity(
+                backend: effectiveBackend,
+                profile: profile
+            )
+
 
             let engineState = await preparedEngine.state
             try requireCurrentStreamingLifecycle(epoch, owning: preparedEngine)
             switch engineState {
             case .ready, .streaming, .paused:
+                activeStreamingEngineIdentity = preparedIdentity
+
                 releaseStreamingEngineLease(lease)
                 if state == .unloaded || state == .error {
                     state = .ready
@@ -1164,6 +1194,8 @@ public final class TranscriptionService {
             do {
                 try await preparedEngine.loadModel(name: modelPath)
                 try requireCurrentStreamingLifecycle(epoch, owning: preparedEngine)
+                activeStreamingEngineIdentity = preparedIdentity
+
                 releaseStreamingEngineLease(lease)
                 if state == .unloaded || state == .error {
                     state = .ready
@@ -1358,6 +1390,24 @@ public final class TranscriptionService {
         return .parakeet
     }
 
+    private static func streamingEngineIdentity(
+        backend: TranscriptionBackend,
+        profile: StreamingChunkProfile
+    ) -> StreamingEngineIdentity {
+        switch backend {
+        case .parakeet:
+            StreamingEngineIdentity(
+                providerIdentifier: TranscriptionBackend.parakeet.rawValue,
+                modelIdentifier: profile.repoFolderName
+            )
+        case .appleSpeechTranscriber:
+            StreamingEngineIdentity(
+                providerIdentifier: TranscriptionBackend.appleSpeechTranscriber.rawValue,
+                modelIdentifier: "apple-speech-transcriber/progressive"
+            )
+        }
+    }
+
     public func startStreaming() async throws {
         guard state != .transcribing else {
             throw TranscriptionError.transcriptionFailed("Transcription already in progress")
@@ -1499,6 +1549,7 @@ public final class TranscriptionService {
         // Cancellation is a new lifecycle/session epoch. Publish it and deactivate
         // delivery before awaiting any potentially non-cooperative engine work.
         streamingLifecycleEpoch &+= 1
+        appleBackendFellBackToParakeet = false
         let resetEpoch = streamingLifecycleEpoch
         streamingPrepareHandle?.task.cancel()
         streamingPrepareHandle = nil

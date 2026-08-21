@@ -22,7 +22,7 @@ import PindropData
 import PindropSpeech
 
 @MainActor
-final class StreamingSessionController {
+final class StreamingSessionController: StreamingRefinementCommitObserver {
 
     // MARK: - Outcome
 
@@ -96,6 +96,8 @@ final class StreamingSessionController {
     private let toastService: ToastService
     private let liveTranscriptState: LiveTranscriptState
     private let audioRecorder: AudioRecorder
+    private let captureSessionStore: CaptureSessionStore
+
     private let normalizeText: (String) -> String
     private let isEffectivelyEmptyText: (String) -> Bool
 
@@ -106,18 +108,45 @@ final class StreamingSessionController {
 
     // MARK: - Session state
 
-    private(set) var isSessionActive = false
+    struct SessionToken: Sendable, Equatable {
+        let rawValue: UInt64
+    }
+
+    private var nextSessionToken: UInt64 = 0
+    private var activeSessionToken: SessionToken?
+    var isSessionActive: Bool { activeSessionToken != nil }
+    private(set) var isArtifactCaptureActive = false
+
+    /// A session may be generic dictation or a voice-note artifact capture. Callers
+    /// that must tear down the audio pump use this unified predicate so neither mode
+    /// can leave direct engine work running behind a recorder failure.
+    var hasActiveStreamingSession: Bool {
+        activeSessionToken != nil || isArtifactCaptureActive
+    }
+
+    private var artifactCaptureHandle: VoiceNoteCaptureHandle?
+    private var artifactAssignment: CaptureStageAssignment?
+    private var artifactPersistenceDisabled = false
+    private var artifactFailureRecorded = false
+
     /// Direct engine handle for the audio pump. Captured once per session so the
     /// per-buffer path never hops through the @MainActor TranscriptionService.
     private var pumpEngine: (any PindropSpeech.StreamingTranscriptionEngine)?
     private var audioStreamContinuation: AsyncStream<AVAudioPCMBuffer>.Continuation?
     private var audioConsumerTask: Task<Void, Never>?
+    /// Retains asynchronous cancellation until its direct engine consumer exits.
+    /// A subsequent begin waits here before it can prepare a new engine session.
+    private var teardownTask: Task<Void, Never>?
+    private var teardownGeneration = 0
     private var refinementCoordinator: StreamingRefinementCoordinator?
     /// Strongly retained here — `StreamingRefinementCoordinator` holds its sink weakly.
     private var overlaySink: OverlayStreamingSink?
     /// Test-only override for the final paste step so races with cancellation can be exercised
     /// without depending on Accessibility/KeySimulation hardware paths.
     private var finalInsertionOverrideForTesting: ((String) async throws -> OutputManager.OutputResult)?
+    /// Test-only signal emitted immediately before a successor begins awaiting the
+    /// detached teardown tail.
+    private var beginTeardownWaitObserverForTesting: (() -> Void)?
 
     init(
         transcriptionService: TranscriptionService,
@@ -127,6 +156,8 @@ final class StreamingSessionController {
         toastService: ToastService,
         liveTranscriptState: LiveTranscriptState,
         audioRecorder: AudioRecorder,
+        captureSessionStore: CaptureSessionStore,
+
         normalizeText: @escaping (String) -> String,
         isEffectivelyEmptyText: @escaping (String) -> Bool
     ) {
@@ -137,6 +168,8 @@ final class StreamingSessionController {
         self.toastService = toastService
         self.liveTranscriptState = liveTranscriptState
         self.audioRecorder = audioRecorder
+        self.captureSessionStore = captureSessionStore
+
         self.normalizeText = normalizeText
         self.isEffectivelyEmptyText = isEffectivelyEmptyText
     }
@@ -149,19 +182,24 @@ final class StreamingSessionController {
 
     // MARK: - Lifecycle
 
-    /// Stands up a streaming session: engine callbacks, engine start, refinement
-    /// coordinator + overlay sink, and audio forwarding. On failure the session is
-    /// cancelled internally and `isSessionActive` stays false — the caller falls
-    /// back to batch transcription.
-    func begin() async {
+    /// Starts one generic dictation lifecycle. The owner token is assigned before
+    /// service start so a late start can never consume fallback state for a successor.
+    func begin() async -> SessionToken? {
+        guard !hasActiveStreamingSession else { return nil }
+        let session = SessionToken(rawValue: nextSessionToken)
+        nextSessionToken &+= 1
+        activeSessionToken = session
+        if teardownTask != nil {
+            beginTeardownWaitObserverForTesting?()
+        }
+        await awaitPriorTeardown()
+        guard owns(session) else { return nil }
         do {
-            setEngineCallbacks()
-            // startStreaming prepares the engine once; avoid a redundant prepare round-trip.
+            setEngineCallbacks(for: session)
             try await transcriptionService.startStreaming()
-
-            // Surface a one-time toast if the Apple backend was requested but we had to
-            // fall back to Parakeet (e.g. running on macOS < 26 or unsupported locale).
-            if transcriptionService.consumeAppleBackendFallbackFlag() {
+            guard owns(session) else { return nil }
+            let usedAppleBackendFallback = transcriptionService.consumeAppleBackendFallbackFlag()
+            if usedAppleBackendFallback {
                 toastService.show(
                     ToastPayload(
                         message: localized(
@@ -173,123 +211,239 @@ final class StreamingSessionController {
                 )
             }
 
-            // The coordinator always stands up. It owns the committed/tentative split,
-            // LocalAgreement-2 commit rules, and deterministic cleanup — none of which
-            // need an LLM. Its sink is the overlay: live text renders in the floating
-            // indicator, and the target app receives one paste at session finish.
             let coord = StreamingRefinementCoordinator()
             coord.beginSession(outputSink: ensureOverlaySink())
             refinementCoordinator = coord
-            if let refinementAssignment = settingsStore.resolveAssignment(for: .streamingRefinement) {
-                Log.transcription.info(
-                    "Streaming refinement coordinator engaged (provider=\(refinementAssignment.kind.rawValue), model=\(refinementAssignment.modelID)) — live LLM refinement disabled in Phase 2, post-stop path unchanged"
-                )
-            } else {
-                Log.transcription.info(
-                    "Streaming refinement coordinator engaged with deterministic cleanup only"
-                )
-            }
-
             pumpEngine = transcriptionService.activeStreamingEngine
             attachAudioForwarding()
-            isSessionActive = true
             Log.transcription.info("Streaming transcription enabled for current session")
+            return session
         } catch {
+            guard owns(session) else { return nil }
             Log.transcription.error("Streaming transcription unavailable, falling back to batch: \(error)")
-            await cancel()
+            await cancel(session: session)
+            return nil
         }
     }
 
-    /// Marks streaming unused for this session and clears any stale bindings.
-    func deactivate() {
-        isSessionActive = false
-        clearBindings(cancelPendingWork: true)
-    }
-
-    /// Abort the streaming session: tear down callbacks, cancel the engine, and
-    /// collapse the overlay. Nothing was inserted into the target app, so there is
-    /// no text to preserve or remove.
-    func cancel() async {
-        clearBindings(cancelPendingWork: true)
-        await transcriptionService.cancelStreaming()
-        if let coord = refinementCoordinator {
-            await coord.cancelSession()
-            refinementCoordinator = nil
-        } else {
-            await overlaySink?.cancelStreamingInsertion()
+    /// Begins a voice-note-only live session that writes stable cumulative text to
+    /// capture artifacts. Unlike generic dictation, this has no display or output sink.
+    @discardableResult
+    func beginArtifactCapture(
+        for handle: VoiceNoteCaptureHandle,
+        assignment: CaptureStageAssignment
+    ) async -> Bool {
+        await awaitPriorTeardown()
+        guard
+            !hasActiveStreamingSession,
+            assignment.stage == .liveTranscription,
+            assignment.providerKind == .streamingSpeech,
+            assignment.modelIdentifier != nil
+        else {
+            return false
         }
-        isSessionActive = false
-    }
 
-    /// Synchronous abort for cancellation paths that cannot await (double-escape):
-    /// bindings drop and the session flag clears immediately; the engine/overlay
-    /// teardown runs in a detached task so the session doesn't dangle.
-    func cancelDetached() {
-        let hadSession = isSessionActive
-        clearBindings(cancelPendingWork: true)
-        isSessionActive = false
-        guard hadSession else { return }
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            await self.transcriptionService.cancelStreaming()
-            // Collapse the overlay via the coordinator (which cancels the sink); also
-            // nil it out so the session doesn't dangle past the cancellation.
-            if let coord = self.refinementCoordinator {
-                await coord.cancelSession()
-                self.refinementCoordinator = nil
-            } else {
-                await self.overlaySink?.cancelStreamingInsertion()
+        isArtifactCaptureActive = true
+        artifactCaptureHandle = handle
+        artifactAssignment = assignment
+        artifactPersistenceDisabled = false
+        artifactFailureRecorded = false
+        setEngineCallbacks()
+
+        do {
+            try await transcriptionService.startStreaming()
+            guard isArtifactCaptureCurrent(handle) else {
+                return false
             }
+            // Artifact workflows are intentionally silent. Consume the per-start
+            // fallback state only while this exact capture still owns it, so a stale
+            // artifact attempt cannot consume or leak fallback state for a later
+            // generic dictation session.
+            _ = transcriptionService.consumeAppleBackendFallbackFlag()
+            guard
+                let expectedIdentity = artifactStreamingEngineIdentity(for: assignment),
+                transcriptionService.activeStreamingEngineIdentity == expectedIdentity
+            else {
+                recordArtifactFailure(
+                    code: "streaming-engine-identity-mismatch",
+                    message: "The prepared live transcription engine did not match the capture assignment."
+                )
+                await cancelArtifactCapture(for: handle)
+                return false
+            }
+
+            let coordinator = StreamingRefinementCoordinator()
+            coordinator.beginSession(commitObserver: self)
+            refinementCoordinator = coordinator
+            pumpEngine = transcriptionService.activeStreamingEngine
+            attachAudioForwarding()
+            Log.transcription.info("Artifact live transcription enabled for current voice-note capture")
+            return true
+        } catch {
+            guard isArtifactCaptureCurrent(handle) else {
+                return false
+            }
+            // Apple can set its fallback flag before throwing. Consume it only after
+            // confirming that this artifact lifecycle still owns the service state.
+            _ = transcriptionService.consumeAppleBackendFallbackFlag()
+            recordArtifactFailure(
+                code: "streaming-engine-unavailable",
+                message: "The assigned live transcription engine could not be started."
+            )
+            Log.transcription.warning("Artifact live transcription unavailable: \(error.localizedDescription)")
+            await cancelArtifactCapture(for: handle)
+            return false
         }
     }
 
-    // MARK: - Finalize
+    /// Drains the live audio pump and commits the engine's final cumulative text.
+    /// Artifact capture intentionally never invokes the dictation finalize pipeline.
+    func finishArtifactCapture(for handle: VoiceNoteCaptureHandle) async {
+        await awaitPriorTeardown()
+        guard isArtifactCaptureCurrent(handle) else { return }
 
+        await flushPendingAudioWork()
+        guard isArtifactCaptureCurrent(handle) else { return }
+
+        transcriptionService.setStreamingCallbacks(onPartial: nil, onFinalUtterance: nil)
+        let coordinator = refinementCoordinator
+
+        do {
+            let finalText = try await transcriptionService.stopStreaming()
+            guard isArtifactCaptureCurrent(handle) else { return }
+            if !finalText.isEmpty {
+                await coordinator?.ingestFinal(finalText)
+                guard isArtifactCaptureCurrent(handle) else { return }
+            }
+            _ = await coordinator?.awaitFinalTextAndDrain()
+            guard isArtifactCaptureCurrent(handle) else { return }
+        } catch {
+            guard isArtifactCaptureCurrent(handle) else { return }
+            recordArtifactFailure(
+                code: "streaming-engine-stop-failed",
+                message: "The assigned live transcription engine could not be stopped cleanly."
+            )
+            Log.transcription.warning("Artifact live transcription stop failed: \(error.localizedDescription)")
+            cancelArtifactCaptureDetached(for: handle)
+            await awaitPriorTeardown()
+            return
+        }
+
+        // No suspension follows this ownership check, so teardown cannot be redirected
+        // to a successor that began while this operation was suspended above.
+        guard isArtifactCaptureCurrent(handle) else { return }
+        coordinator?.endSession()
+        refinementCoordinator = nil
+        detachEngineCallbacks()
+        clearArtifactCaptureState()
+    }
+
+    /// Cancels only the artifact capture that owns `handle`; a stale voice-note
+    /// operation must never tear down a newer capture's streaming engine.
+    func cancelArtifactCapture(for handle: VoiceNoteCaptureHandle) async {
+        await awaitPriorTeardown()
+        cancelArtifactCaptureDetached(for: handle)
+        await awaitPriorTeardown()
+    }
+
+    /// Synchronously aborts only the artifact capture that owns `handle`.
+    func cancelArtifactCaptureDetached(for handle: VoiceNoteCaptureHandle) {
+        guard isArtifactCaptureCurrent(handle) else { return }
+        cancelDetached()
+    }
+
+    /// Drops inactive generic callback state without disturbing a live owner.
+    func deactivate() {
+        guard !hasActiveStreamingSession else { return }
+        detachEngineCallbacks()
+    }
+
+    func cancel(session: SessionToken) async {
+        cancelDetached(session: session)
+        await awaitPriorTeardown()
+    }
+
+    func cancelDetached(session: SessionToken) {
+        guard owns(session) else { return }
+        cancelDetached()
+    }
+
+    /// Synchronous abort for artifact and generic cancellation paths.
+    func cancelDetached() {
+        let priorTeardownTask = teardownTask
+        let hadArtifactCapture = isArtifactCaptureActive
+        let coordinator = refinementCoordinator
+        refinementCoordinator = nil
+        let consumerTask = detachAudioForwarding(cancelPendingWork: true)
+        activeSessionToken = nil
+        if hadArtifactCapture {
+            clearArtifactCaptureState()
+        }
+
+        teardownGeneration &+= 1
+        let generation = teardownGeneration
+        let transcriptionService = transcriptionService
+        let overlaySink = overlaySink
+        teardownTask = Task { @MainActor in
+            await priorTeardownTask?.value
+            await consumerTask?.value
+            await transcriptionService.cancelStreaming()
+            if let coordinator {
+                await coordinator.cancelSession()
+            } else if !hadArtifactCapture {
+                await overlaySink?.cancelStreamingInsertion()
+            }
+            Log.transcription.debug("Streaming teardown barrier completed (generation=\(generation))")
+        }
+    }
     /// Drains and stops the engine, then runs the finalize pipeline: dictionary
     /// replacements → offline re-transcription (timeout-bounded, scaled to the
     /// recording length) → optional post-stop LLM enhancement (timeout-bounded) →
     /// single atomic paste via the overlay sink.
     /// Throws when the engine fails to stop (after cancelling the session).
-    func finalize(recordedAudioData: Data, recordingDuration: TimeInterval) async throws -> FinalizeOutcome {
+    func finalize(
+        recordedAudioData: Data,
+        recordingDuration: TimeInterval,
+        session: SessionToken
+    ) async throws -> FinalizeOutcome {
+        try requireExactOwner(session)
+        // Keep the coordinator that belongs to this session. A later begin can install
+        // a successor while any await below is suspended; this finalize must never end it.
+        let coordinator = refinementCoordinator
         let pipelineClock = ContinuousClock()
         var pipelineMetrics = PipelineMetrics(kind: .streaming)
+
         await flushPendingAudioWork()
-        try ensureNotCancelled()
+        try requireExactOwner(session)
         transcriptionService.setStreamingCallbacks(onPartial: nil, onFinalUtterance: nil)
 
         let finalStreamedText: String
         do {
             finalStreamedText = try await transcriptionService.stopStreaming()
+            try requireExactOwner(session)
             Log.transcription.info("Streaming transcription finalized")
         } catch {
+            await cancel(session: session)
             if Self.isCancellationError(error) {
-                await cancel()
                 throw CancellationError()
             }
             Log.transcription.error("Failed to stop streaming transcription: \(error)")
-            await cancel()
             throw error
         }
-
-        try ensureNotCancelled()
-        clearBindings(cancelPendingWork: false)
-        isSessionActive = false
 
         // Live/refinement text first. Empty live transcripts short-circuit before the
         // offline re-transcription pass (and its Enhancing affordance), matching the
         // pre-dictionary-semantics finalize ordering.
         var candidateRawText = finalStreamedText
-        let coord = refinementCoordinator
-        if let coord {
+        if let coordinator {
             // Coordinator text is what is currently displayed; use it as the stream
             // fallback when offline re-transcription is unavailable.
-            candidateRawText = await coord.awaitFinalTextAndDrain()
-            try ensureNotCancelled()
+            candidateRawText = await coordinator.awaitFinalTextAndDrain()
+            try requireExactOwner(session)
         }
 
         // Preview apply without usage tracking so a later offline winner does not
         // double-count, and empty sessions do not pay for offline re-transcription.
-        try ensureNotCancelled()
         var (textAfterReplacements, appliedReplacements) =
             try dictionaryStore.applyReplacements(to: candidateRawText, trackUsage: false)
         textAfterReplacements = normalizeText(textAfterReplacements)
@@ -298,11 +452,18 @@ final class StreamingSessionController {
         }
 
         guard !isEffectivelyEmptyText(textAfterReplacements) else {
-            try ensureNotCancelled()
-            // Empty finish collapses the overlay without pasting anything.
+            // `finishStreamingInsertion` returns synchronously for empty text. Check
+            // immediately before and after it so an old empty finalize cannot collapse
+            // a successor's overlay or controller state.
+            try requireExactOwner(session)
             try? await overlaySink?.finishStreamingInsertion(
-                finalText: "", appendTrailingSpace: false)
+                finalText: "",
+                appendTrailingSpace: false
+            )
+            try requireExactOwner(session)
+            coordinator?.endSession()
             refinementCoordinator = nil
+            activeSessionToken = nil
             return FinalizeOutcome(
                 finalText: "",
                 originalStreamedText: nil,
@@ -334,7 +495,7 @@ final class StreamingSessionController {
         }
 
         if !recordedAudioData.isEmpty {
-            try ensureNotCancelled()
+            try requireExactOwner(session)
             liveTranscriptState.beginEnhancing()
             do {
                 let language = settingsStore.selectedAppLanguage
@@ -352,8 +513,8 @@ final class StreamingSessionController {
                         )
                     ).text
                 }
+                try requireExactOwner(session)
                 pipelineMetrics.transcriptionSeconds = transcriptionStart.duration(to: pipelineClock.now).pipelineSeconds
-                try ensureNotCancelled()
                 let normalizedRefined = normalizeText(refinedText)
                 if !isEffectivelyEmptyText(normalizedRefined) {
                     candidateRawText = refinedText
@@ -366,6 +527,7 @@ final class StreamingSessionController {
                     )
                 }
             } catch is FinalizeStepTimedOut {
+                try requireExactOwner(session)
                 // The detached batch operation may ignore cancellation. Drop its
                 // engine generation before fallback so it cannot leave the shared
                 // service stuck in `.transcribing` or mutate a later session.
@@ -377,6 +539,7 @@ final class StreamingSessionController {
                 if Self.isCancellationError(error) {
                     throw CancellationError()
                 }
+                try requireExactOwner(session)
                 Log.transcription.warning(
                     "Streaming finalize: offline re-transcription failed, keeping streamed text: \(error.localizedDescription)"
                 )
@@ -384,15 +547,14 @@ final class StreamingSessionController {
         }
 
         // Authoritative apply on the winning raw text: single usage-count batch.
-        try ensureNotCancelled()
+        try requireExactOwner(session)
         (textAfterReplacements, appliedReplacements) =
             try dictionaryStore.applyReplacements(to: candidateRawText, trackUsage: true)
         textAfterReplacements = normalizeText(textAfterReplacements)
         if !appliedReplacements.isEmpty {
             Log.app.info("Applied \(appliedReplacements.count) dictionary replacements")
         }
-        try ensureNotCancelled()
-        try? dictionaryStore.recordVocabularyHits(in: textAfterReplacements)
+        try dictionaryStore.recordVocabularyHits(in: textAfterReplacements)
 
         // A configured transcription-enhancement assignment owns the post-stop LLM pass.
         // Streaming text is only the live preview and fallback; the authoritative offline
@@ -400,7 +562,7 @@ final class StreamingSessionController {
         var originalStreamedText: String? = nil
         var enhancedWithModel: String? = nil
         if let postStopEnhance {
-            try ensureNotCancelled()
+            try requireExactOwner(session)
             // Surface the enhancement wait in the overlay: the transcript stays visible
             // with an "Enhancing…" affordance until the rewritten text is pasted.
             liveTranscriptState.beginEnhancing()
@@ -413,13 +575,15 @@ final class StreamingSessionController {
                 ) {
                     await postStopEnhance(textForEnhance, vocabularyWords)
                 }
-                try ensureNotCancelled()
+                try requireExactOwner(session)
             } catch {
                 if Self.isCancellationError(error) {
                     throw CancellationError()
                 }
+                try requireExactOwner(session)
                 Log.aiEnhancement.warning(
-                    "Streaming post-stop enhancement timed out; keeping deterministic text")
+                    "Streaming post-stop enhancement timed out; keeping deterministic text"
+                )
                 enhanceOutcome = nil
             }
             if let result = enhanceOutcome {
@@ -450,20 +614,28 @@ final class StreamingSessionController {
         )
         textAfterReplacements = normalizeText(textAfterReplacements)
 
-        try ensureNotCancelled()
         let outputStart = pipelineClock.now
-        let insertion = try await performFinalStreamingInsertion(finalText: textAfterReplacements)
+        let insertion = try await performFinalStreamingInsertion(
+            finalText: textAfterReplacements,
+            session: session
+        )
         pipelineMetrics.outputSeconds = outputStart.duration(to: pipelineClock.now).pipelineSeconds
         if insertion.outputSucceeded {
             Log.transcription.debug("Applied final streaming transcription output")
+            // A committed output remains a valid historic outcome if cancellation or a
+            // successor arrived during insertion. Only clean up when this exact token
+            // still owns controller state.
+            if owns(session) {
+                coordinator?.endSession()
+                refinementCoordinator = nil
+                activeSessionToken = nil
+            }
         } else {
-            // Only a failed insertion may abort on cancellation. Once the output
-            // landed in the target app, the outcome must reach the coordinator so
-            // history is persisted even if the operation was cancelled meanwhile.
-            try ensureNotCancelled()
+            try requireExactOwner(session)
+            coordinator?.endSession()
+            refinementCoordinator = nil
+            activeSessionToken = nil
         }
-        coord?.endSession()
-        refinementCoordinator = nil
 
         return FinalizeOutcome(
             finalText: textAfterReplacements,
@@ -485,9 +657,15 @@ final class StreamingSessionController {
         finalInsertionOverrideForTesting = override
     }
 
+    /// Installs a test-only signal for the point at which `begin()` waits for a
+    /// detached teardown tail.
+    func setBeginTeardownWaitObserverForTesting(_ observer: (() -> Void)?) {
+        beginTeardownWaitObserverForTesting = observer
+    }
+
     /// Test seam for cancel-safe final insertion. Calls the same production path.
     func finalizeInsertionForTesting(finalText: String) async throws -> FinalizeOutcome {
-        let insertion = try await performFinalStreamingInsertion(finalText: finalText)
+        let insertion = try await performFinalStreamingInsertion(finalText: finalText, session: nil)
         return FinalizeOutcome(
             finalText: finalText,
             originalStreamedText: nil,
@@ -507,8 +685,15 @@ final class StreamingSessionController {
 
     /// Single production path for post-finalize paste/clipboard fallback.
     /// Production `finalize` and the test seam both call this exact method.
-    private func performFinalStreamingInsertion(finalText: String) async throws -> FinalStreamingInsertionResult {
-        try ensureNotCancelled()
+    private func performFinalStreamingInsertion(
+        finalText: String,
+        session: SessionToken?
+    ) async throws -> FinalStreamingInsertionResult {
+        if let session {
+            try requireExactOwner(session)
+        } else {
+            try ensureNotCancelled()
+        }
         do {
             // Single atomic insertion into the target app; the sink collapses the
             // overlay whether or not the paste succeeds.
@@ -518,30 +703,49 @@ final class StreamingSessionController {
                 outputResult = try await override(text)
             } else {
                 let sink = ensureOverlaySink()
-                try await sink.finishStreamingInsertion(
+                let ownerValidation: @MainActor () throws -> Void
+                if let session {
+                    ownerValidation = { [weak self] in
+                        guard let self else { throw CancellationError() }
+                        try self.requireExactOwner(session)
+                    }
+                } else {
+                    ownerValidation = { try Task.checkCancellation() }
+                }
+                guard let result = try await sink.finishStreamingInsertionReturningResult(
                     finalText: finalText,
-                    appendTrailingSpace: settingsStore.addTrailingSpace
-                )
-                outputResult = sink.lastOutputResult ?? .pasted()
+                    appendTrailingSpace: settingsStore.addTrailingSpace,
+                    ownerValidation: ownerValidation
+                ) else {
+                    return FinalStreamingInsertionResult(outputSucceeded: false, outputResult: nil)
+                }
+                outputResult = result
             }
-            // No cancellation check here: the output landed in the target app, so
-            // the insertion is committed — cancelling now must not erase the result
-            // (history persistence depends on it reaching the coordinator).
+            // No cancellation/ownership check here: the output landed in the target
+            // app, so it remains a valid committed outcome for history persistence.
             return FinalStreamingInsertionResult(
                 outputSucceeded: true,
                 outputResult: outputResult
             )
         } catch {
-            // Prefer the task's current cancellation state over the thrown error so a
-            // custom output failure racing cancel cannot clipboard/toast.
-            try ensureNotCancelled()
+            // Prefer current cancellation and ownership over the thrown error so a
+            // stale failing insertion can never copy or toast for a successor.
+            if let session {
+                try requireExactOwner(session)
+            } else {
+                try ensureNotCancelled()
+            }
             if Self.isCancellationError(error) {
                 throw CancellationError()
             }
             Log.output.error("Final streaming insertion failed: \(error)")
             // The paste never landed — put the transcript on the clipboard so the
             // session's text is recoverable, and tell the user what happened.
-            // Never clipboard/toast on cancellation.
+            if let session {
+                try requireExactOwner(session)
+            } else {
+                try ensureNotCancelled()
+            }
             if (try? outputManager.copyToClipboard(finalText)) != nil {
                 toastService.show(
                     ToastPayload(
@@ -559,18 +763,130 @@ final class StreamingSessionController {
 
     // MARK: - Private — engine plumbing
 
-    private func setEngineCallbacks() {
-        // Callbacks already arrive on the main actor via TranscriptionService's
-        // single isolation hop. Invoke refinement directly so finals stay ordered
-        // and partials are not re-queued behind a second Task.
+    private func owns(_ session: SessionToken) -> Bool {
+        activeSessionToken == session
+    }
+    /// Validates that an async continuation still belongs to the captured generic
+    /// session before it can mutate controller, output, or fallback state.
+    private func requireExactOwner(_ session: SessionToken) throws {
+        try Task.checkCancellation()
+        guard owns(session) else { throw CancellationError() }
+    }
+
+    private func setEngineCallbacks(for session: SessionToken? = nil) {
         transcriptionService.setStreamingCallbacks(
             onPartial: { [weak self] text in
-                await self?.refinementCoordinator?.ingestPartial(text)
+                guard let self else { return }
+                if let session, !self.owns(session) { return }
+                await self.refinementCoordinator?.ingestPartial(text)
             },
             onFinalUtterance: { [weak self] text in
-                await self?.refinementCoordinator?.ingestFinal(text)
+                guard let self else { return }
+                if let session, !self.owns(session) { return }
+                await self.refinementCoordinator?.ingestFinal(text)
             }
         )
+    }
+
+    // MARK: - Artifact commit observer
+
+    func streamingRefinementCoordinator(
+        _ coordinator: StreamingRefinementCoordinator,
+        didCommitText committedText: String
+    ) {
+        guard
+            refinementCoordinator === coordinator,
+            isArtifactCaptureActive,
+            !artifactPersistenceDisabled,
+            !committedText.isEmpty,
+            let handle = artifactCaptureHandle,
+            let assignment = artifactAssignment,
+            let expectedIdentity = artifactStreamingEngineIdentity(for: assignment)
+        else {
+            return
+        }
+
+        guard transcriptionService.activeStreamingEngineIdentity == expectedIdentity else {
+            recordArtifactFailure(
+                code: "streaming-engine-identity-mismatch",
+                message: "The active live transcription engine no longer matched the capture assignment."
+            )
+            Task { @MainActor [weak self] in
+                await self?.cancelArtifactCapture(for: handle)
+            }
+            return
+        }
+
+        do {
+            try captureSessionStore.checkpointVoiceNoteLiveTranscript(
+                for: handle,
+                committedText: committedText,
+                assignmentAttempt: assignment.attempt
+            )
+        } catch {
+            artifactPersistenceDisabled = true
+            recordArtifactFailure(
+                code: "live-transcript-checkpoint-failed",
+                message: "Unable to persist the live transcript checkpoint."
+            )
+            Log.transcription.warning(
+                "Artifact live transcript checkpoint failed: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    private func artifactStreamingEngineIdentity(
+        for assignment: CaptureStageAssignment
+    ) -> StreamingEngineIdentity? {
+        guard
+            assignment.stage == .liveTranscription,
+            assignment.providerKind == .streamingSpeech,
+            let modelIdentifier = assignment.modelIdentifier
+        else {
+            return nil
+        }
+        return StreamingEngineIdentity(
+            providerIdentifier: assignment.providerIdentifier,
+            modelIdentifier: modelIdentifier
+        )
+    }
+
+    private func recordArtifactFailure(code: String, message: String) {
+        guard
+            !artifactFailureRecorded,
+            let handle = artifactCaptureHandle,
+            let assignment = artifactAssignment
+        else {
+            return
+        }
+        artifactFailureRecorded = true
+        do {
+            try captureSessionStore.recordStageFailure(
+                sessionID: handle.sessionID,
+                stage: .liveTranscription,
+                attempt: assignment.attempt,
+                domain: "streaming-artifact",
+                code: code,
+                message: message,
+                retryable: true
+            )
+        } catch {
+            Log.transcription.warning(
+                "Unable to record artifact live transcription failure: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    private func isArtifactCaptureCurrent(_ handle: VoiceNoteCaptureHandle) -> Bool {
+        isArtifactCaptureActive && artifactCaptureHandle == handle
+    }
+
+    private func clearArtifactCaptureState() {
+        isArtifactCaptureActive = false
+        artifactCaptureHandle = nil
+        artifactAssignment = nil
+        artifactPersistenceDisabled = false
+        artifactFailureRecorded = false
     }
 
     /// Buffers flow: capture thread → AsyncStream → one detached consumer → engine
@@ -605,22 +921,42 @@ final class StreamingSessionController {
     }
 
     private func flushPendingAudioWork() async {
+        audioRecorder.onAudioBuffer = nil
         audioStreamContinuation?.finish()
         audioStreamContinuation = nil
-        await audioConsumerTask?.value
+        let consumerTask = audioConsumerTask
         audioConsumerTask = nil
+        await consumerTask?.value
         pumpEngine = nil
     }
 
-    private func clearBindings(cancelPendingWork: Bool) {
+    /// Makes the recorder unable to enqueue another buffer before any asynchronous
+    /// engine work starts to unwind. The returned task is deliberately retained by
+    /// the caller until it is awaited ahead of an engine reset.
+    private func detachAudioForwarding(cancelPendingWork: Bool) -> Task<Void, Never>? {
         audioRecorder.onAudioBuffer = nil
-        transcriptionService.setStreamingCallbacks(onPartial: nil, onFinalUtterance: nil)
+        detachEngineCallbacks()
+        audioStreamContinuation?.finish()
+        audioStreamContinuation = nil
+        let consumerTask = audioConsumerTask
+        audioConsumerTask = nil
         if cancelPendingWork {
-            audioConsumerTask?.cancel()
-            audioStreamContinuation?.finish()
-            audioStreamContinuation = nil
-            audioConsumerTask = nil
-            pumpEngine = nil
+            consumerTask?.cancel()
+        }
+        pumpEngine = nil
+        return consumerTask
+    }
+
+    private func detachEngineCallbacks() {
+        transcriptionService.setStreamingCallbacks(onPartial: nil, onFinalUtterance: nil)
+    }
+
+    private func awaitPriorTeardown() async {
+        guard let teardownTask else { return }
+        let generation = teardownGeneration
+        await teardownTask.value
+        if teardownGeneration == generation {
+            self.teardownTask = nil
         }
     }
 
@@ -631,8 +967,8 @@ final class StreamingSessionController {
         }
         let sink = OverlayStreamingSink(
             transcriptState: liveTranscriptState,
-            finalOutput: { [outputManager] text in
-                try await outputManager.output(text)
+            finalOutput: { [outputManager] text, ownerValidation in
+                try await outputManager.output(text, validatingOwnership: ownerValidation)
             },
             onClipboardFallback: { [weak self] result in
                 self?.showClipboardFallbackToast(for: result)

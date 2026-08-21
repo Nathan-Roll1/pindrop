@@ -58,6 +58,16 @@ public protocol StreamingRefinementOutputSink: AnyObject {
     func cancelStreamingInsertion() async
 }
 
+/// Receives cumulative text after the coordinator has committed a stable prefix. Tentative
+/// text is never reported.
+@MainActor
+public protocol StreamingRefinementCommitObserver: AnyObject {
+    func streamingRefinementCoordinator(
+        _ coordinator: StreamingRefinementCoordinator,
+        didCommitText committedText: String
+    )
+}
+
 // MARK: - Coordinator
 
 @MainActor
@@ -77,9 +87,8 @@ public final class StreamingRefinementCoordinator {
     /// two partials AND there are at least two newer tokens past it.
     public static let localAgreementK: Int = 2
 
-    // MARK: Dependencies
-
     private weak var outputSink: StreamingRefinementOutputSink?
+    private weak var commitObserver: StreamingRefinementCommitObserver?
     private let cleaner: DeterministicTranscriptCleaner
     private let stopWaitNanoseconds: UInt64
     private let idleCommitNanoseconds: UInt64
@@ -111,6 +120,10 @@ public final class StreamingRefinementCoordinator {
     /// Last string we handed to the output sink. Used to suppress redundant updates.
     private var currentlyDisplayed = ""
 
+    /// Last committed string delivered to the observer. Kept separately from display state
+    /// because display updates may contain tentative text.
+    private var lastObservedCommittedText = ""
+
     /// Sleeps for `idleCommitNanoseconds` after the last partial and commits the tentative
     /// tail if not cancelled.
     private var idleCommitTask: Task<Void, Never>?
@@ -133,10 +146,15 @@ public final class StreamingRefinementCoordinator {
 
     // MARK: - Session control
 
-    /// Starts a new session bound to `outputSink`. The coordinator drives
-    /// `beginStreamingInsertion()` on the sink and all subsequent display updates.
-    public func beginSession(outputSink: StreamingRefinementOutputSink) {
+    /// Starts a new session. When an output sink is supplied, the coordinator drives its
+    /// streaming insertion lifecycle; artifact-only callers can omit it and observe only
+    /// stable, cumulative committed text through `commitObserver`.
+    public func beginSession(
+        outputSink: StreamingRefinementOutputSink? = nil,
+        commitObserver: StreamingRefinementCommitObserver? = nil
+    ) {
         self.outputSink = outputSink
+        self.commitObserver = commitObserver
         isSessionActive = true
         rawCumulative = ""
         previousPartial = ""
@@ -144,11 +162,12 @@ public final class StreamingRefinementCoordinator {
         committedText = ""
         tentativeTail = ""
         currentlyDisplayed = ""
+        lastObservedCommittedText = ""
         idleCommitTask?.cancel()
         idleCommitTask = nil
         stabilityMetrics.reset()
         sessionNumber += 1
-        outputSink.beginStreamingInsertion()
+        outputSink?.beginStreamingInsertion()
         Log.transcription.debug("StreamingRefinement: session begin (v2)")
     }
 
@@ -208,13 +227,13 @@ public final class StreamingRefinementCoordinator {
     @discardableResult
     public func finishSession(appendTrailingSpace: Bool) async throws -> String {
         let finalText = await awaitFinalTextAndDrain()
+        defer { endSession() }
         if let sink = outputSink, isSessionActive {
             try await sink.finishStreamingInsertion(
                 finalText: finalText,
                 appendTrailingSpace: appendTrailingSpace
             )
         }
-        endSession()
         return finalText
     }
 
@@ -230,6 +249,7 @@ public final class StreamingRefinementCoordinator {
             let summary = stabilityMetrics.summaryLine(sessionNumber: sessionNumber)
             Log.transcription.info("\(summary)")
         }
+        clearSessionDependencies()
     }
 
     /// Drop the session and ask the sink to cancel its streaming insertion.
@@ -238,9 +258,17 @@ public final class StreamingRefinementCoordinator {
         idleCommitTask?.cancel()
         idleCommitTask = nil
         isSessionActive = false
-        if let sink = outputSink {
+        let sink = outputSink
+        clearSessionDependencies()
+        if let sink {
             await sink.cancelStreamingInsertion()
         }
+    }
+
+    private func clearSessionDependencies() {
+        outputSink = nil
+        commitObserver = nil
+        lastObservedCommittedText = ""
     }
 
     // MARK: - LocalAgreement-2
@@ -296,6 +324,7 @@ public final class StreamingRefinementCoordinator {
             to: committedText
         )
         committedRawLength = clamped
+        notifyCommitObserverIfNeeded()
 
         Log.transcription.debug(
             "StreamingRefinement: committed +\(cleanedChunk.count) chars via \(reason) — committed=\(self.committedText.count), committedRawLength=\(self.committedRawLength)/\(self.rawCumulative.count)"
@@ -345,6 +374,12 @@ public final class StreamingRefinementCoordinator {
     }
 
     // MARK: - Display
+
+    private func notifyCommitObserverIfNeeded() {
+        guard committedText != lastObservedCommittedText else { return }
+        lastObservedCommittedText = committedText
+        commitObserver?.streamingRefinementCoordinator(self, didCommitText: committedText)
+    }
 
     private func applyCurrentDisplay() async {
         recomputeTentativeTail()

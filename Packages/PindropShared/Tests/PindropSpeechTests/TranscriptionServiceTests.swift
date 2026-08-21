@@ -1265,6 +1265,84 @@ struct TranscriptionServiceTests {
         #expect(mockStreamingEngine.state == .ready)
     }
 
+    @Test func activeStreamingEngineIdentityReflectsProfileAppleAndFallback() async throws {
+        var backend: TranscriptionBackend = .parakeet
+        var profile: StreamingChunkProfile = .lowLatency
+        let parakeetEngine = MockStreamingTranscriptionEngine()
+        let appleEngine = MockStreamingTranscriptionEngine()
+        let service = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            streamingEngineFactory: { _, _ in parakeetEngine },
+            appleSpeechEngineFactory: { appleEngine },
+            streamingChunkProfileProvider: { profile },
+            streamingBackendProvider: { backend }
+        )
+
+        try await service.prepareStreamingEngine()
+        #expect(
+            service.activeStreamingEngineIdentity == StreamingEngineIdentity(
+                providerIdentifier: TranscriptionBackend.parakeet.rawValue,
+                modelIdentifier: StreamingChunkProfile.lowLatency.repoFolderName
+            )
+        )
+
+        await service.unloadModel()
+        backend = .appleSpeechTranscriber
+        profile = .standard
+        try await service.prepareStreamingEngine()
+        #expect(
+            service.activeStreamingEngineIdentity == StreamingEngineIdentity(
+                providerIdentifier: TranscriptionBackend.appleSpeechTranscriber.rawValue,
+                modelIdentifier: "apple-speech-transcriber/progressive"
+            )
+        )
+
+        let fallbackEngine = MockStreamingTranscriptionEngine()
+        let fallbackService = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            streamingEngineFactory: { _, _ in fallbackEngine },
+            appleSpeechEngineFactory: { nil },
+            streamingChunkProfileProvider: { .standard },
+            streamingBackendProvider: { .appleSpeechTranscriber }
+        )
+        try await fallbackService.prepareStreamingEngine()
+        #expect(
+            fallbackService.activeStreamingEngineIdentity == StreamingEngineIdentity(
+                providerIdentifier: TranscriptionBackend.parakeet.rawValue,
+                modelIdentifier: StreamingChunkProfile.standard.repoFolderName
+            )
+        )
+        #expect(fallbackService.consumeAppleBackendFallbackFlag())
+    }
+
+    @Test func cancelStreamingClearsAppleFallbackBeforeReplacementStarts() async throws {
+        let mockStreamingEngine = MockStreamingTranscriptionEngine()
+        mockStreamingEngine.startError = MockStreamingTranscriptionEngine.MockError.modelMissing
+        var requestedBackend: TranscriptionBackend = .appleSpeechTranscriber
+        let service = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            streamingEngineFactory: { _, _ in mockStreamingEngine },
+            appleSpeechEngineFactory: { nil },
+            streamingBackendProvider: { requestedBackend }
+        )
+
+        do {
+            try await service.startStreaming()
+            Issue.record("Expected fallback streaming start to fail")
+        } catch {
+            // Expected.
+        }
+        #expect(service.appleBackendFellBackToParakeet)
+
+        await service.cancelStreaming()
+        requestedBackend = .parakeet
+        mockStreamingEngine.startError = nil
+
+        try await service.startStreaming()
+
+        #expect(!service.consumeAppleBackendFallbackFlag())
+    }
+
     @Test func streamingCallbacksForwardPartialAndFinalUtterance() async throws {
         let mockStreamingEngine = MockStreamingTranscriptionEngine()
         let service = TranscriptionService(

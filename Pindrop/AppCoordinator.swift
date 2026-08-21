@@ -433,6 +433,7 @@ final class AppCoordinator {
     private struct VoiceNoteCaptureContext {
         let handle: PindropData.VoiceNoteCaptureHandle
         let noteID: UUID?
+        let liveAssignment: CaptureStageAssignment
     }
 
     private struct VoiceNoteCaptureResult {
@@ -497,6 +498,11 @@ final class AppCoordinator {
     enum CaptureAssignmentExecutionDecision: Equatable {
         case execute
         case skip
+    }
+
+    enum LiveArtifactCaptureAdmission: Equatable {
+        case capture
+        case deactivate
     }
 
     enum CaptureAssignmentExecutionStep: Equatable {
@@ -652,6 +658,7 @@ final class AppCoordinator {
     /// Owns the streaming session lifecycle: engine callbacks, audio forwarding,
     /// refinement coordinator + overlay sink, and the post-stop finalize pipeline.
     let streamingSession: StreamingSessionController
+    private var activeStreamingSessionToken: StreamingSessionController.SessionToken?
     let floatingIndicatorController: FloatingIndicatorController
     let pillFloatingIndicatorController: PillFloatingIndicatorController
     let caretBubbleFloatingIndicatorController: CaretBubbleFloatingIndicatorController
@@ -966,6 +973,7 @@ final class AppCoordinator {
             toastService: toastService,
             liveTranscriptState: liveTranscriptState,
             audioRecorder: audioRecorder,
+            captureSessionStore: captureSessionStore,
             normalizeText: { AppCoordinator.normalizedTranscriptionText($0) },
             isEffectivelyEmptyText: { AppCoordinator.isTranscriptionEffectivelyEmpty($0) }
         )
@@ -3219,7 +3227,10 @@ final class AppCoordinator {
                 throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
             }
             context = activeContext
-            try await startRecording(source: .hotkeyQuickCapturePTT)
+            try await startRecording(
+                source: .hotkeyQuickCapturePTT,
+                voiceNoteContext: activeContext
+            )
             guard isVoiceNoteCaptureContextCurrent(activeContext) else {
                 throw CancellationError()
             }
@@ -3281,7 +3292,10 @@ final class AppCoordinator {
                     throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
                 }
                 context = activeContext
-                try await startRecording(source: .hotkeyQuickCaptureToggle)
+                try await startRecording(
+                    source: .hotkeyQuickCaptureToggle,
+                    voiceNoteContext: activeContext
+                )
                 guard isVoiceNoteCaptureContextCurrent(activeContext) else {
                     throw CancellationError()
                 }
@@ -3450,10 +3464,13 @@ final class AppCoordinator {
         ifOwnedBy request: PendingNoteAppendStart,
         preservingOwnership: Bool = false
     ) -> Bool {
+        let capture = pendingNoteAppendStartCapture
         guard pendingNoteAppendAudioStartupRequest == request else { return false }
         audioRecorder.cancelRecording()
         audioRecorder.resetAudioEngine()
-        streamingSession.cancelDetached()
+        if let capture, capture.request == request {
+            streamingSession.cancelArtifactCaptureDetached(for: capture.context.handle)
+        }
         if !preservingOwnership {
             pendingNoteAppendAudioStartupRequest = nil
         }
@@ -3636,6 +3653,16 @@ final class AppCoordinator {
         case .streamingSpeech, .batchSpeech, .localDiarization, .generativeAI:
             .execute
         }
+    }
+
+    static func liveArtifactCaptureAdmission(
+        for assignment: CaptureStageAssignment
+    ) -> LiveArtifactCaptureAdmission {
+        guard case .liveTranscription = assignment.stage,
+              assignment.providerKind == .streamingSpeech else {
+            return .deactivate
+        }
+        return .capture
     }
 
     static func captureAssignmentExecutionOrder(
@@ -3913,6 +3940,41 @@ final class AppCoordinator {
         )
     }
 
+    static func revalidateVoiceCaptureAfterArtifactAdmission(
+        ensureCurrent: @MainActor () throws -> Void,
+        tearDownStreaming: @MainActor () async -> Void
+    ) async throws {
+        do {
+            try ensureCurrent()
+        } catch {
+            await tearDownStreaming()
+            throw error
+        }
+    }
+
+    private func ensureVoiceNoteCaptureCurrentAfterArtifactAdmission(
+        _ context: VoiceNoteCaptureContext,
+        pendingNoteAppendStart: PendingNoteAppendStart?
+    ) async throws {
+        try await Self.revalidateVoiceCaptureAfterArtifactAdmission(
+            ensureCurrent: { [self] in
+                if let pendingNoteAppendStart {
+                    try ensurePendingNoteAppendStartCurrent(
+                        pendingNoteAppendStart,
+                        context: context
+                    )
+                } else {
+                    guard isVoiceNoteCaptureContextCurrent(context) else {
+                        throw CancellationError()
+                    }
+                }
+            },
+            tearDownStreaming: { [streamingSession] in
+                await streamingSession.cancelArtifactCapture(for: context.handle)
+            }
+        )
+    }
+
     private func ensureVoiceNoteCaptureCurrent(
         _ context: VoiceNoteCaptureContext,
         token: DictationOperationToken
@@ -3921,6 +3983,17 @@ final class AppCoordinator {
         guard isVoiceNoteCaptureContextCurrent(context) else {
             throw CancellationError()
         }
+    }
+
+    static func finishArtifactCaptureThenBeginFinalization(
+        finishArtifactCapture: @MainActor () async -> Void,
+        ensureCurrent: @MainActor () throws -> Void,
+        beginFinalization: @MainActor () throws -> Void
+    ) async throws {
+        try ensureCurrent()
+        await finishArtifactCapture()
+        try ensureCurrent()
+        try beginFinalization()
     }
 
     private func clearVoiceNoteCaptureContext(ifCurrent context: VoiceNoteCaptureContext) {
@@ -4544,16 +4617,19 @@ final class AppCoordinator {
             startedAt: .now,
             microphoneDisplayName: microphoneDisplayName
         )
-        let context = VoiceNoteCaptureContext(handle: handle, noteID: noteID)
-        voiceNoteCaptureContext = context
         do {
-            _ = try captureAssignment(
+            let liveAssignment = try captureAssignment(
                 sessionID: handle.sessionID,
                 stage: .liveTranscription,
                 attempt: Self.captureAssignmentAttempt(for: .liveTranscription)
             )
+            voiceNoteCaptureContext = VoiceNoteCaptureContext(
+                handle: handle,
+                noteID: noteID,
+                liveAssignment: liveAssignment
+            )
         } catch {
-            failVoiceNoteCapture(context, stage: "recording-start", error: error)
+            failVoiceNoteCapture(handle, stage: "recording-start", error: error)
             throw error
         }
     }
@@ -4564,6 +4640,15 @@ final class AppCoordinator {
         error: Error
     ) {
         guard isVoiceNoteCaptureContextCurrent(context) else { return }
+        failVoiceNoteCapture(context.handle, stage: stage, error: error)
+        clearVoiceNoteCaptureContext(ifCurrent: context)
+    }
+
+    private func failVoiceNoteCapture(
+        _ handle: PindropData.VoiceNoteCaptureHandle,
+        stage: String,
+        error: Error
+    ) {
         let nsError = error as NSError
         let captureStage: CapturePipelineStage? = switch stage {
         case "transcribe", "no-speech":
@@ -4575,7 +4660,7 @@ final class AppCoordinator {
         }
         do {
             try captureSessionStore.fail(
-                context.handle,
+                handle,
                 stage: captureStage,
                 errorDomain: nsError.domain,
                 errorCode: String(nsError.code),
@@ -4585,7 +4670,6 @@ final class AppCoordinator {
         } catch {
             Log.app.error("Failed to mark voice-note capture as failed: \(error)")
         }
-        clearVoiceNoteCaptureContext(ifCurrent: context)
     }
 
     private func failActiveVoiceNoteCapture(stage: String, error: Error) {
@@ -4606,7 +4690,6 @@ final class AppCoordinator {
     private func stopRecordingAndTranscribeForNoteAppend(token: DictationOperationToken) async throws -> VoiceNoteCaptureResult? {
         guard let recordingStartTime, let context = voiceNoteCaptureContext, context.noteID != nil else {
             Log.app.warning("stopRecordingAndTranscribeForNoteAppend called without an active voice-note capture")
-
             return nil
         }
 
@@ -4631,9 +4714,19 @@ final class AppCoordinator {
         let audioData: Data
         do {
             audioData = try await audioRecorder.stopRecording()
-            try ensureVoiceNoteCaptureCurrent(context, token: token)
-            try captureSessionStore.beginFinalization(context.handle, at: .now)
+            try await Self.finishArtifactCaptureThenBeginFinalization(
+                finishArtifactCapture: { [streamingSession] in
+                    await streamingSession.finishArtifactCapture(for: context.handle)
+                },
+                ensureCurrent: { [self] in
+                    try ensureVoiceNoteCaptureCurrent(context, token: token)
+                },
+                beginFinalization: { [captureSessionStore] in
+                    try captureSessionStore.beginFinalization(context.handle, at: .now)
+                }
+            )
         } catch {
+            await streamingSession.cancelArtifactCapture(for: context.handle)
             if Self.isTaskCancellation(error) { throw CancellationError() }
             try ensureVoiceNoteCaptureCurrent(context, token: token)
             failVoiceNoteCapture(context, stage: "recording-stop", error: error)
@@ -4789,9 +4882,19 @@ final class AppCoordinator {
         let audioData: Data
         do {
             audioData = try await audioRecorder.stopRecording()
-            try ensureVoiceNoteCaptureCurrent(context, token: token)
-            try captureSessionStore.beginFinalization(context.handle, at: .now)
+            try await Self.finishArtifactCaptureThenBeginFinalization(
+                finishArtifactCapture: { [streamingSession] in
+                    await streamingSession.finishArtifactCapture(for: context.handle)
+                },
+                ensureCurrent: { [self] in
+                    try ensureVoiceNoteCaptureCurrent(context, token: token)
+                },
+                beginFinalization: { [captureSessionStore] in
+                    try captureSessionStore.beginFinalization(context.handle, at: .now)
+                }
+            )
         } catch {
+            await streamingSession.cancelArtifactCapture(for: context.handle)
             if Self.isTaskCancellation(error) { throw CancellationError() }
             try ensureVoiceNoteCaptureCurrent(context, token: token)
             failVoiceNoteCapture(context, stage: "recording-stop", error: error)
@@ -5193,11 +5296,23 @@ final class AppCoordinator {
         // so escape-to-cancel and modifier tracking become available mid-session.
         ensureGlobalKeyMonitorsIfPossible()
 
-        await beginStreamingSessionIfAvailable()
-        if let voiceNoteContext, let pendingNoteAppendStart {
-            try ensurePendingNoteAppendStartCurrent(
-                pendingNoteAppendStart,
-                context: voiceNoteContext
+        if let voiceNoteContext {
+            if let pendingNoteAppendStart {
+                try ensurePendingNoteAppendStartCurrent(
+                    pendingNoteAppendStart,
+                    context: voiceNoteContext
+                )
+            } else {
+                guard isVoiceNoteCaptureContextCurrent(voiceNoteContext) else {
+                    throw CancellationError()
+                }
+            }
+        }
+        let startedStreamingSession = await beginStreamingSessionIfAvailable(for: voiceNoteContext)
+        if let voiceNoteContext {
+            try await ensureVoiceNoteCaptureCurrentAfterArtifactAdmission(
+                voiceNoteContext,
+                pendingNoteAppendStart: pendingNoteAppendStart
             )
         }
 
@@ -5208,21 +5323,26 @@ final class AppCoordinator {
         let didStartRecording: Bool
         do {
             didStartRecording = try await audioRecorder.startRecording()
-        if let voiceNoteContext, let pendingNoteAppendStart {
-            try ensurePendingNoteAppendStartCurrent(
-                pendingNoteAppendStart,
-                context: voiceNoteContext
-            )
-        }
-        } catch {
             if let voiceNoteContext, let pendingNoteAppendStart {
                 try ensurePendingNoteAppendStartCurrent(
                     pendingNoteAppendStart,
                     context: voiceNoteContext
                 )
             }
-            if streamingSession.isSessionActive {
-                await streamingSession.cancel()
+        } catch {
+            if let voiceNoteContext {
+                await streamingSession.cancelArtifactCapture(for: voiceNoteContext.handle)
+            } else if let startedStreamingSession {
+                await streamingSession.cancel(session: startedStreamingSession)
+                if activeStreamingSessionToken == startedStreamingSession {
+                    activeStreamingSessionToken = nil
+                }
+            }
+            if let voiceNoteContext, let pendingNoteAppendStart {
+                try ensurePendingNoteAppendStartCurrent(
+                    pendingNoteAppendStart,
+                    context: voiceNoteContext
+                )
             }
             Log.app.error("Audio engine failed to start: \(error)")
             throw error
@@ -5240,8 +5360,13 @@ final class AppCoordinator {
         }
 
         guard didStartRecording else {
-            if streamingSession.isSessionActive {
-                await streamingSession.cancel()
+            if let voiceNoteContext {
+                await streamingSession.cancelArtifactCapture(for: voiceNoteContext.handle)
+            } else if let startedStreamingSession {
+                await streamingSession.cancel(session: startedStreamingSession)
+                if activeStreamingSessionToken == startedStreamingSession {
+                    activeStreamingSessionToken = nil
+                }
             }
             throw VoiceNoteCaptureAdmissionError.recorderDidNotStart
         }
@@ -5538,22 +5663,40 @@ final class AppCoordinator {
         )
     }
 
-    private func beginStreamingSessionIfAvailable() async {
-        let shouldUseStreaming = shouldUseStreamingTranscriptionForCurrentSession()
-        guard shouldUseStreaming else {
-            let indicatorAvailable = isFloatingIndicatorAvailable()
-            let reasons = [
-                settingsStore.streamingFeatureEnabled ? nil : "feature-disabled",
-                indicatorAvailable ? nil : "indicator-unavailable",
-                isQuickCaptureMode ? "quick-capture-mode" : nil
-            ].compactMap { $0 }
-            Log.transcription.info("Streaming transcription disabled for session: \(reasons.joined(separator: ","))")
-            streamingSession.deactivate()
-            return
+    private func beginStreamingSessionIfAvailable(
+        for voiceNoteContext: VoiceNoteCaptureContext? = nil
+    ) async -> StreamingSessionController.SessionToken? {
+        if let voiceNoteContext {
+            switch Self.liveArtifactCaptureAdmission(for: voiceNoteContext.liveAssignment) {
+            case .capture:
+                _ = await streamingSession.beginArtifactCapture(
+                    for: voiceNoteContext.handle,
+                    assignment: voiceNoteContext.liveAssignment
+                )
+            case .deactivate:
+                streamingSession.deactivate()
+            }
+            return nil
         }
 
-        await streamingSession.begin()
+        guard shouldUseStreamingTranscriptionForCurrentSession() else {
+            streamingSession.deactivate()
+            return nil
+        }
+        let session = await streamingSession.begin()
+        // A canceled older begin can resume after its successor has installed a token.
+        // Its nil admission result must not erase that successor's global reference.
+        if let session {
+            activeStreamingSessionToken = session
+        }
+        return session
     }
+    private func cancelActiveStreamingSession() async {
+        guard let session = activeStreamingSessionToken else { return }
+        activeStreamingSessionToken = nil
+        await streamingSession.cancel(session: session)
+    }
+
 
     /// Resolves prompt overrides, stable built-in identifiers, and persisted preset
     /// UUIDs through one path so every enhancement entry point sends the same text.
@@ -5646,7 +5789,10 @@ final class AppCoordinator {
         }
     }
 
-    private func stopRecordingAndFinalizeStreaming(token: DictationOperationToken) async throws {
+    private func stopRecordingAndFinalizeStreaming(
+        token: DictationOperationToken,
+        session: StreamingSessionController.SessionToken
+    ) async throws {
         guard let startTime = recordingStartTime else {
             Log.app.warning("stopRecordingAndFinalizeStreaming called but recordingStartTime is nil")
             return
@@ -5683,16 +5829,27 @@ final class AppCoordinator {
             audioStopSeconds = audioStopStart.duration(to: pipelineClock.now).pipelineSeconds
             try ensureOperationCurrent(token)
         } catch {
+            if Self.shouldCancelStreamingAfterStopFailure(
+                isOperationCurrent: operationController.isCurrent(token)
+            ) {
+                await streamingSession.cancel(session: session)
+                if activeStreamingSessionToken == session {
+                    activeStreamingSessionToken = nil
+                }
+            }
             if Self.isTaskCancellation(error) { throw CancellationError() }
             Log.app.error("Failed to stop recording for streaming session: \(error)")
-            await streamingSession.cancel()
             throw error
         }
 
         var outcome = try await streamingSession.finalize(
             recordedAudioData: recordedAudioData,
-            recordingDuration: Date().timeIntervalSince(startTime)
+            recordingDuration: Date().timeIntervalSince(startTime),
+            session: session
         )
+        if activeStreamingSessionToken == session {
+            activeStreamingSessionToken = nil
+        }
         outcome.pipelineMetrics.audioStopSeconds = audioStopSeconds
         outcome.pipelineMetrics.totalSeconds = pipelineStart.duration(to: pipelineClock.now).pipelineSeconds
         Log.app.info("Pipeline timing: \(outcome.pipelineMetrics.logSummary)")
@@ -5764,8 +5921,8 @@ final class AppCoordinator {
             return
         }
 
-        if streamingSession.isSessionActive {
-            try await stopRecordingAndFinalizeStreaming(token: token)
+        if let session = activeStreamingSessionToken {
+            try await stopRecordingAndFinalizeStreaming(token: token, session: session)
             return
         }
 
@@ -6650,6 +6807,12 @@ final class AppCoordinator {
         isOperationCurrent && !isTaskCancellation(error)
     }
 
+    /// A failed generic stop may cancel the shared streaming engine only while its
+    /// operation still owns the coordinator; a stale stop must leave its successor alone.
+    static func shouldCancelStreamingAfterStopFailure(isOperationCurrent: Bool) -> Bool {
+        isOperationCurrent
+    }
+
     private func resetProcessingStateIfCurrent(_ token: DictationOperationToken) {
         guard Self.shouldResetProcessingStateOnExit(
             didResetProcessingState: false,
@@ -6791,6 +6954,8 @@ final class AppCoordinator {
         }
 
         Log.app.info("Cancelling current operation via \(source)")
+        let capturedStreamingSessionToken = activeStreamingSessionToken
+        let capturedVoiceNoteHandle = voiceNoteCaptureContext?.handle
         var meetingTerminalPersistenceError: Error?
 
         escapeCancelArmedAt = nil
@@ -6811,7 +6976,18 @@ final class AppCoordinator {
             reportMeetingCaptureTerminalPersistenceFailure(error)
         }
 
-        streamingSession.cancelDetached()
+        if let capturedStreamingSessionToken {
+            if activeStreamingSessionToken == capturedStreamingSessionToken {
+                activeStreamingSessionToken = nil
+            }
+            streamingSession.cancelDetached(session: capturedStreamingSessionToken)
+        }
+        if let capturedVoiceNoteHandle {
+            streamingSession.cancelArtifactCaptureDetached(for: capturedVoiceNoteHandle)
+        }
+        if capturedStreamingSessionToken == nil, capturedVoiceNoteHandle == nil {
+            streamingSession.deactivate()
+        }
         recordingState.endRecording(message: localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale))
         recordingState.clearCurrentJob()
 
@@ -6843,11 +7019,22 @@ final class AppCoordinator {
             handleRecordingLimitReached(failure)
             return
         }
+        let capturedStreamingSessionToken = activeStreamingSessionToken
+        let capturedVoiceNoteHandle = voiceNoteCaptureContext?.handle
         error = failure
         Log.app.error("Audio capture failed: \(failure.localizedDescription)")
-
-        let hadStreamingSession = streamingSession.isSessionActive
-        streamingSession.cancelDetached()
+        if let capturedStreamingSessionToken,
+           activeStreamingSessionToken == capturedStreamingSessionToken {
+            activeStreamingSessionToken = nil
+        }
+        let hadCapturedStreamingOwner =
+            capturedStreamingSessionToken != nil || capturedVoiceNoteHandle != nil
+        if let capturedStreamingSessionToken {
+            streamingSession.cancelDetached(session: capturedStreamingSessionToken)
+        }
+        if let capturedVoiceNoteHandle {
+            streamingSession.cancelArtifactCaptureDetached(for: capturedVoiceNoteHandle)
+        }
         let captureFailureLocale = settingsStore.selectedAppLocale.locale
         let captureFailureMessage = String(
             format: localized("Recording stopped: %@", locale: captureFailureLocale),
@@ -6874,7 +7061,7 @@ final class AppCoordinator {
             }
         }
         recordingState.clearCurrentJob()
-        if hadStreamingSession {
+        if hadCapturedStreamingOwner {
             Log.transcription.info("Cancelled streaming transcription after audio capture failure")
         }
 
@@ -7868,6 +8055,8 @@ final class AppCoordinator {
             finishIndicatorSession()
             return
         }
+        let capturedStreamingSessionToken = activeStreamingSessionToken
+        let capturedVoiceNoteHandle = voiceNoteCaptureContext?.handle
 
         cancelPendingNoteAppendStart()
         Log.app.info("Clearing audio buffer")
@@ -7885,9 +8074,16 @@ final class AppCoordinator {
         }
 
         audioRecorder.cancelRecording()
-        if streamingSession.isSessionActive {
-            await streamingSession.cancel()
-        } else {
+        if let capturedStreamingSessionToken {
+            if activeStreamingSessionToken == capturedStreamingSessionToken {
+                activeStreamingSessionToken = nil
+            }
+            streamingSession.cancelDetached(session: capturedStreamingSessionToken)
+        }
+        if let capturedVoiceNoteHandle {
+            streamingSession.cancelArtifactCaptureDetached(for: capturedVoiceNoteHandle)
+        }
+        if capturedStreamingSessionToken == nil, capturedVoiceNoteHandle == nil {
             streamingSession.deactivate()
         }
         recordingState.endRecording(message: localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale))
@@ -8153,6 +8349,12 @@ final class AppCoordinator {
 
     func shutdown() {
         guard !isShutdown else { return }
+        let shutdownStreamingSessionToken = activeStreamingSessionToken
+        let shutdownVoiceNoteHandle = voiceNoteCaptureContext?.handle
+        if let shutdownStreamingSessionToken,
+           activeStreamingSessionToken == shutdownStreamingSessionToken {
+            activeStreamingSessionToken = nil
+        }
         isShutdown = true
 
         // Stop Carbon callbacks first. The sources must be disabled and detached on
@@ -8213,7 +8415,16 @@ final class AppCoordinator {
         mediaQueueDeferredUntilIdle = false
         mediaTranscriptionState.clearAllJobs()
 
-        streamingSession.cancelDetached()
+        if let shutdownStreamingSessionToken {
+            streamingSession.cancelDetached(session: shutdownStreamingSessionToken)
+        }
+        if let shutdownVoiceNoteHandle {
+            streamingSession.cancelArtifactCaptureDetached(for: shutdownVoiceNoteHandle)
+        } else {
+            // Application shutdown has no successor, so terminal cleanup may safely
+            // abort any unowned artifact lifecycle left by a failed admission.
+            streamingSession.cancelDetached()
+        }
         if interruptedMeeting == nil {
             audioRecorder.resetAudioEngine()
         }

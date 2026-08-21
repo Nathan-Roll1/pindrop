@@ -117,7 +117,7 @@ struct CaptureSessionStoreTests {
 
     private func assignment(
         stage: CapturePipelineStage,
-        providerKind: CaptureAssignmentProviderKind = .batchSpeech,
+        providerKind: CaptureAssignmentProviderKind? = nil,
         providerIdentifier: String = "catalog-provider",
         modelIdentifier: String? = "catalog-model",
         prompt: CapturePromptSnapshot? = nil,
@@ -126,7 +126,9 @@ struct CaptureSessionStoreTests {
     ) throws -> CaptureStageAssignment {
         try CaptureStageAssignment(
             stage: stage,
-            providerKind: providerKind,
+            providerKind: providerKind ?? (
+                stage == .liveTranscription ? .streamingSpeech : .batchSpeech
+            ),
             providerIdentifier: providerIdentifier,
             modelIdentifier: modelIdentifier,
             prompt: prompt,
@@ -208,6 +210,7 @@ struct CaptureSessionStoreTests {
         #expect(finalRevision.sourceID == handle.microphoneSourceID)
         #expect(finalRevision.parentRevisionID == raw.id)
         #expect(finalRevision.sequence == raw.sequence + 1)
+        #expect(raw.sequence == 0)
         #expect(finalRevision.stageRawValue == CapturePipelineStage.finalTranscription.rawValue)
         #expect(raw.text == finalRevision.text)
     }
@@ -226,6 +229,15 @@ struct CaptureSessionStoreTests {
             languageCode: "en",
             createdAt: startedAt.addingTimeInterval(2)
         )
+        let retriedRevisions = try store.saveTranscriptRevisions(
+            for: handle,
+            rawText: "Raw transcript",
+            finalText: "Final transcript",
+            duration: 8,
+            languageCode: "en",
+            createdAt: startedAt.addingTimeInterval(20)
+        )
+        #expect(retriedRevisions == revisions)
         let historyRecord = try HistoryStore(modelContext: ModelContext(container)).save(
             text: "Final transcript",
             originalText: "Raw transcript",
@@ -248,9 +260,18 @@ struct CaptureSessionStoreTests {
         try store.complete(
             handle,
             noteID: note.id,
-            finalTranscriptRevisionID: revisions.finalRevisionID,
+            finalTranscriptRevisionID: retriedRevisions.finalRevisionID,
             at: startedAt.addingTimeInterval(4)
         )
+        let completedRetry = try store.saveTranscriptRevisions(
+            for: handle,
+            rawText: "Raw transcript",
+            finalText: "Final transcript",
+            duration: 8,
+            languageCode: "en",
+            createdAt: startedAt.addingTimeInterval(5)
+        )
+        #expect(completedRetry == retriedRevisions)
 
         let freshContext = ModelContext(container)
         let session = try #require(
@@ -265,7 +286,164 @@ struct CaptureSessionStoreTests {
         #expect(try session.restoreSession().state == .completed)
         #expect(reference.noteID == note.id)
         #expect(reference.roleRawValue == CaptureNoteRole.humanAnchor.rawValue)
-        #expect(reference.sourceTranscriptRevisionID == revisions.finalRevisionID)
+        #expect(reference.sourceTranscriptRevisionID == retriedRevisions.finalRevisionID)
+    }
+
+    @Test func transcriptRevisionsRequireFinalizingAndExactRetriesPreserveTheirCanonicalPair() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 4_500)
+        let handle = try store.startVoiceNoteCapture(startedAt: startedAt)
+
+        #expect(
+            throws: CaptureSessionStoreError.voiceNoteSessionNotFinalizing(
+                sessionID: handle.sessionID,
+                actualStateRawValue: CaptureSessionState.capturing.rawValue
+            )
+        ) {
+            try store.saveTranscriptRevisions(
+                for: handle,
+                rawText: "Raw transcript",
+                finalText: "Final transcript",
+                duration: 8,
+                languageCode: "en",
+                createdAt: startedAt.addingTimeInterval(1)
+            )
+        }
+
+        try store.beginFinalization(handle, at: startedAt.addingTimeInterval(2))
+        let saved = try store.saveTranscriptRevisions(
+            for: handle,
+            rawText: "Raw transcript",
+            finalText: "Final transcript",
+            duration: 8,
+            languageCode: "en",
+            createdAt: startedAt.addingTimeInterval(3)
+        )
+        let retried = try store.saveTranscriptRevisions(
+            for: handle,
+            rawText: "Raw transcript",
+            finalText: "Final transcript",
+            duration: 8,
+            languageCode: "en",
+            createdAt: startedAt.addingTimeInterval(30)
+        )
+
+        #expect(retried == saved)
+        let context = ModelContext(container)
+        let revisions = try context.fetch(FetchDescriptor<CaptureTranscriptRevisionModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        #expect(revisions.count == 2)
+
+        #expect(
+            throws: CaptureSessionStoreError.voiceNoteFinalTranscriptConflict(
+                sessionID: handle.sessionID
+            )
+        ) {
+            try store.saveTranscriptRevisions(
+                for: handle,
+                rawText: "Changed raw transcript",
+                finalText: "Final transcript",
+                duration: 8,
+                languageCode: "en"
+            )
+        }
+        #expect(
+            throws: CaptureSessionStoreError.voiceNoteFinalTranscriptConflict(
+                sessionID: handle.sessionID
+            )
+        ) {
+            try store.saveTranscriptRevisions(
+                for: handle,
+                rawText: "Raw transcript",
+                finalText: "Changed final transcript",
+                duration: 8,
+                languageCode: "en"
+            )
+        }
+        #expect(
+            throws: CaptureSessionStoreError.voiceNoteFinalTranscriptConflict(
+                sessionID: handle.sessionID
+            )
+        ) {
+            try store.saveTranscriptRevisions(
+                for: handle,
+                rawText: "Raw transcript",
+                finalText: "Final transcript",
+                duration: 9,
+                languageCode: "en"
+            )
+        }
+        #expect(
+            throws: CaptureSessionStoreError.voiceNoteFinalTranscriptConflict(
+                sessionID: handle.sessionID
+            )
+        ) {
+            try store.saveTranscriptRevisions(
+                for: handle,
+                rawText: "Raw transcript",
+                finalText: "Final transcript",
+                duration: 8,
+                languageCode: "fr"
+            )
+        }
+        #expect(
+            try context.fetch(FetchDescriptor<CaptureTranscriptRevisionModel>())
+                .filter { $0.sessionID == handle.sessionID }
+                .count == 2
+        )
+    }
+
+    @Test func transcriptRevisionRetriesRejectExtraFinalStageRowsWithoutMutation() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 4_750)
+        let handle = try store.startVoiceNoteCapture(startedAt: startedAt)
+        try store.beginFinalization(handle, at: startedAt.addingTimeInterval(1))
+        let revisions = try store.saveTranscriptRevisions(
+            for: handle,
+            rawText: "Raw transcript",
+            finalText: "Final transcript",
+            duration: 8,
+            languageCode: "en",
+            createdAt: startedAt.addingTimeInterval(2)
+        )
+
+        let context = ModelContext(container)
+        context.insert(
+            CaptureTranscriptRevisionModel(
+                sessionID: handle.sessionID,
+                sourceID: handle.microphoneSourceID,
+                sequence: 2,
+                parentRevisionID: revisions.finalRevisionID,
+                stage: .finalTranscription,
+                statusRawValue: "completed",
+                startOffset: 0,
+                duration: 8,
+                text: "Unexpected extra transcript",
+                languageCode: "en"
+            )
+        )
+        try context.save()
+
+        #expect(
+            throws: CaptureSessionStoreError.voiceNoteFinalTranscriptConflict(
+                sessionID: handle.sessionID
+            )
+        ) {
+            try store.saveTranscriptRevisions(
+                for: handle,
+                rawText: "Raw transcript",
+                finalText: "Final transcript",
+                duration: 8,
+                languageCode: "en"
+            )
+        }
+        #expect(
+            try context.fetch(FetchDescriptor<CaptureTranscriptRevisionModel>())
+                .filter { $0.sessionID == handle.sessionID }
+                .count == 3
+        )
     }
 
     @Test func completionPreflightsNoteBeforeCreatingReference() throws {
@@ -391,7 +569,6 @@ struct CaptureSessionStoreTests {
         context.insert(raw)
         context.insert(wrongSourceFinal)
         context.insert(nonChildFinal)
-        context.insert(wrongStageFinal)
         context.insert(pendingFinal)
         context.insert(foreignSourceParent)
         context.insert(foreignParentFinal)
@@ -427,6 +604,9 @@ struct CaptureSessionStoreTests {
                 at: startedAt.addingTimeInterval(2)
             )
         }
+        context.insert(wrongStageFinal)
+        try context.save()
+
         #expect(throws: CaptureSessionStoreError.invalidFinalTranscriptRevision(wrongStageFinal.id)) {
             try store.complete(
                 handle,
@@ -435,6 +615,8 @@ struct CaptureSessionStoreTests {
                 at: startedAt.addingTimeInterval(2)
             )
         }
+        context.delete(wrongStageFinal)
+        try context.save()
         #expect(throws: CaptureSessionStoreError.invalidFinalTranscriptRevision(pendingFinal.id)) {
             try store.complete(
                 handle,
@@ -2240,5 +2422,387 @@ struct CaptureSessionStoreTests {
                 resolvedPrompt: "Companion prompt."
             )
         )
+    }
+    @Test func liveVoiceNoteCheckpointsPersistOnlyCommittedPrefixGrowthAndExactRetries() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 22_000)
+        let handle = try store.startVoiceNoteCapture(startedAt: startedAt)
+        _ = try store.resolveAssignment(
+            sessionID: handle.sessionID,
+            stage: .liveTranscription,
+            attempt: 1,
+            selecting: { try assignment(stage: .liveTranscription) }
+        )
+
+        let first = try store.checkpointVoiceNoteLiveTranscript(
+            for: handle,
+            committedText: "Hello",
+            at: startedAt.addingTimeInterval(1)
+        )
+        let second = try store.checkpointVoiceNoteLiveTranscript(
+            for: handle,
+            committedText: "Hello, world",
+            at: startedAt.addingTimeInterval(2)
+        )
+        let retried = try store.checkpointVoiceNoteLiveTranscript(
+            for: handle,
+            committedText: "Hello, world",
+            at: startedAt.addingTimeInterval(3)
+        )
+
+        #expect(retried == second)
+        #expect(throws: CaptureSessionStoreError.emptyLiveTranscript(handle.sessionID)) {
+            try store.checkpointVoiceNoteLiveTranscript(
+                for: handle,
+                committedText: "",
+                at: startedAt.addingTimeInterval(4)
+            )
+        }
+        #expect(throws: CaptureSessionStoreError.liveTranscriptRegression(sessionID: handle.sessionID)) {
+            try store.checkpointVoiceNoteLiveTranscript(
+                for: handle,
+                committedText: "Hello again",
+                at: startedAt.addingTimeInterval(4)
+            )
+        }
+
+        let context = ModelContext(container)
+        let revisions = try context.fetch(FetchDescriptor<CaptureTranscriptRevisionModel>())
+            .filter { $0.sessionID == handle.sessionID }
+            .sorted { $0.sequence < $1.sequence }
+        let session = try #require(
+            context.fetch(FetchDescriptor<CaptureSessionModel>()).first { $0.id == handle.sessionID }
+        )
+        #expect(revisions.count == 2)
+        #expect(revisions.map(\.text) == ["Hello", "Hello, world"])
+        #expect(revisions[0].id == first.revisionID)
+        #expect(revisions[0].sourceID == handle.microphoneSourceID)
+        #expect(revisions[0].stageRawValue == CapturePipelineStage.liveTranscription.rawValue)
+        #expect(revisions[0].statusRawValue == "completed")
+        #expect(revisions[0].providerSnapshotID == first.providerSnapshotID)
+        #expect(revisions[0].parentRevisionID == nil)
+        #expect(revisions[0].sequence == 0)
+        #expect(revisions[1].id == second.revisionID)
+        #expect(revisions[1].parentRevisionID == first.revisionID)
+        #expect(revisions[1].providerSnapshotID == first.providerSnapshotID)
+        #expect(session.lastActivityAt == startedAt.addingTimeInterval(2))
+    }
+
+    @Test func liveVoiceNoteCheckpointRejectsDuplicateProvenanceAndMeetingHandles() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let voiceNote = try store.startVoiceNoteCapture()
+        let context = ModelContext(container)
+        for providerIdentifier in ["first", "second"] {
+            context.insert(
+                CaptureStageProviderSnapshotModel(
+                    sessionID: voiceNote.sessionID,
+                    stage: .liveTranscription,
+                    attempt: 1,
+                    providerKindRawValue: CaptureAssignmentProviderKind.streamingSpeech.rawValue,
+                    providerIdentifier: providerIdentifier,
+                    modelIdentifier: "catalog-model"
+                )
+            )
+        }
+        try context.save()
+
+        #expect(
+            throws: CaptureSessionStoreError.duplicateLiveTranscriptAssignments(
+                sessionID: voiceNote.sessionID,
+                attempt: 1
+            )
+        ) {
+            try store.checkpointVoiceNoteLiveTranscript(
+                for: voiceNote,
+                committedText: "Committed text"
+            )
+        }
+        let corrupt = try store.startVoiceNoteCapture()
+        _ = try store.resolveAssignment(
+            sessionID: corrupt.sessionID,
+            stage: .liveTranscription,
+            attempt: 1,
+            selecting: { try assignment(stage: .liveTranscription) }
+        )
+        context.insert(
+            CaptureTranscriptRevisionModel(
+                sessionID: corrupt.sessionID,
+                sourceID: corrupt.microphoneSourceID,
+                sequence: 0,
+                stage: .liveTranscription,
+                statusRawValue: "completed",
+                startOffset: 0,
+                duration: 0,
+                text: "Corrupt provenance"
+            )
+        )
+        try context.save()
+        #expect(
+            throws: CaptureSessionStoreError.liveTranscriptConflict(
+                sessionID: corrupt.sessionID,
+                sequence: 0
+            )
+        ) {
+            try store.checkpointVoiceNoteLiveTranscript(
+                for: corrupt,
+                committedText: "Corrupt provenance extended"
+            )
+        }
+
+
+        let meeting = try store.startMeetingCapture()
+        #expect(
+            throws: CaptureSessionStoreError.sessionModeMismatch(
+                sessionID: meeting.sessionID,
+                expected: .voiceNote,
+                actualRawValue: CaptureSessionMode.meeting.rawValue
+            )
+        ) {
+            try store.checkpointVoiceNoteLiveTranscript(
+                for: VoiceNoteCaptureHandle(
+                    sessionID: meeting.sessionID,
+                    microphoneSourceID: meeting.microphoneSourceID
+                ),
+                committedText: "Must not leak into meetings"
+            )
+        }
+    }
+
+    @Test func liveVoiceNoteCheckpointsRequireStreamingAssignmentAndRejectInvalidRecoveryProvenance() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let wrongKind = try store.startVoiceNoteCapture()
+        _ = try store.resolveAssignment(
+            sessionID: wrongKind.sessionID,
+            stage: .liveTranscription,
+            attempt: 1,
+            selecting: {
+                try assignment(
+                    stage: .liveTranscription,
+                    providerKind: .batchSpeech
+                )
+            }
+        )
+
+        #expect(
+            throws: CaptureSessionStoreError.liveTranscriptAssignmentUnavailable(
+                sessionID: wrongKind.sessionID,
+                attempt: 1
+            )
+        ) {
+            try store.checkpointVoiceNoteLiveTranscript(
+                for: wrongKind,
+                committedText: "Must not persist"
+            )
+        }
+
+        let unavailable = try store.startVoiceNoteCapture()
+        _ = try store.resolveAssignment(
+            sessionID: unavailable.sessionID,
+            stage: .liveTranscription,
+            attempt: 1,
+            selecting: {
+                try assignment(
+                    stage: .liveTranscription,
+                    providerKind: .bestEffortUnavailable,
+                    providerIdentifier: "unavailable",
+                    modelIdentifier: nil
+                )
+            }
+        )
+        #expect(
+            throws: CaptureSessionStoreError.liveTranscriptAssignmentUnavailable(
+                sessionID: unavailable.sessionID,
+                attempt: 1
+            )
+        ) {
+            try store.checkpointVoiceNoteLiveTranscript(
+                for: unavailable,
+                committedText: "Must not persist"
+            )
+        }
+
+        let restoredWrongKind = try store.startVoiceNoteCapture()
+        let context = ModelContext(container)
+        let snapshot = CaptureStageProviderSnapshotModel(
+            sessionID: restoredWrongKind.sessionID,
+            stage: .liveTranscription,
+            attempt: 1,
+            providerKindRawValue: CaptureAssignmentProviderKind.batchSpeech.rawValue,
+            providerIdentifier: "batch-provider",
+            modelIdentifier: "batch-model"
+        )
+        context.insert(snapshot)
+        context.insert(
+            CaptureTranscriptRevisionModel(
+                sessionID: restoredWrongKind.sessionID,
+                sourceID: restoredWrongKind.microphoneSourceID,
+                sequence: 0,
+                stage: .liveTranscription,
+                statusRawValue: "completed",
+                startOffset: 0,
+                duration: 0,
+                text: "Wrong-kind persisted checkpoint",
+                providerSnapshotID: snapshot.id
+            )
+        )
+        try context.save()
+
+        let persistedRevisions = try context.fetch(FetchDescriptor<CaptureTranscriptRevisionModel>())
+        #expect(persistedRevisions.filter { $0.sessionID == wrongKind.sessionID }.isEmpty)
+        #expect(persistedRevisions.filter { $0.sessionID == unavailable.sessionID }.isEmpty)
+        #expect(
+            try store.voiceNoteRecoveryCandidates()
+                .contains { $0.handle == restoredWrongKind } == false
+        )
+    }
+
+    @Test func finalVoiceNoteRawRevisionParentsLatestLiveCheckpoint() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 23_000)
+        let handle = try store.startVoiceNoteCapture(startedAt: startedAt)
+        _ = try store.resolveAssignment(
+            sessionID: handle.sessionID,
+            stage: .liveTranscription,
+            attempt: 1,
+            selecting: { try assignment(stage: .liveTranscription) }
+        )
+        let live = try store.checkpointVoiceNoteLiveTranscript(
+            for: handle,
+            committedText: "Committed live text",
+            at: startedAt.addingTimeInterval(1)
+        )
+        try store.beginFinalization(handle, at: startedAt.addingTimeInterval(2))
+        let revisions = try store.saveTranscriptRevisions(
+            for: handle,
+            rawText: "Final raw text",
+            finalText: "Final polished text",
+            duration: 4,
+            languageCode: "en",
+            createdAt: startedAt.addingTimeInterval(3)
+        )
+
+        let context = ModelContext(container)
+        let raw = try #require(
+            context.fetch(FetchDescriptor<CaptureTranscriptRevisionModel>()).first {
+                $0.id == revisions.rawRevisionID
+            }
+        )
+        let final = try #require(
+            context.fetch(FetchDescriptor<CaptureTranscriptRevisionModel>()).first {
+                $0.id == revisions.finalRevisionID
+            }
+        )
+        #expect(raw.parentRevisionID == live.revisionID)
+        #expect(final.parentRevisionID == raw.id)
+        #expect(raw.sequence == live.sequence + 1)
+        #expect(final.sequence == raw.sequence + 1)
+    }
+
+    @Test func voiceNoteRecoveryCandidatesAreStableAndExcludeIncompleteAndMeetingSessions() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 24_000)
+        let capturing = try store.startVoiceNoteCapture(startedAt: startedAt)
+        let finalizing = try store.startVoiceNoteCapture(startedAt: startedAt)
+        let interrupted = try store.startVoiceNoteCapture(startedAt: startedAt)
+        _ = try store.startVoiceNoteCapture(startedAt: startedAt)
+        _ = try store.startMeetingCapture(startedAt: startedAt)
+
+        for handle in [capturing, finalizing, interrupted] {
+            _ = try store.resolveAssignment(
+                sessionID: handle.sessionID,
+                stage: .liveTranscription,
+                attempt: 1,
+                selecting: { try assignment(stage: .liveTranscription) }
+            )
+        }
+        _ = try store.checkpointVoiceNoteLiveTranscript(
+            for: capturing,
+            committedText: "Capturing checkpoint",
+            at: startedAt.addingTimeInterval(1)
+        )
+        _ = try store.checkpointVoiceNoteLiveTranscript(
+            for: finalizing,
+            committedText: "Finalizing checkpoint",
+            at: startedAt.addingTimeInterval(2)
+        )
+        try store.beginFinalization(finalizing, at: startedAt.addingTimeInterval(3))
+        _ = try store.checkpointVoiceNoteLiveTranscript(
+            for: interrupted,
+            committedText: "Interrupted checkpoint",
+            at: startedAt.addingTimeInterval(4)
+        )
+
+        let interruptionAt = startedAt.addingTimeInterval(5)
+        let context = ModelContext(container)
+        let interruptedModel = try #require(
+            context.fetch(FetchDescriptor<CaptureSessionModel>()).first { $0.id == interrupted.sessionID }
+        )
+        var interruptedSession = try interruptedModel.restoreSession()
+        let failure = CaptureFailure(
+            sessionID: interrupted.sessionID,
+            disposition: .recoverable,
+            occurredAt: interruptionAt,
+            code: "interrupted",
+            message: "Application terminated.",
+            stage: .liveTranscription,
+            sourceID: interrupted.microphoneSourceID
+        )
+        try interruptedSession.interrupt(with: failure, at: interruptionAt)
+        try interruptedModel.update(from: interruptedSession)
+        interruptedModel.lastActivityAt = interruptionAt
+        try context.save()
+
+        let candidates = try store.voiceNoteRecoveryCandidates()
+        #expect(candidates.map(\.handle.sessionID) == [
+            interrupted.sessionID,
+            finalizing.sessionID,
+            capturing.sessionID
+        ])
+        #expect(candidates.map(\.state) == [.interrupted, .finalizing, .capturing])
+        #expect(candidates[0].latestCheckpoint.committedText == "Interrupted checkpoint")
+        #expect(candidates[1].latestCheckpoint.committedText == "Finalizing checkpoint")
+        #expect(candidates[2].latestCheckpoint.committedText == "Capturing checkpoint")
+        #expect(candidates[0].recoveryTarget == .capturing)
+        let repeatedCandidates = try store.voiceNoteRecoveryCandidates()
+        #expect(candidates == repeatedCandidates)
+    }
+
+    @Test func liveVoiceNoteCheckpointSurvivesDiskBackedReopen() throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("pindrop-live-voice-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let storeURL = directoryURL.appendingPathComponent("capture.store")
+        let startedAt = Date(timeIntervalSinceReferenceDate: 25_000)
+        let expectedHandle: VoiceNoteCaptureHandle
+        let expectedCheckpoint: VoiceNoteLiveTranscriptCheckpoint
+
+        do {
+            let container = try PindropModelContainerFactory.makeContainer(at: storeURL)
+            let store = makeStore(in: container)
+            let handle = try store.startVoiceNoteCapture(startedAt: startedAt)
+            _ = try store.resolveAssignment(
+                sessionID: handle.sessionID,
+                stage: .liveTranscription,
+                attempt: 1,
+                selecting: { try assignment(stage: .liveTranscription) }
+            )
+            expectedHandle = handle
+            expectedCheckpoint = try store.checkpointVoiceNoteLiveTranscript(
+                for: handle,
+                committedText: "Crash-surviving committed text",
+                at: startedAt.addingTimeInterval(1)
+            )
+        }
+
+        let reopenedContainer = try PindropModelContainerFactory.makeContainer(at: storeURL)
+        let candidates = try makeStore(in: reopenedContainer).voiceNoteRecoveryCandidates()
+        let recovered = try #require(candidates.first { $0.handle == expectedHandle })
+        #expect(recovered.latestCheckpoint == expectedCheckpoint)
     }
 }
