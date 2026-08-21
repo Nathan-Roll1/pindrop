@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Wähle Anbieter und Modell für jede KI-Aufgabe. Unzugewiesene Zwecke werden übersprungen."
 pill:
   _self: "Pille"
+pillars:
+  capture: "Aufnahme"
+  workspace: "Arbeitsbereich"
+  tools: "Werkzeuge"
+  dictate: "Diktieren"
+  voice_note: "Sprachnotiz"
+  meeting: "Besprechung"
+  dictate_description: "Sprechen Sie, dann schreibt Pindrop in die von Ihnen verwendete App."
+  voice_note_description: "Halten Sie einen Gedanken fest und bewahren Sie ihn in Notizen auf."
+  meeting_description: "Nehmen Sie Mikrofon- und Systemaudio auf und bewahren Sie die Besprechung anschließend in der Bibliothek auf."
+  start_dictating: "Diktieren starten"
+  start_voice_note: "Sprachnotiz starten"
+  open_notes: "Notizen öffnen"
+  change_shortcut: "Kurzbefehl ändern"
+  capture_in_progress: "Aufnahme läuft"
+  finish_current_capture: "Beenden Sie die aktuelle Aufnahme, bevor Sie eine weitere starten."
+  voice_note_hold: "Sprachnotiz — gedrückt halten"
+  voice_note_toggle: "Sprachnotiz — Umschalten"
 pin:
   to_screen_always_on_top: "An Bildschirm anheften (immer im Vordergrund)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "Pindrop verwenden"
   in_the_menu_bar_without_opening_the_main_w: "In der Menüleiste starten, ohne das Hauptfenster zu öffnen. Sie können es weiterhin über das Menüleistensymbol öffnen."
 stats:
-  _self: "Stats"
+  _self: "Statistiken"
 status:
   _self: "Status"
 stop:

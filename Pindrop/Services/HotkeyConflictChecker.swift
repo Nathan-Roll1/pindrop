@@ -28,9 +28,9 @@ enum HotkeySlot: String, CaseIterable, Equatable, Sendable {
         case .copyLastTranscript:
             return "Copy Last Transcript"
         case .quickCapturePTT:
-            return "Note Capture — Hold"
+            return "Voice Note — Hold"
         case .quickCaptureToggle:
-            return "Note Capture — Toggle"
+            return "Voice Note — Toggle"
         case .openLibrary:
             return "Open Library"
         case .cancelOperation:

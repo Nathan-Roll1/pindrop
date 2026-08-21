@@ -146,7 +146,7 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		CTXENGNTEST01A2B3C4D5E6F /* ContextEngineServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTXENGNTEST02A2B3C4D5E6F /* ContextEngineServiceTests.swift */; };
 		D6FEA1BD5772A0BC1316C3A9 /* ModelSelectionStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 562A5EF6DF5282D6085B2FC4 /* ModelSelectionStepView.swift */; };
 		D80025B628E760D11B48574D /* OnboardingWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F735D73B65B7AF81A8846AEC /* OnboardingWindow.swift */; };
-		DASHBRD1A2B3C4D5E6F70 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHBRD1A2B3C4D5E6F71 /* DashboardView.swift */; };
+		DASHBRD1A2B3C4D5E6F70 /* CapturePillarViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DASHBRD1A2B3C4D5E6F71 /* CapturePillarViews.swift */; };
 		STATSVIEWBUILD01A2B3C4D5E6 /* StatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = STATSVIEWFILE01A2B3C4D5E6 /* StatsView.swift */; };
 		STATSPRESBUILD01A2B3C4D5E6 /* StatsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = STATSPRESFILE01A2B3C4D5E6 /* StatsPresentation.swift */; };
 		DICTMODELTESTBUILD1A2B3C4D5E6F70 /* DictionaryModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DICTMODELTESTFILE1A2B3C4D5E6F71 /* DictionaryModelsTests.swift */; };
@@ -381,7 +381,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 		SETTV2EXTFILE01A2B3C4D5E /* SettingsStore+AIConfigV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SettingsStore+AIConfigV2.swift"; sourceTree = "<group>"; };
 		D61D78A13A5C4AAD839A3F76 /* HotkeyManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManagerTests.swift; sourceTree = "<group>"; };
 		HKCONFLICTTESTFILE01A2B3C4D5 /* HotkeyConflictCheckerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyConflictCheckerTests.swift; sourceTree = "<group>"; };
-		DASHBRD1A2B3C4D5E6F71 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		DASHBRD1A2B3C4D5E6F71 /* CapturePillarViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePillarViews.swift; sourceTree = "<group>"; };
 		STATSVIEWFILE01A2B3C4D5E6 /* StatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
 		STATSPRESFILE01A2B3C4D5E6 /* StatsPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsPresentation.swift; sourceTree = "<group>"; };
 		DBCE211FE788482E9E1A68F5 /* HotkeysSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeysSettingsView.swift; sourceTree = "<group>"; };
@@ -867,7 +867,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				HISTROWFILE01A2B3C4D5E6F /* TranscriptionHistoryRow.swift */,
 				NOTEROWFILE01A2B3C4D5E6F /* NoteHistoryRow.swift */,
 				NOTESVIEW1A2B3C4D5E6F71 /* NotesView.swift */,
-				DASHBRD1A2B3C4D5E6F71 /* DashboardView.swift */,
+				DASHBRD1A2B3C4D5E6F71 /* CapturePillarViews.swift */,
 				STATSVIEWFILE01A2B3C4D5E6 /* StatsView.swift */,
 				STATSPRESFILE01A2B3C4D5E6 /* StatsPresentation.swift */,
 				HISTVW01A2B3C4D5E6F71 /* HistoryView.swift */,
@@ -1268,7 +1268,7 @@ MODELSPRESENTBUILD01A2B3C4 /* ModelsPresentation.swift in Sources */,
 				MEDIADETAILBUILD01A2B3C4D5E6F /* MediaTranscriptionDetailView.swift in Sources */,
 				HISTROWBUILD01A2B3C4D5E6F /* TranscriptionHistoryRow.swift in Sources */,
 				NOTEROWBUILD01A2B3C4D5E6F /* NoteHistoryRow.swift in Sources */,
-				DASHBRD1A2B3C4D5E6F70 /* DashboardView.swift in Sources */,
+				DASHBRD1A2B3C4D5E6F70 /* CapturePillarViews.swift in Sources */,
 				STATSVIEWBUILD01A2B3C4D5E6 /* StatsView.swift in Sources */,
 				STATSPRESBUILD01A2B3C4D5E6 /* StatsPresentation.swift in Sources */,
 				HISTVW01A2B3C4D5E6F70 /* HistoryView.swift in Sources */,

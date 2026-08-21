@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "Hap"
+pillars:
+  capture: "Kayıt"
+  workspace: "Çalışma Alanı"
+  tools: "Araçlar"
+  dictate: "Dikte"
+  voice_note: "Sesli Not"
+  meeting: "Toplantı"
+  dictate_description: "Konuşun, Pindrop kullandığınız uygulamaya yazsın."
+  voice_note_description: "Bir düşünceyi kaydedin ve Notlar'da saklayın."
+  meeting_description: "Mikrofon ve sistem sesini kaydedin, ardından toplantıyı Kitaplık'ta saklayın."
+  start_dictating: "Dikte etmeye başla"
+  start_voice_note: "Sesli not başlat"
+  open_notes: "Notlar'ı aç"
+  change_shortcut: "Kısayolu değiştir"
+  capture_in_progress: "Kayıt devam ediyor"
+  finish_current_capture: "Yeni bir kayıt başlatmadan önce mevcut kaydı tamamlayın."
+  voice_note_hold: "Sesli Not — Basılı tut"
+  voice_note_toggle: "Sesli Not — Aç/kapat"
 pin:
   to_screen_always_on_top: "Ekrana sabitle (her zaman üstte)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "Pindrop'u Kullanmaya Başlayın"
   in_the_menu_bar_without_opening_the_main_w: "Ana pencereyi açmadan menü çubuğunda başlat. Menü çubuğu simgesinden daha sonra da açabilirsiniz."
 stats:
-  _self: "Stats"
+  _self: "İstatistikler"
 status:
   _self: "Durum"
 stop:

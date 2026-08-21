@@ -802,6 +802,7 @@ final class AppCoordinator {
     let splashController: SplashWindowController
     let settingsWindowController: SettingsWindowController
     let mainWindowController: MainWindowController
+    private var mainWindowCaptureStartTask: Task<Void, Never>?
     let noteEditorWindowController: NoteEditorWindowController
     let toastWindowController: ToastWindowController
     private var meetingCaptureContext: MeetingCaptureContext?
@@ -862,12 +863,20 @@ final class AppCoordinator {
         didSet {
             refreshEscapeSuppression()
             resumeDeferredMediaQueueIfIdle()
+            recordingState.setCaptureActivity(
+                isRecording: isRecording,
+                isProcessing: isProcessing
+            )
         }
     }
     private(set) var isProcessing = false {
         didSet {
             refreshEscapeSuppression()
             resumeDeferredMediaQueueIfIdle()
+            recordingState.setCaptureActivity(
+                isRecording: isRecording,
+                isProcessing: isProcessing
+            )
         }
     }
 
@@ -1160,21 +1169,17 @@ final class AppCoordinator {
         self.mainWindowController.setModelContainer(modelContainer)
         self.noteEditorWindowController = NoteEditorWindowController()
         self.noteEditorWindowController.setModelContainer(modelContainer)
-        self.mainWindowController.configureMeetingCapture(
+        self.mainWindowController.configureCapture(
             floatingIndicatorState: floatingIndicatorState,
             recordingState: recordingState,
-            onNewTranscription: { [weak self] in
-                Task { @MainActor in
-                    await self?.handleToggleRecording(source: .statusBarMenu)
-                }
+            onStartDictation: { [weak self] in
+                self?.handleMainWindowDictationStart()
             },
-            onStartMeetingCapture: { [weak self] expectedSpeakerCount in
-                self?.handleStartMeetingCapture(expectedSpeakerCount: expectedSpeakerCount)
+            onStartVoiceNote: { [weak self] in
+                self?.handleMainWindowVoiceNoteStart()
             },
-            onStartNoteCapture: { [weak self] in
-                Task { @MainActor in
-                    await self?.handleQuickCaptureToggle()
-                }
+            onStartMeeting: { [weak self] expectedSpeakerCount in
+                self?.handleStartMeetingCapture(expectedSpeakerCount: expectedSpeakerCount) ?? false
             }
         )
         self.mainWindowController.configureTranscribeFeature(
@@ -1186,9 +1191,6 @@ final class AppCoordinator {
             },
             onSubmitMediaLink: { [weak self] link, options in
                 self?.handleSubmitMediaLink(link, options: options)
-            },
-            onClearMediaQueue: { [weak self] in
-                self?.clearTranscriptionQueue()
             },
             onDownloadDiarizationModel: { [weak self] in
                 self?.handleDownloadDiarizationModel()
@@ -1223,8 +1225,8 @@ final class AppCoordinator {
             self?.handleSelectPromptPreset(option)
         }
 
-        self.statusBarController.onOpenHistory = { [weak self] in
-            self?.handleOpenHistory()
+        self.statusBarController.onOpenLibrary = { [weak self] in
+            self?.handleOpenLibrary()
         }
 
         self.statusBarController.onShowApp = { [weak self] in
@@ -1284,8 +1286,8 @@ final class AppCoordinator {
             onGoToSettings: { [weak self] in
                 self?.statusBarController.showSettings(tab: .general)
             },
-            onViewTranscriptHistory: { [weak self] in
-                self?.handleOpenHistory()
+            onOpenLibrary: { [weak self] in
+                self?.handleOpenLibrary()
             },
             onPasteLastTranscript: { [weak self] in
                 await self?.handlePasteLastTranscript()
@@ -2046,6 +2048,29 @@ final class AppCoordinator {
         isPreparingForTermination = true
         defer { isPreparingForTermination = false }
 
+        let noteAppendStartTask = pendingNoteAppendStartTask
+        let meetingStartTask = pendingMeetingCaptureStartTask
+        let windowStartTask = mainWindowCaptureStartTask
+        cancelPendingNoteAppendStart()
+        cancelPendingMeetingCaptureStart()
+        recordingState.invalidateCaptureStart()
+        windowStartTask?.cancel()
+        if let noteAppendStartTask {
+            await noteAppendStartTask.value
+        }
+        if let meetingStartTask {
+            await meetingStartTask.value
+        }
+        if let windowStartTask {
+            await windowStartTask.value
+        }
+        mainWindowCaptureStartTask = nil
+        do {
+            try cancelPendingMeetingCaptureStartHandle()
+        } catch {
+            reportMeetingCaptureTerminalPersistenceFailure(error)
+        }
+
         meetingRecoveryGeneration &+= 1
         meetingRecoveryTask?.cancel()
         if let meetingRecoveryTask {
@@ -2329,7 +2354,7 @@ final class AppCoordinator {
 
         if !settingsStore.quickCapturePTTHotkey.isEmpty,
            let binding = validatedHotkeyBinding(
-               displayName: "Note Capture (Push-to-Talk)",
+               displayName: "Voice Note — Hold",
                hotkeyString: settingsStore.quickCapturePTTHotkey,
                keyCodeValue: settingsStore.quickCapturePTTHotkeyCode,
                modifiersValue: settingsStore.quickCapturePTTHotkeyModifiers
@@ -2338,7 +2363,7 @@ final class AppCoordinator {
 
             if canRegisterHotkey(
                 identifier: "quick-capture-ptt",
-                displayName: "Note Capture (Push-to-Talk)",
+                displayName: "Voice Note — Hold",
                 hotkeyString: settingsStore.quickCapturePTTHotkey,
                 keyCode: binding.keyCode,
                 modifiers: binding.modifiers,
@@ -2362,14 +2387,14 @@ final class AppCoordinator {
                 )
 
                 if !didRegister {
-                    handleHotkeyRegistrationFailure(displayName: "Note Capture (Push-to-Talk)", hotkeyString: settingsStore.quickCapturePTTHotkey)
+                    handleHotkeyRegistrationFailure(displayName: "Voice Note — Hold", hotkeyString: settingsStore.quickCapturePTTHotkey)
                 }
             }
         }
 
         if !settingsStore.quickCaptureToggleHotkey.isEmpty,
            let binding = validatedHotkeyBinding(
-               displayName: "Note Capture (Toggle)",
+               displayName: "Voice Note — Toggle",
                hotkeyString: settingsStore.quickCaptureToggleHotkey,
                keyCodeValue: settingsStore.quickCaptureToggleHotkeyCode,
                modifiersValue: settingsStore.quickCaptureToggleHotkeyModifiers
@@ -2377,7 +2402,7 @@ final class AppCoordinator {
             Log.hotkey.info("Registering quick-capture-toggle: keyCode=\(binding.keyCode), modifiers=0x\(String(binding.modifiers.rawValue, radix: 16)), string=\(self.settingsStore.quickCaptureToggleHotkey)")
             if canRegisterHotkey(
                 identifier: "quick-capture-toggle",
-                displayName: "Note Capture (Toggle)",
+                displayName: "Voice Note — Toggle",
                 hotkeyString: settingsStore.quickCaptureToggleHotkey,
                 keyCode: binding.keyCode,
                 modifiers: binding.modifiers,
@@ -2396,7 +2421,7 @@ final class AppCoordinator {
                     onKeyUp: nil
                 )
                 if !didRegister {
-                    handleHotkeyRegistrationFailure(displayName: "Note Capture (Toggle)", hotkeyString: settingsStore.quickCaptureToggleHotkey)
+                    handleHotkeyRegistrationFailure(displayName: "Voice Note — Toggle", hotkeyString: settingsStore.quickCaptureToggleHotkey)
                 }
             }
         }
@@ -2424,7 +2449,7 @@ final class AppCoordinator {
                     mode: .toggle,
                     onKeyDown: { [weak self] in
                         Task { @MainActor in
-                            self?.handleOpenHistory()
+                            self?.handleOpenLibrary()
                         }
                     },
                     onKeyUp: nil
@@ -2476,22 +2501,24 @@ final class AppCoordinator {
         keyCodeValue: Int,
         modifiersValue: Int
     ) -> (keyCode: UInt32, modifiers: HotkeyManager.ModifierFlags)? {
+        let localizedDisplayName = localized(displayName, locale: settingsStore.selectedAppLocale.locale)
         guard let keyCode = UInt32(exactly: keyCodeValue),
               let modifiersRawValue = UInt32(exactly: modifiersValue) else {
             Log.hotkey.error("Invalid hotkey values for \(displayName): string=\(hotkeyString), keyCode=\(keyCodeValue), modifiers=\(modifiersValue)")
             AlertManager.shared.showGenericErrorAlert(
                 title: "Invalid Hotkey Configuration",
-                message: "The saved hotkey for \(displayName) is invalid. Re-record this hotkey in Settings."
+                message: "The saved hotkey for \(localizedDisplayName) is invalid. Re-record this hotkey in Settings."
             )
             return nil
         }
         return (keyCode: keyCode, modifiers: HotkeyManager.ModifierFlags(rawValue: modifiersRawValue))
     }
     private func handleHotkeyRegistrationFailure(displayName: String, hotkeyString: String) {
+        let localizedDisplayName = localized(displayName, locale: settingsStore.selectedAppLocale.locale)
         Log.hotkey.error("Failed to register hotkey for \(displayName): \(hotkeyString)")
         AlertManager.shared.showGenericErrorAlert(
             title: "Hotkey Registration Failed",
-            message: "Could not register '\(hotkeyString)' for \(displayName). Choose a different shortcut in Settings."
+            message: "Could not register '\(hotkeyString)' for \(localizedDisplayName). Choose a different shortcut in Settings."
         )
     }
 
@@ -2531,9 +2558,9 @@ final class AppCoordinator {
         case "copy-last-transcript":
             return "Copy Last Transcript"
         case "quick-capture-ptt":
-            return "Note Capture (Push-to-Talk)"
+            return "Voice Note — Hold"
         case "quick-capture-toggle":
-            return "Note Capture (Toggle)"
+            return "Voice Note — Toggle"
         case "open-library":
             return "Open Library"
         case "cancel-operation":
@@ -3331,7 +3358,9 @@ final class AppCoordinator {
     }
     
     private func handlePushToTalkStart() async {
-        guard !isRecording && !isProcessing else { return }
+        guard !isRecording,
+              !isProcessing,
+              !recordingState.isCaptureStartPending else { return }
         guard NoteAppendGate.canStartGlobalDictation(
             isNoteAppendListening: isNoteAppendMode || pendingNoteAppendStart != nil
         ) else {
@@ -3342,6 +3371,7 @@ final class AppCoordinator {
         do {
             try await startRecording(source: .hotkeyPushToTalk)
         } catch {
+            guard !Self.isTaskCancellation(error) else { return }
             self.error = error
             audioRecorder.resetAudioEngine()
             Log.app.error("Failed to start recording: \(error)")
@@ -3370,7 +3400,9 @@ final class AppCoordinator {
     // MARK: - Quick Capture Handlers (Push-to-Talk)
 
     private func handleQuickCapturePTTStart() async {
-        guard !isRecording && !isProcessing else { return }
+        guard !isRecording,
+              !isProcessing,
+              !recordingState.isCaptureStartPending else { return }
         guard NoteAppendGate.canStartGlobalDictation(
             isNoteAppendListening: isNoteAppendMode || pendingNoteAppendStart != nil
         ) else {
@@ -3396,6 +3428,13 @@ final class AppCoordinator {
                 throw CancellationError()
             }
         } catch {
+            if Self.isTaskCancellation(error) {
+                isQuickCaptureMode = false
+                if let context, isVoiceNoteCaptureContextCurrent(context) {
+                    cancelActiveVoiceNoteCapture()
+                }
+                return
+            }
             guard let context, isVoiceNoteCaptureContextCurrent(context) else {
                 guard voiceNoteCaptureContext == nil else { return }
                 isQuickCaptureMode = false
@@ -3426,7 +3465,9 @@ final class AppCoordinator {
 
     // MARK: - Quick Capture Handlers (Toggle)
 
-    private func handleQuickCaptureToggle() async {
+    private func handleQuickCaptureToggle(
+        captureStartClaim: CaptureStartClaim? = nil
+    ) async {
         if isRecording && isQuickCaptureMode {
             do {
                 try await dispatchRecordingStop()
@@ -3436,7 +3477,9 @@ final class AppCoordinator {
                 Log.app.error("Failed to stop quick capture recording: \(error)")
             }
             isQuickCaptureMode = false
-        } else if !isRecording && !isProcessing {
+        } else if !isRecording,
+                  !isProcessing,
+                  captureStartClaim != nil || !recordingState.isCaptureStartPending {
             guard NoteAppendGate.canStartGlobalDictation(
                 isNoteAppendListening: isNoteAppendMode || pendingNoteAppendStart != nil
             ) else {
@@ -3455,12 +3498,20 @@ final class AppCoordinator {
                 context = activeContext
                 try await startRecording(
                     source: .hotkeyQuickCaptureToggle,
-                    voiceNoteContext: activeContext
+                    voiceNoteContext: activeContext,
+                    captureStartClaim: captureStartClaim
                 )
                 guard isVoiceNoteCaptureContextCurrent(activeContext) else {
                     throw CancellationError()
                 }
             } catch {
+                if Self.isTaskCancellation(error) {
+                    isQuickCaptureMode = false
+                    if let context, isVoiceNoteCaptureContextCurrent(context) {
+                        cancelActiveVoiceNoteCapture()
+                    }
+                    return
+                }
                 guard let context, isVoiceNoteCaptureContextCurrent(context) else {
                     guard voiceNoteCaptureContext == nil else { return }
                     isQuickCaptureMode = false
@@ -3689,10 +3740,11 @@ final class AppCoordinator {
     }
     private func handleNoteAppendStart(_ request: PendingNoteAppendStart) async {
         guard isPendingNoteAppendStartCurrent(request) else { return }
-        guard NoteAppendGate.canStartNoteAppend(
-            isRecording: isRecording,
-            isProcessing: isProcessing
-        ) else {
+        guard !recordingState.isCaptureStartPending,
+              NoteAppendGate.canStartNoteAppend(
+                  isRecording: isRecording,
+                  isProcessing: isProcessing
+              ) else {
             clearPendingNoteAppendStart(ifCurrent: request)
             postNoteAppendStartRejected(editorID: request.editorID, noteID: request.noteID)
             return
@@ -3733,6 +3785,13 @@ final class AppCoordinator {
             }
             clearPendingNoteAppendStart(ifCurrent: request)
         } catch {
+            if Self.isTaskCancellation(error) {
+                if let context {
+                    cancelPendingNoteAppendCapture(context, request: request)
+                }
+                clearPendingNoteAppendStart(ifCurrent: request)
+                return
+            }
             guard isPendingNoteAppendStartCurrent(request) else {
                 if let context {
                     cancelPendingNoteAppendCapture(context, request: request)
@@ -4221,6 +4280,8 @@ final class AppCoordinator {
     private func isPendingMeetingCaptureStartCurrent(_ claim: MeetingCaptureStartClaim) -> Bool {
         pendingMeetingCaptureStart == claim
             && meetingCaptureStartAdmission.isCurrent(claim)
+            && !isShutdown
+            && !isPreparingForTermination
             && !Task.isCancelled
     }
 
@@ -4228,7 +4289,7 @@ final class AppCoordinator {
         _ claim: MeetingCaptureStartClaim
     ) throws {
         try Task.checkCancellation()
-        guard !isShutdown, isPendingMeetingCaptureStartCurrent(claim) else {
+        guard isPendingMeetingCaptureStartCurrent(claim) else {
             throw CancellationError()
         }
     }
@@ -4253,15 +4314,27 @@ final class AppCoordinator {
 
     private func cancelPendingMeetingCaptureStartHandle() throws {
         guard let handle = pendingMeetingCaptureCancellationHandle
-            ?? pendingMeetingCaptureStartHandle,
-            meetingCaptureContext?.handle != handle else {
+            ?? pendingMeetingCaptureStartHandle else {
             return
         }
+        try cancelMeetingCaptureStartHandle(handle)
+    }
+
+    private func cancelMeetingCaptureStartHandle(
+        _ handle: PindropData.MeetingCaptureHandle
+    ) throws {
+        guard !Self.isMeetingCaptureCurrent(
+            activeHandle: meetingCaptureContext?.handle,
+            candidateHandle: handle
+        ) else { return }
 
         do {
             try captureSessionStore.cancelMeetingCapture(handle, at: .now)
         } catch {
-            pendingMeetingCaptureCancellationHandle = handle
+            if pendingMeetingCaptureCancellationHandle == nil
+                || pendingMeetingCaptureCancellationHandle == handle {
+                pendingMeetingCaptureCancellationHandle = handle
+            }
             throw MeetingCaptureTerminalPersistenceError.cancellation(error)
         }
 
@@ -4271,7 +4344,6 @@ final class AppCoordinator {
         if pendingMeetingCaptureCancellationHandle == handle {
             pendingMeetingCaptureCancellationHandle = nil
         }
-
     }
 
     private func isMeetingCaptureContextCurrent(_ context: MeetingCaptureContext) -> Bool {
@@ -5767,7 +5839,43 @@ final class AppCoordinator {
         Log.app.info("Opened note editor with durable quick-capture note")
     }
 
-    private func handleToggleRecording(source: RecordingTriggerSource) async {
+    private func handleMainWindowDictationStart() {
+        guard !isRecording,
+              !isProcessing,
+              let claim = recordingState.claimCaptureStart() else { return }
+
+        mainWindowCaptureStartTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.recordingState.releaseCaptureStart(claim)
+                self.mainWindowCaptureStartTask = nil
+            }
+            await self.handleToggleRecording(
+                source: .statusBarMenu,
+                captureStartClaim: claim
+            )
+        }
+    }
+
+    private func handleMainWindowVoiceNoteStart() {
+        guard !isRecording,
+              !isProcessing,
+              let claim = recordingState.claimCaptureStart() else { return }
+
+        mainWindowCaptureStartTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.recordingState.releaseCaptureStart(claim)
+                self.mainWindowCaptureStartTask = nil
+            }
+            await self.handleQuickCaptureToggle(captureStartClaim: claim)
+        }
+    }
+
+    private func handleToggleRecording(
+        source: RecordingTriggerSource,
+        captureStartClaim: CaptureStartClaim? = nil
+    ) async {
         if isRecording {
             do {
                 if isNoteAppendMode {
@@ -5781,7 +5889,8 @@ final class AppCoordinator {
                 audioRecorder.resetAudioEngine()
                 Log.app.error("Failed to stop recording: \(error)")
             }
-        } else if !isProcessing {
+        } else if !isProcessing,
+                  captureStartClaim != nil || !recordingState.isCaptureStartPending {
             guard NoteAppendGate.canStartGlobalDictation(
                 isNoteAppendListening: isNoteAppendMode || pendingNoteAppendStart != nil
             ) else {
@@ -5789,8 +5898,12 @@ final class AppCoordinator {
                 return
             }
             do {
-                try await startRecording(source: source)
+                try await startRecording(
+                    source: source,
+                    captureStartClaim: captureStartClaim
+                )
             } catch {
+                guard !Self.isTaskCancellation(error) else { return }
                 self.error = error
                 audioRecorder.resetAudioEngine()
                 Log.app.error("Failed to start recording: \(error)")
@@ -5802,8 +5915,20 @@ final class AppCoordinator {
     private func startRecording(
         source: RecordingTriggerSource,
         voiceNoteContext: VoiceNoteCaptureContext? = nil,
-        pendingNoteAppendStart: PendingNoteAppendStart? = nil
+        pendingNoteAppendStart: PendingNoteAppendStart? = nil,
+        captureStartClaim: CaptureStartClaim? = nil
     ) async throws {
+        let claim: CaptureStartClaim
+        if let captureStartClaim {
+            claim = captureStartClaim
+        } else {
+            guard let claimedStart = recordingState.claimCaptureStart() else {
+                throw CancellationError()
+            }
+            claim = claimedStart
+        }
+        defer { recordingState.releaseCaptureStart(claim) }
+        try ensureCaptureStartCurrent(claim)
         automaticDictionaryLearningService.cancelObservation()
         logRecordingStartAttempt(source: source)
 
@@ -5824,43 +5949,53 @@ final class AppCoordinator {
             }
         }
         let startedStreamingSession = await beginStreamingSessionIfAvailable(for: voiceNoteContext)
-        if let voiceNoteContext {
-            try await ensureVoiceNoteCaptureCurrentAfterArtifactAdmission(
-                voiceNoteContext,
-                pendingNoteAppendStart: pendingNoteAppendStart
+        do {
+            try ensureCaptureStartCurrent(claim)
+            if let voiceNoteContext {
+                try await ensureVoiceNoteCaptureCurrentAfterArtifactAdmission(
+                    voiceNoteContext,
+                    pendingNoteAppendStart: pendingNoteAppendStart
+                )
+                try ensureCaptureStartCurrent(claim)
+            }
+        } catch {
+            await cancelCaptureStartStreaming(
+                voiceNoteContext: voiceNoteContext,
+                session: startedStreamingSession
             )
+            throw error
         }
 
         // Retention encodes a native-rate copy so kept audio isn't the 16 kHz ASR feed.
         audioRecorder.retainNativeAudioForSession =
             settingsStore.dictationAudioRetention != .off
 
+        var recorderStarted = false
         let didStartRecording: Bool
         do {
             didStartRecording = try await audioRecorder.startRecording()
+            recorderStarted = didStartRecording
+            try ensureCaptureStartCurrent(claim)
             if let voiceNoteContext, let pendingNoteAppendStart {
                 try ensurePendingNoteAppendStartCurrent(
                     pendingNoteAppendStart,
                     context: voiceNoteContext
                 )
+                try ensureCaptureStartCurrent(claim)
             }
         } catch {
-            if let voiceNoteContext {
-                await streamingSession.cancelArtifactCapture(for: voiceNoteContext.handle)
-            } else if let startedStreamingSession {
-                await streamingSession.cancel(session: startedStreamingSession)
-                if activeStreamingSessionToken == startedStreamingSession {
-                    activeStreamingSessionToken = nil
-                }
+            if recorderStarted || Self.isTaskCancellation(error) {
+                audioRecorder.resetAudioEngine()
             }
-            if let voiceNoteContext, let pendingNoteAppendStart {
-                try ensurePendingNoteAppendStartCurrent(
-                    pendingNoteAppendStart,
-                    context: voiceNoteContext
-                )
+            await cancelCaptureStartStreaming(
+                voiceNoteContext: voiceNoteContext,
+                session: startedStreamingSession
+            )
+            if !Self.isTaskCancellation(error) {
+                Log.app.error("Audio engine failed to start: \(error)")
+                throw error
             }
-            Log.app.error("Audio engine failed to start: \(error)")
-            throw error
+            throw CancellationError()
         }
 
         if didStartRecording {
@@ -5875,14 +6010,10 @@ final class AppCoordinator {
         }
 
         guard didStartRecording else {
-            if let voiceNoteContext {
-                await streamingSession.cancelArtifactCapture(for: voiceNoteContext.handle)
-            } else if let startedStreamingSession {
-                await streamingSession.cancel(session: startedStreamingSession)
-                if activeStreamingSessionToken == startedStreamingSession {
-                    activeStreamingSessionToken = nil
-                }
-            }
+            await cancelCaptureStartStreaming(
+                voiceNoteContext: voiceNoteContext,
+                session: startedStreamingSession
+            )
             throw VoiceNoteCaptureAdmissionError.recorderDidNotStart
         }
 
@@ -5955,6 +6086,29 @@ final class AppCoordinator {
         // Speak-to-append uses the in-editor listening chip only — no global orb/pill.
         if source != .noteAppend {
             startRecordingIndicatorSession()
+        }
+    }
+
+    private func ensureCaptureStartCurrent(_ claim: CaptureStartClaim) throws {
+        try Task.checkCancellation()
+        guard !isShutdown,
+              !isPreparingForTermination,
+              recordingState.isCaptureStartClaimCurrent(claim) else {
+            throw CancellationError()
+        }
+    }
+
+    private func cancelCaptureStartStreaming(
+        voiceNoteContext: VoiceNoteCaptureContext?,
+        session: StreamingSessionController.SessionToken?
+    ) async {
+        if let voiceNoteContext {
+            await streamingSession.cancelArtifactCapture(for: voiceNoteContext.handle)
+        } else if let session {
+            await streamingSession.cancel(session: session)
+            if activeStreamingSessionToken == session {
+                activeStreamingSessionToken = nil
+            }
         }
     }
 
@@ -7956,32 +8110,43 @@ final class AppCoordinator {
         }
     }
 
-    private func handleStartMeetingCapture(expectedSpeakerCount: Int?) {
-        guard Self.canBeginMeetingCapture(
-            activeHandle: meetingCaptureContext?.handle,
-            recoveryTaskActive: meetingRecoveryTask != nil,
-            isShutdown: isShutdown
-        ), pendingMeetingCaptureCancellationHandle == nil,
-        let claim = meetingCaptureStartAdmission.claim() else {
+    private func handleStartMeetingCapture(expectedSpeakerCount: Int?) -> Bool {
+        guard !isRecording,
+              !isProcessing,
+              Self.canBeginMeetingCapture(
+                  activeHandle: meetingCaptureContext?.handle,
+                  recoveryTaskActive: meetingRecoveryTask != nil,
+                  isShutdown: isShutdown || isPreparingForTermination
+              ),
+              pendingMeetingCaptureCancellationHandle == nil,
+              let captureStartClaim = recordingState.claimCaptureStart() else {
             recordingState.message = "Finish the active transcription before starting another one."
-            return
+            return false
+        }
+        guard let meetingClaim = meetingCaptureStartAdmission.claim() else {
+            recordingState.releaseCaptureStart(captureStartClaim)
+            recordingState.message = "Finish the active transcription before starting another one."
+            return false
         }
 
-        pendingMeetingCaptureStart = claim
+        pendingMeetingCaptureStart = meetingClaim
         pendingMeetingCaptureStartTask = Task { @MainActor [weak self] in
             guard let self else { return }
             defer {
-                self.clearPendingMeetingCaptureStart(ifCurrent: claim)
+                self.recordingState.releaseCaptureStart(captureStartClaim)
+                self.clearPendingMeetingCaptureStart(ifCurrent: meetingClaim)
             }
 
             do {
                 try await self.startManualTranscriptionRecording(
                     mode: .microphoneAndSystemAudio,
                     expectedSpeakerCount: expectedSpeakerCount,
-                    pendingStart: claim
+                    pendingStart: meetingClaim
                 )
             } catch {
-                guard !self.isShutdown, self.isPendingMeetingCaptureStartCurrent(claim) else { return }
+                guard !self.isShutdown,
+                      !self.isPreparingForTermination,
+                      self.isPendingMeetingCaptureStartCurrent(meetingClaim) else { return }
                 self.error = error
                 self.audioRecorder.resetAudioEngine()
                 self.isRecordingFeatureCaptureActive = false
@@ -7989,6 +8154,7 @@ final class AppCoordinator {
                 Log.app.error("Failed to start meeting capture: \(error)")
             }
         }
+        return true
     }
 
     private func startManualTranscriptionRecording(
@@ -8004,7 +8170,7 @@ final class AppCoordinator {
         guard Self.canBeginMeetingCapture(
             activeHandle: meetingCaptureContext?.handle,
             recoveryTaskActive: meetingRecoveryTask != nil,
-            isShutdown: isShutdown
+            isShutdown: isShutdown || isPreparingForTermination
         ) else {
             throw MeetingCaptureAdmissionError.captureAlreadyActive
         }
@@ -8087,12 +8253,9 @@ final class AppCoordinator {
                 )
             }
         } catch {
-            guard !isShutdown else {
-                throw CancellationError()
-            }
             guard isPendingMeetingCaptureStartCurrent(pendingStart) else {
                 do {
-                    try cancelPendingMeetingCaptureStartHandle()
+                    try cancelMeetingCaptureStartHandle(handle)
                 } catch {
                     reportMeetingCaptureTerminalPersistenceFailure(error)
                 }
@@ -8195,6 +8358,7 @@ final class AppCoordinator {
                 with: recordID,
                 message: "Meeting recording transcribed successfully."
             )
+            mainWindowController.openLibrary(recordID: recordID)
         } catch is CancellationError {
             // Explicit cancellation already terminally cancelled the durable session.
             // Lifecycle interruption retains it for startup recovery instead.
@@ -8413,7 +8577,7 @@ final class AppCoordinator {
         )
 
         mediaTranscriptionState.beginJob(job)
-        mainWindowController.showTranscribe()
+        mainWindowController.navigate(to: .library)
 
         isProcessing = true
         statusBarController.setProcessingState()
@@ -8836,10 +9000,10 @@ final class AppCoordinator {
         updateService.checkForUpdates()
     }
 
-    // MARK: - Open History
+    // MARK: - Open Library
 
-    private func handleOpenHistory() {
-        mainWindowController.showHistory()
+    private func handleOpenLibrary() {
+        mainWindowController.navigate(to: .library)
     }
 
     // MARK: - Show App
@@ -8938,6 +9102,9 @@ final class AppCoordinator {
             activeStreamingSessionToken = nil
         }
         isShutdown = true
+        recordingState.invalidateCaptureStart()
+        mainWindowCaptureStartTask?.cancel()
+        mainWindowCaptureStartTask = nil
 
         // Stop Carbon callbacks first. The sources must be disabled and detached on
         // their owning run loop before the pass-unretained coordinator refcon can die.

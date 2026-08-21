@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "Thuốc viên"
+pillars:
+  capture: "Ghi âm"
+  workspace: "Không gian làm việc"
+  tools: "Công cụ"
+  dictate: "Đọc chính tả"
+  voice_note: "Ghi chú bằng giọng nói"
+  meeting: "Cuộc họp"
+  dictate_description: "Hãy nói, Pindrop sẽ viết vào ứng dụng bạn đang sử dụng."
+  voice_note_description: "Ghi lại một ý tưởng và lưu vào Ghi chú."
+  meeting_description: "Ghi âm thanh từ micrô và hệ thống, sau đó lưu cuộc họp vào Thư viện."
+  start_dictating: "Bắt đầu đọc chính tả"
+  start_voice_note: "Bắt đầu ghi chú bằng giọng nói"
+  open_notes: "Mở Ghi chú"
+  change_shortcut: "Thay đổi phím tắt"
+  capture_in_progress: "Đang ghi âm"
+  finish_current_capture: "Hãy hoàn tất bản ghi hiện tại trước khi bắt đầu bản ghi khác."
+  voice_note_hold: "Ghi chú bằng giọng nói — Nhấn giữ"
+  voice_note_toggle: "Ghi chú bằng giọng nói — Bật/tắt"
 pin:
   to_screen_always_on_top: "Ghim vào màn hình (luôn ở trên cùng)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "Bắt đầu sử dụng Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "Bắt đầu trên thanh menu mà không mở cửa sổ chính. Bạn vẫn có thể mở nó từ biểu tượng thanh menu."
 stats:
-  _self: "Stats"
+  _self: "Thống kê"
 status:
   _self: "Trạng thái"
 stop:

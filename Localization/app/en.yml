@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "Pill"
+pillars:
+  capture: "Capture"
+  workspace: "Workspace"
+  tools: "Tools"
+  dictate: "Dictate"
+  voice_note: "Voice Note"
+  meeting: "Meeting"
+  dictate_description: "Speak, then Pindrop writes in the app you are using."
+  voice_note_description: "Capture a thought and keep it in Notes."
+  meeting_description: "Record microphone and system audio, then keep the meeting in Library."
+  start_dictating: "Start dictating"
+  start_voice_note: "Start voice note"
+  open_notes: "Open Notes"
+  change_shortcut: "Change shortcut"
+  capture_in_progress: "Capture in progress"
+  finish_current_capture: "Finish the current capture before starting another."
+  voice_note_hold: "Voice Note — Hold"
+  voice_note_toggle: "Voice Note — Toggle"
 pin:
   to_screen_always_on_top: "Pin to screen (always on top)"
 pindrop:

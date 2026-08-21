@@ -843,6 +843,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Wybierz dostawcę i model dla każdego zadania AI. Pozostaw cel nieprzypisany, aby go pominąć."
 pill:
   _self: "Pigułka"
+pillars:
+  capture: "Przechwytywanie"
+  workspace: "Obszar roboczy"
+  tools: "Narzędzia"
+  dictate: "Dyktowanie"
+  voice_note: "Notatka głosowa"
+  meeting: "Spotkanie"
+  dictate_description: "Mów, a Pindrop wpisze tekst w używanej aplikacji."
+  voice_note_description: "Przechwyć myśl i zachowaj ją w Notatkach."
+  meeting_description: "Nagraj dźwięk z mikrofonu i systemu, a następnie zachowaj spotkanie w Bibliotece."
+  start_dictating: "Rozpocznij dyktowanie"
+  start_voice_note: "Rozpocznij notatkę głosową"
+  open_notes: "Otwórz Notatki"
+  change_shortcut: "Zmień skrót"
+  capture_in_progress: "Przechwytywanie w toku"
+  finish_current_capture: "Zakończ bieżące przechwytywanie przed rozpoczęciem kolejnego."
+  voice_note_hold: "Notatka głosowa — przytrzymanie"
+  voice_note_toggle: "Notatka głosowa — przełączanie"
 pin:
   to_screen_always_on_top: "Przypnij do ekranu (zawsze na górze)"
 pindrop:

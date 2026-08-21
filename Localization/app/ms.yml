@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "Pil"
+pillars:
+  capture: "Tangkap"
+  workspace: "Ruang kerja"
+  tools: "Alat"
+  dictate: "Dikte"
+  voice_note: "Nota suara"
+  meeting: "Mesyuarat"
+  dictate_description: "Bercakap, kemudian Pindrop menaip dalam apl yang sedang anda gunakan."
+  voice_note_description: "Rakam satu pemikiran dan simpannya dalam Nota."
+  meeting_description: "Rakam audio mikrofon dan sistem, kemudian simpan mesyuarat dalam Pustaka."
+  start_dictating: "Mula mendikte"
+  start_voice_note: "Mula nota suara"
+  open_notes: "Buka Nota"
+  change_shortcut: "Tukar pintasan"
+  capture_in_progress: "Proses tangkapan sedang berjalan"
+  finish_current_capture: "Selesaikan tangkapan semasa sebelum memulakan yang lain."
+  voice_note_hold: "Nota suara — Tahan"
+  voice_note_toggle: "Nota suara — Togol"
 pin:
   to_screen_always_on_top: "Semat pada skrin (sentiasa di atas)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "Mula Menggunakan Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "Mula dalam bar menu tanpa membuka tetingkap utama. Anda masih boleh membukanya daripada ikon bar menu."
 stats:
-  _self: "Stats"
+  _self: "Statistik"
 status:
   _self: "Status"
 stop:

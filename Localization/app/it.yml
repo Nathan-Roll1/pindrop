@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Scegli provider e modello per ogni attività IA. Lascia uno scopo non assegnato per saltarlo."
 pill:
   _self: "Pillola"
+pillars:
+  capture: "Acquisizione"
+  workspace: "Area di lavoro"
+  tools: "Strumenti"
+  dictate: "Dettatura"
+  voice_note: "Nota vocale"
+  meeting: "Riunione"
+  dictate_description: "Parla, poi Pindrop scrive nell’app che stai usando."
+  voice_note_description: "Cattura un’idea e conservala in Note."
+  meeting_description: "Registra l’audio del microfono e del sistema, poi conserva la riunione nella Libreria."
+  start_dictating: "Inizia a dettare"
+  start_voice_note: "Inizia una nota vocale"
+  open_notes: "Apri Note"
+  change_shortcut: "Cambia scorciatoia"
+  capture_in_progress: "Acquisizione in corso"
+  finish_current_capture: "Completa l’acquisizione corrente prima di iniziarne un’altra."
+  voice_note_hold: "Nota vocale — tieni premuto"
+  voice_note_toggle: "Nota vocale — attiva/disattiva"
 pin:
   to_screen_always_on_top: "Aggiungi allo schermo (sempre in primo piano)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "Inizia a utilizzare Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "Avvia nella barra dei menu senza aprire la finestra principale. Puoi comunque aprirla dall’icona della barra dei menu."
 stats:
-  _self: "Stats"
+  _self: "Statistiche"
 status:
   _self: "Stato"
 stop:

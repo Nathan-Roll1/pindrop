@@ -34,13 +34,15 @@ struct HistoryView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.layoutDirection) private var layoutDirection
 
-    var recordIDToOpen: UUID? = nil
+    var libraryOpenRequest: LibraryOpenRequest?
+    var librarySearchRequest: UInt?
+    var onConsumeLibraryOpenRequest: ((UInt) -> Void)?
+    var onConsumeLibrarySearchRequest: ((UInt) -> Void)?
     var mediaTranscriptionState: MediaTranscriptionFeatureState?
     var recordingState: RecordingFeatureState?
     var settingsStore: SettingsStore?
     var onImportMediaFiles: (([URL], TranscriptionJobOptions) -> Void)?
     var onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?
-    var onStartMeetingCapture: ((Int?) -> Void)?
     var onDownloadDiarizationModel: (() -> Void)?
 
     // MARK: - State
@@ -78,7 +80,6 @@ struct HistoryView: View {
     @State private var transcribeMenuAnchorView: NSView?
     @State private var isSpeakerDiarizationEnabled = true
     @State private var expectedSpeakerCount: Int?
-    @State private var showMeetingCaptureOptions = false
 
     @Query private var mediaFolders: [MediaFolder]
 
@@ -197,19 +198,19 @@ struct HistoryView: View {
         .task(id: "\(trimmedSearchText)_\(selectedFilter.rawValue)_\(selectedSort.rawValue)") {
             reloadTranscriptions()
         }
-        .task(id: recordIDToOpen) {
-            guard let recordIDToOpen,
-                  let record = try? historyStore.fetchRecord(with: recordIDToOpen) else { return }
-            handleRowTap(record)
+        .task(id: libraryOpenRequest?.generation) {
+            guard let request = libraryOpenRequest else { return }
+            defer { onConsumeLibraryOpenRequest?(request.generation) }
+            guard let record = try? historyStore.fetchRecord(with: request.recordID) else { return }
+            openLibraryRecord(record)
+        }
+        .task(id: librarySearchRequest) {
+            guard let generation = librarySearchRequest else { return }
+            defer { onConsumeLibrarySearchRequest?(generation) }
+            focusLibrarySearch()
         }
         .onReceive(NotificationCenter.default.publisher(for: .historyStoreDidChange)) { _ in
             refreshVisibleTranscriptions()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .openHistoryRecord)) { notification in
-            guard let idString = notification.userInfo?["recordID"] as? String,
-                  let id = UUID(uuidString: idString),
-                  let record = try? historyStore.fetchRecord(with: id) else { return }
-            handleRowTap(record)
         }
         .confirmationDialog(
             localized("Delete transcription?", locale: locale),
@@ -235,14 +236,8 @@ struct HistoryView: View {
         .sheet(isPresented: $showPasteLinkSheet) {
             pasteLinkSheet
         }
-        .sheet(isPresented: $showMeetingCaptureOptions) {
-            MeetingCaptureOptionsSheet { expectedSpeakerCount in
-                onStartMeetingCapture?(expectedSpeakerCount)
-            }
-        }
         .onAppear {
             installKeyMonitorIfNeeded()
-            consumePendingSearchFocusIfNeeded()
         }
         .onDisappear {
             removeKeyMonitor()
@@ -254,9 +249,6 @@ struct HistoryView: View {
             } else {
                 removeKeyMonitor()
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .focusHistorySearch)) { _ in
-            applySearchFocus()
         }
     }
 
@@ -381,7 +373,7 @@ struct HistoryView: View {
     private var headerSection: some View {
         PageHeader(title: localized("Library", locale: locale), meta: headerMetaText) {
             HStack(spacing: 10) {
-                if onImportMediaFiles != nil || onSubmitMediaLink != nil || onStartMeetingCapture != nil {
+                if onImportMediaFiles != nil || onSubmitMediaLink != nil {
                     importMenu
                 }
                 SearchFieldChrome(
@@ -790,6 +782,25 @@ struct HistoryView: View {
         toggleExpansion(for: record)
     }
 
+    /// Opens a routed record without adopting row-tap's intentional expand/collapse toggle.
+    private func openLibraryRecord(_ record: TranscriptionRecord) {
+        selectedTranscriptionID = record.persistentModelID
+
+        if opensDetailPage(record) {
+            openDetail(record)
+            return
+        }
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            detailRecord = nil
+        }
+        withAnimation(reduceMotion ? nil : AppTheme.Animation.fast) {
+            expandedTranscriptionID = record.persistentModelID
+        }
+    }
+
     private func toggleExpansion(for record: TranscriptionRecord) {
         withAnimation(reduceMotion ? nil : AppTheme.Animation.fast) {
             if expandedTranscriptionID == record.persistentModelID {
@@ -970,15 +981,6 @@ struct HistoryView: View {
             expectedSpeakersItem.isEnabled = isSpeakerDiarizationEnabled
             expectedSpeakersItem.submenu = makeExpectedSpeakersSubmenu()
             menu.addItem(expectedSpeakersItem)
-        }
-        if onStartMeetingCapture != nil {
-            menu.addItem(.separator())
-            menu.addItem(ClosureMenuItem(
-                title: localized("Record Meeting…", locale: locale),
-                systemImage: "person.2.wave.2"
-            ) {
-                showMeetingCaptureOptions = true
-            })
         }
 
         // Non-flipped view coords: (0, 0) is the bottom-left corner, and popUp
@@ -1351,16 +1353,10 @@ struct HistoryView: View {
         return false
     }
 
-    private func applySearchFocus() {
-        MainWindowController.pendingHistorySearchFocus = false
+    private func focusLibrarySearch() {
         DispatchQueue.main.async {
             isSearchFieldFocused = true
         }
-    }
-
-    private func consumePendingSearchFocusIfNeeded() {
-        guard MainWindowController.pendingHistorySearchFocus else { return }
-        applySearchFocus()
     }
 
     private func handleListKeyEvent(_ event: NSEvent) -> NSEvent? {
@@ -1431,17 +1427,17 @@ struct HistoryView: View {
 
 // MARK: - Previews
 
-#Preview("History") {
+#Preview("Library") {
     HistoryView()
         .modelContainer(PreviewContainer.withSampleData)
 }
 
-#Preview("History Empty") {
+#Preview("Library Empty") {
     HistoryView()
         .modelContainer(PreviewContainer.empty)
 }
 
-#Preview("History Dark") {
+#Preview("Library Dark") {
     HistoryView()
         .modelContainer(PreviewContainer.withSampleData)
         .preferredColorScheme(.dark)

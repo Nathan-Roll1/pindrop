@@ -1,9 +1,9 @@
 //
-//  DashboardView.swift
+//  CapturePillarViews.swift
 //  Pindrop
 //
-//  Home page (U4 scorched-earth restyle) — date kicker, hero, stats strip,
-//  recent rows, THIS WEEK chart.
+//  The three focused capture destinations. Dictate keeps the retrospective
+//  dashboard below its persistent start surface.
 //
 
 import SwiftUI
@@ -11,61 +11,46 @@ import SwiftData
 import PindropCore
 import PindropData
 
-struct DashboardView: View {
+struct DictateView: View {
     @Environment(\.layoutDirection) private var layoutDirection
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.locale) private var locale
     @Query(sort: \TranscriptionRecord.timestamp, order: .reverse) private var transcriptions: [TranscriptionRecord]
     /// Shared settings reference — not observed at the root so unrelated
-    /// SettingsStore publications do not invalidate the whole Home page.
+    /// SettingsStore publications do not invalidate the retrospective content.
     private let settingsStore: SettingsStore
     /// Aggregation cache keyed by record projection + calendar day. Hover/selection
     /// live in chart children so pointer movement cannot invalidate this work.
     @State private var statsCache = DashboardStatsCache()
-    @State private var showMeetingCaptureOptions = false
     @State private var chartRowWidth: CGFloat = 0
 
-    var onOpenHotkeys: (() -> Void)?
-    var onViewAllHistory: (() -> Void)?
-    var onShowMoreStats: (() -> Void)?
-    var onOpenHistoryRecord: ((UUID) -> Void)?
-    var onNewTranscription: (() -> Void)?
-    var onTranscribeFile: (() -> Void)?
-    var onRecordMeeting: ((Int?) -> Void)?
-    var onNewNote: (() -> Void)?
-    var onDownloadDiarizationModel: (() -> Void)?
-    var recordingState: RecordingFeatureState?
-
-    private static var isPreview: Bool {
-        ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
-    }
+    let recordingState: RecordingFeatureState?
+    let isCaptureBusy: Bool
+    let onStartDictation: (() -> Void)?
+    let onOpenLibrary: (() -> Void)?
+    let onShowMoreStats: (() -> Void)?
+    let onOpenLibraryRecord: ((UUID) -> Void)?
+    let onOpenShortcuts: (() -> Void)?
+    let onDownloadDiarizationModel: (() -> Void)?
 
     init(
-        floatingIndicatorState: FloatingIndicatorState? = nil,
         settingsStore: SettingsStore,
         recordingState: RecordingFeatureState? = nil,
-        onOpenHotkeys: (() -> Void)? = nil,
-        onViewAllHistory: (() -> Void)? = nil,
+        isCaptureBusy: Bool = false,
+        onStartDictation: (() -> Void)? = nil,
+        onOpenLibrary: (() -> Void)? = nil,
         onShowMoreStats: (() -> Void)? = nil,
-        onOpenHistoryRecord: ((UUID) -> Void)? = nil,
-        onNewTranscription: (() -> Void)? = nil,
-        onTranscribeFile: (() -> Void)? = nil,
-        onRecordMeeting: ((Int?) -> Void)? = nil,
-        onNewNote: (() -> Void)? = nil,
+        onOpenLibraryRecord: ((UUID) -> Void)? = nil,
+        onOpenShortcuts: (() -> Void)? = nil,
         onDownloadDiarizationModel: (() -> Void)? = nil
     ) {
-        // Indicator state is owned by the shell chrome; Home must not observe it.
-        _ = floatingIndicatorState
         self.settingsStore = settingsStore
         self.recordingState = recordingState
-        self.onOpenHotkeys = onOpenHotkeys
-        self.onViewAllHistory = onViewAllHistory
+        self.isCaptureBusy = isCaptureBusy
+        self.onStartDictation = onStartDictation
+        self.onOpenLibrary = onOpenLibrary
         self.onShowMoreStats = onShowMoreStats
-        self.onOpenHistoryRecord = onOpenHistoryRecord
-        self.onNewTranscription = onNewTranscription
-        self.onTranscribeFile = onTranscribeFile
-        self.onRecordMeeting = onRecordMeeting
-        self.onNewNote = onNewNote
+        self.onOpenLibraryRecord = onOpenLibraryRecord
+        self.onOpenShortcuts = onOpenShortcuts
         self.onDownloadDiarizationModel = onDownloadDiarizationModel
     }
 
@@ -102,11 +87,7 @@ struct DashboardView: View {
     // MARK: - Body
 
     var body: some View {
-        // Re-render at each calendar midnight so date kicker, WORDS TODAY, STREAK,
-        // and the today-bar highlight do not freeze while the window stays open.
-        // Schedule is calendar midnights only (no per-minute / per-second timers).
         TimelineView(HomeDayBoundarySchedule(calendar: calendar)) { _ in
-            // Date() is re-sampled when the schedule fires and when records change.
             homeContent(now: Date())
         }
     }
@@ -121,31 +102,71 @@ struct DashboardView: View {
                         isDownloading: recordingState?.isDiarizationModelDownloading ?? false,
                         progress: recordingState?.diarizationModelDownloadProgress ?? 0.0
                     )
-                        .padding(.bottom, 16)
+                    .padding(.bottom, 16)
                 }
 
-                heroBlock(now: now, stats: dashboardStats)
-                statsStrip(stats: dashboardStats)
-                recentSection
-                chartRowWidthProbe
-                thisWeekChart(now: now, stats: dashboardStats)
+                CapturePillarSurface(
+                    title: localized("Dictate", locale: locale),
+                    description: localized("Speak, then Pindrop writes in the app you are using.", locale: locale),
+                    symbol: "waveform",
+                    startTitle: localized("Start dictating", locale: locale),
+                    startIdentifier: "main.capture.dictate.start",
+                    currentShortcut: settingsStore.toggleHotkey,
+                    isBusy: isCaptureBusy,
+                    isStartAvailable: onStartDictation != nil,
+                    onStart: { onStartDictation?() }
+                )
+                .padding(.bottom, 20)
+                CaptureSupportLinks(
+                    prefix: "capture.dictate",
+                    onOpenShortcuts: onOpenShortcuts
+                )
+
+                if isFirstRun {
+                    firstRunLibraryState
+                        .padding(.top, 32)
+                } else {
+                    heroBlock(now: now, stats: dashboardStats)
+                    statsStrip(stats: dashboardStats)
+                    recentSection
+                    chartRowWidthProbe
+                    thisWeekChart(now: now, stats: dashboardStats)
+                }
             }
             .padding(.horizontal, 40)
             .padding(.top, 40)
             .padding(.bottom, 40)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(
+                minHeight: isFirstRun ? 560 : 0,
+                alignment: isFirstRun ? .center : .topLeading
+            )
         }
         .background(AppColors.contentBackground)
-        .sheet(isPresented: $showMeetingCaptureOptions) {
-            MeetingCaptureOptionsSheet { expectedSpeakerCount in
-                onRecordMeeting?(expectedSpeakerCount)
-            }
-        }
+        .accessibilityIdentifier("main.destination.dictate")
     }
 
-    private func requestMeetingCapture() {
-        guard onRecordMeeting != nil else { return }
-        showMeetingCaptureOptions = true
+    private var firstRunLibraryState: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(localized("Library", locale: locale))
+                .font(AppTypography.sectionHeader)
+                .foregroundStyle(AppColors.textTertiary)
+                .tracking(0.88)
+
+            Text(localized("Your latest dictations will show up here.", locale: locale))
+                .font(AppTypography.body)
+                .foregroundStyle(AppColors.textSecondary)
+
+            if let onOpenLibrary {
+                SecondaryButton(
+                    title: localized("Open Library", locale: locale),
+                    systemImage: "books.vertical",
+                    action: onOpenLibrary
+                )
+                .keyboardFocusRing(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .accessibilityIdentifier("capture.dictate.openLibrary")
+            }
+        }
     }
 
     private func diarizationSetupIssueBanner(
@@ -339,18 +360,22 @@ struct DashboardView: View {
     private var recentSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionHeader(title: localized("Recent", locale: locale), isFirst: true) {
-                Button {
-                    onViewAllHistory?()
-                } label: {
-                    HStack(spacing: 3) {
-                        Text(localized("Open Library", locale: locale))
-                        Image(systemName: "arrow.right")
-                            .flipsForRightToLeftLayoutDirection(true)
+                if let onOpenLibrary {
+                    Button {
+                        onOpenLibrary()
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text(localized("Open Library", locale: locale))
+                            Image(systemName: "arrow.right")
+                                .flipsForRightToLeftLayoutDirection(true)
+                        }
+                        .font(FontLoader.font(family: .inter, size: 11, weight: .semibold))
+                        .foregroundStyle(AppColors.accent)
                     }
-                    .font(FontLoader.font(family: .inter, size: 11, weight: .semibold))
-                    .foregroundStyle(AppColors.accent)
+                    .buttonStyle(.plain)
+                    .keyboardFocusRing(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                    .accessibilityIdentifier("capture.dictate.openLibrary")
                 }
-                .buttonStyle(.plain)
             }
 
             if recentRecords.isEmpty {
@@ -368,25 +393,11 @@ struct DashboardView: View {
     }
 
     private var emptyRecentHint: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(localized("Your latest dictations will show up here.", locale: locale))
-                .font(AppTypography.body)
-                .foregroundStyle(AppColors.textTertiary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            if onRecordMeeting != nil {
-                Button {
-                    requestMeetingCapture()
-                } label: {
-                    Text(localized("Record Meeting…", locale: locale))
-                        .font(AppTypography.labelSemibold)
-                        .foregroundStyle(AppColors.accent)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("home.button.recordMeeting")
-            }
-        }
-        .padding(.vertical, 12)
+        Text(localized("Your latest dictations will show up here.", locale: locale))
+            .font(AppTypography.body)
+            .foregroundStyle(AppColors.textTertiary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 12)
     }
 
     private static let rowTimeFormatter: DateFormatter = {
@@ -434,11 +445,11 @@ struct DashboardView: View {
                 PlayChip(
                     durationText: formatDuration(record.duration),
                     isExpired: showExpiredChip,
-                    action: { onOpenHistoryRecord?(record.id) }
+                    action: { onOpenLibraryRecord?(record.id) }
                 )
             },
             action: {
-                onOpenHistoryRecord?(record.id)
+                onOpenLibraryRecord?(record.id)
             }
         )
         // Row chrome includes 24 pt horizontal padding; counteract outer 40 so lanes
@@ -507,6 +518,353 @@ struct DashboardView: View {
             .layoutPriority(1)
         }
         .padding(.top, HomeLayoutMetrics.chartTopPadding)
+    }
+}
+
+// MARK: - Capture pillars
+
+struct VoiceNoteView: View {
+    @Environment(\.locale) private var locale
+    @ObservedObject private var settingsStore: SettingsStore
+    let isCaptureBusy: Bool
+    let onStartVoiceNote: (() -> Void)?
+    let onOpenNotes: (() -> Void)?
+    let onOpenShortcuts: (() -> Void)?
+
+    init(
+        settingsStore: SettingsStore,
+        isCaptureBusy: Bool = false,
+        onStartVoiceNote: (() -> Void)? = nil,
+        onOpenNotes: (() -> Void)? = nil,
+        onOpenShortcuts: (() -> Void)? = nil
+    ) {
+        _settingsStore = ObservedObject(wrappedValue: settingsStore)
+        self.isCaptureBusy = isCaptureBusy
+        self.onStartVoiceNote = onStartVoiceNote
+        self.onOpenNotes = onOpenNotes
+        self.onOpenShortcuts = onOpenShortcuts
+    }
+
+    var body: some View {
+        CapturePillarPage {
+            CapturePillarSurface(
+                title: localized("Voice Note", locale: locale),
+                description: localized("Capture a thought and keep it in Notes.", locale: locale),
+                symbol: "note.text.badge.plus",
+                startTitle: localized("Start voice note", locale: locale),
+                startIdentifier: "main.capture.voiceNote.start",
+                currentShortcut: nil,
+                isBusy: isCaptureBusy,
+                isStartAvailable: onStartVoiceNote != nil,
+                onStart: { onStartVoiceNote?() }
+            )
+            VoiceNoteShortcutSummary(
+                holdShortcut: settingsStore.quickCapturePTTHotkey,
+                toggleShortcut: settingsStore.quickCaptureToggleHotkey,
+                onOpenShortcuts: onOpenShortcuts
+            )
+            .padding(.top, 32)
+            CaptureSupportLinks(prefix: "capture.voiceNote", onOpenNotes: onOpenNotes)
+                .padding(.top, 32)
+        }
+        .accessibilityIdentifier("main.destination.voiceNote")
+    }
+}
+
+struct MeetingView: View {
+    @Environment(\.locale) private var locale
+    @State private var showMeetingCaptureOptions = false
+    let isCaptureBusy: Bool
+    let onStartMeeting: ((Int?) -> Bool)?
+    let onOpenLibrary: (() -> Void)?
+    let onOpenShortcuts: (() -> Void)?
+
+    init(
+        isCaptureBusy: Bool = false,
+        onStartMeeting: ((Int?) -> Bool)? = nil,
+        onOpenLibrary: (() -> Void)? = nil,
+        onOpenShortcuts: (() -> Void)? = nil
+    ) {
+        self.isCaptureBusy = isCaptureBusy
+        self.onStartMeeting = onStartMeeting
+        self.onOpenLibrary = onOpenLibrary
+        self.onOpenShortcuts = onOpenShortcuts
+    }
+
+    var body: some View {
+        CapturePillarPage {
+            CapturePillarSurface(
+                title: localized("Meeting", locale: locale),
+                description: localized("Record microphone and system audio, then keep the meeting in Library.", locale: locale),
+                symbol: "person.2.wave.2",
+                startTitle: localized("Record Meeting…", locale: locale),
+                startIdentifier: "main.capture.meeting.start",
+                currentShortcut: nil,
+                isBusy: isCaptureBusy,
+                isStartAvailable: onStartMeeting != nil,
+                onStart: { showMeetingCaptureOptions = true }
+            )
+            MeetingCaptureSummary()
+                .padding(.top, 32)
+            CaptureSupportLinks(prefix: "capture.meeting", onOpenShortcuts: onOpenShortcuts)
+                .padding(.top, 20)
+            Text(localized("Library", locale: locale))
+                .font(AppTypography.sectionHeader)
+                .foregroundStyle(AppColors.textTertiary)
+                .tracking(0.88)
+                .padding(.top, 40)
+            CaptureSupportLinks(prefix: "capture.meeting", onOpenLibrary: onOpenLibrary)
+                .padding(.top, 10)
+        }
+        .sheet(isPresented: $showMeetingCaptureOptions) {
+            MeetingCaptureOptionsSheet(isStartAvailable: !isCaptureBusy) { expectedSpeakerCount in
+                guard !isCaptureBusy, let onStartMeeting else { return false }
+                return onStartMeeting(expectedSpeakerCount)
+            }
+        }
+        .accessibilityIdentifier("main.destination.meeting")
+    }
+}
+
+private struct CapturePillarPage<Content: View>: View {
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                content
+            }
+            .frame(maxWidth: 640, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 40)
+            .padding(.vertical, 40)
+            .frame(minHeight: 560, alignment: .center)
+        }
+        .background(AppColors.contentBackground)
+    }
+}
+
+/// The one state-bearing instrument surface on each capture destination.
+private struct CapturePillarSurface: View {
+    @Environment(\.locale) private var locale
+    let title: String
+    let description: String
+    let symbol: String
+    let startTitle: String
+    let startIdentifier: String
+    let currentShortcut: String?
+    let isBusy: Bool
+    let isStartAvailable: Bool
+    let onStart: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Image(systemName: symbol)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(AppColors.accent)
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(FontLoader.font(family: .newsreader, size: 34, weight: .regular))
+                    .foregroundStyle(AppColors.textPrimary)
+            }
+            Text(description)
+                .font(AppTypography.body)
+                .foregroundStyle(AppColors.textSecondary)
+                .lineSpacing(AppTypography.bodyLineSpacing)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .center, spacing: 12) {
+                PrimaryButton(
+                    title: startTitle,
+                    systemImage: "record.circle",
+                    isEnabled: isStartAvailable && !isBusy,
+                    action: onStart
+                )
+                .keyboardFocusRing(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .accessibilityIdentifier(startIdentifier)
+                .accessibilityHint(isBusy ? localized("Finish the current capture before starting another.", locale: locale) : "")
+
+                if let currentShortcut, !currentShortcut.isEmpty {
+                    Text(currentShortcut)
+                        .font(AppTypography.monoSmall)
+                        .foregroundStyle(AppColors.textTertiary)
+                        .monospacedDigit()
+                        .environment(\.layoutDirection, .leftToRight)
+                }
+            }
+
+            if isBusy {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label(localized("Capture in progress", locale: locale), systemImage: "record.circle.fill")
+                    Text(localized("Finish the current capture before starting another.", locale: locale))
+                }
+                .font(AppTypography.caption)
+                .foregroundStyle(AppColors.warning)
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .padding(.vertical, 28)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct CaptureSupportLinks: View {
+    @Environment(\.locale) private var locale
+    let prefix: String
+    var onOpenLibrary: (() -> Void)?
+    var onOpenNotes: (() -> Void)?
+    var onOpenShortcuts: (() -> Void)?
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) { links }
+            VStack(alignment: .leading, spacing: 8) { links }
+        }
+    }
+
+    @ViewBuilder private var links: some View {
+        if let onOpenLibrary {
+            link(localized("Open Library", locale: locale), "books.vertical", "\(prefix).openLibrary", onOpenLibrary)
+        }
+        if let onOpenNotes {
+            link(localized("Open Notes", locale: locale), "note.text", "\(prefix).openNotes", onOpenNotes)
+        }
+        if let onOpenShortcuts {
+            link(localized("Change shortcut", locale: locale), "keyboard", "\(prefix).openShortcuts", onOpenShortcuts)
+        }
+    }
+
+    private func link(_ title: String, _ systemImage: String, _ identifier: String, _ action: @escaping () -> Void) -> some View {
+        SecondaryButton(title: title, systemImage: systemImage, action: action)
+            .keyboardFocusRing(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .accessibilityIdentifier(identifier)
+    }
+}
+
+private struct VoiceNoteShortcutSummary: View {
+    @Environment(\.locale) private var locale
+
+    let holdShortcut: String
+    let toggleShortcut: String
+    let onOpenShortcuts: (() -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(localized("Shortcuts", locale: locale))
+                .font(AppTypography.sectionHeader)
+                .foregroundStyle(AppColors.textTertiary)
+                .tracking(0.88)
+
+            shortcutRow(
+                title: localized("Voice Note — Hold", locale: locale),
+                value: displayValue(holdShortcut)
+            )
+            shortcutRow(
+                title: localized("Voice Note — Toggle", locale: locale),
+                value: displayValue(toggleShortcut)
+            )
+
+            CaptureSupportLinks(
+                prefix: "capture.voiceNote",
+                onOpenShortcuts: onOpenShortcuts
+            )
+            .padding(.top, 2)
+        }
+        .frame(maxWidth: 360, alignment: .leading)
+    }
+
+    private func shortcutRow(title: String, value: String) -> some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .font(AppTypography.body)
+                .foregroundStyle(AppColors.textSecondary)
+            Spacer(minLength: 16)
+            Text(value)
+                .font(AppTypography.monoSmall)
+                .foregroundStyle(AppColors.textPrimary)
+                .monospacedDigit()
+                .environment(\.layoutDirection, .leftToRight)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title), \(value)")
+    }
+
+    private func displayValue(_ shortcut: String) -> String {
+        shortcut.isEmpty ? localized("Not set", locale: locale) : shortcut
+    }
+}
+
+private struct MeetingCaptureSummary: View {
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        HStack(spacing: 24) {
+            Text(localized("Expected speakers", locale: locale))
+                .font(AppTypography.body)
+                .foregroundStyle(AppColors.textSecondary)
+                .frame(width: 160, alignment: .leading)
+            Text(localized("Automatic", locale: locale))
+                .font(AppTypography.monoSmall)
+                .foregroundStyle(AppColors.textPrimary)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(localized("Expected speakers", locale: locale)), \(localized("Automatic", locale: locale))"
+        )
+        .frame(maxWidth: 360, alignment: .leading)
+    }
+}
+
+// MARK: - Meeting capture options
+
+/// Start invokes the callback with `nil` (Automatic) or `1...20`. The sheet
+/// dismisses only after the coordinator accepts the capture start.
+struct MeetingCaptureOptionsSheet: View {
+    @Environment(\.locale) private var locale
+    @Environment(\.dismiss) private var dismiss
+    let isStartAvailable: Bool
+    let onStart: (Int?) -> Bool
+    @State private var selectedOption: Int = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(localized("Record Meeting…", locale: locale))
+                .font(AppTypography.headline)
+                .foregroundStyle(AppColors.textPrimary)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(localized("Expected speakers", locale: locale))
+                    .font(AppTypography.body)
+                    .foregroundStyle(AppColors.textSecondary)
+                Picker(localized("Expected speakers", locale: locale), selection: $selectedOption) {
+                    Text(localized("Automatic", locale: locale)).tag(0)
+                    ForEach(1...20, id: \.self) { Text("\($0)").tag($0) }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("meetingExpectedSpeakerPicker")
+            }
+            HStack {
+                Spacer()
+                Button(localized("Cancel", locale: locale)) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityIdentifier("meetingCaptureCancelButton")
+                Button(localized("Start Recording", locale: locale)) {
+                    if onStart(selectedOption == 0 ? nil : selectedOption) {
+                        dismiss()
+                    }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!isStartAvailable)
+                .accessibilityIdentifier("meetingCaptureStartButton")
+            }
+        }
+        .padding(24)
+        .frame(minWidth: 360)
+        .accessibilityIdentifier("meetingCaptureOptionsSheet")
     }
 }
 
@@ -677,7 +1035,7 @@ private struct DashboardActivityHeatmap: View {
         }
 
         VStack(alignment: .leading, spacing: HomeLayoutMetrics.chartSectionGap) {
-            SectionHeader(title: localized("History", locale: locale), isFirst: true) {
+            SectionHeader(title: localized("Activity", locale: locale), isFirst: true) {
                 Button {
                     onShowMoreStats?()
                 } label: {
@@ -691,7 +1049,7 @@ private struct DashboardActivityHeatmap: View {
                 }
                 .buttonStyle(.plain)
                 .keyboardFocusRing(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .accessibilityIdentifier("home.button.showMoreStats")
+                .accessibilityIdentifier("capture.dictate.showMoreStats")
                 .help(localized("Show more stats", locale: locale))
             }
 
@@ -992,22 +1350,22 @@ private struct HomeDayBoundarySchedule: TimelineSchedule {
     }
 }
 
-#Preview("Dashboard - With Data") {
-    DashboardView(settingsStore: SettingsStore())
+#Preview("Dictate - With Data") {
+    DictateView(settingsStore: SettingsStore())
         .modelContainer(PreviewContainer.withSampleData)
         .frame(width: 800, height: 700)
         .preferredColorScheme(.light)
 }
 
-#Preview("Dashboard - Empty") {
-    DashboardView(settingsStore: SettingsStore())
+#Preview("Dictate - Empty") {
+    DictateView(settingsStore: SettingsStore())
         .modelContainer(PreviewContainer.empty)
         .frame(width: 800, height: 700)
         .preferredColorScheme(.light)
 }
 
-#Preview("Dashboard - Dark") {
-    DashboardView(settingsStore: SettingsStore())
+#Preview("Dictate - Dark") {
+    DictateView(settingsStore: SettingsStore())
         .modelContainer(PreviewContainer.withSampleData)
         .frame(width: 800, height: 700)
         .preferredColorScheme(.dark)

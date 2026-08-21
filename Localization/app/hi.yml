@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "गोली"
+pillars:
+  capture: "कैप्चर"
+  workspace: "कार्यक्षेत्र"
+  tools: "टूल"
+  dictate: "डिक्टेशन"
+  voice_note: "वॉइस नोट"
+  meeting: "मीटिंग"
+  dictate_description: "बोलें, फिर Pindrop आपके द्वारा उपयोग किए जा रहे ऐप में लिख देगा।"
+  voice_note_description: "कोई विचार कैप्चर करें और उसे नोट्स में रखें।"
+  meeting_description: "माइक्रोफ़ोन और सिस्टम ऑडियो रिकॉर्ड करें, फिर मीटिंग को लाइब्रेरी में रखें।"
+  start_dictating: "डिक्टेट करना शुरू करें"
+  start_voice_note: "वॉइस नोट शुरू करें"
+  open_notes: "नोट्स खोलें"
+  change_shortcut: "शॉर्टकट बदलें"
+  capture_in_progress: "कैप्चर जारी है"
+  finish_current_capture: "दूसरा कैप्चर शुरू करने से पहले मौजूदा कैप्चर पूरा करें।"
+  voice_note_hold: "वॉइस नोट — होल्ड"
+  voice_note_toggle: "वॉइस नोट — टॉगल"
 pin:
   to_screen_always_on_top: "स्क्रीन पर पिन करें (हमेशा शीर्ष पर)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "पिनड्रॉप का उपयोग प्रारंभ करें"
   in_the_menu_bar_without_opening_the_main_w: "मुख्य विंडो खोले बिना मेनू बार में शुरू करें। आप इसे मेनू बार आइकन से बाद में भी खोल सकते हैं।"
 stats:
-  _self: "Stats"
+  _self: "आँकड़े"
 status:
   _self: "स्थिति"
 stop:

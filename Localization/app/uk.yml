@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "таблетки"
+pillars:
+  capture: "Запис"
+  workspace: "Робочий простір"
+  tools: "Інструменти"
+  dictate: "Диктування"
+  voice_note: "Голосова нотатка"
+  meeting: "Зустріч"
+  dictate_description: "Говоріть, а Pindrop записуватиме текст у програмі, якою ви користуєтеся."
+  voice_note_description: "Зафіксуйте думку й збережіть її в Примітках."
+  meeting_description: "Записуйте звук із мікрофона та системи, а потім збережіть зустріч у Бібліотеці."
+  start_dictating: "Почати диктування"
+  start_voice_note: "Почати голосову нотатку"
+  open_notes: "Відкрити Примітки"
+  change_shortcut: "Змінити сполучення клавіш"
+  capture_in_progress: "Триває запис"
+  finish_current_capture: "Завершіть поточний запис, перш ніж починати новий."
+  voice_note_hold: "Голосова нотатка — утримання"
+  voice_note_toggle: "Голосова нотатка — перемикання"
 pin:
   to_screen_always_on_top: "Закріпити на екрані (завжди зверху)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "Почніть використовувати Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "Запускати в рядку меню, не відкриваючи головне вікно. Його й надалі можна відкрити з піктограми в рядку меню."
 stats:
-  _self: "Stats"
+  _self: "Статистика"
 status:
   _self: "Статус"
 stop:

@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "Pille"
+pillars:
+  capture: "Optagelse"
+  workspace: "Arbejdsområde"
+  tools: "Værktøjer"
+  dictate: "Diktering"
+  voice_note: "Stemmenote"
+  meeting: "Møde"
+  dictate_description: "Tal, så skriver Pindrop i den app, du bruger."
+  voice_note_description: "Fang en tanke, og gem den i Noter."
+  meeting_description: "Optag mikrofon- og systemlyd, og gem derefter mødet i Bibliotek."
+  start_dictating: "Start diktering"
+  start_voice_note: "Start stemmenote"
+  open_notes: "Åbn Noter"
+  change_shortcut: "Skift genvej"
+  capture_in_progress: "Optagelse i gang"
+  finish_current_capture: "Afslut den aktuelle optagelse, før du starter en ny."
+  voice_note_hold: "Stemmenote — hold nede"
+  voice_note_toggle: "Stemmenote — skift"
 pin:
   to_screen_always_on_top: "Fastgør til skærmen (altid øverst)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "Begynd at bruge Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "Start i menulinjen uden at åbne hovedvinduet. Du kan stadig åbne det fra menulinjeikonet."
 stats:
-  _self: "Stats"
+  _self: "Statistik"
 status:
   _self: "Status"
 stop:

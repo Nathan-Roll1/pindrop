@@ -43,16 +43,19 @@ struct StatusCard: View {
 
     let phase: StatusCardPhase
     var hotkeyHint: String = ""
+    var readyTitle: String?
 
-    init(phase: StatusCardPhase, hotkeyHint: String = "") {
+    init(phase: StatusCardPhase, hotkeyHint: String = "", readyTitle: String? = nil) {
         self.phase = phase
         self.hotkeyHint = hotkeyHint
+        self.readyTitle = readyTitle
     }
 
     @MainActor
-    init(state: FloatingIndicatorState, hotkeyHint: String = "") {
+    init(state: FloatingIndicatorState, hotkeyHint: String = "", readyTitle: String? = nil) {
         self.phase = StatusCardPhase(state: state)
         self.hotkeyHint = hotkeyHint.isEmpty ? state.toggleRecordingHotkey : hotkeyHint
+        self.readyTitle = readyTitle
     }
 
     var body: some View {
@@ -92,7 +95,7 @@ struct StatusCard: View {
 
     private var title: String {
         switch phase {
-        case .ready: return localized("Ready to dictate", locale: locale)
+        case .ready: return readyTitle ?? localized("Ready to dictate", locale: locale)
         case .recording: return localized("Recording", locale: locale)
         case .processing: return localized("Processing", locale: locale)
         }

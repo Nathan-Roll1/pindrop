@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "Piller"
+pillars:
+  capture: "Inspelning"
+  workspace: "Arbetsyta"
+  tools: "Verktyg"
+  dictate: "Diktera"
+  voice_note: "Röstanteckning"
+  meeting: "Möte"
+  dictate_description: "Prata, så skriver Pindrop i appen du använder."
+  voice_note_description: "Fånga en tanke och spara den i Anteckningar."
+  meeting_description: "Spela in mikrofonens och systemets ljud och spara sedan mötet i Bibliotek."
+  start_dictating: "Börja diktera"
+  start_voice_note: "Starta röstanteckning"
+  open_notes: "Öppna Anteckningar"
+  change_shortcut: "Ändra kortkommando"
+  capture_in_progress: "Inspelning pågår"
+  finish_current_capture: "Slutför den aktuella inspelningen innan du startar en ny."
+  voice_note_hold: "Röstanteckning — håll in"
+  voice_note_toggle: "Röstanteckning — växla"
 pin:
   to_screen_always_on_top: "Fäst på skärmen (alltid överst)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "Börja använda Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "Starta i menyraden utan att öppna huvudfönstret. Du kan fortfarande öppna det från menyradsikonen."
 stats:
-  _self: "Stats"
+  _self: "Statistik"
 status:
   _self: "Status"
 stop:

@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "各 AI タスクに使うプロバイダとモデルを選びます。未割り当てはスキップされます。"
 pill:
   _self: "ピル"
+pillars:
+  capture: "キャプチャ"
+  workspace: "ワークスペース"
+  tools: "ツール"
+  dictate: "音声入力"
+  voice_note: "ボイスメモ"
+  meeting: "ミーティング"
+  dictate_description: "話すと、Pindrop が使用中のアプリに文字を入力します。"
+  voice_note_description: "思いついたことをキャプチャしてメモに残します。"
+  meeting_description: "マイクとシステム音声を録音し、ミーティングをライブラリに保存します。"
+  start_dictating: "音声入力を開始"
+  start_voice_note: "ボイスメモを開始"
+  open_notes: "メモを開く"
+  change_shortcut: "ショートカットを変更"
+  capture_in_progress: "キャプチャ中"
+  finish_current_capture: "現在のキャプチャを完了してから、別のキャプチャを開始してください。"
+  voice_note_hold: "ボイスメモ — ホールド"
+  voice_note_toggle: "ボイスメモ — 切り替え"
 pin:
   to_screen_always_on_top: "画面にピン留めする (常に一番上)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "ピンドロップの使用を開始する"
   in_the_menu_bar_without_opening_the_main_w: "メインウィンドウを開かずにメニューバーで起動します。メニューバーのアイコンから後で開くこともできます。"
 stats:
-  _self: "Stats"
+  _self: "統計"
 status:
   _self: "状態"
 stop:

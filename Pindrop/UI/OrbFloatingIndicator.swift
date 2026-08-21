@@ -584,11 +584,11 @@ final class OrbFloatingIndicatorController: NSObject, ObservableObject, Floating
 
         menu.addItem(.separator())
 
-        let historyItem = NSMenuItem(
-            title: localized("View transcript history", locale: locale),
-            action: #selector(handleViewTranscriptHistoryMenuItem), keyEquivalent: "")
-        historyItem.target = self
-        menu.addItem(historyItem)
+        let libraryItem = NSMenuItem(
+            title: localized("Open Library", locale: locale),
+            action: #selector(handleOpenLibraryMenuItem), keyEquivalent: "")
+        libraryItem.target = self
+        menu.addItem(libraryItem)
 
         let pasteItem = NSMenuItem(
             title: localized("Paste last transcript ⌃⌘V", locale: locale),
@@ -712,7 +712,7 @@ final class OrbFloatingIndicatorController: NSObject, ObservableObject, Floating
     @objc private func handleHideForOneHourMenuItem()      { actions.onHideForOneHour?() }
     @objc private func handleReportIssueMenuItem()         { actions.onReportIssue?() }
     @objc private func handleGoToSettingsMenuItem()        { actions.onGoToSettings?() }
-    @objc private func handleViewTranscriptHistoryMenuItem() { actions.onViewTranscriptHistory?() }
+    @objc private func handleOpenLibraryMenuItem()         { actions.onOpenLibrary?() }
     @objc private func handlePasteLastTranscriptMenuItem() {
         Task { @MainActor in await actions.onPasteLastTranscript?() }
     }

@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "为每项 AI 任务选择提供商和模型。未分配的用途会被跳过。"
 pill:
   _self: "胶囊"
+pillars:
+  capture: "录制"
+  workspace: "工作区"
+  tools: "工具"
+  dictate: "听写"
+  voice_note: "语音笔记"
+  meeting: "会议"
+  dictate_description: "说话，然后 Pindrop 会在您正在使用的应用中输入文字。"
+  voice_note_description: "记录一个想法并将其保存在笔记中。"
+  meeting_description: "录制麦克风和系统音频，然后将会议保存在资料库中。"
+  start_dictating: "开始听写"
+  start_voice_note: "开始语音笔记"
+  open_notes: "打开笔记"
+  change_shortcut: "更改快捷键"
+  capture_in_progress: "录制进行中"
+  finish_current_capture: "请先完成当前录制，再开始新的录制。"
+  voice_note_hold: "语音笔记 — 按住"
+  voice_note_toggle: "语音笔记 — 切换"
 pin:
   to_screen_always_on_top: "固定到屏幕（始终置顶）"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "开始使用 Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "在菜单栏中启动且不打开主窗口。你仍可通过菜单栏图标打开它。"
 stats:
-  _self: "Stats"
+  _self: "统计"
 status:
   _self: "状态"
 stop:

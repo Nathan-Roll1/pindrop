@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "각 AI 작업을 처리할 제공자와 모델을 선택합니다. 미할당 목적은 건너뜁니다."
 pill:
   _self: "알약"
+pillars:
+  capture: "캡처"
+  workspace: "작업 공간"
+  tools: "도구"
+  dictate: "받아쓰기"
+  voice_note: "음성 메모"
+  meeting: "회의"
+  dictate_description: "말하면 Pindrop이 사용 중인 앱에 글을 입력합니다."
+  voice_note_description: "생각을 캡처해 메모에 보관하세요."
+  meeting_description: "마이크와 시스템 오디오를 녹음한 후 회의를 라이브러리에 보관하세요."
+  start_dictating: "받아쓰기 시작"
+  start_voice_note: "음성 메모 시작"
+  open_notes: "메모 열기"
+  change_shortcut: "단축키 변경"
+  capture_in_progress: "캡처 진행 중"
+  finish_current_capture: "현재 캡처를 완료한 후 다른 캡처를 시작하세요."
+  voice_note_hold: "음성 메모 — 길게 누르기"
+  voice_note_toggle: "음성 메모 — 토글"
 pin:
   to_screen_always_on_top: "화면에 고정(항상 맨 위에)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "Pindrop 사용 시작"
   in_the_menu_bar_without_opening_the_main_w: "메인 창을 열지 않고 메뉴 막대에서 시작합니다. 메뉴 막대 아이콘으로 나중에 열 수 있습니다."
 stats:
-  _self: "Stats"
+  _self: "통계"
 status:
   _self: "상태"
 stop:

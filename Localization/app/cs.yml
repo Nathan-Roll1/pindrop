@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "Pilulka"
+pillars:
+  capture: "Záznam"
+  workspace: "Pracovní prostor"
+  tools: "Nástroje"
+  dictate: "Diktování"
+  voice_note: "Hlasová poznámka"
+  meeting: "Schůzka"
+  dictate_description: "Mluvte a Pindrop pak text zapíše do aplikace, kterou používáte."
+  voice_note_description: "Zachyťte myšlenku a uchovejte ji v Poznámkách."
+  meeting_description: "Nahrajte zvuk mikrofonu i systému a poté schůzku uchovejte v Knihovně."
+  start_dictating: "Začít diktovat"
+  start_voice_note: "Začít hlasovou poznámku"
+  open_notes: "Otevřít Poznámky"
+  change_shortcut: "Změnit zkratku"
+  capture_in_progress: "Probíhá záznam"
+  finish_current_capture: "Před zahájením dalšího záznamu dokončete aktuální záznam."
+  voice_note_hold: "Hlasová poznámka — podržení"
+  voice_note_toggle: "Hlasová poznámka — přepínač"
 pin:
   to_screen_always_on_top: "Připnout na obrazovku (vždy nahoře)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "Začněte používat Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "Spustit v řádku nabídek bez otevření hlavního okna. Okno stále můžete otevřít z ikony v řádku nabídek."
 stats:
-  _self: "Stats"
+  _self: "Statistiky"
 status:
   _self: "Postavení"
 stop:

@@ -238,6 +238,18 @@ struct AppCoordinatorContextFlowTests {
         #expect(AppCoordinator.canBeginMeetingCapture(activeHandle: nil))
         #expect(!AppCoordinator.canBeginMeetingCapture(activeHandle: activeHandle))
         #expect(
+            !AppCoordinator.canBeginMeetingCapture(
+                activeHandle: nil,
+                recoveryTaskActive: true
+            )
+        )
+        #expect(
+            !AppCoordinator.canBeginMeetingCapture(
+                activeHandle: nil,
+                isShutdown: true
+            )
+        )
+        #expect(
             AppCoordinator.isMeetingCaptureCurrent(
                 activeHandle: activeHandle,
                 candidateHandle: activeHandle

@@ -18,6 +18,7 @@ enum AppTestMode {
     static let uiTestSurfaceKey = "PINDROP_UI_TEST_SURFACE"
     static let uiTestSettingsTabKey = "PINDROP_UI_TEST_SETTINGS_TAB"
     static let testUserDefaultsSuiteKey = "PINDROP_TEST_USER_DEFAULTS_SUITE"
+    static let uiTestCaptureStartPendingKey = "PINDROP_UI_TEST_CAPTURE_START_PENDING"
 
     static var environment: [String: String] {
         ProcessInfo.processInfo.environment
@@ -42,6 +43,7 @@ enum AppTestMode {
 enum AppUITestSurface: String {
     case settings
     case noteEditorCitations
+    case mainShell
 }
 
 enum AppUITestFixture {
@@ -62,6 +64,7 @@ enum AppUITestFixture {
         return SettingsTab(rawValue: rawValue ?? "") ?? .general
     }
 
+    @MainActor
     @ViewBuilder
     static func rootView() -> some View {
         switch surface {
@@ -69,6 +72,8 @@ enum AppUITestFixture {
             SettingsFixtureRootView(initialTab: settingsInitialTab)
         case .noteEditorCitations:
             NoteEditorCitationsFixtureRootView()
+        case .mainShell:
+            MainShellFixtureRootView()
         case nil:
             EmptyView()
         }
@@ -104,6 +109,80 @@ private struct SettingsFixtureRootView: View {
             .environment(\.locale, settings.selectedAppLocale.locale)
             .environment(\.layoutDirection, settings.selectedAppLocale.layoutDirection)
             .modelContainer(Self.modelContainer)
+    }
+}
+
+@MainActor
+private struct MainShellFixtureRootView: View {
+    @StateObject private var settings: SettingsStore
+    @StateObject private var floatingIndicatorState: FloatingIndicatorState
+    @State private var routeState: MainWindowRouteState
+    @State private var mediaTranscriptionState: MediaTranscriptionFeatureState
+    @State private var recordingState: RecordingFeatureState
+    @State private var callbackMarker = "ready"
+
+    private static let modelContainer: ModelContainer = {
+        let schema = Schema(versionedSchema: TranscriptionRecordSchemaV14.self)
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        do {
+            return try ModelContainer(for: schema, configurations: [configuration])
+        } catch {
+            fatalError("Failed to create main-shell UI-test fixture model container: \(error)")
+        }
+    }()
+
+    init() {
+        let settings = SettingsStore()
+        settings.sidebarExpanded = true
+        settings.selectedSidebarPosition = .leading
+
+        let recordingState = RecordingFeatureState()
+        if AppTestMode.environment[AppTestMode.uiTestCaptureStartPendingKey] == "1" {
+            _ = recordingState.claimCaptureStart()
+        }
+
+        _settings = StateObject(wrappedValue: settings)
+        _floatingIndicatorState = StateObject(wrappedValue: FloatingIndicatorState())
+        _routeState = State(initialValue: MainWindowRouteState())
+        _mediaTranscriptionState = State(initialValue: MediaTranscriptionFeatureState())
+        _recordingState = State(initialValue: recordingState)
+    }
+
+    var body: some View {
+        MainWindow(
+            settingsStore: settings,
+            routeState: routeState,
+            floatingIndicatorState: floatingIndicatorState,
+            mediaTranscriptionState: mediaTranscriptionState,
+            recordingState: recordingState,
+            modelManager: nil,
+            onImportMediaFiles: nil,
+            onSubmitMediaLink: nil,
+            onDownloadDiarizationModel: nil,
+            onStartDictation: {
+                callbackMarker = "dictate"
+            },
+            onStartVoiceNote: {
+                callbackMarker = "voice-note"
+            },
+            onStartMeeting: { expectedSpeakerCount in
+                callbackMarker = expectedSpeakerCount
+                    .map { "meeting:\($0)" }
+                    ?? "meeting:nil"
+                return true
+            },
+            onOpenSettings: { tab in
+                callbackMarker = "settings:\(tab.rawValue)"
+            }
+        )
+        .frame(width: 980, height: 640)
+        .overlay(alignment: .bottomTrailing) {
+            Text(callbackMarker)
+                .padding(8)
+                .accessibilityLabel(callbackMarker)
+                .accessibilityIdentifier("mainShell.callback.\(callbackMarker)")
+        }
+        .modelContainer(Self.modelContainer)
     }
 }
 

@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "Pilleri"
+pillars:
+  capture: "Tallennus"
+  workspace: "Työtila"
+  tools: "Työkalut"
+  dictate: "Sanele"
+  voice_note: "Äänimuistio"
+  meeting: "Kokous"
+  dictate_description: "Puhu, niin Pindrop kirjoittaa käyttämääsi sovellukseen."
+  voice_note_description: "Tallenna ajatus ja säilytä se muistiinpanoissa."
+  meeting_description: "Tallenna mikrofonin ja järjestelmän ääni ja säilytä sitten kokous kirjastossa."
+  start_dictating: "Aloita sanelu"
+  start_voice_note: "Aloita äänimuistio"
+  open_notes: "Avaa muistiinpanot"
+  change_shortcut: "Vaihda oikotie"
+  capture_in_progress: "Tallennus käynnissä"
+  finish_current_capture: "Viimeistele nykyinen tallennus ennen uuden aloittamista."
+  voice_note_hold: "Äänimuistio — pidä painettuna"
+  voice_note_toggle: "Äänimuistio — vaihda"
 pin:
   to_screen_always_on_top: "Kiinnitä näyttöön (aina päällä)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "Aloita Pindropin käyttö"
   in_the_menu_bar_without_opening_the_main_w: "Käynnistä valikkoriville avaamatta pääikkunaa. Voit silti avata sen valikkorivin kuvakkeesta."
 stats:
-  _self: "Stats"
+  _self: "Tilastot"
 status:
   _self: "Status"
 stop:

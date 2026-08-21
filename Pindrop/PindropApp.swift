@@ -378,17 +378,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let viewMenuItem = NSMenuItem()
         viewMenuItem.submenu = viewMenu
 
-        // Home ⌘1, Library ⌘2, Notes ⌘3, Dictionary ⌘4, Models ⌘5
-        for nav in MainNavItem.primaryNavigationItems {
-            guard let key = MainNavItem.viewMenuShortcut(for: nav) else { continue }
-            let item = NSMenuItem(
-                title: nav.title(locale: locale),
-                action: #selector(menuNavigate(_:)),
-                keyEquivalent: key
-            )
-            item.target = self
-            item.representedObject = nav.rawValue
-            viewMenu.addItem(item)
+        for (groupIndex, group) in MainNavItem.sidebarGroups.enumerated() {
+            for nav in group.items {
+                let key = MainNavItem.viewMenuShortcut(for: nav)
+                let item = NSMenuItem(
+                    title: nav.title(locale: locale),
+                    action: #selector(menuNavigate(_:)),
+                    keyEquivalent: key
+                )
+                item.target = self
+                item.representedObject = nav.rawValue
+                viewMenu.addItem(item)
+            }
+
+            if groupIndex < MainNavItem.sidebarGroups.count - 1 {
+                viewMenu.addItem(NSMenuItem.separator())
+            }
         }
 
         viewMenu.addItem(NSMenuItem.separator())
@@ -523,11 +528,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func menuNavigate(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,
               let item = MainNavItem(rawValue: rawValue) else { return }
-        coordinator?.mainWindowController.showNavigationItem(item)
+        coordinator?.mainWindowController.navigate(to: item)
     }
 
     @objc func menuFind(_ sender: Any?) {
-        coordinator?.mainWindowController.focusHistorySearch()
+        coordinator?.mainWindowController.focusLibrarySearch()
     }
 
     @objc func menuShowMainWindow(_ sender: Any?) {
@@ -539,14 +544,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(url)
     }
 
-    /// Menu validation: nav items stay enabled when the main window is closed
-    /// (they open it). Find is enabled whenever History is reachable.
+    /// Menu validation: navigation items stay enabled when the main window is closed
+    /// (they open it). Find is enabled whenever Library is reachable.
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         guard coordinator != nil else { return false }
 
         if menuItem.action == #selector(menuFind(_:)) {
-            // Library is always a primary nav destination — enable Find so ⌘F
-            // can open the main window and focus the Library search field.
+            // Library is always a primary navigation destination. Enable Find so
+            // ⌘F can open the main window and focus the Library search field.
             return true
         }
 

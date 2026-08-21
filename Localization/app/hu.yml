@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "Tabletta"
+pillars:
+  capture: "Rögzítés"
+  workspace: "Munkaterület"
+  tools: "Eszközök"
+  dictate: "Diktálás"
+  voice_note: "Hangjegyzet"
+  meeting: "Értekezlet"
+  dictate_description: "Beszélj, majd a Pindrop beírja a szöveget a használt alkalmazásba."
+  voice_note_description: "Rögzíts egy gondolatot, és tartsd meg a Jegyzetekben."
+  meeting_description: "Rögzítsd a mikrofon és a rendszer hangját, majd tartsd meg az értekezletet a Könyvtárban."
+  start_dictating: "Diktálás indítása"
+  start_voice_note: "Hangjegyzet indítása"
+  open_notes: "Jegyzetek megnyitása"
+  change_shortcut: "Gyorsbillentyű módosítása"
+  capture_in_progress: "A rögzítés folyamatban"
+  finish_current_capture: "Fejezd be az aktuális rögzítést, mielőtt újat indítanál."
+  voice_note_hold: "Hangjegyzet — nyomva tartás"
+  voice_note_toggle: "Hangjegyzet — kapcsoló"
 pin:
   to_screen_always_on_top: "Rögzítés a képernyőn (mindig felül)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "Kezdje el használni a Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "Indítás a menüsorban a főablak megnyitása nélkül. Az ablakot továbbra is megnyithatja a menüsor ikonjáról."
 stats:
-  _self: "Stats"
+  _self: "Statisztikák"
 status:
   _self: "Állapot"
 stop:

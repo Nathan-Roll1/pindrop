@@ -216,7 +216,7 @@ cloud:
   model: "نموذج السحابة"
   transcription_sends_recorded_audio_to_open: "يرسل النسخ السحابي الصوت المسجّل إلى OpenAI. تُطبَّق رسوم استخدام OpenAI."
 collapse:
-  _self: "ينهار"
+  _self: "طيّ"
 coming:
   soon: "%@ قريبًا"
   soon_04d2fd85: "قريباً"
@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "حبة"
+pillars:
+  capture: "التقاط"
+  workspace: "مساحة العمل"
+  tools: "الأدوات"
+  dictate: "إملاء"
+  voice_note: "ملاحظة صوتية"
+  meeting: "اجتماع"
+  dictate_description: "تحدث، ثم يُدخل Pindrop النص في التطبيق الذي تستخدمه."
+  voice_note_description: "التقط فكرة واحتفظ بها في الملاحظات."
+  meeting_description: "سجّل صوت الميكروفون وصوت النظام، ثم احتفظ بالاجتماع في المكتبة."
+  start_dictating: "بدء الإملاء"
+  start_voice_note: "بدء ملاحظة صوتية"
+  open_notes: "فتح الملاحظات"
+  change_shortcut: "تغيير الاختصار"
+  capture_in_progress: "الالتقاط قيد التقدم"
+  finish_current_capture: "أكمل الالتقاط الحالي قبل بدء التقاط آخر."
+  voice_note_hold: "ملاحظة صوتية — اضغط مع الاستمرار"
+  voice_note_toggle: "ملاحظة صوتية — تبديل"
 pin:
   to_screen_always_on_top: "تثبيت على الشاشة (دائما في الأعلى)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "البدء في استخدام Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "ابدأ في شريط القوائم دون فتح النافذة الرئيسية. ما زال بإمكانك فتحها من أيقونة شريط القوائم."
 stats:
-  _self: "Stats"
+  _self: "إحصائيات"
 status:
   _self: "حالة"
 stop:

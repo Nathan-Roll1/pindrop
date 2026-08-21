@@ -3,8 +3,8 @@
 //  Pindrop
 //
 //  Sibling of TranscriptionHistoryRow for rendering NoteSchema.Note entries
-//  in the unified History list. Matches the visual rhythm of the transcription
-//  row (icon chip | title + meta | time + type pill) with note-appropriate
+//  in the unified Library list. Matches the visual rhythm of transcription
+//  rows (icon chip | title + meta | time + type pill) with note-specific
 //  content and actions.
 //
 

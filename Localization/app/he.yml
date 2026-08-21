@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "כַּדוּר"
+pillars:
+  capture: "לכידה"
+  workspace: "סביבת עבודה"
+  tools: "כלים"
+  dictate: "הכתבה"
+  voice_note: "הערה קולית"
+  meeting: "פגישה"
+  dictate_description: "דבר, ואז Pindrop יכתוב באפליקציה שבה אתה משתמש."
+  voice_note_description: "לכוד מחשבה ושמור אותה בהערות."
+  meeting_description: "הקלט את שמע המיקרופון והמערכת, ואז שמור את הפגישה בספרייה."
+  start_dictating: "התחל להכתיב"
+  start_voice_note: "התחל הערה קולית"
+  open_notes: "פתח את ההערות"
+  change_shortcut: "שנה קיצור דרך"
+  capture_in_progress: "הלכידה מתבצעת"
+  finish_current_capture: "סיים את הלכידה הנוכחית לפני שתתחיל לכידה אחרת."
+  voice_note_hold: "הערה קולית — החזקה"
+  voice_note_toggle: "הערה קולית — החלפה"
 pin:
   to_screen_always_on_top: "הצמד למסך (תמיד למעלה)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "התחל להשתמש ב-Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "התחל בשורת התפריטים בלי לפתוח את החלון הראשי. עדיין אפשר לפתוח אותו מסמל שורת התפריטים."
 stats:
-  _self: "Stats"
+  _self: "סטטיסטיקה"
 status:
   _self: "סטָטוּס"
 stop:

@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "ยา"
+pillars:
+  capture: "การบันทึก"
+  workspace: "พื้นที่ทำงาน"
+  tools: "เครื่องมือ"
+  dictate: "ป้อนตามคำบอก"
+  voice_note: "โน้ตเสียง"
+  meeting: "การประชุม"
+  dictate_description: "พูด แล้ว Pindrop จะเขียนลงในแอปที่คุณกำลังใช้งาน"
+  voice_note_description: "บันทึกความคิดและเก็บไว้ในโน้ต"
+  meeting_description: "บันทึกเสียงจากไมโครโฟนและระบบ แล้วเก็บการประชุมไว้ในไลบรารี"
+  start_dictating: "เริ่มป้อนตามคำบอก"
+  start_voice_note: "เริ่มโน้ตเสียง"
+  open_notes: "เปิดโน้ต"
+  change_shortcut: "เปลี่ยนปุ่มลัด"
+  capture_in_progress: "กำลังบันทึก"
+  finish_current_capture: "บันทึกปัจจุบันให้เสร็จก่อนเริ่มรายการใหม่"
+  voice_note_hold: "โน้ตเสียง — กดค้าง"
+  voice_note_toggle: "โน้ตเสียง — สลับ"
 pin:
   to_screen_always_on_top: "ปักหมุดที่หน้าจอ (อยู่ด้านบนเสมอ)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "เริ่มใช้ Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "เริ่มในแถบเมนูโดยไม่เปิดหน้าต่างหลัก คุณยังสามารถเปิดได้จากไอคอนแถบเมนู"
 stats:
-  _self: "Stats"
+  _self: "สถิติ"
 status:
   _self: "สถานะ"
 stop:

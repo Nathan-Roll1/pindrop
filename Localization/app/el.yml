@@ -832,6 +832,24 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "Χάπι"
+pillars:
+  capture: "Καταγραφή"
+  workspace: "Χώρος εργασίας"
+  tools: "Εργαλεία"
+  dictate: "Υπαγόρευση"
+  voice_note: "Φωνητική σημείωση"
+  meeting: "Σύσκεψη"
+  dictate_description: "Μιλήστε και το Pindrop θα γράψει στην εφαρμογή που χρησιμοποιείτε."
+  voice_note_description: "Καταγράψτε μια σκέψη και κρατήστε την στις Σημειώσεις."
+  meeting_description: "Ηχογραφήστε τον ήχο του μικροφώνου και του συστήματος και κρατήστε τη σύσκεψη στη Βιβλιοθήκη."
+  start_dictating: "Έναρξη υπαγόρευσης"
+  start_voice_note: "Έναρξη φωνητικής σημείωσης"
+  open_notes: "Άνοιγμα σημειώσεων"
+  change_shortcut: "Αλλαγή συντόμευσης"
+  capture_in_progress: "Η καταγραφή βρίσκεται σε εξέλιξη"
+  finish_current_capture: "Ολοκληρώστε την τρέχουσα καταγραφή πριν ξεκινήσετε άλλη."
+  voice_note_hold: "Φωνητική σημείωση — Κρατήστε πατημένο"
+  voice_note_toggle: "Φωνητική σημείωση — Εναλλαγή"
 pin:
   to_screen_always_on_top: "Καρφίτσωμα στην οθόνη (πάντα στην κορυφή)"
 pindrop:
@@ -1129,7 +1147,7 @@ start:
   using_pindrop: "Ξεκινήστε να χρησιμοποιείτε το Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "Έναρξη στη γραμμή μενού χωρίς άνοιγμα του κύριου παραθύρου. Μπορείτε να το ανοίξετε αργότερα από το εικονίδιο της γραμμής μενού."
 stats:
-  _self: "Stats"
+  _self: "Στατιστικά"
 status:
   _self: "Κατάσταση"
 stop:
