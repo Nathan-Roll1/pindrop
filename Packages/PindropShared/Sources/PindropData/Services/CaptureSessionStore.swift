@@ -9,17 +9,6 @@ import Foundation
 import PindropCore
 import SwiftData
 
-/// Stable identifiers for the artifacts created when a voice-note capture starts.
-public struct VoiceNoteCaptureHandle: Sendable, Equatable {
-    public let sessionID: UUID
-    public let microphoneSourceID: UUID
-
-    public init(sessionID: UUID, microphoneSourceID: UUID) {
-        self.sessionID = sessionID
-        self.microphoneSourceID = microphoneSourceID
-    }
-}
-
 /// The durable artifact retained for one meeting audio source.
 public struct RetainedMeetingSource: Sendable, Equatable {
     public let sourceID: UUID
@@ -696,7 +685,7 @@ public final class CaptureSessionStore {
     public func startVoiceNoteCapture(
         startedAt: Date = Date(),
         microphoneDisplayName: String? = nil
-    ) throws -> VoiceNoteCaptureHandle {
+    ) throws -> NoteCaptureHandle {
         var session = try CaptureSession(mode: .voiceNote, createdAt: startedAt)
         try session.start(at: startedAt)
 
@@ -716,7 +705,7 @@ public final class CaptureSessionStore {
         context.insert(microphoneSource)
         try save(context)
 
-        return VoiceNoteCaptureHandle(
+        return NoteCaptureHandle(
             sessionID: session.id,
             microphoneSourceID: microphoneSource.id
         )
@@ -1524,6 +1513,50 @@ public final class CaptureSessionStore {
         )
     }
 
+    /// Anchors one capture to a note that already exists.
+    ///
+    /// A note created before the capture starts (the "new note, then record"
+    /// flow) is the anchor: it is never replaced by a note this call creates,
+    /// and a second call with the same note is a no-op.
+    @discardableResult
+    public func ensureMeetingHumanAnchor(
+        _ handle: NoteCaptureHandle,
+        noteID: UUID,
+        at timestamp: Date = Date()
+    ) throws -> MeetingHumanAnchorSnapshot {
+        let context = ModelContext(modelContainer)
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
+        guard isHumanAnchorAllowed(sessionStateRawValue: ownedCapture.session.stateRawValue) else {
+            throw CaptureSessionStoreError.meetingHumanAnchorUnavailable(handle.sessionID)
+        }
+        if let existing = try validMeetingHumanAnchor(sessionID: handle.sessionID, in: context) {
+            guard existing.noteID == noteID else {
+                throw CaptureSessionStoreError.meetingHumanAnchorConflict(handle.sessionID)
+            }
+            return existing
+        }
+        guard let note = try fetchNote(id: noteID, in: context) else {
+            throw CaptureSessionStoreError.noteNotFound(noteID)
+        }
+        guard try meetingNoteReferences(sessionID: handle.sessionID, in: context).isEmpty else {
+            throw CaptureSessionStoreError.meetingHumanAnchorConflict(handle.sessionID)
+        }
+
+        context.insert(CaptureNoteReferenceModel(
+            sessionID: handle.sessionID,
+            noteID: note.id,
+            role: .humanAnchor,
+            createdAt: timestamp
+        ))
+        try save(context)
+        return MeetingHumanAnchorSnapshot(
+            sessionID: handle.sessionID,
+            noteID: note.id,
+            title: note.title,
+            content: note.content
+        )
+    }
+
     /// Returns the existing human anchor without creating or mutating durable state.
     public func meetingHumanAnchor(
         _ handle: NoteCaptureHandle
@@ -2228,7 +2261,7 @@ public final class CaptureSessionStore {
     }
 
     public func beginFinalization(
-        _ handle: VoiceNoteCaptureHandle,
+        _ handle: NoteCaptureHandle,
         at timestamp: Date = Date()
     ) throws {
         let context = ModelContext(modelContainer)
@@ -2242,7 +2275,7 @@ public final class CaptureSessionStore {
     /// Persists one cumulative committed-text checkpoint for an active voice-note capture.
     @discardableResult
     public func checkpointVoiceNoteLiveTranscript(
-        for handle: VoiceNoteCaptureHandle,
+        for handle: NoteCaptureHandle,
         committedText: String,
         assignmentAttempt: Int = 1,
         at timestamp: Date = Date()
@@ -2308,7 +2341,7 @@ public final class CaptureSessionStore {
 
     @discardableResult
     public func saveTranscriptRevisions(
-        for handle: VoiceNoteCaptureHandle,
+        for handle: NoteCaptureHandle,
         rawText: String,
         finalText: String,
         duration: TimeInterval,
@@ -2383,9 +2416,26 @@ public final class CaptureSessionStore {
         )
     }
 
+    /// The newest committed live-transcript checkpoint for one note capture.
+    ///
+    /// Finalization reads this when no batch transcription can run, so a capture
+    /// whose final-ASR stage is unavailable still keeps the text the live engine
+    /// already committed instead of losing the recording.
+    public func latestLiveTranscriptCheckpoint(
+        for handle: NoteCaptureHandle
+    ) throws -> VoiceNoteLiveTranscriptCheckpoint? {
+        let context = ModelContext(modelContainer)
+        _ = try fetchOwnedSession(for: handle, in: context)
+        return try latestValidLiveTranscriptCheckpoint(
+            sessionID: handle.sessionID,
+            sourceID: handle.microphoneSourceID,
+            in: context
+        )
+    }
+
     public func linkTranscriptionRecord(
         _ transcriptionRecordID: UUID,
-        to handle: VoiceNoteCaptureHandle,
+        to handle: NoteCaptureHandle,
         at timestamp: Date = Date()
     ) throws {
         let context = ModelContext(modelContainer)
@@ -2399,7 +2449,7 @@ public final class CaptureSessionStore {
     }
 
     public func complete(
-        _ handle: VoiceNoteCaptureHandle,
+        _ handle: NoteCaptureHandle,
         noteID: UUID,
         finalTranscriptRevisionID: UUID,
         at timestamp: Date = Date()
@@ -2427,7 +2477,7 @@ public final class CaptureSessionStore {
     }
 
     public func cancel(
-        _ handle: VoiceNoteCaptureHandle,
+        _ handle: NoteCaptureHandle,
         at timestamp: Date = Date()
     ) throws {
         let context = ModelContext(modelContainer)
@@ -2440,7 +2490,7 @@ public final class CaptureSessionStore {
     }
 
     public func fail(
-        _ handle: VoiceNoteCaptureHandle,
+        _ handle: NoteCaptureHandle,
         stage: CapturePipelineStage?,
         errorDomain: String,
         errorCode: String?,
@@ -3644,7 +3694,7 @@ public final class CaptureSessionStore {
 
     private func existingVoiceNoteTranscriptRevisions(
         _ revisions: [CaptureTranscriptRevisionModel],
-        for handle: VoiceNoteCaptureHandle,
+        for handle: NoteCaptureHandle,
         latestLiveCheckpoint: VoiceNoteLiveTranscriptCheckpoint?,
         rawText: String,
         finalText: String,
@@ -3707,7 +3757,7 @@ public final class CaptureSessionStore {
 
     private func validateFinalTranscriptRevision(
         _ revision: CaptureTranscriptRevisionModel,
-        for handle: VoiceNoteCaptureHandle,
+        for handle: NoteCaptureHandle,
         in context: ModelContext
     ) throws {
         guard revision.sessionID == handle.sessionID else {
@@ -3754,7 +3804,7 @@ public final class CaptureSessionStore {
     }
 
     private func fetchOwnedSession(
-        for handle: VoiceNoteCaptureHandle,
+        for handle: NoteCaptureHandle,
         in context: ModelContext
     ) throws -> CaptureSessionModel {
         let session = try fetchSession(id: handle.sessionID, in: context)

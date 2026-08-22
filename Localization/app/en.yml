@@ -12,6 +12,7 @@
 90:
   days: "90 days"
 a:
+  note_capture_is_already_running: "A note capture is already running."
   big_round_of_upgrades_and_two_community_shout: "A big round of upgrades — and two community shout-outs."
   native_macos_menu_bar_dictation_app_using_loca: "A native macOS menu bar dictation app using local speech-to-text with WhisperKit. 100% local processing by default with optional AI enhancement."
 about:
@@ -462,6 +463,8 @@ find:
   _self: "Find"
 fix:
   punctuation_and_capitalization: "Fix punctuation and capitalization"
+finish:
+  the_active_transcription_before_starting_another: "Finish the active transcription before starting another one."
 floating:
   indicator: "%@ floating indicator"
   indicator_e0349402: "Floating Indicator"
@@ -711,6 +714,7 @@ newest:
 next:
   _self: "Next"
 no:
+  audio_was_recorded_for_this_note: "No audio was recorded for this note."
   notes_yet_sentence: "No notes yet."
   activity_in_this_period: "No activity in this period"
   api_key: "No API key"
@@ -1010,6 +1014,7 @@ recording:
   _self: "Recording"
   3f8fd48c: "🔴 Recording"
   canceled: "Recording canceled."
+  transcribed: "Recording transcribed."
   in_progress_transcription_will_start: "Recording in progress — transcription will start when it finishes."
   stopped_with_error: "Recording stopped: %@"
   from_external_and_bluetooth_microphone: "Recording from external and Bluetooth microphones is now rock solid, even when your audio output is routed elsewhere."
@@ -1078,6 +1083,8 @@ saved:
   _self: "Saved"
   as_note: "Saved as Note"
   transcription: "Saved transcription"
+sealing:
+  the_recording: "Sealing the recording."
 search:
   media_transcripts: "Search media transcripts..."
   models: "Search models"
@@ -1226,6 +1233,9 @@ thanks:
   to_for_investigating_and_kicking_off_the: "Thanks to %@ for investigating and kicking off the fix (PR #64)."
   to_for_the_contribution_pr_61: "Thanks to %@ for the contribution (PR #61)."
 the:
+  note_this_recording_belongs_to_could_not_be_opened: "The note this recording belongs to could not be opened."
+  recorded_audio_could_not_be_prepared: "The recorded audio could not be prepared for transcription."
+  recorder_did_not_start: "The recorder did not start."
   floating_indicator_is_hidden: "The floating indicator is hidden."
   new_nemotron_streaming_engine_shows_words_as: "The new Nemotron streaming engine shows words as you say them, and the engine prewarms at launch so your first dictation starts without a delay."
   selected_chunk_variant_isn_t_downloaded_yet: "The selected chunk variant isn't downloaded yet. Toggling will start a download."

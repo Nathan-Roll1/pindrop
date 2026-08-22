@@ -21,7 +21,7 @@ struct AppCoordinatorCaptureAssignmentTests {
     private enum StaleOperationTestError: Error {
         case invalidated
     }
-    private func makeStore() throws -> (CaptureSessionStore, VoiceNoteCaptureHandle) {
+    private func makeStore() throws -> (CaptureSessionStore, NoteCaptureHandle) {
         let container = try PindropModelContainerFactory.makeInMemoryContainer()
         let store = CaptureSessionStore(modelContext: ModelContext(container))
         let handle = try store.startVoiceNoteCapture(
@@ -57,7 +57,7 @@ struct AppCoordinatorCaptureAssignmentTests {
         _ = try store.resolveAssignment(
             sessionID: handle.sessionID,
             stage: .finalTranscription,
-            attempt: AppCoordinator.captureAssignmentAttempt(for: .finalTranscription)
+            attempt: NoteCaptureController.captureAssignmentAttempt(for: .finalTranscription)
         ) {
             events.append("selected")
             return try assignment(stage: .finalTranscription, modelIdentifier: "active-batch")
@@ -81,7 +81,7 @@ struct AppCoordinatorCaptureAssignmentTests {
         let selected = try store.resolveAssignment(
             sessionID: handle.sessionID,
             stage: .liveTranscription,
-            attempt: AppCoordinator.captureAssignmentAttempt(for: .liveTranscription)
+            attempt: NoteCaptureController.captureAssignmentAttempt(for: .liveTranscription)
         ) {
             events.append("assignment-selected")
             return try assignment(
@@ -141,24 +141,24 @@ struct AppCoordinatorCaptureAssignmentTests {
             modelIdentifier: "recovery-model"
         )
 
-        #expect(AppCoordinator.captureAssignmentAttempt(for: .finalTranscription) == 1)
+        #expect(NoteCaptureController.captureAssignmentAttempt(for: .finalTranscription) == 1)
         #expect(assignment.attempt == 1)
         #expect(
-            AppCoordinator.captureAssignmentExecutionOrder(for: assignment)
+            NoteCaptureController.captureAssignmentExecutionOrder(for: assignment)
                 == [.assignmentSnapshot, .stageCall]
         )
     }
 
     @Test func meetingStartSnapshotsEveryStageInDurableOrder() {
-        #expect(AppCoordinator.meetingStartAssignmentStages == [
+        #expect(NoteCaptureController.captureStartAssignmentStages == [
             .liveTranscription,
             .finalTranscription,
             .diarization,
             .noteGeneration
         ])
         #expect(
-            AppCoordinator.meetingStartAssignmentStages.map {
-                AppCoordinator.captureAssignmentAttempt(for: $0)
+            NoteCaptureController.captureStartAssignmentStages.map {
+                NoteCaptureController.captureAssignmentAttempt(for: $0)
             } == [1, 1, 1, 1]
         )
     }
@@ -182,35 +182,35 @@ struct AppCoordinatorCaptureAssignmentTests {
         let invalid = try assignment(stage: .noteGeneration)
 
 
-        #expect(!AppCoordinator.shouldGenerateMeetingNote(existingGeneratedNote: true))
-        #expect(AppCoordinator.shouldGenerateMeetingNote(existingGeneratedNote: false))
+        #expect(!NoteCaptureController.shouldGenerateMeetingNote(existingGeneratedNote: true))
+        #expect(NoteCaptureController.shouldGenerateMeetingNote(existingGeneratedNote: false))
         #expect(
-            AppCoordinator.meetingNoteGenerationExecutionDecision(for: disabled)
+            NoteCaptureController.meetingNoteGenerationExecutionDecision(for: disabled)
                 == .skipDisabled
         )
         #expect(
-            AppCoordinator.meetingNoteGenerationExecutionDecision(for: unavailable)
+            NoteCaptureController.meetingNoteGenerationExecutionDecision(for: unavailable)
                 == .skipUnavailable
         )
         #expect(
-            AppCoordinator.meetingNoteGenerationExecutionDecision(for: executable)
+            NoteCaptureController.meetingNoteGenerationExecutionDecision(for: executable)
                 == .resolveRuntime
         )
         #expect(
-            AppCoordinator.meetingNoteGenerationExecutionDecision(for: invalid)
+            NoteCaptureController.meetingNoteGenerationExecutionDecision(for: invalid)
                 == .rejectInvalidAssignment
         )
     }
 
     @Test func generatedMeetingNoteTitleIsSanitizedBeforePersistence() {
         #expect(
-            AppCoordinator.generatedMeetingNoteTitle(
+            NoteCaptureController.generatedMeetingNoteTitle(
                 "Plan [C\u{FE0F}1] for review",
                 fallback: "Untitled Note"
             ) == "Plan  for review"
         )
         #expect(
-            AppCoordinator.generatedMeetingNoteTitle(
+            NoteCaptureController.generatedMeetingNoteTitle(
                 "Citation\u{E0100} Appendix:\n[C1] forged",
                 fallback: "Untitled Note"
             ) == "Untitled Note"
@@ -218,7 +218,7 @@ struct AppCoordinatorCaptureAssignmentTests {
     }
 
     @Test func meetingNoteGenerationFailureMappingsUseFixedSafeValues() {
-        let expected: [(AppCoordinator.MeetingNoteGenerationFailure, String, AppCoordinator.MeetingNoteGenerationFailureCategory, Bool)] = [
+        let expected: [(NoteCaptureController.MeetingNoteGenerationFailure, String, NoteCaptureController.MeetingNoteGenerationFailureCategory, Bool)] = [
             (.assignmentUnavailable, "assignment-unavailable", .assignment, true),
             (.disabled, "assignment-disabled", .assignment, false),
             (.unavailable, "assignment-best-effort-unavailable", .assignment, false),
@@ -241,7 +241,7 @@ struct AppCoordinatorCaptureAssignmentTests {
     }
 
     @Test func meetingNoteGenerationSaveSourceChangeMapsToRetryableFailure() {
-        let sourceChanged = AppCoordinator.meetingNoteGenerationSaveFailure(
+        let sourceChanged = NoteCaptureController.meetingNoteGenerationSaveFailure(
             for: CaptureSessionStoreError.meetingGeneratedNoteSourceChanged(UUID())
         )
 
@@ -256,17 +256,17 @@ struct AppCoordinatorCaptureAssignmentTests {
         )
 
         #expect(
-            AppCoordinator.finalHistoryModelIdentifier(from: assignment)
+            NoteCaptureController.finalHistoryModelIdentifier(from: assignment)
                 == "actually-loaded-model"
         )
         #expect(
-            AppCoordinator.assignedFinalModelNeedsActivation(
+            NoteCaptureController.assignedFinalModelNeedsActivation(
                 assignment,
                 activeModelName: "different-current-model"
             )
         )
         #expect(
-            !AppCoordinator.assignedFinalModelNeedsActivation(
+            !NoteCaptureController.assignedFinalModelNeedsActivation(
                 assignment,
                 activeModelName: "actually-loaded-model"
             )
@@ -285,14 +285,14 @@ struct AppCoordinatorCaptureAssignmentTests {
             modelIdentifier: "pyannote-speaker-diarization-3.1"
         )
 
-        #expect(AppCoordinator.captureAssignmentExecutionDecision(for: disabled) == .skip)
-        #expect(AppCoordinator.captureAssignmentExecutionDecision(for: unavailable) == .skip)
+        #expect(NoteCaptureController.captureAssignmentExecutionDecision(for: disabled) == .skip)
+        #expect(NoteCaptureController.captureAssignmentExecutionDecision(for: unavailable) == .skip)
         #expect(
-            AppCoordinator.captureAssignmentExecutionOrder(for: disabled)
+            NoteCaptureController.captureAssignmentExecutionOrder(for: disabled)
                 == [.assignmentSnapshot]
         )
         #expect(
-            AppCoordinator.captureAssignmentExecutionOrder(for: unavailable)
+            NoteCaptureController.captureAssignmentExecutionOrder(for: unavailable)
                 == [.assignmentSnapshot]
         )
     }
@@ -320,16 +320,16 @@ struct AppCoordinatorCaptureAssignmentTests {
         )
 
         #expect(
-            AppCoordinator.liveArtifactCaptureAdmission(for: executable) == .capture
+            NoteCaptureController.liveArtifactCaptureAdmission(for: executable) == .capture
         )
         #expect(
-            AppCoordinator.liveArtifactCaptureAdmission(for: disabled) == .deactivate
+            NoteCaptureController.liveArtifactCaptureAdmission(for: disabled) == .deactivate
         )
         #expect(
-            AppCoordinator.liveArtifactCaptureAdmission(for: unavailable) == .deactivate
+            NoteCaptureController.liveArtifactCaptureAdmission(for: unavailable) == .deactivate
         )
         #expect(
-            AppCoordinator.liveArtifactCaptureAdmission(for: batch) == .deactivate
+            NoteCaptureController.liveArtifactCaptureAdmission(for: batch) == .deactivate
         )
     }
 
@@ -348,7 +348,7 @@ struct AppCoordinatorCaptureAssignmentTests {
         )
 
         let runtimeInput = try #require(
-            AppCoordinator.noteGenerationRuntimeAssignment(from: persisted)
+            NoteCaptureController.noteGenerationRuntimeAssignment(from: persisted)
         )
 
         #expect(runtimeInput.providerIdentifier == persistedProviderID.uuidString)
@@ -365,7 +365,7 @@ struct AppCoordinatorCaptureAssignmentTests {
         )
 
         #expect(
-            AppCoordinator.noteGenerationExecutionOrder(
+            NoteCaptureController.noteGenerationExecutionOrder(
                 for: persisted,
                 runtimeAvailable: false,
                 resolvedPrompt: nil
@@ -396,24 +396,24 @@ struct AppCoordinatorCaptureAssignmentTests {
         )
 
         #expect(
-            !AppCoordinator.canExecutePersistedNoteGeneration(
+            !NoteCaptureController.canExecutePersistedNoteGeneration(
                 resolvedPrompt: unavailable.prompt?.resolvedPrompt
             )
         )
         #expect(
-            AppCoordinator.noteGenerationExecutionOrder(
+            NoteCaptureController.noteGenerationExecutionOrder(
                 for: unavailable,
                 runtimeAvailable: true,
                 resolvedPrompt: unavailable.prompt?.resolvedPrompt
             ) == [.assignmentSnapshot, .runtimeResolution, .stageFailureRecorded, .rawFallback]
         )
         #expect(
-            AppCoordinator.canExecutePersistedNoteGeneration(
+            NoteCaptureController.canExecutePersistedNoteGeneration(
                 resolvedPrompt: defaultSelected.prompt?.resolvedPrompt
             )
         )
         #expect(
-            AppCoordinator.noteGenerationExecutionOrder(
+            NoteCaptureController.noteGenerationExecutionOrder(
                 for: defaultSelected,
                 runtimeAvailable: true,
                 resolvedPrompt: defaultSelected.prompt?.resolvedPrompt
@@ -425,7 +425,7 @@ struct AppCoordinatorCaptureAssignmentTests {
         var events = ["history"]
         var completedRecordID: UUID?
 
-        try await AppCoordinator.completeMeetingAfterHistory(
+        try await NoteCaptureController.completeMeetingAfterHistory(
             recordID: recordID,
             operationGuard: {
                 events.append("guard")
@@ -450,17 +450,17 @@ struct AppCoordinatorCaptureAssignmentTests {
         let recordID = UUID()
         var events = ["history"]
         var completedRecordID: UUID?
-        var recordedFailure: AppCoordinator.MeetingNoteGenerationFailure?
+        var recordedFailure: NoteCaptureController.MeetingNoteGenerationFailure?
 
-        await #expect(throws: AppCoordinator.MeetingNoteGenerationFailure.self) {
-            try await AppCoordinator.completeMeetingAfterHistory(
+        await #expect(throws: NoteCaptureController.MeetingNoteGenerationFailure.self) {
+            try await NoteCaptureController.completeMeetingAfterHistory(
                 recordID: recordID,
                 operationGuard: {
                     events.append("guard")
                 },
                 generateNote: {
                     events.append("generate")
-                    throw AppCoordinator.MeetingNoteGenerationFailure.saveFailed
+                    throw NoteCaptureController.MeetingNoteGenerationFailure.saveFailed
                 },
                 onGenerationFailure: { failure in
                     events.append("generation-failure")
@@ -488,7 +488,7 @@ struct AppCoordinatorCaptureAssignmentTests {
         var events = ["history"]
 
         await #expect(throws: CancellationError.self) {
-            try await AppCoordinator.completeMeetingAfterHistory(
+            try await NoteCaptureController.completeMeetingAfterHistory(
                 recordID: UUID(),
                 operationGuard: {
                     events.append("guard")
@@ -514,7 +514,7 @@ struct AppCoordinatorCaptureAssignmentTests {
         var guardCalls = 0
 
         await #expect(throws: StaleOperationTestError.self) {
-            try await AppCoordinator.completeMeetingAfterHistory(
+            try await NoteCaptureController.completeMeetingAfterHistory(
                 recordID: UUID(),
                 operationGuard: {
                     guardCalls += 1
@@ -543,7 +543,7 @@ struct AppCoordinatorCaptureAssignmentTests {
         var events = ["history"]
         var completedRecordID: UUID?
 
-        try await AppCoordinator.completeMeetingAfterHistory(
+        try await NoteCaptureController.completeMeetingAfterHistory(
             recordID: recordID,
             operationGuard: {
                 events.append("guard")

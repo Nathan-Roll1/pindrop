@@ -793,9 +793,9 @@ struct CaptureSessionStoreTests {
         let startedAt = Date(timeIntervalSinceReferenceDate: 7_000)
         let first = try store.startVoiceNoteCapture(startedAt: startedAt)
         let second = try store.startVoiceNoteCapture(startedAt: startedAt)
-        let unknown = VoiceNoteCaptureHandle(sessionID: UUID(), microphoneSourceID: UUID())
-        let stale = VoiceNoteCaptureHandle(sessionID: first.sessionID, microphoneSourceID: UUID())
-        let crossSession = VoiceNoteCaptureHandle(
+        let unknown = NoteCaptureHandle(sessionID: UUID(), microphoneSourceID: UUID())
+        let stale = NoteCaptureHandle(sessionID: first.sessionID, microphoneSourceID: UUID())
+        let crossSession = NoteCaptureHandle(
             sessionID: second.sessionID,
             microphoneSourceID: first.microphoneSourceID
         )
@@ -1280,7 +1280,7 @@ struct CaptureSessionStoreTests {
             selecting: { try assignment(stage: .liveTranscription) }
         )
         _ = try store.checkpointVoiceNoteLiveTranscript(
-            for: VoiceNoteCaptureHandle(
+            for: NoteCaptureHandle(
                 sessionID: micOnlyNote.sessionID,
                 microphoneSourceID: micOnlyNote.microphoneSourceID
             ),
@@ -3063,7 +3063,7 @@ struct CaptureSessionStoreTests {
             )
         ) {
             try store.checkpointVoiceNoteLiveTranscript(
-                for: VoiceNoteCaptureHandle(
+                for: NoteCaptureHandle(
                     sessionID: meeting.sessionID,
                     microphoneSourceID: meeting.microphoneSourceID
                 ),
@@ -4063,7 +4063,7 @@ struct CaptureSessionStoreTests {
         defer { try? FileManager.default.removeItem(at: directoryURL) }
         let storeURL = directoryURL.appendingPathComponent("capture.store")
         let startedAt = Date(timeIntervalSinceReferenceDate: 25_000)
-        let expectedHandle: VoiceNoteCaptureHandle
+        let expectedHandle: NoteCaptureHandle
         let expectedCheckpoint: VoiceNoteLiveTranscriptCheckpoint
 
         do {

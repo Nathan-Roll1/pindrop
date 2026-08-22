@@ -141,6 +141,18 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     private(set) var isArtifactLiveTranscriptionStopped = false
     private var artifactLiveTranscriptionLimitTask: Task<Void, Never>?
 
+    /// Observer for the cumulative committed text of an artifact capture.
+    /// Artifact capture has no display sink, so this is the only way the note
+    /// UI can show what the live engine has decided so far.
+    var onArtifactLiveTextChanged: ((String) -> Void)?
+
+    /// True when live transcription for the active artifact capture stopped
+    /// growing: the duration bound elapsed, or checkpoint persistence failed.
+    /// The durable spool is unaffected; only the live text is incomplete.
+    var isArtifactLiveTranscriptDegraded: Bool {
+        isArtifactLiveTranscriptionStopped || artifactPersistenceDisabled
+    }
+
     /// Direct engine handle for the audio pump. Captured once per session so the
     /// per-buffer path never hops through the @MainActor TranscriptionService.
     private var pumpEngine: (any PindropSpeech.StreamingTranscriptionEngine)?
@@ -817,9 +829,14 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         _ coordinator: StreamingRefinementCoordinator,
         didCommitText committedText: String
     ) {
+        guard refinementCoordinator === coordinator, isArtifactCaptureActive else { return }
+        // The observer sees every commit, including ones this controller can no
+        // longer checkpoint: the words were still decoded, so the note UI shows
+        // them and flags the transcript as degraded instead of losing them.
+        if !committedText.isEmpty {
+            onArtifactLiveTextChanged?(committedText)
+        }
         guard
-            refinementCoordinator === coordinator,
-            isArtifactCaptureActive,
             !artifactPersistenceDisabled,
             !committedText.isEmpty,
             let handle = artifactCaptureHandle,
@@ -845,10 +862,7 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
             // never hears the system-audio source, so a two-source capture persists
             // exactly the same revision chain as a mic-only one.
             try captureSessionStore.checkpointVoiceNoteLiveTranscript(
-                for: VoiceNoteCaptureHandle(
-                    sessionID: handle.sessionID,
-                    microphoneSourceID: handle.microphoneSourceID
-                ),
+                for: handle,
                 committedText: committedText,
                 assignmentAttempt: assignment.attempt
             )

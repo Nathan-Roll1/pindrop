@@ -56,7 +56,7 @@ struct LongMeetingReliabilityTests {
             checkpoint(for: handle, sourceID: handle.dualSourceSystemAudioID, sequence: $0)
         }
 
-        let workItems = try AppCoordinator.meetingChunkWorkItems(
+        let workItems = try NoteCaptureController.meetingChunkWorkItems(
             sourceChunks: Array((microphone + systemAudio).reversed()),
             failedSequences: [],
             handle: handle
@@ -84,7 +84,7 @@ struct LongMeetingReliabilityTests {
             sequence: 1
         )
 
-        let workItems = try AppCoordinator.meetingChunkWorkItems(
+        let workItems = try NoteCaptureController.meetingChunkWorkItems(
             sourceChunks: [systemOnly, microphoneOnly],
             failedSequences: [],
             handle: handle
@@ -95,8 +95,8 @@ struct LongMeetingReliabilityTests {
         #expect(workItems[0].systemAudio == nil)
         #expect(workItems[1].microphone == nil)
         #expect(workItems[1].systemAudio == systemOnly)
-        #expect(AppCoordinator.shouldCreateMeetingTranscriptionInput(for: workItems[0]))
-        #expect(AppCoordinator.shouldCreateMeetingTranscriptionInput(for: workItems[1]))
+        #expect(NoteCaptureController.shouldCreateMeetingTranscriptionInput(for: workItems[0]))
+        #expect(NoteCaptureController.shouldCreateMeetingTranscriptionInput(for: workItems[1]))
     }
 
     @Test func rejectsDuplicateAndMismatchedSourceChunks() {
@@ -118,18 +118,18 @@ struct LongMeetingReliabilityTests {
             startOffset: 0.25
         )
 
-        #expect(throws: AppCoordinator.MeetingChunkWorkItemError.duplicateSourceSequence(
+        #expect(throws: NoteCaptureController.MeetingChunkWorkItemError.duplicateSourceSequence(
             sourceID: handle.microphoneSourceID,
             sequence: 0
         )) {
-            try AppCoordinator.meetingChunkWorkItems(
+            try NoteCaptureController.meetingChunkWorkItems(
                 sourceChunks: [microphone, duplicateMicrophone],
                 failedSequences: [],
                 handle: handle
             )
         }
-        #expect(throws: AppCoordinator.MeetingChunkWorkItemError.mismatchedStartOffset(sequence: 0)) {
-            try AppCoordinator.meetingChunkWorkItems(
+        #expect(throws: NoteCaptureController.MeetingChunkWorkItemError.mismatchedStartOffset(sequence: 0)) {
+            try NoteCaptureController.meetingChunkWorkItems(
                 sourceChunks: [microphone, systemWithMismatchedTiming],
                 failedSequences: [],
                 handle: handle
@@ -145,7 +145,7 @@ struct LongMeetingReliabilityTests {
                 checkpoint(for: handle, sourceID: handle.dualSourceSystemAudioID, sequence: sequence)
             ]
         }
-        let workItems = try AppCoordinator.meetingChunkWorkItems(
+        let workItems = try NoteCaptureController.meetingChunkWorkItems(
             sourceChunks: Array(sourceChunks.reversed()),
             failedSequences: [1],
             handle: handle
@@ -165,7 +165,7 @@ struct LongMeetingReliabilityTests {
             plainText: "third chunk"
         )
 
-        let mergeInputs = AppCoordinator.meetingOutputPlaceholders(
+        let mergeInputs = NoteCaptureController.meetingOutputPlaceholders(
             workItems: workItems,
             outputs: [third, first]
         )
@@ -190,7 +190,7 @@ struct LongMeetingReliabilityTests {
             sequence: 1
         )
 
-        let workItems = try AppCoordinator.meetingChunkWorkItems(
+        let workItems = try NoteCaptureController.meetingChunkWorkItems(
             sourceChunks: [microphone],
             failedSequences: [0, 2],
             handle: handle
@@ -209,10 +209,10 @@ struct LongMeetingReliabilityTests {
     }
 
     @Test func reconstructsChunkProgressFromCompletedCheckpoints() {
-        #expect(AppCoordinator.meetingChunkProgress(completed: 0, total: 18) == 0)
-        #expect(AppCoordinator.meetingChunkProgress(completed: 9, total: 18) == 0.5)
-        #expect(AppCoordinator.meetingChunkProgress(completed: 18, total: 18) == 1)
-        #expect(AppCoordinator.meetingChunkProgress(completed: 24, total: 18) == 1)
+        #expect(NoteCaptureController.meetingChunkProgress(completed: 0, total: 18) == 0)
+        #expect(NoteCaptureController.meetingChunkProgress(completed: 9, total: 18) == 0.5)
+        #expect(NoteCaptureController.meetingChunkProgress(completed: 18, total: 18) == 1)
+        #expect(NoteCaptureController.meetingChunkProgress(completed: 24, total: 18) == 1)
     }
 
     @Test func recoveryAndFinalizationCarryOneReservedHistoryIdentity() {
@@ -263,7 +263,7 @@ struct LongMeetingReliabilityTests {
         )
 
         let workItem = try #require(
-            AppCoordinator.meetingChunkWorkItems(
+            NoteCaptureController.meetingChunkWorkItems(
                 sourceChunks: [microphone, systemAudio],
                 failedSequences: [],
                 handle: handle
@@ -283,7 +283,7 @@ struct LongMeetingReliabilityTests {
             checkpoint(for: handle, sourceID: handle.microphoneSourceID, sequence: $0)
         }
 
-        let workItems = try AppCoordinator.meetingChunkWorkItems(
+        let workItems = try NoteCaptureController.meetingChunkWorkItems(
             sourceChunks: Array(microphone.reversed()),
             failedSequences: [],
             handle: handle
@@ -292,7 +292,7 @@ struct LongMeetingReliabilityTests {
         #expect(workItems.map(\.sequence) == [0, 1, 2])
         #expect(workItems.allSatisfy { $0.systemAudio == nil })
         #expect(workItems.map(\.microphone) == microphone)
-        #expect(workItems.allSatisfy(AppCoordinator.shouldCreateMeetingTranscriptionInput))
+        #expect(workItems.allSatisfy(NoteCaptureController.shouldCreateMeetingTranscriptionInput))
     }
 }
 

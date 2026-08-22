@@ -301,7 +301,7 @@ struct AppCoordinatorContextFlowTests {
     }
 
     @Test func sourceLessMeetingWorkItemNeverCreatesASRInput() {
-        let workItem = AppCoordinator.MeetingChunkWorkItem(
+        let workItem = NoteCaptureController.MeetingChunkWorkItem(
             sequence: 1,
             chunkID: UUID(),
             startOffset: 300,
@@ -310,12 +310,12 @@ struct AppCoordinatorContextFlowTests {
             systemAudio: nil
         )
 
-        #expect(!AppCoordinator.shouldCreateMeetingTranscriptionInput(for: workItem))
+        #expect(!NoteCaptureController.shouldCreateMeetingTranscriptionInput(for: workItem))
     }
 
     @Test func meetingFinalizerSkipsModelActivationForPermanentSourceGaps() {
         let workItems = [
-            AppCoordinator.MeetingChunkWorkItem(
+            NoteCaptureController.MeetingChunkWorkItem(
                 sequence: 0,
                 chunkID: UUID(),
                 startOffset: 0,
@@ -323,7 +323,7 @@ struct AppCoordinatorContextFlowTests {
                 microphone: nil,
                 systemAudio: nil
             ),
-            AppCoordinator.MeetingChunkWorkItem(
+            NoteCaptureController.MeetingChunkWorkItem(
                 sequence: 1,
                 chunkID: UUID(),
                 startOffset: 300,
@@ -333,9 +333,9 @@ struct AppCoordinatorContextFlowTests {
             )
         ]
 
-        #expect(AppCoordinator.expectedMeetingFinalASRSequences(workItems: workItems).isEmpty)
+        #expect(NoteCaptureController.expectedMeetingFinalASRSequences(workItems: workItems).isEmpty)
         #expect(
-            !AppCoordinator.meetingFinalizationNeedsFinalModelActivation(
+            !NoteCaptureController.meetingFinalizationNeedsFinalModelActivation(
                 workItems: workItems,
                 completedASRSequences: []
             )
@@ -345,7 +345,7 @@ struct AppCoordinatorContextFlowTests {
     @Test func meetingFinalizerActivatesModelOnlyForMissingDurableChunkCheckpoints() {
         let sourceID = UUID()
         let workItems = [
-            AppCoordinator.MeetingChunkWorkItem(
+            NoteCaptureController.MeetingChunkWorkItem(
                 sequence: 0,
                 chunkID: UUID(),
                 startOffset: 0,
@@ -362,7 +362,7 @@ struct AppCoordinatorContextFlowTests {
                 ),
                 systemAudio: nil
             ),
-            AppCoordinator.MeetingChunkWorkItem(
+            NoteCaptureController.MeetingChunkWorkItem(
                 sequence: 1,
                 chunkID: UUID(),
                 startOffset: 300,
@@ -379,7 +379,7 @@ struct AppCoordinatorContextFlowTests {
                     sealedAt: .now
                 )
             ),
-            AppCoordinator.MeetingChunkWorkItem(
+            NoteCaptureController.MeetingChunkWorkItem(
                 sequence: 2,
                 chunkID: UUID(),
                 startOffset: 600,
@@ -389,15 +389,15 @@ struct AppCoordinatorContextFlowTests {
             )
         ]
 
-        #expect(AppCoordinator.expectedMeetingFinalASRSequences(workItems: workItems) == [0, 1])
+        #expect(NoteCaptureController.expectedMeetingFinalASRSequences(workItems: workItems) == [0, 1])
         #expect(
-            AppCoordinator.missingMeetingFinalASRSequences(
+            NoteCaptureController.missingMeetingFinalASRSequences(
                 workItems: workItems,
                 completedASRSequences: [0]
             ) == [1]
         )
         #expect(
-            AppCoordinator.meetingFinalizationNeedsFinalModelActivation(
+            NoteCaptureController.meetingFinalizationNeedsFinalModelActivation(
                 workItems: workItems,
                 completedASRSequences: [0]
             )
@@ -1064,8 +1064,8 @@ struct AppCoordinatorContextFlowTests {
     }
 
     @Test func sessionBackedCaptureStagesStartAtAttemptOne() {
-        for stage in AppCoordinator.meetingStartAssignmentStages {
-            #expect(AppCoordinator.captureAssignmentAttempt(for: stage) == 1)
+        for stage in NoteCaptureController.captureStartAssignmentStages {
+            #expect(NoteCaptureController.captureAssignmentAttempt(for: stage) == 1)
         }
     }
 

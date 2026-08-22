@@ -142,6 +142,7 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		C75862009B5F6B105036E5B7 /* StatusBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68A6BA5D6DB40F25222D224E /* StatusBarController.swift */; };
 		CEACBC45493663E081E4B1FA /* CopyButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 049276EAC4FEBCA2F91F807E /* CopyButton.swift */; };
 		COORDFLW01A2B3C4D5E6F /* AppCoordinatorContextFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = COORDFLW02A2B3C4D5E6F /* AppCoordinatorContextFlowTests.swift */; };
+		NOTECAPCTRLTESTBUILD01 /* NoteCaptureControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTECAPCTRLTESTFILE01 /* NoteCaptureControllerTests.swift */; };
 		CTXADAPT01A2B3C4D5E6F /* AppContextAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTXADAPT02A2B3C4D5E6F /* AppContextAdapter.swift */; };
 		CTXADAPTTEST01A2B3C4D5E6F /* AppContextAdapterRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTXADAPTTEST02A2B3C4D5E6F /* AppContextAdapterRegistryTests.swift */; };
 		CTXCAPT02A2B3C4D5E6F /* ContextCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTXCAPT02A2B3C4D5E6F7 /* ContextCaptureService.swift */; };
@@ -157,6 +158,8 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		DICTVIEWMAIN1A2B3C4D5E6F70 /* DictionaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DICTVIEWMAIN1A2B3C4D5E6F71 /* DictionaryView.swift */; };
 		OVERLAYSINKBUILD01A2B3C4D /* OverlayStreamingSink.swift in Sources */ = {isa = PBXBuildFile; fileRef = OVERLAYSINKFILE01A2B3C4D5 /* OverlayStreamingSink.swift */; };
 		STREAMSESSBUILD01A2B3C4D5 /* StreamingSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = STREAMSESSFILE01A2B3C4D56 /* StreamingSessionController.swift */; };
+		CAPARBITERBUILD01 /* CaptureArbiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAPARBITERFILE01 /* CaptureArbiter.swift */; };
+		NOTECAPCTRLBUILD01 /* NoteCaptureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTECAPCTRLFILE01 /* NoteCaptureController.swift */; };
 		LIVETRANSBUILD01A2B3C4D5E /* LiveTranscriptState.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVETRANSFILE01A2B3C4D5E6 /* LiveTranscriptState.swift */; };
 		OVERLAYSINKTESTBUILD1A2B3 /* OverlayStreamingSinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OVERLAYSINKTESTFILE1A2B3C /* OverlayStreamingSinkTests.swift */; };
 		STREAMSESSCTRLTESTBUILD01A2 /* StreamingSessionControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = STREAMSESSCTRLTESTFILE01A2B3 /* StreamingSessionControllerTests.swift */; };
@@ -193,6 +196,7 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		REPLMATCHTESTBUILD01 /* ReplacementMatchModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = REPLMATCHTESTFILE01 /* ReplacementMatchModeTests.swift */; };
 		MEDIATRANSSTATEBUILDTEST01A2B3C4D5E6F /* MediaTranscriptionFeatureStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = MEDIATRANSSTATEFILETEST01A2B3C4D5E6F /* MediaTranscriptionFeatureStateTests.swift */; };
 		MEDIATRANSTYPESBUILD01 /* MediaTranscriptionTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = MEDIATRANSTYPESFILE01 /* MediaTranscriptionTypes.swift */; };
+		NOTECAPSTATEBUILD01 /* NoteCaptureState.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTECAPSTATEFILE01 /* NoteCaptureState.swift */; };
 		MNTFMT01A2B3C4D5E6F /* MentionFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = MNTFMT02A2B3C4D5E6F /* MentionFormatter.swift */; };
 		MNTFMTTEST01A2B3C4D5E6F /* MentionFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = MNTFMTTEST02A2B3C4D5E6F /* MentionFormatterTests.swift */; };
 		MNTRWRT02A2B3C4D5E6F /* MentionRewriteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = MNTRWRT01A2B3C4D5E6F /* MentionRewriteService.swift */; };
@@ -376,6 +380,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 		CB05E1BC11534652810B091F /* OutputManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutputManager.swift; sourceTree = "<group>"; };
 		CDDC77E732664A859279FEC9 /* HistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStore.swift; sourceTree = "<group>"; };
 		COORDFLW02A2B3C4D5E6F /* AppCoordinatorContextFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorContextFlowTests.swift; sourceTree = "<group>"; };
+		NOTECAPCTRLTESTFILE01 /* NoteCaptureControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCaptureControllerTests.swift; sourceTree = "<group>"; };
 		CTXADAPT02A2B3C4D5E6F /* AppContextAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContextAdapter.swift; sourceTree = "<group>"; };
 		CTXADAPTTEST02A2B3C4D5E6F /* AppContextAdapterRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContextAdapterRegistryTests.swift; sourceTree = "<group>"; };
 		CTXCAPT02A2B3C4D5E6F7 /* ContextCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextCaptureService.swift; sourceTree = "<group>"; };
@@ -384,6 +389,8 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 		CTXENGNTEST02A2B3C4D5E6F /* ContextEngineServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextEngineServiceTests.swift; sourceTree = "<group>"; };
 		OVERLAYSINKFILE01A2B3C4D5 /* OverlayStreamingSink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayStreamingSink.swift; sourceTree = "<group>"; };
 		STREAMSESSFILE01A2B3C4D56 /* StreamingSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingSessionController.swift; sourceTree = "<group>"; };
+		CAPARBITERFILE01 /* CaptureArbiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureArbiter.swift; sourceTree = "<group>"; };
+		NOTECAPCTRLFILE01 /* NoteCaptureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCaptureController.swift; sourceTree = "<group>"; };
 		LIVETRANSFILE01A2B3C4D5E6 /* LiveTranscriptState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTranscriptState.swift; sourceTree = "<group>"; };
 		OVERLAYSINKTESTFILE1A2B3C /* OverlayStreamingSinkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayStreamingSinkTests.swift; sourceTree = "<group>"; };
 		STREAMSESSCTRLTESTFILE01A2B3 /* StreamingSessionControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingSessionControllerTests.swift; sourceTree = "<group>"; };
@@ -434,6 +441,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 		REPLMATCHTESTFILE01 /* ReplacementMatchModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplacementMatchModeTests.swift; sourceTree = "<group>"; };
 		MEDIATRANSSTATEFILETEST01A2B3C4D5E6F /* MediaTranscriptionFeatureStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaTranscriptionFeatureStateTests.swift; sourceTree = "<group>"; };
 		MEDIATRANSTYPESFILE01 /* MediaTranscriptionTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaTranscriptionTypes.swift; sourceTree = "<group>"; };
+		NOTECAPSTATEFILE01 /* NoteCaptureState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCaptureState.swift; sourceTree = "<group>"; };
 		MNTFMT02A2B3C4D5E6F /* MentionFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MentionFormatter.swift; sourceTree = "<group>"; };
 		MNTFMTTEST02A2B3C4D5E6F /* MentionFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MentionFormatterTests.swift; sourceTree = "<group>"; };
 		MNTRWRT01A2B3C4D5E6F /* MentionRewriteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MentionRewriteService.swift; sourceTree = "<group>"; };
@@ -546,6 +554,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				ANNOUNCEFILE01A2B3C4D5E6F /* Announcement.swift */,
 				TRXDTLACCESSFILE01A2B3 /* TranscriptionDetailAccess.swift */,
 				MEDIATRANSTYPESFILE01 /* MediaTranscriptionTypes.swift */,
+				NOTECAPSTATEFILE01 /* NoteCaptureState.swift */,
 				FLOATTYP001A2B3C4D5E6F71 /* FloatingIndicatorType.swift */,
 				FEATMODEL1A2B3C4D5E6F7 /* FeatureModelType.swift */,
 			);
@@ -625,6 +634,8 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				E14A6C97D2B84F15A309E7C6 /* CaptureStageAssignmentResolver.swift */,
 				OVERLAYSINKFILE01A2B3C4D5 /* OverlayStreamingSink.swift */,
 				STREAMSESSFILE01A2B3C4D56 /* StreamingSessionController.swift */,
+				CAPARBITERFILE01 /* CaptureArbiter.swift */,
+				NOTECAPCTRLFILE01 /* NoteCaptureController.swift */,
 				BD0F4D7C7ADA4236A1D28249 /* HotkeyManager.swift */,
 				HKCONFLICTFILE01A2B3C4D5E6 /* HotkeyConflictChecker.swift */,
 				LAUNCHLOGINMGR01A2B3C4D5E6F7 /* LaunchAtLoginManager.swift */,
@@ -787,6 +798,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				DASHSTATSTESTFILE01A2B3C4D5 /* DashboardStatsServiceTests.swift */,
 				AUTOLEARNTSTFILE01A2B3C4D5E6F /* AutomaticDictionaryLearningServiceTests.swift */,
 				COORDFLW02A2B3C4D5E6F /* AppCoordinatorContextFlowTests.swift */,
+				NOTECAPCTRLTESTFILE01 /* NoteCaptureControllerTests.swift */,
 				MNTFMTTEST02A2B3C4D5E6F /* MentionFormatterTests.swift */,
 				LISTSELNAVTESTFILE01A2B3C4 /* ListSelectionNavigationTests.swift */,
 				NOTESGROUPTESTFILE01A2B3 /* NotesGroupingTests.swift */,
@@ -1181,6 +1193,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				DASHSTATSTESTBUILD01A2B3C4D5 /* DashboardStatsServiceTests.swift in Sources */,
 				AUTOLEARNTSTBUILD01A2B3C4D5E6F /* AutomaticDictionaryLearningServiceTests.swift in Sources */,
 				COORDFLW01A2B3C4D5E6F /* AppCoordinatorContextFlowTests.swift in Sources */,
+				NOTECAPCTRLTESTBUILD01 /* NoteCaptureControllerTests.swift in Sources */,
 				MNTFMTTEST01A2B3C4D5E6F /* MentionFormatterTests.swift in Sources */,
 				LISTSELNAVTESTBUILD01A2B3C4 /* ListSelectionNavigationTests.swift in Sources */,
 				NOTESGROUPTESTBUILD01A2B3 /* NotesGroupingTests.swift in Sources */,
@@ -1212,6 +1225,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				751e7a8692f447b98321b9c9 /* PermissionManager.swift in Sources */,
 				14FDF042180B47FFAD78DA68 /* OutputManager.swift in Sources */,
 				MEDIATRANSTYPESBUILD01 /* MediaTranscriptionTypes.swift in Sources */,
+				NOTECAPSTATEBUILD01 /* NoteCaptureState.swift in Sources */,
 				ANNOUNCEBUILD01A2B3C4D5E6F /* Announcement.swift in Sources */,
 				FEATMODEL1A2B3C4D5E6F /* FeatureModelType.swift in Sources */,
 				BC44C77F1DDD43BFAD8A88BD /* HistoryStore.swift in Sources */,
@@ -1233,6 +1247,8 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				4C6B0181BA512555942717CB /* AppCoordinator.swift in Sources */,
 				OVERLAYSINKBUILD01A2B3C4D /* OverlayStreamingSink.swift in Sources */,
 				STREAMSESSBUILD01A2B3C4D5 /* StreamingSessionController.swift in Sources */,
+				CAPARBITERBUILD01 /* CaptureArbiter.swift in Sources */,
+				NOTECAPCTRLBUILD01 /* NoteCaptureController.swift in Sources */,
 				LIVETRANSBUILD01A2B3C4D5E /* LiveTranscriptState.swift in Sources */,
 				C75862009B5F6B105036E5B7 /* StatusBarController.swift in Sources */,
 				ORBINDBUILD001A2B3C4D5E6F70 /* OrbFloatingIndicator.swift in Sources */,
