@@ -27,6 +27,134 @@ struct NotesPresentationTests {
         #expect(NotesHeaderMeta.text(noteCount: 24, locale: en) == "24 notes")
     }
 
+    // MARK: - Humanized header meta
+
+    @Test func humanizedHeaderMetaNamesTheEmptyPage() {
+        #expect(
+            NotesHeaderMeta.humanizedText(noteCount: 0, todayCount: 0, locale: en)
+                == "nothing here yet"
+        )
+        // An empty page never reports a today count.
+        #expect(
+            NotesHeaderMeta.humanizedText(noteCount: 0, todayCount: 3, locale: en)
+                == "nothing here yet"
+        )
+    }
+
+    @Test func humanizedHeaderMetaDropsTheTodayClauseWhenNothingIsFromToday() {
+        #expect(
+            NotesHeaderMeta.humanizedText(noteCount: 24, todayCount: 0, locale: en)
+                == "24 notes"
+        )
+        #expect(
+            NotesHeaderMeta.humanizedText(noteCount: 1, todayCount: 0, locale: en)
+                == "1 note"
+        )
+    }
+
+    @Test func humanizedHeaderMetaSpellsOutSmallTodayCounts() {
+        #expect(
+            NotesHeaderMeta.humanizedText(noteCount: 24, todayCount: 3, locale: en)
+                == "24 notes, three from today"
+        )
+        #expect(
+            NotesHeaderMeta.humanizedText(noteCount: 9, todayCount: 1, locale: en)
+                == "9 notes, one from today"
+        )
+    }
+
+    @Test func humanizedCountKeepsLargeValuesAsNumerals() {
+        #expect(NotesHeaderMeta.humanizedCount(9, locale: en) == "nine")
+        #expect(NotesHeaderMeta.humanizedCount(10, locale: en) == "10")
+        #expect(NotesHeaderMeta.humanizedCount(24, locale: en) == "24")
+    }
+
+    // MARK: - Row lanes
+
+    @Test func rowKindFollowsCaptureLinkage() {
+        #expect(NoteRowPresentation.kind(facts: .none) == .typed)
+        #expect(
+            NoteRowPresentation.kind(facts: NoteRowCaptureFacts(
+                hasCaptureLink: true,
+                isMeetingCapture: false,
+                hasEnhancedArtifact: false,
+                duration: 42
+            )) == .voice
+        )
+        #expect(
+            NoteRowPresentation.kind(facts: NoteRowCaptureFacts(
+                hasCaptureLink: true,
+                isMeetingCapture: true,
+                hasEnhancedArtifact: false,
+                duration: 42
+            )) == .meeting
+        )
+    }
+
+    @Test func rowKindGlyphsAreDistinct() {
+        let glyphs = Set([NoteRowKind.typed, .voice, .meeting].map(\.systemImage))
+        #expect(glyphs.count == 3)
+    }
+
+    @Test func enhancedBadgeShowsOnlyWithAnEnhancedArtifact() {
+        #expect(NoteRowPresentation.showsEnhancedBadge(facts: .none) == false)
+        #expect(
+            NoteRowPresentation.showsEnhancedBadge(facts: NoteRowCaptureFacts(
+                hasCaptureLink: true,
+                isMeetingCapture: false,
+                hasEnhancedArtifact: true,
+                duration: nil
+            ))
+        )
+    }
+
+    @Test func durationLaneStaysEmptyWithoutARecording() {
+        #expect(NoteRowPresentation.durationText(nil) == "")
+        #expect(NoteRowPresentation.durationText(0) == "")
+        #expect(NoteRowPresentation.durationText(0.4) == "")
+        #expect(NoteRowPresentation.durationText(63) == "1:03")
+        #expect(NoteRowPresentation.durationText(2531) == "42:11")
+        #expect(NoteRowPresentation.durationText(3725) == "1:02:05")
+    }
+
+    @Test func liveLaneReadsRecPlusPaddedElapsed() {
+        #expect(NoteRowPresentation.elapsedText(0) == "00:00")
+        #expect(NoteRowPresentation.elapsedText(63) == "01:03")
+        #expect(NoteRowPresentation.elapsedText(3725) == "1:02:05")
+        #expect(NoteRowPresentation.liveLabel(elapsed: 243, locale: en) == "REC 04:03")
+    }
+
+    // MARK: - Split button actions
+
+    @Test func newNoteActionsMapToCaptureRequests() {
+        let noteID = UUID()
+
+        #expect(
+            NewNoteAction.recordMicrophone.captureRequest(noteID: noteID)
+                == NoteCaptureRequest(noteID: noteID, includeSystemAudio: false)
+        )
+        #expect(
+            NewNoteAction.recordWithSystemAudio.captureRequest(noteID: noteID)
+                == NoteCaptureRequest(noteID: noteID, includeSystemAudio: true)
+        )
+        #expect(NewNoteAction.withoutRecording.captureRequest(noteID: noteID) == nil)
+    }
+
+    @Test func onlyRecordingActionsStartACapture() {
+        #expect(NewNoteAction.recordMicrophone.startsCapture)
+        #expect(NewNoteAction.recordWithSystemAudio.startsCapture)
+        #expect(NewNoteAction.withoutRecording.startsCapture == false)
+        for action in NewNoteAction.allCases {
+            #expect(action.startsCapture == (action.captureRequest(noteID: UUID()) != nil))
+        }
+    }
+
+    @Test func newNoteActionTitlesAreDistinct() {
+        let titles = NewNoteAction.allCases.map { $0.title(locale: en) }
+        #expect(titles.first == "New note")
+        #expect(Set(titles).count == NewNoteAction.allCases.count)
+    }
+
     // MARK: - Row date formatting
 
     @Test func rowDateUsesTimeForToday() {

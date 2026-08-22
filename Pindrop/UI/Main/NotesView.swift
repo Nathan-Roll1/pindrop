@@ -4,7 +4,9 @@
 //
 //  Created on 2026-01-29.
 //
-//  Notes page (U5 scorched-earth restyle, spec §10).
+//  The one Notes page (WP2). Replaces the Voice Note pillar, the Meeting
+//  pillar, and the old workspace Notes page: humanized header, split
+//  "New note" button, pinned section, date groups, capture-aware rows.
 //
 
 import SwiftUI
@@ -20,9 +22,20 @@ struct NotesView: View {
 
     /// Opens a note in the main window. `nil` in previews and fixtures.
     let onOpenNote: ((UUID) -> Void)?
+    /// Starts a capture bound to a note. Returns `false` when the coordinator
+    /// refused (another capture is running). `nil` in previews and fixtures.
+    let onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
+    /// The capture attached to a note right now, if any. See `NoteCaptureLiveRow`.
+    let liveCapture: NoteCaptureLiveRow?
 
-    init(onOpenNote: ((UUID) -> Void)? = nil) {
+    init(
+        onOpenNote: ((UUID) -> Void)? = nil,
+        onStartNoteCapture: ((NoteCaptureRequest) -> Bool)? = nil,
+        liveCapture: NoteCaptureLiveRow? = nil
+    ) {
         self.onOpenNote = onOpenNote
+        self.onStartNoteCapture = onStartNoteCapture
+        self.liveCapture = liveCapture
     }
 
     @Query(sort: \NoteSchema.Note.updatedAt, order: .reverse) private var allNotes: [NoteSchema.Note]
@@ -35,13 +48,15 @@ struct NotesView: View {
     /// expensive filter query remains debounced.
     @State private var hasDraftSearchIntent = false
     @State private var snapshotCache = NotesListSnapshotCache()
+    /// Capture linkage per note (kind glyph, Enhanced badge, duration lane).
+    /// Refreshed off the body via `task(id:)` so the list never fetches inline.
+    @State private var rowFacts: [UUID: NoteRowCaptureFacts] = [:]
     /// Focus stays on the list owner so keyboard selection can exclude the field;
     /// draft text/debounce live in `NotesSearchChrome`.
     @FocusState private var isSearchFieldFocused: Bool
     @State private var selectedNoteID: PersistentIdentifier?
     @State private var pendingDeletionNote: NoteSchema.Note?
     @State private var errorMessage: String?
-    @State private var keyMonitor: Any?
 
     private var notesStore: NotesStore {
         NotesStore(
@@ -59,7 +74,7 @@ struct NotesView: View {
         // Exactly one snapshot/fingerprint evaluation per owner body.
         let snapshot = listSnapshot()
         VStack(spacing: 0) {
-            headerSection(filteredCount: snapshot.filteredCount)
+            headerSection(snapshot: snapshot)
                 .padding(.horizontal, 40)
                 .padding(.top, 40)
                 .padding(.bottom, 18)
@@ -91,15 +106,15 @@ struct NotesView: View {
         } message: {
             Text(localized("This will permanently remove this note.", locale: locale))
         }
-        .onAppear {
-            installKeyMonitorIfNeeded()
+        .onChange(of: NoteRowFactsKey(notes: allNotes), initial: true) { _, _ in
+            rowFacts = NoteRowFactsProvider(modelContext: modelContext).facts(for: allNotes)
         }
-        .onDisappear {
-            removeKeyMonitor()
+        .listKeyboardSelection(isSearchFieldFocused: isSearchFieldFocused) { command in
+            handleListCommand(command)
         }
         .background {
             // ⌘N new note (hidden button for keyboard shortcut)
-            Button(action: createNewNote) { EmptyView() }
+            Button { startNewNote(.recordMicrophone) } label: { EmptyView() }
                 .keyboardShortcut("n", modifiers: .command)
                 .opacity(0)
                 .frame(width: 0, height: 0)
@@ -109,11 +124,26 @@ struct NotesView: View {
 
     // MARK: - Header
 
-    private func headerSection(filteredCount: Int) -> some View {
-        PageHeader(
-            title: localized("Notes", locale: locale),
-            meta: NotesHeaderMeta.text(noteCount: filteredCount, locale: locale)
-        ) {
+    private func headerSection(snapshot: NotesListSnapshot) -> some View {
+        HStack(alignment: .center, spacing: 16) {
+            HStack(alignment: .lastTextBaseline, spacing: 10) {
+                Text(localized("Notes", locale: locale))
+                    .font(AppTypography.pageTitle)
+                    .tracking(AppTypography.pageTitleTracking)
+                    .foregroundStyle(AppColors.textPrimary)
+
+                Text(NotesHeaderMeta.humanizedText(
+                    noteCount: snapshot.filteredCount,
+                    todayCount: snapshot.todayCount,
+                    locale: locale
+                ))
+                .font(AppTypography.pageMeta)
+                .foregroundStyle(AppColors.textTertiary)
+                .accessibilityIdentifier("notes.list.meta")
+            }
+
+            Spacer(minLength: 12)
+
             HStack(spacing: 10) {
                 NotesSearchChrome(
                     placeholder: localized("Search notes...", locale: locale),
@@ -127,12 +157,7 @@ struct NotesView: View {
                 )
                 .frame(width: 200)
 
-                PrimaryButton(
-                    title: localized("New note", locale: locale),
-                    systemImage: "plus",
-                    keyboardHint: "⌘N",
-                    action: createNewNote
-                )
+                NewNoteSplitButton(onSelect: startNewNote)
             }
         }
     }
@@ -172,34 +197,50 @@ struct NotesView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    @ViewBuilder
     private func emptyStateView(isSearching: Bool) -> some View {
-        VStack(spacing: 12) {
-            Image(systemName: isSearching ? "magnifyingglass" : "note.text")
-                .font(.system(size: 28, weight: .light))
-                .foregroundStyle(AppColors.textTertiary)
+        if isSearching {
+            VStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 20, weight: .regular))
+                    .foregroundStyle(AppColors.textTertiary)
 
-            Text(isSearching
-                 ? localized("No results found", locale: locale)
-                 : localized("No notes yet", locale: locale))
-                .font(AppTypography.labelStrong)
-                .foregroundStyle(AppColors.textPrimary)
+                Text(localized("No results found", locale: locale))
+                    .font(AppTypography.labelStrongSelected)
+                    .foregroundStyle(AppColors.textPrimary)
 
-            Text(isSearching
-                 ? localized("Try a different search term", locale: locale)
-                 : localized("Create your first note to get started", locale: locale))
+                Text(localized("Try a different search term", locale: locale))
+                    .font(AppTypography.body)
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            VStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(AppColors.accentBackground)
+                        .frame(width: 40, height: 40)
+                    Image(systemName: "mic")
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundStyle(AppColors.accent)
+                }
+                .padding(.bottom, 2)
+
+                Text(localized("No notes yet.", locale: locale))
+                    .font(AppTypography.labelStrongSelected)
+                    .foregroundStyle(AppColors.textPrimary)
+
+                Text(localized(
+                    "Click New note to start one. Pindrop records while you type.",
+                    locale: locale
+                ))
                 .font(AppTypography.body)
                 .foregroundStyle(AppColors.textSecondary)
-
-            if !isSearching {
-                PrimaryButton(
-                    title: localized("New note", locale: locale),
-                    systemImage: "plus",
-                    action: createNewNote
-                )
-                .padding(.top, 8)
+                .multilineTextAlignment(.center)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityIdentifier("notes.list.empty")
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func notesList(snapshot: NotesListSnapshot) -> some View {
@@ -230,6 +271,7 @@ struct NotesView: View {
             }
             .padding(.bottom, 24)
         }
+        .accessibilityIdentifier("notes.list")
     }
 
     // MARK: - Pinned card (spec §10)
@@ -298,10 +340,12 @@ struct NotesView: View {
         .contextMenu { noteContextMenu(note) }
     }
 
-    // MARK: - Note row (spec §10)
+    // MARK: - Note row (design spec, "Notes list page")
 
     private func noteRow(_ note: NoteSchema.Note) -> some View {
         let isSelected = selectedNoteID == note.persistentModelID
+        let live = liveCapture?.noteID == note.id ? liveCapture : nil
+        let facts = rowFacts[note.id] ?? .none
         let title = NotesListPresentation.displayTitle(
             title: note.title,
             content: note.content,
@@ -312,16 +356,25 @@ struct NotesView: View {
             date: note.updatedAt,
             locale: locale
         )
+        let duration = NoteRowPresentation.durationText(facts.duration)
 
         return Button {
             selectedNoteID = note.persistentModelID
             openNote(note)
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: "note.text")
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(AppColors.textTertiary)
-                    .frame(width: 16, height: 16)
+                if live != nil {
+                    Circle()
+                        .fill(AppColors.recording)
+                        .frame(width: 8, height: 8)
+                        .frame(width: AppIcon.rowSlot, height: AppIcon.rowSlot)
+                } else {
+                    IconSlot(
+                        systemImage: NoteRowPresentation.kind(facts: facts).systemImage,
+                        slot: .row,
+                        tint: AppColors.textTertiary
+                    )
+                }
 
                 Text(title)
                     .font(AppTypography.labelStrong)
@@ -335,27 +388,72 @@ struct NotesView: View {
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                Text(dateText)
-                    .font(AppTypography.label)
-                    .foregroundStyle(AppColors.textTertiary)
-                    .lineLimit(1)
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: 88, alignment: .trailing)
+                if let live {
+                    Text(NoteRowPresentation.liveLabel(elapsed: live.elapsed, locale: locale))
+                        .font(AppTypography.monoSmall)
+                        .foregroundStyle(AppColors.recording)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .frame(width: 118, alignment: .trailing)
+                        .environment(\.layoutDirection, .leftToRight)
+                } else {
+                    Group {
+                        if NoteRowPresentation.showsEnhancedBadge(facts: facts) {
+                            enhancedBadge
+                        }
+                    }
+                    .frame(width: 74, alignment: .trailing)
+
+                    Text(duration)
+                        .font(AppTypography.monoSmall)
+                        .foregroundStyle(AppColors.textTertiary)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .frame(width: 44, alignment: .trailing)
+                        .environment(\.layoutDirection, .leftToRight)
+
+                    Text(dateText)
+                        .font(AppTypography.label)
+                        .foregroundStyle(AppColors.textTertiary)
+                        .lineLimit(1)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 64, alignment: .trailing)
+                }
             }
             .padding(.vertical, 13)
             // Divider inside the horizontal padding: constrained to the content
-            // column; the selected wash below stays full-bleed.
+            // column; the selected wash below stays full-bleed. A live row wears
+            // the recording wash instead of a hairline.
             .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(AppColors.border)
-                    .frame(height: 1)
+                if live == nil {
+                    Rectangle()
+                        .fill(AppColors.border)
+                        .frame(height: 1)
+                }
             }
             .padding(.horizontal, 20)
-            .background(isSelected ? AppColors.accent.opacity(0.06) : Color.clear)
+            .background {
+                if live != nil {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(AppColors.errorBackground)
+                        .padding(.horizontal, 12)
+                } else if isSelected {
+                    AppColors.accent.opacity(0.06)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .contextMenu { noteContextMenu(note) }
+    }
+
+    private var enhancedBadge: some View {
+        Text(localized("Enhanced", locale: locale))
+            .font(AppTypography.badge)
+            .foregroundStyle(AppColors.accent)
+            .padding(.vertical, 2)
+            .padding(.horizontal, 8)
+            .background(Capsule(style: .continuous).fill(AppColors.accentBackground))
     }
 
     @ViewBuilder
@@ -397,13 +495,17 @@ struct NotesView: View {
 
     // MARK: - Actions
 
-    /// A new note is created durably first, then opened in the main window, so
-    /// the note page always has an identity to bind capture and panels to.
-    private func createNewNote() {
+    /// A new note is created durably first, then capture starts against that
+    /// identity, then the note opens. Order matters: the note page always has an
+    /// identity to bind capture and panels to.
+    private func startNewNote(_ action: NewNoteAction) {
         let store = notesStore
         Task { @MainActor in
             do {
                 let note = try await store.create(content: "")
+                if let request = action.captureRequest(noteID: note.id) {
+                    _ = onStartNoteCapture?(request)
+                }
                 onOpenNote?(note.id)
             } catch {
                 errorMessage = error.localizedDescription
@@ -438,62 +540,26 @@ struct NotesView: View {
 
     // MARK: - Keyboard Selection
 
-    private func installKeyMonitorIfNeeded() {
-        guard keyMonitor == nil else { return }
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
-            guard shouldHandleListKeyEvent(event) else { return event }
-            return handleListKeyEvent(event)
-        }
-    }
-
-    private func removeKeyMonitor() {
-        if let keyMonitor {
-            NSEvent.removeMonitor(keyMonitor)
-            self.keyMonitor = nil
-        }
-    }
-
-    private func shouldHandleListKeyEvent(_ event: NSEvent) -> Bool {
-        guard MainWindowController.isMainWindowKey(event.window) else { return false }
-        if isSearchFieldFocused { return false }
-        if Self.isTextInputFirstResponder(event.window?.firstResponder) {
-            return false
-        }
-        return true
-    }
-
-    private static func isTextInputFirstResponder(_ responder: NSResponder?) -> Bool {
-        guard let responder else { return false }
-        if responder is NSTextField { return true }
-        if let textView = responder as? NSTextView {
-            return textView.isEditable || textView.isSelectable
-        }
-        if responder is NSText { return true }
-        return false
-    }
-
-    private func handleListKeyEvent(_ event: NSEvent) -> NSEvent? {
+    private func handleListCommand(_ command: ListKeyboardCommand) -> Bool {
         let selectable = listSnapshot().flatSelectableNotes
-        switch event.keyCode {
-        case 126:
+        switch command {
+        case .moveUp:
             moveListSelection(delta: -1, notes: selectable)
-            return nil
-        case 125:
+            return true
+        case .moveDown:
             moveListSelection(delta: 1, notes: selectable)
-            return nil
-        case 51, 117:
+            return true
+        case .delete:
             requestDeleteForSelection(notes: selectable)
-            return nil
-        case 53:
-            return clearSelection() ? nil : event
-        case 36: // Return
-            if let note = selectable.first(where: { $0.persistentModelID == selectedNoteID }) {
-                openNote(note)
-                return nil
+            return true
+        case .clearSelection:
+            return clearSelection()
+        case .activate:
+            guard let note = selectable.first(where: { $0.persistentModelID == selectedNoteID }) else {
+                return false
             }
-            return event
-        default:
-            return event
+            openNote(note)
+            return true
         }
     }
 
@@ -518,6 +584,177 @@ struct NotesView: View {
         guard selectedNoteID != nil else { return false }
         selectedNoteID = nil
         return true
+    }
+}
+
+// MARK: - Split "New note" button
+
+/// Accent-filled split button: the primary segment starts a microphone note
+/// (⌘N), the menu segment offers the system-audio and no-recording variants.
+private struct NewNoteSplitButton: View {
+    @Environment(\.locale) private var locale
+    let onSelect: (NewNoteAction) -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button { onSelect(.recordMicrophone) } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(NewNoteAction.recordMicrophone.title(locale: locale))
+                        .font(AppTypography.labelStrongSelected)
+                    Text("⌘N")
+                        .font(AppTypography.monoSmall)
+                        .opacity(0.72)
+                        .environment(\.layoutDirection, .leftToRight)
+                }
+                .padding(.vertical, 8)
+                .padding(.leading, 14)
+                .padding(.trailing, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .focusRing(.rounded(.sm))
+            .accessibilityIdentifier("notes.list.newNote")
+
+            Rectangle()
+                .fill(AppColors.contentBackground.opacity(0.28))
+                .frame(width: 1)
+                .frame(maxHeight: .infinity)
+
+            Menu {
+                Button(NewNoteAction.recordWithSystemAudio.title(locale: locale)) {
+                    onSelect(.recordWithSystemAudio)
+                }
+                Button(NewNoteAction.withoutRecording.title(locale: locale)) {
+                    onSelect(.withoutRecording)
+                }
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10)
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .accessibilityIdentifier("notes.list.newNoteOptions")
+            .accessibilityLabel(localized("More new note options", locale: locale))
+        }
+        .fixedSize(horizontal: true, vertical: false)
+        .foregroundStyle(AppColors.contentBackground)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(AppColors.accent)
+        )
+    }
+}
+
+// MARK: - Row capture facts
+
+/// Identity of the note set for the capture-linkage fetch. Content edits that do
+/// not change `updatedAt` cannot change a row's lanes, so the key stays small.
+private struct NoteRowFactsKey: Equatable {
+    struct Entry: Equatable {
+        let noteID: UUID
+        let transcriptionID: UUID?
+        let updatedAt: Date
+    }
+
+    let entries: [Entry]
+
+    @MainActor
+    init(notes: [NoteSchema.Note]) {
+        entries = notes.map {
+            Entry(noteID: $0.id, transcriptionID: $0.sourceTranscriptionID, updatedAt: $0.updatedAt)
+        }
+    }
+}
+
+/// Resolves the row lanes that live outside `Note`: kind glyph, Enhanced badge,
+/// duration. WP6 refines `hasEnhancedArtifact` into per-template panel state;
+/// this provider is the seam that keeps the list from knowing about panels.
+@MainActor
+struct NoteRowFactsProvider {
+    let modelContext: ModelContext
+
+    func facts(for notes: [NoteSchema.Note]) -> [UUID: NoteRowCaptureFacts] {
+        guard !notes.isEmpty else { return [:] }
+
+        let records = linkedRecords(for: notes)
+        let enhancedNoteIDs = enhancedNoteIDs()
+        let (linkedNoteIDs, generatedNoteIDs) = noteReferenceIDs()
+
+        var result: [UUID: NoteRowCaptureFacts] = [:]
+        result.reserveCapacity(notes.count)
+        for note in notes {
+            let record = note.sourceTranscriptionID.flatMap { records[$0] }
+            let hasLink = record != nil || linkedNoteIDs.contains(note.id)
+            result[note.id] = NoteRowCaptureFacts(
+                hasCaptureLink: hasLink,
+                isMeetingCapture: record?.kind == .manualCapture,
+                hasEnhancedArtifact: enhancedNoteIDs.contains(note.id)
+                    || generatedNoteIDs.contains(note.id),
+                duration: record?.duration
+            )
+        }
+        return result
+    }
+
+    private struct LinkedRecord {
+        let duration: TimeInterval
+        let kind: MediaSourceKind
+    }
+
+    private func linkedRecords(for notes: [NoteSchema.Note]) -> [UUID: LinkedRecord] {
+        let ids = Array(Set(notes.compactMap(\.sourceTranscriptionID)))
+        guard !ids.isEmpty else { return [:] }
+        let descriptor = FetchDescriptor<TranscriptionRecord>(
+            predicate: #Predicate { ids.contains($0.id) }
+        )
+        do {
+            let records = try modelContext.fetch(descriptor)
+            return Dictionary(
+                uniqueKeysWithValues: records.map {
+                    ($0.id, LinkedRecord(duration: $0.duration, kind: $0.resolvedSourceKind))
+                }
+            )
+        } catch {
+            Log.ui.error("Failed to resolve note capture links: \(error.localizedDescription)")
+            return [:]
+        }
+    }
+
+    /// Notes with a live (not superseded) enhanced panel.
+    private func enhancedNoteIDs() -> Set<UUID> {
+        do {
+            let panels = try modelContext.fetch(FetchDescriptor<CaptureEnhancedPanelModel>())
+            return Set(panels.lazy.filter { $0.supersededAt == nil }.map(\.noteID))
+        } catch {
+            Log.ui.error("Failed to fetch enhanced panels: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    /// Every note a capture references, plus the legacy generated notes that
+    /// stand in for an enhanced artifact until WP6 migrates them onto panels.
+    private func noteReferenceIDs() -> (linked: Set<UUID>, generated: Set<UUID>) {
+        do {
+            let references = try modelContext.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+            var linked: Set<UUID> = []
+            var generated: Set<UUID> = []
+            for reference in references {
+                linked.insert(reference.noteID)
+                if reference.roleRawValue == CaptureNoteRole.generated.rawValue {
+                    generated.insert(reference.noteID)
+                }
+            }
+            return (linked, generated)
+        } catch {
+            Log.ui.error("Failed to fetch capture note references: \(error.localizedDescription)")
+            return ([], [])
+        }
     }
 }
 
@@ -629,11 +866,14 @@ private struct NotesListSnapshot {
     }
 
     let filteredCount: Int
+    /// Notes edited today, for the humanized header meta.
+    let todayCount: Int
     let sections: [Section]
     let flatSelectableNotes: [NoteSchema.Note]
 
     static let empty = NotesListSnapshot(
         filteredCount: 0,
+        todayCount: 0,
         sections: [],
         flatSelectableNotes: []
     )
@@ -706,8 +946,14 @@ private final class NotesListSnapshotCache {
             return NotesListSnapshot.Section(key: section.key, notes: sectionNotes)
         }
         let flat = sections.flatMap(\.notes)
+        let calendar = Calendar.current
+        let now = Date()
+        let todayCount = filtered.reduce(0) {
+            $0 + (calendar.isDate($1.updatedAt, inSameDayAs: now) ? 1 : 0)
+        }
         return NotesListSnapshot(
             filteredCount: filtered.count,
+            todayCount: todayCount,
             sections: sections,
             flatSelectableNotes: flat
         )

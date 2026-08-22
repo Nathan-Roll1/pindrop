@@ -261,12 +261,12 @@ struct AppCoordinatorContextFlowTests {
     }
 
     @Test func meetingCaptureAdmissionAndComparisonAreHandleExact() {
-        let activeHandle = MeetingCaptureHandle(
+        let activeHandle = NoteCaptureHandle(
             sessionID: UUID(),
             microphoneSourceID: UUID(),
             systemAudioSourceID: UUID()
         )
-        let differentHandle = MeetingCaptureHandle(
+        let differentHandle = NoteCaptureHandle(
             sessionID: activeHandle.sessionID,
             microphoneSourceID: activeHandle.microphoneSourceID,
             systemAudioSourceID: UUID()
@@ -405,12 +405,12 @@ struct AppCoordinatorContextFlowTests {
     }
 
     @Test func meetingRecoveryAdmissionAndGenerationAreExact() {
-        let activeHandle = MeetingCaptureHandle(
+        let activeHandle = NoteCaptureHandle(
             sessionID: UUID(),
             microphoneSourceID: UUID(),
             systemAudioSourceID: UUID()
         )
-        let differentHandle = MeetingCaptureHandle(
+        let differentHandle = NoteCaptureHandle(
             sessionID: activeHandle.sessionID,
             microphoneSourceID: activeHandle.microphoneSourceID,
             systemAudioSourceID: UUID()
@@ -1245,7 +1245,7 @@ struct AppCoordinatorContextFlowTests {
     }
 
     @Test func cancelledRecoveryAfterAwaitCannotMutateStore() {
-        let handle = MeetingCaptureHandle(
+        let handle = NoteCaptureHandle(
             sessionID: UUID(),
             microphoneSourceID: UUID(),
             systemAudioSourceID: UUID()

@@ -141,7 +141,7 @@ struct CaptureSessionStoreTests {
         store: CaptureSessionStore,
         startedAt: Date
     ) throws -> (
-        handle: MeetingCaptureHandle,
+        handle: NoteCaptureHandle,
         transcriptionRecordID: UUID,
         source: MeetingNoteSourceBundle
     ) {
@@ -816,7 +816,7 @@ struct CaptureSessionStoreTests {
             handle,
             retained: [
                 retained(handle.microphoneSourceID, sessionID: handle.sessionID),
-                retained(handle.systemAudioSourceID, sessionID: handle.sessionID)
+                retained(handle.dualSourceSystemAudioID, sessionID: handle.sessionID)
             ],
             failures: [],
             at: startedAt.addingTimeInterval(2)
@@ -840,7 +840,7 @@ struct CaptureSessionStoreTests {
         #expect(chunks.count == 2)
         #expect(
             Set(chunks.map(\.sourceID)) ==
-                Set([handle.microphoneSourceID, handle.systemAudioSourceID])
+                Set([handle.microphoneSourceID, handle.dualSourceSystemAudioID])
         )
         #expect(chunks.allSatisfy {
             $0.sequence == 0 &&
@@ -859,7 +859,7 @@ struct CaptureSessionStoreTests {
         try store.recordMeetingStop(
             handle,
             retained: [retained(handle.microphoneSourceID, sessionID: handle.sessionID)],
-            failures: [failed(handle.systemAudioSourceID, at: startedAt.addingTimeInterval(2))],
+            failures: [failed(handle.dualSourceSystemAudioID, at: startedAt.addingTimeInterval(2))],
             at: startedAt.addingTimeInterval(3)
         )
 
@@ -874,9 +874,9 @@ struct CaptureSessionStoreTests {
                 .map { ($0.id, $0.stateRawValue) }
         )
         #expect(chunks.filter { $0.sessionID == handle.sessionID }.map(\.sourceID) == [handle.microphoneSourceID])
-        #expect(failures.filter { $0.sessionID == handle.sessionID }.map(\.sourceID) == [handle.systemAudioSourceID])
+        #expect(failures.filter { $0.sessionID == handle.sessionID }.map(\.sourceID) == [handle.dualSourceSystemAudioID])
         #expect(sourceStates[handle.microphoneSourceID] == CaptureSourceState.completed.rawValue)
-        #expect(sourceStates[handle.systemAudioSourceID] == CaptureSourceState.failed.rawValue)
+        #expect(sourceStates[handle.dualSourceSystemAudioID] == CaptureSourceState.failed.rawValue)
         #expect(try session.restoreSession().state == .finalizing)
     }
 
@@ -888,7 +888,7 @@ struct CaptureSessionStoreTests {
         try store.beginMeetingFinalization(handle, at: startedAt.addingTimeInterval(1))
         try store.recordMeetingStop(
             handle,
-            retained: [retained(handle.systemAudioSourceID, sessionID: handle.sessionID)],
+            retained: [retained(handle.dualSourceSystemAudioID, sessionID: handle.sessionID)],
             failures: [failed(handle.microphoneSourceID, at: startedAt.addingTimeInterval(2))],
             at: startedAt.addingTimeInterval(3)
         )
@@ -899,7 +899,7 @@ struct CaptureSessionStoreTests {
         )
         let chunks = try context.fetch(FetchDescriptor<CaptureChunkModel>())
         let failures = try context.fetch(FetchDescriptor<CaptureFailureRecordModel>())
-        #expect(chunks.filter { $0.sessionID == handle.sessionID }.map(\.sourceID) == [handle.systemAudioSourceID])
+        #expect(chunks.filter { $0.sessionID == handle.sessionID }.map(\.sourceID) == [handle.dualSourceSystemAudioID])
         #expect(failures.filter { $0.sessionID == handle.sessionID }.map(\.sourceID) == [handle.microphoneSourceID])
         #expect(try session.restoreSession().state == .finalizing)
     }
@@ -915,7 +915,7 @@ struct CaptureSessionStoreTests {
             retained: [],
             failures: [
                 failed(handle.microphoneSourceID, at: startedAt.addingTimeInterval(2), message: "Microphone failed."),
-                failed(handle.systemAudioSourceID, at: startedAt.addingTimeInterval(3), message: "System audio failed.")
+                failed(handle.dualSourceSystemAudioID, at: startedAt.addingTimeInterval(3), message: "System audio failed.")
             ],
             at: startedAt.addingTimeInterval(4)
         )
@@ -979,7 +979,7 @@ struct CaptureSessionStoreTests {
         try store.cancelMeetingCapture(cancelled, at: startedAt.addingTimeInterval(2))
         try store.cancelMeetingCapture(cancelled, at: startedAt.addingTimeInterval(3))
 
-        #expect(try store.cancelledMeetingCaptureSessionIDs() == [cancelled.sessionID])
+        #expect(try store.cancelledNoteCaptureSessionIDs() == [cancelled.sessionID])
         #expect(try store.meetingRecoveryCandidates().allSatisfy {
             $0.handle.sessionID != cancelled.sessionID
         })
@@ -1003,7 +1003,7 @@ struct CaptureSessionStoreTests {
                 at: startedAt.addingTimeInterval(3)
             )
         }
-        #expect(throws: CaptureSessionStoreError.meetingSourceOutcomeMissing(handle.systemAudioSourceID)) {
+        #expect(throws: CaptureSessionStoreError.meetingSourceOutcomeMissing(handle.dualSourceSystemAudioID)) {
             try store.recordMeetingStop(
                 handle,
                 retained: [retained(handle.microphoneSourceID, sessionID: handle.sessionID)],
@@ -1039,20 +1039,20 @@ struct CaptureSessionStoreTests {
         let startedAt = Date(timeIntervalSinceReferenceDate: 8_550)
         let first = try store.startMeetingCapture(startedAt: startedAt)
         let second = try store.startMeetingCapture(startedAt: startedAt)
-        let crossSession = MeetingCaptureHandle(
+        let crossSession = NoteCaptureHandle(
             sessionID: first.sessionID,
             microphoneSourceID: first.microphoneSourceID,
-            systemAudioSourceID: second.systemAudioSourceID
+            systemAudioSourceID: second.dualSourceSystemAudioID
         )
-        let wrongKind = MeetingCaptureHandle(
+        let wrongKind = NoteCaptureHandle(
             sessionID: first.sessionID,
-            microphoneSourceID: first.systemAudioSourceID,
-            systemAudioSourceID: first.systemAudioSourceID
+            microphoneSourceID: first.dualSourceSystemAudioID,
+            systemAudioSourceID: first.dualSourceSystemAudioID
         )
 
         #expect(
             throws: CaptureSessionStoreError.sourceSessionMismatch(
-                sourceID: second.systemAudioSourceID,
+                sourceID: second.dualSourceSystemAudioID,
                 expectedSessionID: first.sessionID,
                 actualSessionID: second.sessionID
             )
@@ -1061,13 +1061,210 @@ struct CaptureSessionStoreTests {
         }
         #expect(
             throws: CaptureSessionStoreError.sourceKindMismatch(
-                sourceID: first.systemAudioSourceID,
+                sourceID: first.dualSourceSystemAudioID,
                 expected: .microphone,
                 actualRawValue: CaptureSourceKind.systemAudio.rawValue
             )
         ) {
             try store.beginMeetingFinalization(wrongKind, at: startedAt.addingTimeInterval(1))
         }
+    }
+
+    @Test func micOnlyNoteCaptureCreatesOnlyAMicrophoneSourceRow() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 8_560)
+        let handle = try store.startNoteCapture(
+            startedAt: startedAt,
+            includeSystemAudio: false,
+            microphoneDisplayName: "Built-in Microphone"
+        )
+
+        #expect(handle.systemAudioSourceID == nil)
+        #expect(handle.sourceIDs == [handle.microphoneSourceID])
+
+        let context = ModelContext(container)
+        let session = try #require(
+            context.fetch(FetchDescriptor<CaptureSessionModel>()).first { $0.id == handle.sessionID }
+        )
+        let sources = try context.fetch(FetchDescriptor<CaptureSourceModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        #expect(try session.restoreSession().mode == .note)
+        #expect(sources.count == 1)
+        #expect(sources[0].id == handle.microphoneSourceID)
+        #expect(sources[0].sequence == 0)
+        #expect(sources[0].kindRawValue == CaptureSourceKind.microphone.rawValue)
+    }
+
+    @Test func noteCaptureWithSystemAudioOrdersMicrophoneFirst() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 8_565)
+        let handle = try store.startNoteCapture(
+            startedAt: startedAt,
+            includeSystemAudio: true,
+            microphoneDisplayName: "Built-in Microphone",
+            systemAudioDisplayName: "System Audio"
+        )
+
+        let context = ModelContext(container)
+        let sources = try context.fetch(FetchDescriptor<CaptureSourceModel>())
+            .filter { $0.sessionID == handle.sessionID }
+            .sorted { $0.sequence < $1.sequence }
+        #expect(sources.count == 2)
+        #expect(sources[0].id == handle.microphoneSourceID)
+        #expect(sources[0].sequence == 0)
+        #expect(sources[1].id == handle.dualSourceSystemAudioID)
+        #expect(sources[1].sequence == 1)
+        #expect(sources[1].kindRawValue == CaptureSourceKind.systemAudio.rawValue)
+    }
+
+    @Test func micOnlyNoteCaptureFinishesFinalizesAndCompletesWithOneSource() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 8_570)
+        let handle = try store.startNoteCapture(startedAt: startedAt, includeSystemAudio: false)
+        try store.beginMeetingFinalization(handle, at: startedAt.addingTimeInterval(1))
+        let checkpoint = chunk(
+            handle.microphoneSourceID,
+            sessionID: handle.sessionID,
+            sequence: 0,
+            sealedAt: startedAt.addingTimeInterval(2)
+        )
+        try store.recordSealedMeetingChunk(handle, checkpoint: checkpoint)
+
+        // A one-source finish is accepted: there is no system-audio row to explain.
+        try store.finishMeetingSources(
+            handle,
+            sourceFailures: [],
+            at: startedAt.addingTimeInterval(3)
+        )
+        _ = try store.recordMeetingTranscriptionChunk(
+            handle,
+            sourceChunkSequence: 0,
+            startOffset: checkpoint.startOffset,
+            duration: checkpoint.duration,
+            text: "Mic-only note transcript",
+            at: startedAt.addingTimeInterval(4)
+        )
+        let history = try HistoryStore(modelContext: ModelContext(container)).save(
+            text: "Mic-only note transcript",
+            originalText: "Mic-only note transcript",
+            duration: checkpoint.duration,
+            modelUsed: "note"
+        )
+        try store.completeMeetingCapture(
+            handle,
+            transcriptionRecordID: history.id,
+            at: startedAt.addingTimeInterval(5)
+        )
+
+        let context = ModelContext(container)
+        let session = try #require(
+            context.fetch(FetchDescriptor<CaptureSessionModel>()).first { $0.id == handle.sessionID }
+        )
+        let sources = try context.fetch(FetchDescriptor<CaptureSourceModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        #expect(try session.restoreSession().state == .completed)
+        #expect(session.transcriptionRecordID == history.id)
+        #expect(sources.count == 1)
+        #expect(sources[0].stateRawValue == CaptureSourceState.completed.rawValue)
+    }
+
+    @Test func micOnlyNoteCaptureCancelAndFailTouchOnlyTheMicrophoneSource() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 8_575)
+        let cancelled = try store.startNoteCapture(startedAt: startedAt, includeSystemAudio: false)
+        let failedCapture = try store.startNoteCapture(startedAt: startedAt, includeSystemAudio: false)
+
+        try store.cancelMeetingCapture(cancelled, at: startedAt.addingTimeInterval(1))
+        try store.failMeetingCapture(
+            failedCapture,
+            stage: .finalTranscription,
+            errorDomain: "AudioCapture",
+            errorCode: "unavailable",
+            message: "The microphone stopped.",
+            at: startedAt.addingTimeInterval(1)
+        )
+
+        let context = ModelContext(container)
+        let cancelledSources = try context.fetch(FetchDescriptor<CaptureSourceModel>())
+            .filter { $0.sessionID == cancelled.sessionID }
+        let failedSources = try context.fetch(FetchDescriptor<CaptureSourceModel>())
+            .filter { $0.sessionID == failedCapture.sessionID }
+        #expect(cancelledSources.map(\.stateRawValue) == [CaptureSourceState.cancelled.rawValue])
+        #expect(failedSources.map(\.stateRawValue) == [CaptureSourceState.failed.rawValue])
+        #expect(try store.cancelledNoteCaptureSessionIDs() == [cancelled.sessionID])
+    }
+
+    @Test func noteCaptureRecoveryCandidatesCoverEveryNoteCaptureMode() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let startedAt = Date(timeIntervalSinceReferenceDate: 8_580)
+        let legacyVoiceNote = try store.startVoiceNoteCapture(startedAt: startedAt)
+        let legacyMeeting = try store.startMeetingCapture(startedAt: startedAt.addingTimeInterval(1))
+        let micOnlyNote = try store.startNoteCapture(
+            startedAt: startedAt.addingTimeInterval(2),
+            includeSystemAudio: false
+        )
+        let dualSourceNote = try store.startNoteCapture(
+            startedAt: startedAt.addingTimeInterval(3),
+            includeSystemAudio: true
+        )
+
+        let candidates = try store.noteCaptureRecoveryCandidates()
+        let bySessionID = Dictionary(
+            uniqueKeysWithValues: candidates.map { ($0.handle.sessionID, $0) }
+        )
+        #expect(bySessionID[legacyVoiceNote.sessionID]?.mode == .voiceNote)
+        #expect(bySessionID[legacyMeeting.sessionID]?.mode == .meeting)
+        #expect(bySessionID[micOnlyNote.sessionID]?.mode == .note)
+        #expect(bySessionID[dualSourceNote.sessionID]?.mode == .note)
+        #expect(bySessionID[legacyVoiceNote.sessionID]?.handle.systemAudioSourceID == nil)
+        #expect(bySessionID[micOnlyNote.sessionID]?.handle.systemAudioSourceID == nil)
+        #expect(
+            bySessionID[dualSourceNote.sessionID]?.handle.systemAudioSourceID
+                == dualSourceNote.dualSourceSystemAudioID
+        )
+        // Newest activity first.
+        #expect(candidates.map(\.handle.sessionID) == [
+            dualSourceNote.sessionID,
+            micOnlyNote.sessionID,
+            legacyMeeting.sessionID,
+            legacyVoiceNote.sessionID
+        ])
+
+        // The durable-spool shim keeps only captures that record system audio.
+        #expect(try store.meetingRecoveryCandidates().map(\.handle.sessionID) == [
+            dualSourceNote.sessionID,
+            legacyMeeting.sessionID
+        ])
+        // The streaming shim keeps only mic-only captures with committed text.
+        #expect(try store.voiceNoteRecoveryCandidates().isEmpty)
+
+        _ = try store.resolveAssignment(
+            sessionID: micOnlyNote.sessionID,
+            stage: .liveTranscription,
+            attempt: 1,
+            selecting: { try assignment(stage: .liveTranscription) }
+        )
+        _ = try store.checkpointVoiceNoteLiveTranscript(
+            for: VoiceNoteCaptureHandle(
+                sessionID: micOnlyNote.sessionID,
+                microphoneSourceID: micOnlyNote.microphoneSourceID
+            ),
+            committedText: "Committed note text",
+            at: startedAt.addingTimeInterval(4)
+        )
+        #expect(try store.voiceNoteRecoveryCandidates().map(\.handle.sessionID) == [
+            micOnlyNote.sessionID
+        ])
+        #expect(
+            try store.noteCaptureRecoveryCandidates()
+                .first { $0.handle.sessionID == micOnlyNote.sessionID }?
+                .latestLiveCheckpoint?.committedText == "Committed note text"
+        )
     }
 
     @Test func meetingCompletionLinksExistingHistoryOnlyAfterSourceStop() throws {
@@ -1079,7 +1276,7 @@ struct CaptureSessionStoreTests {
         try store.recordMeetingStop(
             handle,
             retained: [retained(handle.microphoneSourceID, sessionID: handle.sessionID)],
-            failures: [failed(handle.systemAudioSourceID, at: startedAt.addingTimeInterval(2))],
+            failures: [failed(handle.dualSourceSystemAudioID, at: startedAt.addingTimeInterval(2))],
             at: startedAt.addingTimeInterval(3)
         )
         let history = try HistoryStore(modelContext: ModelContext(container)).save(
@@ -1146,7 +1343,7 @@ struct CaptureSessionStoreTests {
         try store.reconcileMeetingChunks(handle, checkpoints: checkpoints, failures: [])
         try store.finishMeetingSources(
             handle,
-            sourceFailures: [failed(handle.systemAudioSourceID, at: startedAt.addingTimeInterval(4))],
+            sourceFailures: [failed(handle.dualSourceSystemAudioID, at: startedAt.addingTimeInterval(4))],
             at: startedAt.addingTimeInterval(5)
         )
         _ = try store.recordMeetingTranscriptionChunk(
@@ -1201,12 +1398,12 @@ struct CaptureSessionStoreTests {
                         sessionID: handle.sessionID,
                         path: CaptureSourceArtifactPath.relativePath(
                             sessionID: handle.sessionID,
-                            sourceID: handle.systemAudioSourceID,
+                            sourceID: handle.dualSourceSystemAudioID,
                             chunkSequence: 0
                         )
                     )
                 ],
-                failures: [failed(handle.systemAudioSourceID, at: startedAt.addingTimeInterval(2))],
+                failures: [failed(handle.dualSourceSystemAudioID, at: startedAt.addingTimeInterval(2))],
                 at: startedAt.addingTimeInterval(3)
             )
         }
@@ -1274,7 +1471,7 @@ struct CaptureSessionStoreTests {
         try store.recordMeetingStop(
             handle,
             retained: [retained(handle.microphoneSourceID, sessionID: handle.sessionID)],
-            failures: [failed(handle.systemAudioSourceID, at: startedAt.addingTimeInterval(2))],
+            failures: [failed(handle.dualSourceSystemAudioID, at: startedAt.addingTimeInterval(2))],
             at: startedAt.addingTimeInterval(3)
         )
 
@@ -1328,7 +1525,7 @@ struct CaptureSessionStoreTests {
             Dictionary(uniqueKeysWithValues: sources.map { ($0.id, $0.stateRawValue) }) ==
                 [
                     handle.microphoneSourceID: CaptureSourceState.completed.rawValue,
-                    handle.systemAudioSourceID: CaptureSourceState.failed.rawValue
+                    handle.dualSourceSystemAudioID: CaptureSourceState.failed.rawValue
                 ]
         )
         #expect(chunks.count == 2)
@@ -1344,7 +1541,7 @@ struct CaptureSessionStoreTests {
         try store.recordMeetingStop(
             handle,
             retained: [retained(handle.microphoneSourceID, sessionID: handle.sessionID)],
-            failures: [failed(handle.systemAudioSourceID, at: startedAt.addingTimeInterval(2))],
+            failures: [failed(handle.dualSourceSystemAudioID, at: startedAt.addingTimeInterval(2))],
             at: startedAt.addingTimeInterval(3)
         )
 
@@ -1412,7 +1609,7 @@ struct CaptureSessionStoreTests {
         try store.finishMeetingSources(
             handle,
             sourceFailures: [
-                failed(handle.systemAudioSourceID, at: startedAt.addingTimeInterval(21))
+                failed(handle.dualSourceSystemAudioID, at: startedAt.addingTimeInterval(21))
             ],
             at: startedAt.addingTimeInterval(22)
         )
@@ -1610,13 +1807,13 @@ struct CaptureSessionStoreTests {
             sealedAt: startedAt.addingTimeInterval(1)
         )
         let systemAudio = chunk(
-            handle.systemAudioSourceID,
+            handle.dualSourceSystemAudioID,
             sessionID: handle.sessionID,
             sequence: 0,
             sealedAt: startedAt.addingTimeInterval(1)
         )
         let lostSource = recoveryFailure(
-            handle.systemAudioSourceID,
+            handle.dualSourceSystemAudioID,
             invalidatesSource: true,
             at: startedAt.addingTimeInterval(2),
             message: "The system-audio artifact is missing."
@@ -1645,7 +1842,7 @@ struct CaptureSessionStoreTests {
         #expect(chunks[0].sourceID == handle.microphoneSourceID)
         #expect(chunks[0].sequence == 0)
         #expect(failures.count == 1)
-        #expect(failures[0].sourceID == handle.systemAudioSourceID)
+        #expect(failures[0].sourceID == handle.dualSourceSystemAudioID)
         #expect(failures[0].chunkID == nil)
     }
 
@@ -1664,7 +1861,7 @@ struct CaptureSessionStoreTests {
             )
         }
         let systemAudio = chunk(
-            handle.systemAudioSourceID,
+            handle.dualSourceSystemAudioID,
             sessionID: handle.sessionID,
             sequence: 0,
             sealedAt: startedAt.addingTimeInterval(1)
@@ -1703,7 +1900,7 @@ struct CaptureSessionStoreTests {
                 [
                     "\(handle.microphoneSourceID.uuidString):0",
                     "\(handle.microphoneSourceID.uuidString):2",
-                    "\(handle.systemAudioSourceID.uuidString):0"
+                    "\(handle.dualSourceSystemAudioID.uuidString):0"
                 ]
         )
         #expect(plan.failedSequences == [1])
@@ -1764,7 +1961,7 @@ struct CaptureSessionStoreTests {
             )
         }
         let systemAudio = chunk(
-            handle.systemAudioSourceID,
+            handle.dualSourceSystemAudioID,
             sessionID: handle.sessionID,
             sequence: 0,
             sealedAt: startedAt.addingTimeInterval(1)
@@ -1807,7 +2004,7 @@ struct CaptureSessionStoreTests {
             sealedAt: startedAt.addingTimeInterval(2)
         )
         let systemAudio = chunk(
-            handle.systemAudioSourceID,
+            handle.dualSourceSystemAudioID,
             sessionID: handle.sessionID,
             sequence: 0,
             sealedAt: startedAt.addingTimeInterval(2)
@@ -1817,7 +2014,7 @@ struct CaptureSessionStoreTests {
         try store.finishMeetingSources(
             handle,
             sourceFailures: [
-                failed(handle.systemAudioSourceID, at: startedAt.addingTimeInterval(3))
+                failed(handle.dualSourceSystemAudioID, at: startedAt.addingTimeInterval(3))
             ],
             at: startedAt.addingTimeInterval(4)
         )
@@ -1830,7 +2027,7 @@ struct CaptureSessionStoreTests {
         #expect(chunks.count == 1)
         #expect(chunks[0].sourceID == handle.microphoneSourceID)
         #expect(
-            sources.first { $0.id == handle.systemAudioSourceID }?.stateRawValue ==
+            sources.first { $0.id == handle.dualSourceSystemAudioID }?.stateRawValue ==
                 CaptureSourceState.failed.rawValue
         )
         #expect(
@@ -1862,7 +2059,7 @@ struct CaptureSessionStoreTests {
             sealedAt: startedAt.addingTimeInterval(1)
         )
         let systemAudio = chunk(
-            handle.systemAudioSourceID,
+            handle.dualSourceSystemAudioID,
             sessionID: handle.sessionID,
             sequence: 0,
             sealedAt: startedAt.addingTimeInterval(1)
@@ -2930,7 +3127,7 @@ struct CaptureSessionStoreTests {
         #expect(persistedRevisions.filter { $0.sessionID == unavailable.sessionID }.isEmpty)
         #expect(
             try store.voiceNoteRecoveryCandidates()
-                .contains { $0.handle == restoredWrongKind } == false
+                .contains { $0.handle.sessionID == restoredWrongKind.sessionID } == false
         )
     }
 
@@ -3039,9 +3236,9 @@ struct CaptureSessionStoreTests {
             capturing.sessionID
         ])
         #expect(candidates.map(\.state) == [.interrupted, .finalizing, .capturing])
-        #expect(candidates[0].latestCheckpoint.committedText == "Interrupted checkpoint")
-        #expect(candidates[1].latestCheckpoint.committedText == "Finalizing checkpoint")
-        #expect(candidates[2].latestCheckpoint.committedText == "Capturing checkpoint")
+        #expect(candidates[0].latestLiveCheckpoint?.committedText == "Interrupted checkpoint")
+        #expect(candidates[1].latestLiveCheckpoint?.committedText == "Finalizing checkpoint")
+        #expect(candidates[2].latestLiveCheckpoint?.committedText == "Capturing checkpoint")
         #expect(candidates[0].recoveryTarget == .capturing)
         let repeatedCandidates = try store.voiceNoteRecoveryCandidates()
         #expect(candidates == repeatedCandidates)
@@ -3286,7 +3483,7 @@ struct CaptureSessionStoreTests {
         try store.finishMeetingSources(
             handle,
             sourceFailures: [
-                failed(handle.systemAudioSourceID, at: startedAt.addingTimeInterval(4))
+                failed(handle.dualSourceSystemAudioID, at: startedAt.addingTimeInterval(4))
             ],
             at: startedAt.addingTimeInterval(4)
         )
@@ -3399,7 +3596,7 @@ struct CaptureSessionStoreTests {
         typealias GeneratedFixture = (
             container: ModelContainer,
             store: CaptureSessionStore,
-            handle: MeetingCaptureHandle,
+            handle: NoteCaptureHandle,
             historyID: UUID,
             noteID: UUID
         )
@@ -3799,7 +3996,7 @@ struct CaptureSessionStoreTests {
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directoryURL) }
         let storeURL = directoryURL.appendingPathComponent("capture.store")
-        let expectedHandle: MeetingCaptureHandle
+        let expectedHandle: NoteCaptureHandle
         let expectedAnchorID: UUID
 
         do {
@@ -3859,7 +4056,24 @@ struct CaptureSessionStoreTests {
 
         let reopenedContainer = try PindropModelContainerFactory.makeContainer(at: storeURL)
         let candidates = try makeStore(in: reopenedContainer).voiceNoteRecoveryCandidates()
-        let recovered = try #require(candidates.first { $0.handle == expectedHandle })
-        #expect(recovered.latestCheckpoint == expectedCheckpoint)
+        let recovered = try #require(
+            candidates.first { $0.handle.sessionID == expectedHandle.sessionID }
+        )
+        #expect(recovered.handle.microphoneSourceID == expectedHandle.microphoneSourceID)
+        #expect(recovered.handle.systemAudioSourceID == nil)
+        #expect(recovered.latestLiveCheckpoint == expectedCheckpoint)
+    }
+}
+
+/// The system-audio identifier of a fixture that was started with system audio.
+///
+/// Every fixture that reads this starts a dual-source capture, so a missing
+/// identifier means the fixture itself is wrong.
+private extension NoteCaptureHandle {
+    var dualSourceSystemAudioID: UUID {
+        guard let systemAudioSourceID else {
+            preconditionFailure("This capture fixture must own a system-audio source.")
+        }
+        return systemAudioSourceID
     }
 }

@@ -668,7 +668,7 @@ private final class MockMediaLibrary: MediaLibraryManaging, @unchecked Sendable 
     func makeMeetingCaptureSpoolPlan(
         sessionID: UUID,
         microphoneSourceID: UUID,
-        systemAudioSourceID: UUID
+        systemAudioSourceID: UUID?
     ) throws -> MeetingCaptureSpoolPlan {
         recordMeetingOperation()
         if let meetingMediaError {

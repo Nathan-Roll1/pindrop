@@ -377,7 +377,7 @@ final class MediaIngestionService {
     func makeMeetingCaptureSpoolPlan(
         sessionID: UUID,
         microphoneSourceID: UUID,
-        systemAudioSourceID: UUID
+        systemAudioSourceID: UUID?
     ) async throws -> MeetingCaptureSpoolPlan {
         let mediaLibrary = mediaLibrary
 

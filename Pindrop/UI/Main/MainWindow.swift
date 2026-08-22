@@ -330,8 +330,11 @@ struct MainWindow: View {
         case .notes:
             switch routeState.notesRoute {
             case .list:
-                NotesView(onOpenNote: { routeState.openNote(id: $0) })
-                    .accessibilityIdentifier("main.destination.notes")
+                NotesView(
+                    onOpenNote: { routeState.openNote(id: $0) },
+                    onStartNoteCapture: onStartNoteCapture
+                )
+                .accessibilityIdentifier("main.destination.notes")
             case .note(let noteID):
                 NotePageView(noteID: noteID, onBack: routeState.closeNote)
                     .accessibilityIdentifier("main.destination.note")

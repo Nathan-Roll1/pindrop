@@ -75,7 +75,7 @@ struct ManagedMeetingChunkStorageTests {
         let emptyTail = CaptureSourceArtifactPath.inProgressSourceURL(
             libraryRootURL: root,
             sessionID: plan.sessionID,
-            sourceID: plan.systemAudioSourceID,
+            sourceID: try #require(plan.systemAudioSourceID),
             chunkSequence: 0
         )
         _ = FileManager.default.createFile(atPath: emptyTail.path, contents: nil)
@@ -97,7 +97,7 @@ struct ManagedMeetingChunkStorageTests {
         let corruptURL = sourceURL(plan, sourceID: plan.microphoneSourceID, sequence: 1)
         try Data([0, 1, 2]).write(to: corruptURL)
         try writePCM([3, 4], to: sourceURL(plan, sourceID: plan.microphoneSourceID, sequence: 2))
-        try writePCM([5, 6], to: sourceURL(plan, sourceID: plan.systemAudioSourceID, sequence: 0))
+        try writePCM([5, 6], to: sourceURL(plan, sourceID: try #require(plan.systemAudioSourceID), sequence: 0))
 
         let result = try library.recoverMeetingArtifacts(for: plan)
 
@@ -141,7 +141,7 @@ struct ManagedMeetingChunkStorageTests {
         let (library, plan, root) = try makeFixture(chunkByteCount: 8)
         defer { try? FileManager.default.removeItem(at: root) }
         try writePCM([1, 2], to: sourceURL(plan, sourceID: plan.microphoneSourceID, sequence: 0))
-        let lostDirectory = sourceURL(plan, sourceID: plan.systemAudioSourceID, sequence: 0)
+        let lostDirectory = sourceURL(plan, sourceID: try #require(plan.systemAudioSourceID), sequence: 0)
             .deletingLastPathComponent()
         try FileManager.default.removeItem(at: lostDirectory)
 
@@ -192,7 +192,7 @@ struct ManagedMeetingChunkStorageTests {
         let (library, plan, root) = try makeFixture(chunkByteCount: 12)
         defer { try? FileManager.default.removeItem(at: root) }
         try writePCM([0.75, -0.5, 0.25], to: sourceURL(plan, sourceID: plan.microphoneSourceID, sequence: 0))
-        try writePCM([0.75], to: sourceURL(plan, sourceID: plan.systemAudioSourceID, sequence: 0))
+        try writePCM([0.75], to: sourceURL(plan, sourceID: try #require(plan.systemAudioSourceID), sequence: 0))
         let inventory = try library.recoverMeetingArtifacts(for: plan).sealedChunks
         let microphone = try #require(inventory.first { $0.sourceID == plan.microphoneSourceID })
         let systemAudio = try #require(inventory.first { $0.sourceID == plan.systemAudioSourceID })
@@ -271,7 +271,7 @@ struct ManagedMeetingChunkStorageTests {
         let (library, plan, root) = try makeFixture(chunkByteCount: 8)
         defer { try? FileManager.default.removeItem(at: root) }
         let microphoneURL = sourceURL(plan, sourceID: plan.microphoneSourceID, sequence: 0)
-        let systemAudioURL = sourceURL(plan, sourceID: plan.systemAudioSourceID, sequence: 0)
+        let systemAudioURL = sourceURL(plan, sourceID: try #require(plan.systemAudioSourceID), sequence: 0)
         try writePCM([0.25, 0.5], to: microphoneURL)
         try writePCM([0.5, 0.25], to: systemAudioURL)
         let inventory = try library.recoverMeetingArtifacts(for: plan).sealedChunks

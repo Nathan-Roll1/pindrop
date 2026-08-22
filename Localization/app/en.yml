@@ -201,6 +201,7 @@ clears:
   preferences_and_restarts_onboarding: "Clears preferences and restarts onboarding"
   preferences_and_restarts_onboarding_7d851: "Clears preferences and restarts onboarding."
 click:
+  new_note_to_start_one: "Click New note to start one. Pindrop records while you type."
   or_hold: "Click or hold"
   or_press: "Click or press"
   or_set_a_hotkey_to_start_talking: "Click or set a hotkey to start talking"
@@ -700,6 +701,8 @@ name:
 nemotron:
   default: "Nemotron (default)"
 new:
+  note_with_system_audio: "New note with system audio"
+  note_without_recording: "New note without recording"
   folder: "New Folder"
   note: "New Note"
   preset: "New Preset"
@@ -708,6 +711,7 @@ newest:
 next:
   _self: "Next"
 no:
+  notes_yet_sentence: "No notes yet."
   activity_in_this_period: "No activity in this period"
   api_key: "No API key"
   api_key_endpoint: "No API key • Endpoint: %@"
@@ -762,6 +766,10 @@ note:
 notes:
   _self: "Notes"
   3add7b96: "notes"
+  header_meta_empty: "nothing here yet"
+  header_meta_today: "%1$@, %2$@ from today"
+  new_note_options_label: "More new note options"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "Off"
 ok:

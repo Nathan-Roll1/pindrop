@@ -99,6 +99,53 @@ struct StatusBarControllerTests {
         #expect(menu.items.isEmpty)
     }
 
+    @Test func noteCaptureMenuItemsAppearOnlyOnceWiredAndCarryTheRequestedSources() throws {
+        let settingsStore = SettingsStore()
+        settingsStore.resetAllSettings()
+        defer { settingsStore.resetAllSettings() }
+
+        let audioRecorder = try AudioRecorder(
+            permissionManager: MockPermissionProvider(),
+            captureBackend: MockAudioCaptureBackend(identifier: "microphone"),
+            systemAudioCaptureBackend: MockAudioCaptureBackend(identifier: "system")
+        )
+        let sut = StatusBarController(
+            audioRecorder: audioRecorder,
+            settingsStore: settingsStore
+        )
+        let locale = settingsStore.selectedAppLocale.locale
+        let newNoteTitle = localized("New note", locale: locale)
+        let systemAudioTitle = localized("New note with system audio", locale: locale)
+
+        let menu = sut.menuForTesting()
+        // Unwired: no dead rows.
+        #expect(!menu.items.contains { $0.title == newNoteTitle })
+        #expect(!menu.items.contains { $0.title == systemAudioTitle })
+
+        var requests: [NoteCaptureRequest] = []
+        sut.configureNoteCapture { request in
+            requests.append(request)
+            return true
+        }
+
+        let startRecordingIndex = try #require(
+            menu.items.firstIndex { $0.title == localized("Start Recording", locale: locale) }
+        )
+        let newNoteIndex = try #require(menu.items.firstIndex { $0.title == newNoteTitle })
+        let systemAudioIndex = try #require(menu.items.firstIndex { $0.title == systemAudioTitle })
+        // The note rows sit with the dictation rows, in order.
+        #expect(newNoteIndex == startRecordingIndex + 1)
+        #expect(systemAudioIndex == newNoteIndex + 1)
+
+        menu.performActionForItem(at: newNoteIndex)
+        menu.performActionForItem(at: systemAudioIndex)
+
+        #expect(requests == [
+            NoteCaptureRequest(includeSystemAudio: false),
+            NoteCaptureRequest(includeSystemAudio: true)
+        ])
+    }
+
     @Test func promptPresetSelectionMapsCustomIDsAndNoOpsWhenDisabled() {
         let settingsStore = SettingsStore()
         settingsStore.resetAllSettings()

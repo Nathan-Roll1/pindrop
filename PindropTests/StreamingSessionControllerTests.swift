@@ -908,7 +908,7 @@ struct StreamingSessionControllerTests {
         #expect(controller.isArtifactCaptureActive)
         await controller.finishArtifactCapture(for: handle)
         let recovery = try #require(store.voiceNoteRecoveryCandidates().first)
-        #expect(recovery.latestCheckpoint.committedText == "Hello artifact")
+        #expect(recovery.latestLiveCheckpoint?.committedText == "Hello artifact")
 
         #expect(!controller.isArtifactCaptureActive)
         #expect(engine.stopCallCount == 1)

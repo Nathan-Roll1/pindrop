@@ -313,6 +313,11 @@ enum AppTypography {
     static let bodyMetaMetrics = TypographyRoleMetrics(
         family: .inter, size: 13, weight: .regular, lineHeight: 22
     )
+    /// Newsreader Italic 16/22 · 400 — page-header meta beside the title
+    /// (Notes list: "24 notes, three from today").
+    static let pageMetaMetrics = TypographyRoleMetrics(
+        family: .newsreader, size: 16, weight: .regular, lineHeight: 22, italic: true
+    )
     static let labelMetrics = TypographyRoleMetrics(
         family: .inter, size: 12, weight: .medium, lineHeight: 16
     )
@@ -383,7 +388,7 @@ enum AppTypography {
     static var allRoleMetrics: [TypographyRoleMetrics] {
         [
             wordmarkMetrics, pageTitleMetrics, transcriptBodyMetrics, pinnedCardTitleMetrics,
-            bodyMetrics, bodyMetaMetrics, labelMetrics, labelSemiboldMetrics,
+            bodyMetrics, bodyMetaMetrics, pageMetaMetrics, labelMetrics, labelSemiboldMetrics,
             labelStrongMetrics, labelStrongSelectedMetrics, badgeMetrics,
             captionMetrics, captionMediumMetrics, captionLargeMetrics,
             monoTimeMetrics, monoSmallMetrics, sectionHeaderMetrics,
@@ -407,6 +412,8 @@ enum AppTypography {
     static let body = bodyMetrics.font
     /// Inter 13/22 · 400 — header meta line
     static let bodyMeta = bodyMetaMetrics.font
+    /// Newsreader Italic 16/22 · 400 — page-header meta beside the title
+    static let pageMeta = pageMetaMetrics.font
     /// Inter 12/16 · 500 — buttons, chips, nav secondary
     static let label = labelMetrics.font
     /// Inter 12/16 · 600 — status titles, strong chip labels

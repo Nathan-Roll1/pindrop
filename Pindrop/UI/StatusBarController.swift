@@ -33,6 +33,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private var cancelOperationItem: NSMenuItem?
     private var contextualItemsInserted = false
 
+    private var newNoteItem: NSMenuItem?
+    private var newNoteWithSystemAudioItem: NSMenuItem?
+    private var noteCaptureItemsInserted = false
+
     private var transcriptsMenu: NSMenu?
     private var copyLastTranscriptItem: NSMenuItem?
     private var pasteLastTranscriptItem: NSMenuItem?
@@ -49,6 +53,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     // MARK: - Callbacks
 
     var onToggleRecording: (() async -> Void)?
+    /// Starts a note that records. Set through `configureNoteCapture(onStartNoteCapture:)`;
+    /// the note rows only appear once it is set, so an unwired build shows no dead items.
+    private(set) var onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
     var onShowApp: (() -> Void)?
     var onCopyLastTranscript: (() async -> Void)?
     var onPasteLastTranscript: (() async -> Void)?
@@ -173,6 +180,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.removeAllItems()
         menu.delegate = self
         contextualItemsInserted = false
+        noteCaptureItemsInserted = false
 
         // === STATUS ROW ===
         recordingStatusItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
@@ -208,6 +216,28 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         cancelOperationItem?.target = self
         cancelOperationItem?.isEnabled = false
         cancelOperationItem?.image = NSImage(systemSymbolName: "stop.circle", accessibilityDescription: nil)
+
+        // === NEW NOTE ===
+        // Built here, inserted by syncNoteCaptureItems() once a start closure exists.
+        newNoteItem = NSMenuItem(
+            title: localized("New note", locale: locale),
+            action: #selector(startNewNote),
+            keyEquivalent: ""
+        )
+        newNoteItem?.target = self
+        newNoteItem?.image = NSImage(systemSymbolName: "square.and.pencil", accessibilityDescription: nil)
+
+        newNoteWithSystemAudioItem = NSMenuItem(
+            title: localized("New note with system audio", locale: locale),
+            action: #selector(startNewNoteWithSystemAudio),
+            keyEquivalent: ""
+        )
+        newNoteWithSystemAudioItem?.target = self
+        newNoteWithSystemAudioItem?.image = NSImage(
+            systemSymbolName: "waveform.badge.mic",
+            accessibilityDescription: nil
+        )
+        syncNoteCaptureItems()
 
         menu.addItem(NSMenuItem.separator())
 
@@ -310,6 +340,37 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         applyInterfaceLayoutDirection(to: menu, locale: locale)
     }
 
+    /// Wires the note-capture entry points. The "New note" rows appear only after
+    /// this is called, so a build that never wires them shows no dead menu items.
+    func configureNoteCapture(onStartNoteCapture: @escaping (NoteCaptureRequest) -> Bool) {
+        self.onStartNoteCapture = onStartNoteCapture
+        syncNoteCaptureItems()
+    }
+
+    /// Inserts (or removes) the "New note" rows next to the dictation rows,
+    /// following whether a start closure is wired.
+    private func syncNoteCaptureItems() {
+        guard let newNoteItem, let newNoteWithSystemAudioItem else { return }
+
+        guard onStartNoteCapture != nil else {
+            if noteCaptureItemsInserted {
+                menu.removeItem(newNoteItem)
+                menu.removeItem(newNoteWithSystemAudioItem)
+                noteCaptureItemsInserted = false
+            }
+            return
+        }
+
+        guard !noteCaptureItemsInserted, let toggleRecordingItem else { return }
+        let toggleIndex = menu.index(of: toggleRecordingItem)
+        guard toggleIndex >= 0 else { return }
+        // Sits after Start/Stop Recording and its contextual rows.
+        let anchor = toggleIndex + (contextualItemsInserted ? 2 : 0)
+        menu.insertItem(newNoteItem, at: anchor + 1)
+        menu.insertItem(newNoteWithSystemAudioItem, at: anchor + 2)
+        noteCaptureItemsInserted = true
+    }
+
     /// Inserts the contextual "Clear Audio Buffer" / "Cancel Operation" rows directly
     /// after the Start/Stop Recording row. No-ops if already inserted.
     private func insertContextualItemsIfNeeded() {
@@ -404,6 +465,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             item.isEnabled = assignment != nil
             item.state = option.assignmentID == activePresetID ? .on : .off
         }
+    }
+
+    func menuForTesting() -> NSMenu {
+        menu
     }
 
     func promptPresetMenuForTesting() -> NSMenu? {
@@ -522,6 +587,14 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         Task {
             await onToggleRecording?()
         }
+    }
+
+    @objc private func startNewNote() {
+        _ = onStartNoteCapture?(NoteCaptureRequest(includeSystemAudio: false))
+    }
+
+    @objc private func startNewNoteWithSystemAudio() {
+        _ = onStartNoteCapture?(NoteCaptureRequest(includeSystemAudio: true))
     }
 
     @objc private func copyLastTranscript() {

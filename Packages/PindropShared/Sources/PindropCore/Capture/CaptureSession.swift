@@ -11,6 +11,50 @@ public enum CaptureSessionMode: String, Codable, Sendable {
     case dictate
     case voiceNote
     case meeting
+    /// A note that records: one microphone source, plus system audio when requested.
+    case note
+
+    /// Whether this mode belongs to the unified note-capture lifecycle.
+    ///
+    /// Legacy `voiceNote` and `meeting` rows stay on their persisted raw values,
+    /// so every note-capture rule must accept all three modes.
+    public var isNoteCapture: Bool {
+        switch self {
+        case .dictate:
+            false
+        case .voiceNote, .meeting, .note:
+            true
+        }
+    }
+}
+
+/// Stable identifiers for the sources created when one note capture starts.
+///
+/// A mic-only note capture has no system-audio source, and therefore no
+/// system-audio source row: `systemAudioSourceID` is `nil`.
+public struct NoteCaptureHandle: Sendable, Equatable, Hashable {
+    public let sessionID: UUID
+    public let microphoneSourceID: UUID
+    public let systemAudioSourceID: UUID?
+
+    public init(
+        sessionID: UUID,
+        microphoneSourceID: UUID,
+        systemAudioSourceID: UUID? = nil
+    ) {
+        self.sessionID = sessionID
+        self.microphoneSourceID = microphoneSourceID
+        self.systemAudioSourceID = systemAudioSourceID
+    }
+
+    /// Every source identifier this capture owns, microphone first.
+    public var sourceIDs: [UUID] {
+        systemAudioSourceID.map { [microphoneSourceID, $0] } ?? [microphoneSourceID]
+    }
+
+    public var capturesSystemAudio: Bool {
+        systemAudioSourceID != nil
+    }
 }
 
 public enum CaptureSourceKind: String, Codable, Sendable {
@@ -221,14 +265,20 @@ public struct MeetingCaptureSpoolPlan: Codable, Sendable, Equatable {
     public let libraryRootURL: URL
     public let sessionID: UUID
     public let microphoneSourceID: UUID
-    public let systemAudioSourceID: UUID
+    /// Absent for a mic-only note capture, which spools one source only.
+    public let systemAudioSourceID: UUID?
     public let chunkByteCount: Int
+
+    /// Every spooled source identifier, microphone first.
+    public var sourceIDs: [UUID] {
+        systemAudioSourceID.map { [microphoneSourceID, $0] } ?? [microphoneSourceID]
+    }
 
     public init(
         libraryRootURL: URL,
         sessionID: UUID,
         microphoneSourceID: UUID,
-        systemAudioSourceID: UUID,
+        systemAudioSourceID: UUID?,
         chunkByteCount: Int = Self.defaultChunkByteCount
     ) {
         self.libraryRootURL = libraryRootURL

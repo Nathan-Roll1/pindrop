@@ -825,17 +825,23 @@ private struct MeetingStorageConfiguration {
     let sourceID: UUID
     let onChunkSealed: (SealedAudioSourceChunk) -> Void
 
-    init(
+    /// Returns nil when the plan does not spool the requested source, which is
+    /// the case for the system-audio child of a mic-only note capture.
+    init?(
         spoolPlan: MeetingCaptureSpoolPlan,
         source: CaptureSourceKind,
         onChunkSealed: @escaping (SealedAudioSourceChunk) -> Void
     ) {
-        self.spoolPlan = spoolPlan
-        self.source = source
-        self.sourceID = switch source {
+        let resolvedSourceID: UUID? = switch source {
         case .microphone: spoolPlan.microphoneSourceID
         case .systemAudio: spoolPlan.systemAudioSourceID
         }
+        guard let resolvedSourceID else {
+            return nil
+        }
+        self.spoolPlan = spoolPlan
+        self.source = source
+        self.sourceID = resolvedSourceID
         self.onChunkSealed = onChunkSealed
     }
 
@@ -1025,11 +1031,16 @@ final class AVAudioEngineCaptureBackend: MeetingAudioCaptureBackend {
         guard !isCapturing else {
             throw AudioRecorderError.engineStartFailed("Cannot reconfigure an active capture")
         }
-        meetingStorageConfiguration = MeetingStorageConfiguration(
+        guard let configuration = MeetingStorageConfiguration(
             spoolPlan: spoolPlan,
             source: source,
             onChunkSealed: onChunkSealed
-        )
+        ) else {
+            throw AudioRecorderError.engineStartFailed(
+                "This capture plan has no \(source.rawValue) source to spool"
+            )
+        }
+        meetingStorageConfiguration = configuration
     }
 
     func stopMeetingRecording() -> MeetingRecordingStopResult {
@@ -1593,11 +1604,16 @@ final class CoreAudioInputCaptureBackend: MeetingAudioCaptureBackend {
         guard !isCapturing else {
             throw AudioRecorderError.engineStartFailed("Cannot reconfigure an active capture")
         }
-        meetingStorageConfiguration = MeetingStorageConfiguration(
+        guard let configuration = MeetingStorageConfiguration(
             spoolPlan: spoolPlan,
             source: source,
             onChunkSealed: onChunkSealed
-        )
+        ) else {
+            throw AudioRecorderError.engineStartFailed(
+                "This capture plan has no \(source.rawValue) source to spool"
+            )
+        }
+        meetingStorageConfiguration = configuration
     }
 
     func stopMeetingRecording() -> MeetingRecordingStopResult {
@@ -2551,11 +2567,16 @@ final class SystemAudioTapCaptureBackend: MeetingAudioCaptureBackend {
         guard !isCapturing else {
             throw AudioRecorderError.engineStartFailed("Cannot reconfigure an active capture")
         }
-        meetingStorageConfiguration = MeetingStorageConfiguration(
+        guard let configuration = MeetingStorageConfiguration(
             spoolPlan: spoolPlan,
             source: source,
             onChunkSealed: onChunkSealed
-        )
+        ) else {
+            throw AudioRecorderError.engineStartFailed(
+                "This capture plan has no \(source.rawValue) source to spool"
+            )
+        }
+        meetingStorageConfiguration = configuration
     }
 
     func stopMeetingRecording() -> MeetingRecordingStopResult {

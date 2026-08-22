@@ -504,7 +504,7 @@ final class AppCoordinator {
         let tags: [String]
     }
     private struct MeetingCaptureContext {
-        let handle: PindropData.MeetingCaptureHandle
+        let handle: PindropCore.NoteCaptureHandle
         let humanAnchorNoteID: UUID
         let spoolPlan: MeetingCaptureSpoolPlan
         let generation: UInt64
@@ -828,12 +828,12 @@ final class AppCoordinator {
     private let meetingCaptureStartAdmission = MeetingCaptureStartAdmission()
     private var pendingMeetingCaptureStart: MeetingCaptureStartClaim?
     private var pendingMeetingCaptureStartTask: Task<Void, Never>?
-    private var pendingMeetingCaptureStartHandle: PindropData.MeetingCaptureHandle?
-    private var pendingMeetingCaptureCancellationHandle: PindropData.MeetingCaptureHandle?
+    private var pendingMeetingCaptureStartHandle: PindropCore.NoteCaptureHandle?
+    private var pendingMeetingCaptureCancellationHandle: PindropCore.NoteCaptureHandle?
     private var meetingCancellationTasks: [UUID: Task<Void, Never>] = [:]
     private var meetingRecoveryTask: Task<Void, Never>?
     private var meetingRecoveryGeneration: UInt64 = 0
-    private var meetingRecoveryHandle: PindropData.MeetingCaptureHandle?
+    private var meetingRecoveryHandle: PindropCore.NoteCaptureHandle?
     
     // MARK: - Quick Capture State
     
@@ -1225,6 +1225,12 @@ final class AppCoordinator {
 
         self.statusBarController.onToggleRecording = { [weak self] in
             await self?.handleToggleRecording(source: .statusBarMenu)
+        }
+
+        self.statusBarController.configureNoteCapture { [weak self] request in
+            guard let self else { return false }
+            self.mainWindowController.show()
+            return self.mainWindowController.onStartNoteCapture?(request) ?? false
         }
 
         self.statusBarController.onCopyLastTranscript = { [weak self] in
@@ -1925,7 +1931,7 @@ final class AppCoordinator {
 
             let cancelledSessionIDs: [UUID]
             do {
-                cancelledSessionIDs = try self.captureSessionStore.cancelledMeetingCaptureSessionIDs()
+                cancelledSessionIDs = try self.captureSessionStore.cancelledNoteCaptureSessionIDs()
             } catch {
                 cancelledSessionIDs = []
                 Log.app.warning("Cancelled meeting cleanup candidates unavailable: \(error.localizedDescription)")
@@ -1951,7 +1957,7 @@ final class AppCoordinator {
                 }
             }
 
-            let candidates: [PindropData.MeetingRecoverySnapshot]
+            let candidates: [PindropData.NoteCaptureRecoverySnapshot]
             do {
                 candidates = try self.captureSessionStore.meetingRecoveryCandidates()
             } catch {
@@ -4077,7 +4083,7 @@ final class AppCoordinator {
     }
 
     static func canBeginMeetingCapture(
-        activeHandle: PindropData.MeetingCaptureHandle?,
+        activeHandle: PindropCore.NoteCaptureHandle?,
         recoveryTaskActive: Bool = false,
         isShutdown: Bool = false
     ) -> Bool {
@@ -4099,14 +4105,14 @@ final class AppCoordinator {
     }
 
     static func isMeetingCaptureCurrent(
-        activeHandle: PindropData.MeetingCaptureHandle?,
-        candidateHandle: PindropData.MeetingCaptureHandle
+        activeHandle: PindropCore.NoteCaptureHandle?,
+        candidateHandle: PindropCore.NoteCaptureHandle
     ) -> Bool {
         activeHandle == candidateHandle
     }
 
     static func canBeginMeetingRecovery(
-        activeHandle: PindropData.MeetingCaptureHandle?,
+        activeHandle: PindropCore.NoteCaptureHandle?,
         recoveryTaskActive: Bool,
         isShutdown: Bool
     ) -> Bool {
@@ -4116,8 +4122,8 @@ final class AppCoordinator {
     static func isMeetingRecoveryCurrent(
         activeGeneration: UInt64,
         candidateGeneration: UInt64,
-        activeHandle: PindropData.MeetingCaptureHandle?,
-        candidateHandle: PindropData.MeetingCaptureHandle
+        activeHandle: PindropCore.NoteCaptureHandle?,
+        candidateHandle: PindropCore.NoteCaptureHandle
     ) -> Bool {
         activeGeneration == candidateGeneration && activeHandle == candidateHandle
     }
@@ -4128,8 +4134,8 @@ final class AppCoordinator {
         isPreparingForTermination: Bool,
         activeGeneration: UInt64,
         candidateGeneration: UInt64,
-        activeHandle: PindropData.MeetingCaptureHandle?,
-        candidateHandle: PindropData.MeetingCaptureHandle
+        activeHandle: PindropCore.NoteCaptureHandle?,
+        candidateHandle: PindropCore.NoteCaptureHandle
     ) -> Bool {
         !isCancelled
             && !isShutdown
@@ -4148,7 +4154,7 @@ final class AppCoordinator {
 
     private func isMeetingRecoveryCurrent(
         generation: UInt64,
-        handle: PindropData.MeetingCaptureHandle
+        handle: PindropCore.NoteCaptureHandle
     ) -> Bool {
         Self.shouldApplyMeetingRecoveryMutation(
             isCancelled: Task.isCancelled,
@@ -4163,7 +4169,7 @@ final class AppCoordinator {
 
     private func ensureMeetingRecoveryCurrent(
         generation: UInt64,
-        handle: PindropData.MeetingCaptureHandle
+        handle: PindropCore.NoteCaptureHandle
     ) throws {
         try Task.checkCancellation()
         guard isMeetingRecoveryCurrent(generation: generation, handle: handle) else {
@@ -4174,7 +4180,7 @@ final class AppCoordinator {
     static func meetingChunkWorkItems(
         sourceChunks: [PindropData.MeetingChunkCheckpoint],
         failedSequences: Set<Int>,
-        handle: PindropData.MeetingCaptureHandle
+        handle: PindropCore.NoteCaptureHandle
     ) throws -> [MeetingChunkWorkItem] {
         func indexedChunks(
             sourceID: UUID
@@ -4193,7 +4199,8 @@ final class AppCoordinator {
         }
 
         let microphoneChunks = try indexedChunks(sourceID: handle.microphoneSourceID)
-        let systemAudioChunks = try indexedChunks(sourceID: handle.systemAudioSourceID)
+        let systemAudioChunks = try handle.systemAudioSourceID
+            .map { try indexedChunks(sourceID: $0) } ?? [:]
         let sequences = Set(microphoneChunks.keys)
             .union(systemAudioChunks.keys)
             .union(failedSequences)
@@ -4394,7 +4401,7 @@ final class AppCoordinator {
     }
 
     private func cancelMeetingCaptureStartHandle(
-        _ handle: PindropData.MeetingCaptureHandle
+        _ handle: PindropCore.NoteCaptureHandle
     ) async throws {
         guard !Self.isMeetingCaptureCurrent(
             activeHandle: meetingCaptureContext?.handle,
@@ -4440,7 +4447,7 @@ final class AppCoordinator {
     /// clear or delete a successor.
     /// Active-capture callers must tear down the recorder first.
     private func cancelMeetingCapture(
-        _ handle: PindropData.MeetingCaptureHandle,
+        _ handle: PindropCore.NoteCaptureHandle,
         activeContext: MeetingCaptureContext?
     ) async throws {
         do {
@@ -4534,7 +4541,7 @@ final class AppCoordinator {
     }
 
     private func reconcileMeetingArtifacts(
-        handle: PindropData.MeetingCaptureHandle,
+        handle: PindropCore.NoteCaptureHandle,
         spoolPlan: MeetingCaptureSpoolPlan,
         operationGuard: () throws -> Void
     ) async throws -> MeetingArtifactRecoveryResult {
@@ -4568,13 +4575,12 @@ final class AppCoordinator {
     }
 
     private func finishMeetingSources(
-        handle: PindropData.MeetingCaptureHandle,
+        handle: PindropCore.NoteCaptureHandle,
         artifacts: [SealedAudioSourceChunk],
         recoveryFailures: [MeetingArtifactRecoveryFailure] = [],
         stopResult: MeetingRecordingStopResult?
     ) throws {
         let microphoneHasChunks = artifacts.contains { $0.sourceID == handle.microphoneSourceID }
-        let systemAudioHasChunks = artifacts.contains { $0.sourceID == handle.systemAudioSourceID }
         func sourceUnavailable(for sourceID: UUID) -> MeetingArtifactRecoveryFailure? {
             recoveryFailures.first {
                 $0.sourceID == sourceID && $0.kind == .sourceUnavailable
@@ -4588,10 +4594,13 @@ final class AppCoordinator {
                 failure: stopResult?.microphoneFailure
             ))
         }
-        if !systemAudioHasChunks {
+        // A mic-only capture has no system-audio source row, so there is nothing
+        // to explain for it.
+        if let systemAudioSourceID = handle.systemAudioSourceID,
+           !artifacts.contains(where: { $0.sourceID == systemAudioSourceID }) {
             failures.append(meetingSourceFailure(
-                sourceID: handle.systemAudioSourceID,
-                recoveryFailure: sourceUnavailable(for: handle.systemAudioSourceID),
+                sourceID: systemAudioSourceID,
+                recoveryFailure: sourceUnavailable(for: systemAudioSourceID),
                 failure: stopResult?.systemAudioFailure
             ))
         }
@@ -4640,7 +4649,7 @@ final class AppCoordinator {
     }
 
     private func finalizeMeetingCapture(
-        _ handle: PindropData.MeetingCaptureHandle,
+        _ handle: PindropCore.NoteCaptureHandle,
         spoolPlan: MeetingCaptureSpoolPlan,
         operationGuard: () throws -> Void
     ) async throws {
@@ -4868,7 +4877,7 @@ final class AppCoordinator {
         _ workItem: MeetingChunkWorkItem,
         microphone: SealedAudioSourceChunk?,
         systemAudio: SealedAudioSourceChunk?,
-        handle: PindropData.MeetingCaptureHandle,
+        handle: PindropCore.NoteCaptureHandle,
         spoolPlan: MeetingCaptureSpoolPlan,
         finalAssignmentAttempt: Int,
         diarizationEnabled: Bool,
@@ -4986,7 +4995,7 @@ final class AppCoordinator {
     }
     private func removeMixedMeetingChunk(
         _ mixed: ManagedMixedMeetingChunkArtifact,
-        handle: PindropData.MeetingCaptureHandle,
+        handle: PindropCore.NoteCaptureHandle,
         sequence: Int,
         operationGuard: () throws -> Void
     ) async {
@@ -5022,7 +5031,7 @@ final class AppCoordinator {
 
     private func recordMeetingNoteGenerationFailure(
         _ failure: MeetingNoteGenerationFailure,
-        handle: PindropData.MeetingCaptureHandle,
+        handle: PindropCore.NoteCaptureHandle,
         attempt: Int
     ) {
         do {
@@ -5068,7 +5077,7 @@ final class AppCoordinator {
     }
 
     private func generateMeetingNoteIfNeeded(
-        _ handle: PindropData.MeetingCaptureHandle,
+        _ handle: PindropCore.NoteCaptureHandle,
         operationGuard: () throws -> Void
     ) async throws {
         let attempt = Self.captureAssignmentAttempt(for: .noteGeneration)
@@ -5294,9 +5303,15 @@ final class AppCoordinator {
         let microphoneDisplayName = AudioDeviceManager.inputDevices()
             .first(where: { $0.uid == preferredInputUID })?
             .displayName ?? "Microphone"
-        let handle = try captureSessionStore.startVoiceNoteCapture(
+        // A voice note is a mic-only note capture: no system-audio source row.
+        let noteHandle = try captureSessionStore.startNoteCapture(
             startedAt: .now,
+            includeSystemAudio: false,
             microphoneDisplayName: microphoneDisplayName
+        )
+        let handle = PindropData.VoiceNoteCaptureHandle(
+            sessionID: noteHandle.sessionID,
+            microphoneSourceID: noteHandle.microphoneSourceID
         )
         do {
             let liveAssignment = try captureAssignment(
@@ -8308,8 +8323,9 @@ final class AppCoordinator {
         let microphoneDisplayName = AudioDeviceManager.inputDevices()
             .first(where: { $0.uid == preferredInputUID })?
             .displayName ?? "Microphone"
-        let handle = try captureSessionStore.startMeetingCapture(
+        let handle = try captureSessionStore.startNoteCapture(
             startedAt: startedAt,
+            includeSystemAudio: true,
             microphoneDisplayName: microphoneDisplayName,
             systemAudioDisplayName: "System Audio"
         )

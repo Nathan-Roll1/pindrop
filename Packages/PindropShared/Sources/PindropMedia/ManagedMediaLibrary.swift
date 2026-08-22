@@ -242,7 +242,7 @@ public final class ManagedMediaLibrary: MediaLibraryManaging, @unchecked Sendabl
     public func makeMeetingCaptureSpoolPlan(
         sessionID: UUID,
         microphoneSourceID: UUID,
-        systemAudioSourceID: UUID
+        systemAudioSourceID: UUID?
     ) throws -> MeetingCaptureSpoolPlan {
         guard microphoneSourceID != systemAudioSourceID else {
             throw MediaLibraryError.captureSourceStorageFailed("Meeting sources must have distinct identifiers.")
@@ -802,14 +802,12 @@ public final class ManagedMediaLibrary: MediaLibraryManaging, @unchecked Sendabl
 
     private func ensureMeetingDirectories(for plan: MeetingCaptureSpoolPlan) throws {
         try validate(plan: plan)
-        try ensureSafeDirectory(at: sourceDirectoryURL(
-            sessionID: plan.sessionID,
-            sourceID: plan.microphoneSourceID
-        ))
-        try ensureSafeDirectory(at: sourceDirectoryURL(
-            sessionID: plan.sessionID,
-            sourceID: plan.systemAudioSourceID
-        ))
+        for sourceID in plan.sourceIDs {
+            try ensureSafeDirectory(at: sourceDirectoryURL(
+                sessionID: plan.sessionID,
+                sourceID: sourceID
+            ))
+        }
         try ensureSafeDirectory(at: baseURL
             .appendingPathComponent("CaptureSessions", isDirectory: true)
             .appendingPathComponent(plan.sessionID.uuidString, isDirectory: true)
@@ -817,7 +815,7 @@ public final class ManagedMediaLibrary: MediaLibraryManaging, @unchecked Sendabl
     }
 
     private func sourceIDs(in plan: MeetingCaptureSpoolPlan) -> [UUID] {
-        [plan.microphoneSourceID, plan.systemAudioSourceID]
+        plan.sourceIDs
     }
 
     private func meetingCaptureDirectoryURL(sessionID: UUID) -> URL {

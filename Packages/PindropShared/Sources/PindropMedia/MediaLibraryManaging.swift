@@ -176,7 +176,7 @@ public protocol MediaLibraryManaging: AnyObject, Sendable {
     func makeMeetingCaptureSpoolPlan(
         sessionID: UUID,
         microphoneSourceID: UUID,
-        systemAudioSourceID: UUID
+        systemAudioSourceID: UUID?
     ) throws -> MeetingCaptureSpoolPlan
     func recoverMeetingArtifacts(for plan: MeetingCaptureSpoolPlan) throws -> MeetingArtifactRecoveryResult
     func resolveArtifactURL(for chunk: SealedAudioSourceChunk) throws -> URL
@@ -208,7 +208,7 @@ public extension MediaLibraryManaging {
     func makeMeetingCaptureSpoolPlan(
         sessionID: UUID,
         microphoneSourceID: UUID,
-        systemAudioSourceID: UUID
+        systemAudioSourceID: UUID?
     ) throws -> MeetingCaptureSpoolPlan {
         throw MediaLibraryError.captureSourceStorageUnsupported
     }

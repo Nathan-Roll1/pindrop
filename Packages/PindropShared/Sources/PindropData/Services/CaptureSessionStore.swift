@@ -20,23 +20,6 @@ public struct VoiceNoteCaptureHandle: Sendable, Equatable {
     }
 }
 
-/// Stable identifiers for the two sources created when a meeting capture starts.
-public struct MeetingCaptureHandle: Sendable, Equatable {
-    public let sessionID: UUID
-    public let microphoneSourceID: UUID
-    public let systemAudioSourceID: UUID
-
-    public init(
-        sessionID: UUID,
-        microphoneSourceID: UUID,
-        systemAudioSourceID: UUID
-    ) {
-        self.sessionID = sessionID
-        self.microphoneSourceID = microphoneSourceID
-        self.systemAudioSourceID = systemAudioSourceID
-    }
-}
-
 /// The durable artifact retained for one meeting audio source.
 public struct RetainedMeetingSource: Sendable, Equatable {
     public let sourceID: UUID
@@ -136,32 +119,6 @@ public struct VoiceNoteLiveTranscriptCheckpoint: Sendable, Equatable {
     }
 }
 
-/// Persisted discovery data containing salvageable committed text for a voice-note capture.
-/// User-facing resume or delivery is deferred until capture intent is persisted.
-public struct VoiceNoteRecoverySnapshot: Sendable, Equatable {
-    public let handle: VoiceNoteCaptureHandle
-    public let state: CaptureSessionState
-    public let recoveryTarget: CaptureRecoveryTarget?
-    public let startedAt: Date?
-    public let lastActivityAt: Date?
-    public let latestCheckpoint: VoiceNoteLiveTranscriptCheckpoint
-
-    public init(
-        handle: VoiceNoteCaptureHandle,
-        state: CaptureSessionState,
-        recoveryTarget: CaptureRecoveryTarget?,
-        startedAt: Date?,
-        lastActivityAt: Date?,
-        latestCheckpoint: VoiceNoteLiveTranscriptCheckpoint
-    ) {
-        self.handle = handle
-        self.state = state
-        self.recoveryTarget = recoveryTarget
-        self.startedAt = startedAt
-        self.lastActivityAt = lastActivityAt
-        self.latestCheckpoint = latestCheckpoint
-    }
-}
 /// A persisted view of one immutable, sealed raw-audio chunk for a meeting source.
 public struct MeetingChunkCheckpoint: Sendable, Equatable {
     public let chunkID: UUID
@@ -336,11 +293,20 @@ public struct MeetingChunkFailure: Sendable, Equatable {
     }
 }
 
-/// An immutable meeting-recovery candidate suitable for crossing concurrency domains.
-public struct MeetingRecoverySnapshot: Sendable, Equatable {
-    public let handle: MeetingCaptureHandle
+/// An immutable note-capture recovery candidate suitable for crossing concurrency domains.
+///
+/// One snapshot covers every note-capture mode. `latestLiveCheckpoint` carries the
+/// salvageable committed text of a streaming capture; `sourceChunks` carries the
+/// durable spool inventory. Either can be empty: a capture can crash before it
+/// produces either kind of artifact.
+public struct NoteCaptureRecoverySnapshot: Sendable, Equatable {
+    public let handle: NoteCaptureHandle
+    public let mode: CaptureSessionMode
     public let state: CaptureSessionState
     public let recoveryTarget: CaptureRecoveryTarget?
+    public let startedAt: Date?
+    public let lastActivityAt: Date?
+    public let latestLiveCheckpoint: VoiceNoteLiveTranscriptCheckpoint?
     public let sourceChunks: [MeetingChunkCheckpoint]
     public let failedSequences: Set<Int>
     public let completedASRCheckpoints: [MeetingTranscriptionCheckpoint]
@@ -351,9 +317,13 @@ public struct MeetingRecoverySnapshot: Sendable, Equatable {
     public let reservedTranscriptionRecordID: UUID?
 
     public init(
-        handle: MeetingCaptureHandle,
+        handle: NoteCaptureHandle,
+        mode: CaptureSessionMode,
         state: CaptureSessionState,
         recoveryTarget: CaptureRecoveryTarget?,
+        startedAt: Date? = nil,
+        lastActivityAt: Date? = nil,
+        latestLiveCheckpoint: VoiceNoteLiveTranscriptCheckpoint? = nil,
         sourceChunks: [MeetingChunkCheckpoint],
         failedSequences: Set<Int> = [],
         completedASRCheckpoints: [MeetingTranscriptionCheckpoint],
@@ -361,8 +331,12 @@ public struct MeetingRecoverySnapshot: Sendable, Equatable {
         reservedTranscriptionRecordID: UUID?
     ) {
         self.handle = handle
+        self.mode = mode
         self.state = state
         self.recoveryTarget = recoveryTarget
+        self.startedAt = startedAt
+        self.lastActivityAt = lastActivityAt
+        self.latestLiveCheckpoint = latestLiveCheckpoint
         self.sourceChunks = sourceChunks
         self.failedSequences = failedSequences
         self.completedASRCheckpoints = completedASRCheckpoints
@@ -373,7 +347,7 @@ public struct MeetingRecoverySnapshot: Sendable, Equatable {
 
 /// A deterministic, resumable meeting-finalization work plan.
 public struct MeetingFinalizationPlan: Sendable, Equatable {
-    public let handle: MeetingCaptureHandle
+    public let handle: NoteCaptureHandle
     public let sourceChunks: [MeetingChunkCheckpoint]
     public let failedSequences: Set<Int>
     public let completedASRCheckpoints: [MeetingTranscriptionCheckpoint]
@@ -384,7 +358,7 @@ public struct MeetingFinalizationPlan: Sendable, Equatable {
     public let reservedTranscriptionRecordID: UUID?
 
     public init(
-        handle: MeetingCaptureHandle,
+        handle: NoteCaptureHandle,
         sourceChunks: [MeetingChunkCheckpoint],
         failedSequences: Set<Int> = [],
         completedASRCheckpoints: [MeetingTranscriptionCheckpoint],
@@ -564,10 +538,17 @@ public enum CaptureSessionStoreError: Error, Equatable, LocalizedError {
 @MainActor
 public final class CaptureSessionStore {
     private let modelContainer: ModelContainer
-    private struct OwnedMeeting {
+    /// The session and its owned source rows, microphone first.
+    ///
+    /// `sources` holds one row for a mic-only note capture and two when system
+    /// audio was captured. A mic-only capture never creates a system-audio row,
+    /// so finalization is never asked to explain a chunkless source.
+    private struct OwnedNoteCapture {
         let session: CaptureSessionModel
-        let microphoneSource: CaptureSourceModel
-        let systemAudioSource: CaptureSourceModel
+        let sources: [CaptureSourceModel]
+
+        var microphoneSource: CaptureSourceModel { sources[0] }
+        var systemAudioSource: CaptureSourceModel? { sources.count > 1 ? sources[1] : nil }
     }
     private struct MeetingChunkIdentity: Hashable {
         let sourceID: UUID
@@ -726,13 +707,51 @@ public final class CaptureSessionStore {
             microphoneSourceID: microphoneSource.id
         )
     }
+    /// Starts a legacy `meeting` capture. New captures use `startNoteCapture`.
     @discardableResult
     public func startMeetingCapture(
         startedAt: Date = Date(),
         microphoneDisplayName: String? = nil,
         systemAudioDisplayName: String? = nil
-    ) throws -> MeetingCaptureHandle {
-        var session = try CaptureSession(mode: .meeting, createdAt: startedAt)
+    ) throws -> NoteCaptureHandle {
+        try startCapture(
+            mode: .meeting,
+            startedAt: startedAt,
+            includeSystemAudio: true,
+            microphoneDisplayName: microphoneDisplayName,
+            systemAudioDisplayName: systemAudioDisplayName
+        )
+    }
+
+    /// Starts one note capture with the source set the request asked for.
+    ///
+    /// A mic-only capture creates no system-audio source row. Creating one and
+    /// failing it later would make finalization reject a source that never
+    /// recorded anything, and would leave that session unrecoverable.
+    @discardableResult
+    public func startNoteCapture(
+        startedAt: Date = Date(),
+        includeSystemAudio: Bool,
+        microphoneDisplayName: String? = nil,
+        systemAudioDisplayName: String? = nil
+    ) throws -> NoteCaptureHandle {
+        try startCapture(
+            mode: .note,
+            startedAt: startedAt,
+            includeSystemAudio: includeSystemAudio,
+            microphoneDisplayName: microphoneDisplayName,
+            systemAudioDisplayName: systemAudioDisplayName
+        )
+    }
+
+    private func startCapture(
+        mode: CaptureSessionMode,
+        startedAt: Date,
+        includeSystemAudio: Bool,
+        microphoneDisplayName: String?,
+        systemAudioDisplayName: String?
+    ) throws -> NoteCaptureHandle {
+        var session = try CaptureSession(mode: mode, createdAt: startedAt)
         try session.start(at: startedAt)
 
         let context = ModelContext(modelContainer)
@@ -747,42 +766,47 @@ public final class CaptureSessionStore {
             createdAt: startedAt,
             updatedAt: startedAt
         )
-        let systemAudioSource = CaptureSourceModel(
-            sessionID: session.id,
-            kind: .systemAudio,
-            sequence: 1,
-            stateRawValue: CaptureSourceState.capturing.rawValue,
-            displayName: systemAudioDisplayName,
-            startedAt: startedAt,
-            createdAt: startedAt,
-            updatedAt: startedAt
-        )
         context.insert(sessionModel)
         context.insert(microphoneSource)
-        context.insert(systemAudioSource)
+
+        var systemAudioSourceID: UUID?
+        if includeSystemAudio {
+            let systemAudioSource = CaptureSourceModel(
+                sessionID: session.id,
+                kind: .systemAudio,
+                sequence: 1,
+                stateRawValue: CaptureSourceState.capturing.rawValue,
+                displayName: systemAudioDisplayName,
+                startedAt: startedAt,
+                createdAt: startedAt,
+                updatedAt: startedAt
+            )
+            context.insert(systemAudioSource)
+            systemAudioSourceID = systemAudioSource.id
+        }
         try save(context)
 
-        return MeetingCaptureHandle(
+        return NoteCaptureHandle(
             sessionID: session.id,
             microphoneSourceID: microphoneSource.id,
-            systemAudioSourceID: systemAudioSource.id
+            systemAudioSourceID: systemAudioSourceID
         )
     }
 
     public func beginMeetingFinalization(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         at timestamp: Date = Date()
     ) throws {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
-        var session = try ownedMeeting.session.restoreSession()
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
+        var session = try ownedCapture.session.restoreSession()
         try session.beginFinalization(at: timestamp)
-        try ownedMeeting.session.update(from: session)
-        ownedMeeting.session.lastActivityAt = timestamp
+        try ownedCapture.session.update(from: session)
+        ownedCapture.session.lastActivityAt = timestamp
         try save(context)
     }
     public func recordSealedMeetingChunk(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         chunk: SealedAudioSourceChunk,
         at timestamp: Date = Date()
     ) throws {
@@ -812,53 +836,53 @@ public final class CaptureSessionStore {
 
     /// Persists an idempotent sealed-chunk checkpoint without taking ownership of media files.
     public func recordSealedMeetingChunk(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         checkpoint: MeetingChunkCheckpoint
     ) throws {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
         try checkpointMeetingChunk(
             checkpoint,
             handle: handle,
-            sources: [ownedMeeting.microphoneSource, ownedMeeting.systemAudioSource],
+            sources: ownedCapture.sources,
             in: context
         )
-        ownedMeeting.session.lastActivityAt = checkpoint.sealedAt
+        ownedCapture.session.lastActivityAt = checkpoint.sealedAt
         try save(context)
     }
 
     /// Records a chunk-scoped failure once, retaining it for recovery diagnostics.
     public func recordMeetingChunkFailure(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         failure: MeetingChunkFailure
     ) throws {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
         try checkpointMeetingChunkFailure(
             failure,
             handle: handle,
-            sources: [ownedMeeting.microphoneSource, ownedMeeting.systemAudioSource],
+            sources: ownedCapture.sources,
             in: context
         )
-        ownedMeeting.session.lastActivityAt = failure.occurredAt
+        ownedCapture.session.lastActivityAt = failure.occurredAt
         try save(context)
     }
 
     /// Marks each meeting source terminal after its recorder has stopped.
     public func finishMeetingSources(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         sourceFailures: [FailedMeetingSource],
         at timestamp: Date = Date()
     ) throws {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
-        guard ownedMeeting.session.stateRawValue == CaptureSessionState.finalizing.rawValue else {
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
+        guard ownedCapture.session.stateRawValue == CaptureSessionState.finalizing.rawValue else {
             throw CaptureSessionStoreError.meetingSessionNotFinalizing(
                 sessionID: handle.sessionID,
-                actualStateRawValue: ownedMeeting.session.stateRawValue
+                actualStateRawValue: ownedCapture.session.stateRawValue
             )
         }
-        let sources = [ownedMeeting.microphoneSource, ownedMeeting.systemAudioSource]
+        let sources = ownedCapture.sources
         try validateMeetingOutcomes(retained: [], failures: sourceFailures, for: sources, allowMissingRetained: true)
         let chunks = try fetchMeetingChunks(sessionID: handle.sessionID, in: context)
         let persistedFailures = try fetchMeetingFailures(sessionID: handle.sessionID, in: context)
@@ -935,48 +959,81 @@ public final class CaptureSessionStore {
                 context.delete(revision)
             }
         }
-        ownedMeeting.session.lastActivityAt = timestamp
+        ownedCapture.session.lastActivityAt = timestamp
         try save(context)
     }
 
-    /// Returns only meeting sessions whose work can honestly be resumed.
-    public func meetingRecoveryCandidates() throws -> [MeetingRecoverySnapshot] {
+    /// Returns every nonterminal note capture, in every note-capture mode.
+    ///
+    /// A candidate needs exactly one microphone source and at most one
+    /// system-audio source: any other source set cannot produce an honest handle,
+    /// so that session is skipped. Candidates are newest-activity first.
+    public func noteCaptureRecoveryCandidates() throws -> [NoteCaptureRecoverySnapshot] {
         let context = ModelContext(modelContainer)
-        let meetingModeRawValue = CaptureSessionMode.meeting.rawValue
+        let dictateModeRawValue = CaptureSessionMode.dictate.rawValue
         let descriptor = FetchDescriptor<CaptureSessionModel>(
             predicate: #Predicate<CaptureSessionModel> {
-                $0.modeRawValue == meetingModeRawValue
+                $0.modeRawValue != dictateModeRawValue
             }
         )
         do {
-            return try context.fetch(descriptor).compactMap { sessionModel in
-                let session = try sessionModel.restoreSession()
-                guard [.capturing, .finalizing, .interrupted].contains(session.state) else {
-                    return nil
+            var candidates: [NoteCaptureRecoverySnapshot] = []
+            for sessionModel in try context.fetch(descriptor) {
+                guard
+                    let mode = CaptureSessionMode(rawValue: sessionModel.modeRawValue),
+                    mode.isNoteCapture,
+                    let session = try? sessionModel.restoreSession(),
+                    [.capturing, .finalizing, .interrupted].contains(session.state)
+                else {
+                    continue
                 }
                 let sources = try fetchSources(sessionID: session.id, in: context)
-                guard
-                    let microphone = sources.first(where: { $0.kindRawValue == CaptureSourceKind.microphone.rawValue }),
-                    let systemAudio = sources.first(where: { $0.kindRawValue == CaptureSourceKind.systemAudio.rawValue })
-                else {
-                    return nil
+                let microphones = sources.filter {
+                    $0.kindRawValue == CaptureSourceKind.microphone.rawValue
                 }
-                let handle = MeetingCaptureHandle(
+                let systemAudios = sources.filter {
+                    $0.kindRawValue == CaptureSourceKind.systemAudio.rawValue
+                }
+                guard
+                    microphones.count == 1,
+                    let microphone = microphones.first,
+                    systemAudios.count <= 1
+                else {
+                    continue
+                }
+                let handle = NoteCaptureHandle(
                     sessionID: session.id,
                     microphoneSourceID: microphone.id,
-                    systemAudioSourceID: systemAudio.id
+                    systemAudioSourceID: systemAudios.first?.id
                 )
                 let chunks = try fetchMeetingChunks(sessionID: session.id, in: context)
                 let revisions = try fetchTranscriptRevisions(sessionID: session.id, in: context)
                 let failures = try fetchMeetingFailures(sessionID: session.id, in: context)
-                return makeMeetingRecoverySnapshot(
-                    handle: handle,
-                    session: session,
-                    chunks: chunks,
-                    revisions: revisions,
-                    failures: failures,
-                    reservedTranscriptionRecordID: sessionModel.transcriptionRecordID
+                candidates.append(
+                    makeNoteCaptureRecoverySnapshot(
+                        handle: handle,
+                        mode: mode,
+                        session: session,
+                        lastActivityAt: sessionModel.lastActivityAt,
+                        latestLiveCheckpoint: try? latestValidLiveTranscriptCheckpoint(
+                            sessionID: session.id,
+                            sourceID: microphone.id,
+                            in: context
+                        ),
+                        chunks: chunks,
+                        revisions: revisions,
+                        failures: failures,
+                        reservedTranscriptionRecordID: sessionModel.transcriptionRecordID
+                    )
                 )
+            }
+            return candidates.sorted {
+                let lhsActivity = $0.lastActivityAt ?? .distantPast
+                let rhsActivity = $1.lastActivityAt ?? .distantPast
+                if lhsActivity != rhsActivity {
+                    return lhsActivity > rhsActivity
+                }
+                return $0.handle.sessionID.uuidString < $1.handle.sessionID.uuidString
             }
         } catch let error as CaptureSessionStoreError {
             throw error
@@ -985,15 +1042,34 @@ public final class CaptureSessionStore {
         }
     }
 
-    /// Returns terminal user-cancelled meeting IDs whose managed artifacts can be
-    /// safely retried for deletion during startup cleanup.
-    public func cancelledMeetingCaptureSessionIDs() throws -> [UUID] {
+    /// The durable-spool subset of `noteCaptureRecoveryCandidates()`.
+    ///
+    /// Legacy shim for the startup finalization consumer: only a capture that
+    /// records system audio spools through the meeting pipeline today. Mic-only
+    /// note captures wait for the intent-driven consumer.
+    public func meetingRecoveryCandidates() throws -> [NoteCaptureRecoverySnapshot] {
+        try noteCaptureRecoveryCandidates().filter { $0.handle.capturesSystemAudio }
+    }
+
+    /// The streaming subset of `noteCaptureRecoveryCandidates()`.
+    ///
+    /// Legacy shim: a mic-only capture that has committed live text.
+    public func voiceNoteRecoveryCandidates() throws -> [NoteCaptureRecoverySnapshot] {
+        try noteCaptureRecoveryCandidates().filter {
+            !$0.handle.capturesSystemAudio && $0.latestLiveCheckpoint != nil
+        }
+    }
+
+    /// Returns terminal user-cancelled note-capture IDs whose managed artifacts
+    /// can be safely retried for deletion during startup cleanup.
+    public func cancelledNoteCaptureSessionIDs() throws -> [UUID] {
         let context = ModelContext(modelContainer)
         let meetingModeRawValue = CaptureSessionMode.meeting.rawValue
+        let noteModeRawValue = CaptureSessionMode.note.rawValue
         let cancelledStateRawValue = CaptureSessionState.cancelled.rawValue
         let descriptor = FetchDescriptor<CaptureSessionModel>(
             predicate: #Predicate<CaptureSessionModel> {
-                $0.modeRawValue == meetingModeRawValue
+                ($0.modeRawValue == meetingModeRawValue || $0.modeRawValue == noteModeRawValue)
                     && $0.stateRawValue == cancelledStateRawValue
             }
         )
@@ -1008,15 +1084,15 @@ public final class CaptureSessionStore {
 
     /// Interrupts capturing or finalizing work without converting it into a terminal failure.
     public func interruptMeetingCapture(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         errorDomain: String,
         errorCode: String? = nil,
         message: String,
         at timestamp: Date = Date()
     ) throws {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
-        var session = try ownedMeeting.session.restoreSession()
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
+        var session = try ownedCapture.session.restoreSession()
         guard session.state != .interrupted else {
             return
         }
@@ -1028,8 +1104,8 @@ public final class CaptureSessionStore {
             message: message
         )
         try session.interrupt(with: failure, at: timestamp)
-        try ownedMeeting.session.update(from: session)
-        ownedMeeting.session.lastActivityAt = timestamp
+        try ownedCapture.session.update(from: session)
+        ownedCapture.session.lastActivityAt = timestamp
         context.insert(CaptureFailureRecordModel(
             id: failure.id,
             sessionID: handle.sessionID,
@@ -1045,12 +1121,12 @@ public final class CaptureSessionStore {
 
     /// Resumes an interrupted meeting directly into finalization, preserving all checkpoints.
     public func recoverMeetingForFinalization(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         at timestamp: Date = Date()
     ) throws {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
-        var session = try ownedMeeting.session.restoreSession()
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
+        var session = try ownedCapture.session.restoreSession()
         if session.state == .finalizing {
             return
         }
@@ -1065,8 +1141,8 @@ public final class CaptureSessionStore {
         if target == .capturing {
             try session.beginFinalization(at: timestamp)
         }
-        try ownedMeeting.session.update(from: session)
-        ownedMeeting.session.lastActivityAt = timestamp
+        try ownedCapture.session.update(from: session)
+        ownedCapture.session.lastActivityAt = timestamp
         if let latestFailureID = session.latestFailureID {
             try markFailureRecovered(id: latestFailureID, at: timestamp, in: context)
         }
@@ -1075,14 +1151,14 @@ public final class CaptureSessionStore {
 
     /// Reconciles inventory discovered after a crash, before any finalization work resumes.
     public func reconcileMeetingChunks(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         checkpoints: [MeetingChunkCheckpoint],
         failures: [MeetingChunkFailure],
         at timestamp: Date = Date()
     ) throws {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
-        let sources = [ownedMeeting.microphoneSource, ownedMeeting.systemAudioSource]
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
+        let sources = ownedCapture.sources
         let sortedCheckpoints = checkpoints.sorted {
             ($0.sourceID.uuidString, $0.sequence) < ($1.sourceID.uuidString, $1.sequence)
         }
@@ -1092,19 +1168,19 @@ public final class CaptureSessionStore {
         for failure in failures {
             try checkpointMeetingChunkFailure(failure, handle: handle, sources: sources, in: context)
         }
-        ownedMeeting.session.lastActivityAt = timestamp
+        ownedCapture.session.lastActivityAt = timestamp
         try save(context)
     }
     /// Reconciles canonical media inventory after files were renamed but before a checkpoint commit.
     public func reconcileMeetingInventory(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         sealedChunks: [SealedAudioSourceChunk],
         failures: [MeetingChunkFailure] = [],
         at timestamp: Date = Date()
     ) throws {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
-        let sources = [ownedMeeting.microphoneSource, ownedMeeting.systemAudioSource]
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
+        let sources = ownedCapture.sources
         let sourceIDs = Set(sources.map(\.id))
 
         var inventory = [MeetingChunkIdentity: MeetingChunkCheckpoint]()
@@ -1214,28 +1290,31 @@ public final class CaptureSessionStore {
                 in: context
             )
         }
-        ownedMeeting.session.lastActivityAt = timestamp
+        ownedCapture.session.lastActivityAt = timestamp
         try save(context)
     }
 
 
     /// Returns deterministic source chunks and revision skip-gates for finalization.
     public func makeMeetingFinalizationPlan(
-        _ handle: MeetingCaptureHandle
+        _ handle: NoteCaptureHandle
     ) throws -> MeetingFinalizationPlan {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
-        let session = try ownedMeeting.session.restoreSession()
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
+        let session = try ownedCapture.session.restoreSession()
         let chunks = try fetchMeetingChunks(sessionID: handle.sessionID, in: context)
         let revisions = try fetchTranscriptRevisions(sessionID: handle.sessionID, in: context)
         let failures = try fetchMeetingFailures(sessionID: handle.sessionID, in: context)
-        let snapshot = makeMeetingRecoverySnapshot(
+        let snapshot = makeNoteCaptureRecoverySnapshot(
             handle: handle,
+            mode: session.mode,
             session: session,
+            lastActivityAt: ownedCapture.session.lastActivityAt,
+            latestLiveCheckpoint: nil,
             chunks: chunks,
             revisions: revisions,
             failures: failures,
-            reservedTranscriptionRecordID: ownedMeeting.session.transcriptionRecordID
+            reservedTranscriptionRecordID: ownedCapture.session.transcriptionRecordID
         )
         return MeetingFinalizationPlan(
             handle: snapshot.handle,
@@ -1250,7 +1329,7 @@ public final class CaptureSessionStore {
     /// Checkpoints one final-ASR revision; an exact retry returns its existing revision ID.
     @discardableResult
     public func recordMeetingTranscriptionChunk(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         sourceChunkSequence: Int,
         startOffset: TimeInterval,
         duration: TimeInterval,
@@ -1277,7 +1356,7 @@ public final class CaptureSessionStore {
     /// Checkpoints best-effort diarization separately so final ASR remains recoverable on its own.
     @discardableResult
     public func recordMeetingDiarizationChunk(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         sourceChunkSequence: Int,
         startOffset: TimeInterval,
         duration: TimeInterval,
@@ -1307,13 +1386,13 @@ public final class CaptureSessionStore {
     /// capture work is cancelled, interrupted, or later resumed.
     @discardableResult
     public func ensureMeetingHumanAnchor(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         title: String,
         at timestamp: Date = Date()
     ) throws -> MeetingHumanAnchorSnapshot {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
-        guard isHumanAnchorAllowed(sessionStateRawValue: ownedMeeting.session.stateRawValue) else {
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
+        guard isHumanAnchorAllowed(sessionStateRawValue: ownedCapture.session.stateRawValue) else {
             throw CaptureSessionStoreError.meetingHumanAnchorUnavailable(handle.sessionID)
         }
         if let existing = try validMeetingHumanAnchor(sessionID: handle.sessionID, in: context) {
@@ -1353,16 +1432,16 @@ public final class CaptureSessionStore {
 
     /// Returns the existing human anchor without creating or mutating durable state.
     public func meetingHumanAnchor(
-        _ handle: MeetingCaptureHandle
+        _ handle: NoteCaptureHandle
     ) throws -> MeetingHumanAnchorSnapshot? {
         let context = ModelContext(modelContainer)
-        _ = try fetchOwnedMeeting(for: handle, in: context)
+        _ = try fetchOwnedNoteCapture(for: handle, in: context)
         return try validMeetingHumanAnchor(sessionID: handle.sessionID, in: context)
     }
 
     /// Validates the reservation and immutable provenance required for generated output.
     public func meetingGeneratedNotePreflight(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         assignmentAttempt: Int = 1
     ) throws -> MeetingGeneratedNotePreflightSnapshot {
         let context = ModelContext(modelContainer)
@@ -1375,11 +1454,11 @@ public final class CaptureSessionStore {
 
     /// Returns persisted generated meeting output when its immutable provenance remains valid.
     public func generatedMeetingNote(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         assignmentAttempt: Int = 1
     ) throws -> MeetingGeneratedNoteSnapshot? {
         let context = ModelContext(modelContainer)
-        _ = try fetchOwnedMeeting(for: handle, in: context)
+        _ = try fetchOwnedNoteCapture(for: handle, in: context)
         let references = try meetingNoteReferences(sessionID: handle.sessionID, in: context)
         let generatedReferences: [CaptureNoteReferenceModel]
         do {
@@ -1530,10 +1609,13 @@ public final class CaptureSessionStore {
             throw CaptureSessionStoreError.invalidAssignmentAttempt(assignmentAttempt)
         }
 
-        let handle: MeetingCaptureHandle
+        let handle: NoteCaptureHandle
         do {
             let session = try fetchSession(id: reference.sessionID, in: context)
-            guard session.modeRawValue == CaptureSessionMode.meeting.rawValue else {
+            guard
+                let mode = CaptureSessionMode(rawValue: session.modeRawValue),
+                mode.isNoteCapture
+            else {
                 throw CaptureSessionStoreError.meetingGeneratedNoteConflict(reference.sessionID)
             }
             let sources = try fetchSources(sessionID: reference.sessionID, in: context)
@@ -1543,19 +1625,20 @@ public final class CaptureSessionStore {
             let systemAudioSources = sources.filter {
                 $0.kindRawValue == CaptureSourceKind.systemAudio.rawValue
             }
+            // A note capture owns one microphone source and at most one system-audio
+            // source. Any other shape cannot name its own artifacts.
             guard
-                sources.count == 2,
+                sources.count == microphoneSources.count + systemAudioSources.count,
                 microphoneSources.count == 1,
-                systemAudioSources.count == 1,
-                let microphoneSource = microphoneSources.first,
-                let systemAudioSource = systemAudioSources.first
+                systemAudioSources.count <= 1,
+                let microphoneSource = microphoneSources.first
             else {
                 throw CaptureSessionStoreError.meetingGeneratedNoteConflict(reference.sessionID)
             }
-            handle = MeetingCaptureHandle(
+            handle = NoteCaptureHandle(
                 sessionID: reference.sessionID,
                 microphoneSourceID: microphoneSource.id,
-                systemAudioSourceID: systemAudioSource.id
+                systemAudioSourceID: systemAudioSources.first?.id
             )
         } catch {
             throw CaptureSessionStoreError.meetingGeneratedNoteConflict(reference.sessionID)
@@ -1577,7 +1660,7 @@ public final class CaptureSessionStore {
     /// Saves generated meeting output and its provenance in one transaction.
     @discardableResult
     public func saveGeneratedMeetingNote(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         title: String,
         content: String,
         source: MeetingNoteSourceBundle,
@@ -1686,11 +1769,11 @@ public final class CaptureSessionStore {
                 citations: source.citations
             )
         }
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
-        guard ownedMeeting.session.stateRawValue == CaptureSessionState.finalizing.rawValue else {
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
+        guard ownedCapture.session.stateRawValue == CaptureSessionState.finalizing.rawValue else {
             throw CaptureSessionStoreError.meetingSessionNotFinalizing(
                 sessionID: handle.sessionID,
-                actualStateRawValue: ownedMeeting.session.stateRawValue
+                actualStateRawValue: ownedCapture.session.stateRawValue
             )
         }
 
@@ -1731,32 +1814,32 @@ public final class CaptureSessionStore {
     /// Reserves the stable HistoryStore ID before history persistence begins.
     @discardableResult
     public func reserveMeetingTranscriptionRecordID(
-        _ handle: MeetingCaptureHandle
+        _ handle: NoteCaptureHandle
     ) throws -> UUID {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
-        if let reservedID = ownedMeeting.session.transcriptionRecordID {
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
+        if let reservedID = ownedCapture.session.transcriptionRecordID {
             return reservedID
         }
         let reservedID = UUID()
-        ownedMeeting.session.transcriptionRecordID = reservedID
+        ownedCapture.session.transcriptionRecordID = reservedID
         try save(context)
         return reservedID
     }
     /// Records a retryable HistoryStore failure without leaving finalization.
     public func recordMeetingHistoryFailure(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         errorDomain: String,
         errorCode: String? = nil,
         message: String,
         at timestamp: Date = Date()
     ) throws {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
-        guard ownedMeeting.session.stateRawValue == CaptureSessionState.finalizing.rawValue else {
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
+        guard ownedCapture.session.stateRawValue == CaptureSessionState.finalizing.rawValue else {
             throw CaptureSessionStoreError.meetingSessionNotFinalizing(
                 sessionID: handle.sessionID,
-                actualStateRawValue: ownedMeeting.session.stateRawValue
+                actualStateRawValue: ownedCapture.session.stateRawValue
             )
         }
         let failures = try fetchMeetingFailures(sessionID: handle.sessionID, in: context)
@@ -1781,13 +1864,13 @@ public final class CaptureSessionStore {
                 recoveryDisposition: .recoverable
             ))
         }
-        ownedMeeting.session.lastActivityAt = timestamp
+        ownedCapture.session.lastActivityAt = timestamp
         try save(context)
     }
 
     /// Records a finalization failure without assigning session-level or mixed work to a source.
     public func recordMeetingFinalizationFailure(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         sequence: Int? = nil,
         stage: CapturePipelineStage,
         domain: String,
@@ -1797,11 +1880,11 @@ public final class CaptureSessionStore {
         at timestamp: Date = Date()
     ) throws {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
-        guard ownedMeeting.session.stateRawValue == CaptureSessionState.finalizing.rawValue else {
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
+        guard ownedCapture.session.stateRawValue == CaptureSessionState.finalizing.rawValue else {
             throw CaptureSessionStoreError.meetingSessionNotFinalizing(
                 sessionID: handle.sessionID,
-                actualStateRawValue: ownedMeeting.session.stateRawValue
+                actualStateRawValue: ownedCapture.session.stateRawValue
             )
         }
         let detailsJSON = sequence.map { "{\"sequence\":\($0)}" }
@@ -1830,32 +1913,29 @@ public final class CaptureSessionStore {
                 recoveryDisposition: retryable ? .recoverable : .terminal
             ))
         }
-        ownedMeeting.session.lastActivityAt = timestamp
+        ownedCapture.session.lastActivityAt = timestamp
         try save(context)
     }
 
 
 
     public func recordMeetingStop(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         retained: [RetainedMeetingSource],
         failures: [FailedMeetingSource],
         at timestamp: Date = Date()
     ) throws {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
-        let meetingSession = try ownedMeeting.session.restoreSession()
-        guard ownedMeeting.session.stateRawValue == CaptureSessionState.finalizing.rawValue else {
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
+        let meetingSession = try ownedCapture.session.restoreSession()
+        guard ownedCapture.session.stateRawValue == CaptureSessionState.finalizing.rawValue else {
             throw CaptureSessionStoreError.meetingSessionNotFinalizing(
                 sessionID: handle.sessionID,
-                actualStateRawValue: ownedMeeting.session.stateRawValue
+                actualStateRawValue: ownedCapture.session.stateRawValue
             )
         }
 
-        let sources = [
-            ownedMeeting.microphoneSource,
-            ownedMeeting.systemAudioSource
-        ]
+        let sources = ownedCapture.sources
         try validateMeetingOutcomes(
             retained: retained,
             failures: failures,
@@ -1923,8 +2003,8 @@ public final class CaptureSessionStore {
             )
             var session = meetingSession
             try session.fail(with: aggregateFailure, at: timestamp)
-            try ownedMeeting.session.update(from: session)
-            ownedMeeting.session.lastActivityAt = timestamp
+            try ownedCapture.session.update(from: session)
+            ownedCapture.session.lastActivityAt = timestamp
             context.insert(CaptureFailureRecordModel(
                 id: aggregateFailure.id,
                 sessionID: handle.sessionID,
@@ -1936,26 +2016,26 @@ public final class CaptureSessionStore {
                 recoveryDisposition: .terminal
             ))
         } else {
-            ownedMeeting.session.lastActivityAt = timestamp
+            ownedCapture.session.lastActivityAt = timestamp
         }
         try save(context)
     }
 
     public func completeMeetingCapture(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         transcriptionRecordID: UUID,
         at timestamp: Date = Date()
     ) throws {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
-        let meetingSession = try ownedMeeting.session.restoreSession()
-        guard ownedMeeting.session.stateRawValue == CaptureSessionState.finalizing.rawValue else {
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
+        let meetingSession = try ownedCapture.session.restoreSession()
+        guard ownedCapture.session.stateRawValue == CaptureSessionState.finalizing.rawValue else {
             throw CaptureSessionStoreError.meetingSessionNotFinalizing(
                 sessionID: handle.sessionID,
-                actualStateRawValue: ownedMeeting.session.stateRawValue
+                actualStateRawValue: ownedCapture.session.stateRawValue
             )
         }
-        if let reservedID = ownedMeeting.session.transcriptionRecordID,
+        if let reservedID = ownedCapture.session.transcriptionRecordID,
            reservedID != transcriptionRecordID {
             throw CaptureSessionStoreError.transcriptionRecordReservationMismatch(
                 expected: reservedID,
@@ -1963,7 +2043,7 @@ public final class CaptureSessionStore {
             )
         }
         try validateMeetingCompletionOutcomes(
-            ownedMeeting,
+            ownedCapture,
             handle: handle,
             in: context
         )
@@ -1972,26 +2052,26 @@ public final class CaptureSessionStore {
         }
         var session = meetingSession
         try session.complete(at: timestamp)
-        try ownedMeeting.session.update(from: session)
-        ownedMeeting.session.transcriptionRecordID = transcriptionRecordID
-        ownedMeeting.session.lastActivityAt = timestamp
+        try ownedCapture.session.update(from: session)
+        ownedCapture.session.transcriptionRecordID = transcriptionRecordID
+        ownedCapture.session.lastActivityAt = timestamp
         try save(context)
     }
 
     public func cancelMeetingCapture(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         at timestamp: Date = Date()
     ) throws {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
-        var session = try ownedMeeting.session.restoreSession()
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
+        var session = try ownedCapture.session.restoreSession()
         guard session.state != .cancelled else {
             return
         }
         try session.cancel(at: timestamp)
-        try ownedMeeting.session.update(from: session)
-        ownedMeeting.session.lastActivityAt = timestamp
-        for source in [ownedMeeting.microphoneSource, ownedMeeting.systemAudioSource]
+        try ownedCapture.session.update(from: session)
+        ownedCapture.session.lastActivityAt = timestamp
+        for source in ownedCapture.sources
         where source.stateRawValue == CaptureSourceState.capturing.rawValue {
             source.stateRawValue = CaptureSourceState.cancelled.rawValue
             source.endedAt = timestamp
@@ -2001,7 +2081,7 @@ public final class CaptureSessionStore {
     }
 
     public func failMeetingCapture(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         stage: CapturePipelineStage?,
         errorDomain: String,
         errorCode: String?,
@@ -2009,7 +2089,7 @@ public final class CaptureSessionStore {
         at timestamp: Date = Date()
     ) throws {
         let context = ModelContext(modelContainer)
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
         let failure = CaptureFailure(
             sessionID: handle.sessionID,
             disposition: .terminal,
@@ -2018,7 +2098,7 @@ public final class CaptureSessionStore {
             message: message,
             stage: stage
         )
-        for source in [ownedMeeting.microphoneSource, ownedMeeting.systemAudioSource]
+        for source in ownedCapture.sources
         where source.stateRawValue == CaptureSourceState.capturing.rawValue {
             source.stateRawValue = CaptureSourceState.failed.rawValue
             source.endedAt = timestamp
@@ -2035,10 +2115,10 @@ public final class CaptureSessionStore {
                 recoveryDisposition: .terminal
             ))
         }
-        var session = try ownedMeeting.session.restoreSession()
+        var session = try ownedCapture.session.restoreSession()
         try session.fail(with: failure, at: timestamp)
-        try ownedMeeting.session.update(from: session)
-        ownedMeeting.session.lastActivityAt = timestamp
+        try ownedCapture.session.update(from: session)
+        ownedCapture.session.lastActivityAt = timestamp
         context.insert(CaptureFailureRecordModel(
             id: failure.id,
             sessionID: handle.sessionID,
@@ -2131,67 +2211,6 @@ public final class CaptureSessionStore {
 
         return try liveTranscriptCheckpoint(from: revision)
     }
-
-    /// Returns only nonterminal voice-note captures with a valid committed live checkpoint.
-    public func voiceNoteRecoveryCandidates() throws -> [VoiceNoteRecoverySnapshot] {
-        let context = ModelContext(modelContainer)
-        let voiceNoteModeRawValue = CaptureSessionMode.voiceNote.rawValue
-        let descriptor = FetchDescriptor<CaptureSessionModel>(
-            predicate: #Predicate<CaptureSessionModel> {
-                $0.modeRawValue == voiceNoteModeRawValue
-            }
-        )
-        do {
-            var candidates: [VoiceNoteRecoverySnapshot] = []
-            for sessionModel in try context.fetch(descriptor) {
-                guard
-                    let session = try? sessionModel.restoreSession(),
-                    [.capturing, .finalizing, .interrupted].contains(session.state)
-                else {
-                    continue
-                }
-                let microphoneSources = try fetchSources(sessionID: session.id, in: context)
-                    .filter { $0.kindRawValue == CaptureSourceKind.microphone.rawValue }
-                guard microphoneSources.count == 1, let microphone = microphoneSources.first else {
-                    continue
-                }
-                guard let latestCheckpoint = try? latestValidLiveTranscriptCheckpoint(
-                    sessionID: session.id,
-                    sourceID: microphone.id,
-                    in: context
-                ) else {
-                    continue
-                }
-
-                candidates.append(
-                    VoiceNoteRecoverySnapshot(
-                        handle: VoiceNoteCaptureHandle(
-                            sessionID: session.id,
-                            microphoneSourceID: microphone.id
-                        ),
-                        state: session.state,
-                        recoveryTarget: session.recoveryTarget,
-                        startedAt: session.startedAt,
-                        lastActivityAt: sessionModel.lastActivityAt,
-                        latestCheckpoint: latestCheckpoint
-                    )
-                )
-            }
-            return candidates.sorted {
-                let lhsActivity = $0.lastActivityAt ?? .distantPast
-                let rhsActivity = $1.lastActivityAt ?? .distantPast
-                if lhsActivity != rhsActivity {
-                    return lhsActivity > rhsActivity
-                }
-                return $0.handle.sessionID.uuidString < $1.handle.sessionID.uuidString
-            }
-        } catch let error as CaptureSessionStoreError {
-            throw error
-        } catch {
-            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
-        }
-    }
-
 
     @discardableResult
     public func saveTranscriptRevisions(
@@ -2365,11 +2384,11 @@ public final class CaptureSessionStore {
     }
 
     private func validateMeetingCompletionOutcomes(
-        _ ownedMeeting: OwnedMeeting,
-        handle: MeetingCaptureHandle,
+        _ ownedCapture: OwnedNoteCapture,
+        handle: NoteCaptureHandle,
         in context: ModelContext
     ) throws {
-        let sources = [ownedMeeting.microphoneSource, ownedMeeting.systemAudioSource]
+        let sources = ownedCapture.sources
         let sourceIDs = Set(sources.map(\.id))
         let chunks = try fetchMeetingChunks(sessionID: handle.sessionID, in: context)
         let failures = try fetchMeetingFailures(sessionID: handle.sessionID, in: context)
@@ -2477,7 +2496,7 @@ public final class CaptureSessionStore {
 
     private func checkpointMeetingChunk(
         _ checkpoint: MeetingChunkCheckpoint,
-        handle: MeetingCaptureHandle,
+        handle: NoteCaptureHandle,
         sources: [CaptureSourceModel],
         in context: ModelContext
     ) throws {
@@ -2544,7 +2563,7 @@ public final class CaptureSessionStore {
 
     private func checkpointMeetingChunkFailure(
         _ failure: MeetingChunkFailure,
-        handle: MeetingCaptureHandle,
+        handle: NoteCaptureHandle,
         sources: [CaptureSourceModel],
         associateWithPersistedChunk: Bool = true,
         in context: ModelContext
@@ -2594,21 +2613,21 @@ public final class CaptureSessionStore {
     }
 
     private func meetingGeneratedNotePreflight(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         assignmentAttempt: Int,
         in context: ModelContext
     ) throws -> MeetingGeneratedNotePreflightSnapshot {
         guard assignmentAttempt >= 1 else {
             throw CaptureSessionStoreError.invalidAssignmentAttempt(assignmentAttempt)
         }
-        let ownedMeeting = try fetchOwnedMeeting(for: handle, in: context)
+        let ownedCapture = try fetchOwnedNoteCapture(for: handle, in: context)
         guard let humanAnchor = try validMeetingHumanAnchor(
             sessionID: handle.sessionID,
             in: context
         ) else {
             throw CaptureSessionStoreError.meetingHumanAnchorUnavailable(handle.sessionID)
         }
-        guard let sourceTranscriptionID = ownedMeeting.session.transcriptionRecordID else {
+        guard let sourceTranscriptionID = ownedCapture.session.transcriptionRecordID else {
             throw CaptureSessionStoreError.invalidMeetingGeneratedNote(handle.sessionID)
         }
         guard try fetchTranscriptionRecord(id: sourceTranscriptionID, in: context) != nil else {
@@ -2722,7 +2741,7 @@ public final class CaptureSessionStore {
     }
 
     private func checkpointMeetingRevision(
-        _ handle: MeetingCaptureHandle,
+        _ handle: NoteCaptureHandle,
         sequence: Int,
         stage: CapturePipelineStage,
         startOffset: TimeInterval,
@@ -2737,7 +2756,7 @@ public final class CaptureSessionStore {
             throw CaptureSessionStoreError.meetingTranscriptionRevisionConflict(sequence: sequence, stage: stage)
         }
         let context = ModelContext(modelContainer)
-        _ = try fetchOwnedMeeting(for: handle, in: context)
+        _ = try fetchOwnedNoteCapture(for: handle, in: context)
         let providerSnapshotID = try assignmentAttempt.map {
             try meetingRevisionProviderSnapshotID(
                 sessionID: handle.sessionID,
@@ -2871,14 +2890,17 @@ public final class CaptureSessionStore {
     }
 
 
-    private func makeMeetingRecoverySnapshot(
-        handle: MeetingCaptureHandle,
+    private func makeNoteCaptureRecoverySnapshot(
+        handle: NoteCaptureHandle,
+        mode: CaptureSessionMode,
         session: CaptureSession,
+        lastActivityAt: Date?,
+        latestLiveCheckpoint: VoiceNoteLiveTranscriptCheckpoint?,
         chunks: [CaptureChunkModel],
         revisions: [CaptureTranscriptRevisionModel],
         failures: [CaptureFailureRecordModel],
         reservedTranscriptionRecordID: UUID?
-    ) -> MeetingRecoverySnapshot {
+    ) -> NoteCaptureRecoverySnapshot {
         let sourceChunks = chunks.compactMap(meetingCheckpoint(from:)).sorted {
             ($0.sequence, $0.sourceID.uuidString) < ($1.sequence, $1.sourceID.uuidString)
         }
@@ -2889,10 +2911,14 @@ public final class CaptureSessionStore {
             $0.stageRawValue == CapturePipelineStage.diarization.rawValue &&
                 $0.statusRawValue == "completed" ? $0.sequence : nil
         })
-        return MeetingRecoverySnapshot(
+        return NoteCaptureRecoverySnapshot(
             handle: handle,
+            mode: mode,
             state: session.state,
             recoveryTarget: session.recoveryTarget,
+            startedAt: session.startedAt,
+            lastActivityAt: lastActivityAt,
+            latestLiveCheckpoint: latestLiveCheckpoint,
             sourceChunks: sourceChunks,
             failedSequences: failedSequences(from: failures),
             completedASRCheckpoints: completedASRCheckpoints,
@@ -3460,35 +3486,40 @@ public final class CaptureSessionStore {
     }
 
 
-    private func fetchOwnedMeeting(
-        for handle: MeetingCaptureHandle,
+    private func fetchOwnedNoteCapture(
+        for handle: NoteCaptureHandle,
         in context: ModelContext
-    ) throws -> OwnedMeeting {
+    ) throws -> OwnedNoteCapture {
         let session = try fetchSession(id: handle.sessionID, in: context)
-        guard session.modeRawValue == CaptureSessionMode.meeting.rawValue else {
+        guard
+            let mode = CaptureSessionMode(rawValue: session.modeRawValue),
+            mode.isNoteCapture
+        else {
             throw CaptureSessionStoreError.sessionModeMismatch(
                 sessionID: handle.sessionID,
-                expected: .meeting,
+                expected: .note,
                 actualRawValue: session.modeRawValue
             )
         }
-        let microphoneSource = try fetchOwnedSource(
-            id: handle.microphoneSourceID,
-            sessionID: handle.sessionID,
-            kind: .microphone,
-            in: context
-        )
-        let systemAudioSource = try fetchOwnedSource(
-            id: handle.systemAudioSourceID,
-            sessionID: handle.sessionID,
-            kind: .systemAudio,
-            in: context
-        )
-        return OwnedMeeting(
-            session: session,
-            microphoneSource: microphoneSource,
-            systemAudioSource: systemAudioSource
-        )
+        var sources = [
+            try fetchOwnedSource(
+                id: handle.microphoneSourceID,
+                sessionID: handle.sessionID,
+                kind: .microphone,
+                in: context
+            )
+        ]
+        if let systemAudioSourceID = handle.systemAudioSourceID {
+            sources.append(
+                try fetchOwnedSource(
+                    id: systemAudioSourceID,
+                    sessionID: handle.sessionID,
+                    kind: .systemAudio,
+                    in: context
+                )
+            )
+        }
+        return OwnedNoteCapture(session: session, sources: sources)
     }
 
     private func fetchOwnedSource(
@@ -3631,7 +3662,12 @@ public final class CaptureSessionStore {
         in context: ModelContext
     ) throws -> CaptureSessionModel {
         let session = try fetchSession(id: handle.sessionID, in: context)
-        guard session.modeRawValue == CaptureSessionMode.voiceNote.rawValue else {
+        // Streaming voice-note artifacts belong to legacy `voiceNote` rows and to
+        // the unified `note` mode. They never belong to a `meeting` row.
+        guard
+            session.modeRawValue == CaptureSessionMode.voiceNote.rawValue ||
+                session.modeRawValue == CaptureSessionMode.note.rawValue
+        else {
             throw CaptureSessionStoreError.sessionModeMismatch(
                 sessionID: handle.sessionID,
                 expected: .voiceNote,

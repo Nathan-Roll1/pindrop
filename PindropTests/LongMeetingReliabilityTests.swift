@@ -16,8 +16,8 @@ import PindropSpeech
 @MainActor
 @Suite
 struct LongMeetingReliabilityTests {
-    private func makeHandle() -> MeetingCaptureHandle {
-        MeetingCaptureHandle(
+    private func makeHandle() -> NoteCaptureHandle {
+        NoteCaptureHandle(
             sessionID: UUID(),
             microphoneSourceID: UUID(),
             systemAudioSourceID: UUID()
@@ -25,7 +25,7 @@ struct LongMeetingReliabilityTests {
     }
 
     private func checkpoint(
-        for handle: MeetingCaptureHandle,
+        for handle: NoteCaptureHandle,
         sourceID: UUID,
         sequence: Int,
         startOffset: TimeInterval? = nil,
@@ -53,7 +53,7 @@ struct LongMeetingReliabilityTests {
             checkpoint(for: handle, sourceID: handle.microphoneSourceID, sequence: $0)
         }
         let systemAudio = (0..<18).map {
-            checkpoint(for: handle, sourceID: handle.systemAudioSourceID, sequence: $0)
+            checkpoint(for: handle, sourceID: handle.dualSourceSystemAudioID, sequence: $0)
         }
 
         let workItems = try AppCoordinator.meetingChunkWorkItems(
@@ -67,7 +67,7 @@ struct LongMeetingReliabilityTests {
             #expect(item.startOffset == Double(sequence) * MeetingCaptureSpoolPlan.chunkDuration)
             #expect(item.duration == MeetingCaptureSpoolPlan.chunkDuration)
             #expect(item.microphone?.sourceID == handle.microphoneSourceID)
-            #expect(item.systemAudio?.sourceID == handle.systemAudioSourceID)
+            #expect(item.systemAudio?.sourceID == handle.dualSourceSystemAudioID)
         }
     }
 
@@ -80,7 +80,7 @@ struct LongMeetingReliabilityTests {
         )
         let systemOnly = checkpoint(
             for: handle,
-            sourceID: handle.systemAudioSourceID,
+            sourceID: handle.dualSourceSystemAudioID,
             sequence: 1
         )
 
@@ -113,7 +113,7 @@ struct LongMeetingReliabilityTests {
         )
         let systemWithMismatchedTiming = checkpoint(
             for: handle,
-            sourceID: handle.systemAudioSourceID,
+            sourceID: handle.dualSourceSystemAudioID,
             sequence: 0,
             startOffset: 0.25
         )
@@ -142,7 +142,7 @@ struct LongMeetingReliabilityTests {
         let sourceChunks = [0, 2].flatMap { sequence in
             [
                 checkpoint(for: handle, sourceID: handle.microphoneSourceID, sequence: sequence),
-                checkpoint(for: handle, sourceID: handle.systemAudioSourceID, sequence: sequence)
+                checkpoint(for: handle, sourceID: handle.dualSourceSystemAudioID, sequence: sequence)
             ]
         }
         let workItems = try AppCoordinator.meetingChunkWorkItems(
@@ -227,8 +227,9 @@ struct LongMeetingReliabilityTests {
             completedDiarizationSequences: [],
             reservedTranscriptionRecordID: reservation
         )
-        let recoverySnapshot = MeetingRecoverySnapshot(
+        let recoverySnapshot = NoteCaptureRecoverySnapshot(
             handle: handle,
+            mode: .note,
             state: .finalizing,
             recoveryTarget: nil,
             sourceChunks: [],
@@ -255,7 +256,7 @@ struct LongMeetingReliabilityTests {
         )
         let systemAudio = checkpoint(
             for: handle,
-            sourceID: handle.systemAudioSourceID,
+            sourceID: handle.dualSourceSystemAudioID,
             sequence: 0,
             startOffset: startOffset + (0.5 / Double(MeetingCaptureSpoolPlan.sampleRate)),
             duration: 4.75
@@ -273,4 +274,34 @@ struct LongMeetingReliabilityTests {
         #expect(workItem.duration == 4.75)
     }
 
+    @Test func micOnlyCaptureBuildsWorkItemsWithoutASystemAudioSource() throws {
+        let handle = NoteCaptureHandle(
+            sessionID: UUID(),
+            microphoneSourceID: UUID()
+        )
+        let microphone = (0..<3).map {
+            checkpoint(for: handle, sourceID: handle.microphoneSourceID, sequence: $0)
+        }
+
+        let workItems = try AppCoordinator.meetingChunkWorkItems(
+            sourceChunks: Array(microphone.reversed()),
+            failedSequences: [],
+            handle: handle
+        )
+
+        #expect(workItems.map(\.sequence) == [0, 1, 2])
+        #expect(workItems.allSatisfy { $0.systemAudio == nil })
+        #expect(workItems.map(\.microphone) == microphone)
+        #expect(workItems.allSatisfy(AppCoordinator.shouldCreateMeetingTranscriptionInput))
+    }
+}
+
+/// The system-audio identifier of a fixture that was started with system audio.
+private extension NoteCaptureHandle {
+    var dualSourceSystemAudioID: UUID {
+        guard let systemAudioSourceID else {
+            preconditionFailure("This capture fixture must own a system-audio source.")
+        }
+        return systemAudioSourceID
+    }
 }
