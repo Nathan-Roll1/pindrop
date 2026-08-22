@@ -152,10 +152,10 @@ final class PindropUITests: XCTestCase {
         )
 
         selectSidebarItem("sidebar.nav.dictate", in: app)
-        let dictateOpenShortcuts = app.descendants(matching: .any)["capture.dictate.openShortcuts"]
-        XCTAssertTrue(dictateOpenShortcuts.waitForExistence(timeout: 2))
-        dictateOpenShortcuts.click()
-        XCTAssertTrue(app.descendants(matching: .any)["mainShell.callback.settings:shortcuts"].waitForExistence(timeout: 2))
+        let sidebarSettings = app.descendants(matching: .any)["sidebar.settings"]
+        XCTAssertTrue(sidebarSettings.waitForExistence(timeout: 2))
+        sidebarSettings.click()
+        XCTAssertTrue(app.descendants(matching: .any)["mainShell.callback.settings:general"].waitForExistence(timeout: 2))
 
         selectSidebarItem("sidebar.nav.voiceNote", in: app)
         XCTAssertTrue(

@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "Afslut den aktuelle optagelse, før du starter en ny."
   voice_note_hold: "Stemmenote — hold nede"
   voice_note_toggle: "Stemmenote — skift"
+  you_captured_this_week: "Du har optaget %@ denne uge."
+  you_recorded_this_week: "Du har optaget %@ denne uge."
+  one_voice_note: "1 stemmenote"
+  n_voice_notes: "%@ stemnenoter"
+  one_meeting: "1 møde"
+  n_meetings: "%@ møder"
+  of_meeting_audio: "%@ mødelyd."
+  voice_note_shortcut_hint: "Hold %1$@ nede, eller tryk på %2$@ hvor som helst."
+  hold_anywhere: "Hold %@ nede hvor som helst."
+  press_anywhere: "Tryk på %@ hvor som helst."
+  voice_notes_empty: "Dine stemnenoter vises her."
+  meetings_empty: "Dine optagne møder vises her."
 pin:
   to_screen_always_on_top: "Fastgør til skærmen (altid øverst)"
 pindrop:

@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "Ολοκληρώστε την τρέχουσα καταγραφή πριν ξεκινήσετε άλλη."
   voice_note_hold: "Φωνητική σημείωση — Κρατήστε πατημένο"
   voice_note_toggle: "Φωνητική σημείωση — Εναλλαγή"
+  you_captured_this_week: "Καταγράψατε %@ αυτή την εβδομάδα."
+  you_recorded_this_week: "Ηχογραφήσατε %@ αυτή την εβδομάδα."
+  one_voice_note: "1 φωνητική σημείωση"
+  n_voice_notes: "%@ φωνητικές σημειώσεις"
+  one_meeting: "1 συνάντηση"
+  n_meetings: "%@ συναντήσεις"
+  of_meeting_audio: "%@ ήχου συναντήσεων."
+  voice_note_shortcut_hint: "Κρατήστε πατημένο το %1$@ ή πατήστε %2$@ οπουδήποτε."
+  hold_anywhere: "Κρατήστε πατημένο το %@ οπουδήποτε."
+  press_anywhere: "Πατήστε %@ οπουδήποτε."
+  voice_notes_empty: "Οι φωνητικές σας σημειώσεις θα εμφανίζονται εδώ."
+  meetings_empty: "Οι ηχογραφημένες συναντήσεις σας θα εμφανίζονται εδώ."
 pin:
   to_screen_always_on_top: "Καρφίτσωμα στην οθόνη (πάντα στην κορυφή)"
 pindrop:

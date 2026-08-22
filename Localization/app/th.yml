@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "บันทึกปัจจุบันให้เสร็จก่อนเริ่มรายการใหม่"
   voice_note_hold: "โน้ตเสียง — กดค้าง"
   voice_note_toggle: "โน้ตเสียง — สลับ"
+  you_captured_this_week: "คุณบันทึก %@ ในสัปดาห์นี้"
+  you_recorded_this_week: "คุณอัด %@ ในสัปดาห์นี้"
+  one_voice_note: "1 โน้ตเสียง"
+  n_voice_notes: "%@ โน้ตเสียง"
+  one_meeting: "1 การประชุม"
+  n_meetings: "%@ การประชุม"
+  of_meeting_audio: "เสียงการประชุม %@"
+  voice_note_shortcut_hint: "กด %1$@ ค้างไว้หรือกด %2$@ จากที่ใดก็ได้"
+  hold_anywhere: "กด %@ ค้างไว้จากที่ใดก็ได้"
+  press_anywhere: "กด %@ จากที่ใดก็ได้"
+  voice_notes_empty: "โน้ตเสียงของคุณจะแสดงที่นี่"
+  meetings_empty: "การประชุมที่บันทึกไว้ของคุณจะแสดงที่นี่"
 pin:
   to_screen_always_on_top: "ปักหมุดที่หน้าจอ (อยู่ด้านบนเสมอ)"
 pindrop:

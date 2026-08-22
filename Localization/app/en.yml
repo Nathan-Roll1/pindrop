@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "Finish the current capture before starting another."
   voice_note_hold: "Voice Note — Hold"
   voice_note_toggle: "Voice Note — Toggle"
+  you_captured_this_week: "You captured %@ this week."
+  you_recorded_this_week: "You recorded %@ this week."
+  one_voice_note: "1 voice note"
+  n_voice_notes: "%@ voice notes"
+  one_meeting: "1 meeting"
+  n_meetings: "%@ meetings"
+  of_meeting_audio: "%@ of meeting audio."
+  voice_note_shortcut_hint: "Hold %1$@ or press %2$@ anywhere."
+  hold_anywhere: "Hold %@ anywhere."
+  press_anywhere: "Press %@ anywhere."
+  voice_notes_empty: "Your voice notes will show up here."
+  meetings_empty: "Your recorded meetings will show up here."
 pin:
   to_screen_always_on_top: "Pin to screen (always on top)"
 pindrop:

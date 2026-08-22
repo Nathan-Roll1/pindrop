@@ -169,10 +169,6 @@ struct MainWindow: View {
     let onStartMeeting: ((Int?) -> Bool)?
     let onOpenSettings: (SettingsTab) -> Void
 
-    private func navigateToSettings(_ tab: SettingsTab) {
-        onOpenSettings(tab)
-    }
-
     private var isCaptureBusy: Bool {
         recordingState?.isCaptureBusy == true
     }
@@ -262,7 +258,6 @@ struct MainWindow: View {
                 onOpenLibrary: { routeState.navigate(to: .library) },
                 onShowMoreStats: { routeState.navigate(to: .stats) },
                 onOpenLibraryRecord: routeState.openLibrary,
-                onOpenShortcuts: { navigateToSettings(.shortcuts) },
                 onDownloadDiarizationModel: onDownloadDiarizationModel
             )
         case .voiceNote:
@@ -270,15 +265,16 @@ struct MainWindow: View {
                 settingsStore: settingsStore,
                 isCaptureBusy: isCaptureBusy,
                 onStartVoiceNote: onStartVoiceNote,
-                onOpenNotes: { routeState.navigate(to: .notes) },
-                onOpenShortcuts: { navigateToSettings(.shortcuts) }
+                onOpenNotes: { routeState.navigate(to: .notes) }
             )
         case .meeting:
             MeetingView(
+                recordingState: recordingState,
                 isCaptureBusy: isCaptureBusy,
                 onStartMeeting: onStartMeeting,
                 onOpenLibrary: { routeState.navigate(to: .library) },
-                onOpenShortcuts: { navigateToSettings(.shortcuts) }
+                onOpenLibraryRecord: routeState.openLibrary,
+                onDownloadDiarizationModel: onDownloadDiarizationModel
             )
         case .library:
             HistoryView(
@@ -582,6 +578,7 @@ private struct MainSidebar: View {
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("sidebar.settings")
         .accessibilityLabel(localized("Settings", locale: locale))
         .help(localized("Settings", locale: locale))
         .onHover { hovering in isSettingsHovered = hovering }

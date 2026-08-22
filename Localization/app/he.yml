@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "סיים את הלכידה הנוכחית לפני שתתחיל לכידה אחרת."
   voice_note_hold: "הערה קולית — החזקה"
   voice_note_toggle: "הערה קולית — החלפה"
+  you_captured_this_week: "הקלטת %@ השבוע."
+  you_recorded_this_week: "הקלטת %@ השבוע."
+  one_voice_note: "פתק קולי אחד"
+  n_voice_notes: "%@ פתקים קוליים"
+  one_meeting: "פגישה אחת"
+  n_meetings: "%@ פגישות"
+  of_meeting_audio: "%@ של שמע פגישות."
+  voice_note_shortcut_hint: "החזק את %1$@ או הקש על %2$@ מכל מקום."
+  hold_anywhere: "החזק את %@ מכל מקום."
+  press_anywhere: "הקש על %@ מכל מקום."
+  voice_notes_empty: "הפתקים הקוליים שלך יופיעו כאן."
+  meetings_empty: "הפגישות שהקלטת יופיעו כאן."
 pin:
   to_screen_always_on_top: "הצמד למסך (תמיד למעלה)"
 pindrop:

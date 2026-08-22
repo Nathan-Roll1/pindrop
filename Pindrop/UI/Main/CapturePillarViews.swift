@@ -3,7 +3,8 @@
 //  Pindrop
 //
 //  The three focused capture destinations. Dictate keeps the retrospective
-//  dashboard below its persistent start surface.
+//  dashboard (hero, stats, recent, charts) with a start action under the hero;
+//  Voice Note and Meeting pair an editorial header with their own recent items.
 //
 
 import SwiftUI
@@ -12,7 +13,6 @@ import PindropCore
 import PindropData
 
 struct DictateView: View {
-    @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.locale) private var locale
     @Query(sort: \TranscriptionRecord.timestamp, order: .reverse) private var transcriptions: [TranscriptionRecord]
     /// Shared settings reference — not observed at the root so unrelated
@@ -29,7 +29,6 @@ struct DictateView: View {
     let onOpenLibrary: (() -> Void)?
     let onShowMoreStats: (() -> Void)?
     let onOpenLibraryRecord: ((UUID) -> Void)?
-    let onOpenShortcuts: (() -> Void)?
     let onDownloadDiarizationModel: (() -> Void)?
 
     init(
@@ -40,7 +39,6 @@ struct DictateView: View {
         onOpenLibrary: (() -> Void)? = nil,
         onShowMoreStats: (() -> Void)? = nil,
         onOpenLibraryRecord: ((UUID) -> Void)? = nil,
-        onOpenShortcuts: (() -> Void)? = nil,
         onDownloadDiarizationModel: (() -> Void)? = nil
     ) {
         self.settingsStore = settingsStore
@@ -50,7 +48,6 @@ struct DictateView: View {
         self.onOpenLibrary = onOpenLibrary
         self.onShowMoreStats = onShowMoreStats
         self.onOpenLibraryRecord = onOpenLibraryRecord
-        self.onOpenShortcuts = onOpenShortcuts
         self.onDownloadDiarizationModel = onDownloadDiarizationModel
     }
 
@@ -97,125 +94,45 @@ struct DictateView: View {
         return ScrollView(showsIndicators: true) {
             VStack(alignment: .leading, spacing: 0) {
                 if let setupIssue = recordingState?.setupIssue {
-                    diarizationSetupIssueBanner(
+                    DiarizationSetupIssueBanner(
                         message: setupIssue,
                         isDownloading: recordingState?.isDiarizationModelDownloading ?? false,
-                        progress: recordingState?.diarizationModelDownloadProgress ?? 0.0
+                        progress: recordingState?.diarizationModelDownloadProgress ?? 0.0,
+                        onDownload: onDownloadDiarizationModel
                     )
                     .padding(.bottom, 16)
                 }
 
-                CapturePillarSurface(
-                    title: localized("Dictate", locale: locale),
-                    description: localized("Speak, then Pindrop writes in the app you are using.", locale: locale),
-                    symbol: "waveform",
-                    startTitle: localized("Start dictating", locale: locale),
-                    startIdentifier: "main.capture.dictate.start",
-                    currentShortcut: settingsStore.toggleHotkey,
-                    isBusy: isCaptureBusy,
-                    isStartAvailable: onStartDictation != nil,
-                    onStart: { onStartDictation?() }
-                )
-                .padding(.bottom, 20)
-                CaptureSupportLinks(
-                    prefix: "capture.dictate",
-                    onOpenShortcuts: onOpenShortcuts
-                )
-
-                if isFirstRun {
-                    firstRunLibraryState
-                        .padding(.top, 32)
-                } else {
+                HStack(alignment: .top, spacing: 16) {
                     heroBlock(now: now, stats: dashboardStats)
-                    statsStrip(stats: dashboardStats)
-                    recentSection
-                    chartRowWidthProbe
-                    thisWeekChart(now: now, stats: dashboardStats)
+                    Spacer(minLength: 0)
+                    dictateStartRow
                 }
+                statsStrip(stats: dashboardStats)
+                recentSection
+                chartRowWidthProbe
+                thisWeekChart(now: now, stats: dashboardStats)
             }
             .padding(.horizontal, 40)
             .padding(.top, 40)
             .padding(.bottom, 40)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(
-                minHeight: isFirstRun ? 560 : 0,
-                alignment: isFirstRun ? .center : .topLeading
-            )
         }
         .background(AppColors.contentBackground)
         .accessibilityIdentifier("main.destination.dictate")
     }
 
-    private var firstRunLibraryState: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(localized("Library", locale: locale))
-                .font(AppTypography.sectionHeader)
-                .foregroundStyle(AppColors.textTertiary)
-                .tracking(0.88)
-
-            Text(localized("Your latest dictations will show up here.", locale: locale))
-                .font(AppTypography.body)
-                .foregroundStyle(AppColors.textSecondary)
-
-            if let onOpenLibrary {
-                SecondaryButton(
-                    title: localized("Open Library", locale: locale),
-                    systemImage: "books.vertical",
-                    action: onOpenLibrary
-                )
-                .keyboardFocusRing(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .accessibilityIdentifier("capture.dictate.openLibrary")
-            }
-        }
-    }
-
-    private func diarizationSetupIssueBanner(
-        message: String,
-        isDownloading: Bool,
-        progress: Double
-    ) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: isDownloading ? "arrow.down.circle" : "exclamationmark.triangle")
-                .font(.system(size: 14))
-                .foregroundStyle(isDownloading ? AppColors.accent : AppColors.warning)
-
-            if isDownloading {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(message)
-                        .font(AppTypography.caption)
-                        .foregroundStyle(AppColors.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    ProgressView(value: min(max(progress, 0), 1))
-                        .progressViewStyle(.linear)
-                        .tint(AppColors.accent)
-                        .frame(maxWidth: 180)
-                        .accessibilityValue("\(Int(progress * 100))%")
-                }
-            } else {
-                Text(message)
-                    .font(AppTypography.caption)
-                    .foregroundStyle(AppColors.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 8)
-
-            if !isDownloading, onDownloadDiarizationModel != nil {
-                Button(localized("Download model", locale: locale)) {
-                    onDownloadDiarizationModel?()
-                }
-                .buttonStyle(.plain)
-                .font(AppTypography.caption.weight(.semibold))
-                .foregroundStyle(AppColors.accent)
-                .accessibilityIdentifier("diarizationSetupIssueDownloadButton")
-            }
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(AppColors.warningBackground)
+    /// The one action the old dashboard lacked: start a dictation from the page.
+    /// Sits top-right of the hero. Shortcut display observes SettingsStore inside
+    /// the row so the rest of the page stays isolated from settings publications.
+    private var dictateStartRow: some View {
+        DictateStartRow(
+            settingsStore: settingsStore,
+            isBusy: isCaptureBusy,
+            isStartAvailable: onStartDictation != nil,
+            onStart: { onStartDictation?() }
         )
+        .padding(.top, 24)
     }
 
     // MARK: - Hero
@@ -228,7 +145,7 @@ struct DictateView: View {
                 .tracking(HomeLayoutMetrics.kickerTrackingEm * HomeLayoutMetrics.kickerSize)
 
             if isFirstRun {
-                DashboardFirstRunWelcome(settingsStore: settingsStore)
+                DashboardFirstRunWelcome()
                     .padding(.top, 8)
                     .padding(.bottom, HomeLayoutMetrics.heroBottomPadding)
             } else {
@@ -258,34 +175,7 @@ struct DictateView: View {
             wordsThisWeek: stats.wordsThisWeek,
             locale: locale
         )
-        let heroFont = FontLoader.font(
-            family: .newsreader,
-            size: HomeLayoutMetrics.heroFontSize,
-            weight: .regular
-        )
-        let metricFont = FontLoader.font(
-            family: .newsreader,
-            size: HomeLayoutMetrics.heroFontSize,
-            weight: .medium,
-            italic: true
-        )
-        let tracking = HomeLayoutMetrics.heroTrackingEm * HomeLayoutMetrics.heroFontSize
-        let lineSpacing = HomeLayoutMetrics.heroLineHeight - HomeLayoutMetrics.heroFontSize
-
-        return (
-            Text(parts.before)
-                .font(heroFont)
-                .foregroundStyle(AppColors.textPrimary)
-            + Text(parts.metric)
-                .font(metricFont)
-                .foregroundStyle(AppColors.accent)
-            + Text(parts.after)
-                .font(heroFont)
-                .foregroundStyle(AppColors.textPrimary)
-        )
-        .tracking(tracking)
-        .lineSpacing(lineSpacing)
-        .fixedSize(horizontal: false, vertical: true)
+        return captureHeroText(parts: parts)
     }
 
     // MARK: - Stats strip
@@ -361,20 +251,11 @@ struct DictateView: View {
         VStack(alignment: .leading, spacing: 0) {
             SectionHeader(title: localized("Recent", locale: locale), isFirst: true) {
                 if let onOpenLibrary {
-                    Button {
-                        onOpenLibrary()
-                    } label: {
-                        HStack(spacing: 3) {
-                            Text(localized("Open Library", locale: locale))
-                            Image(systemName: "arrow.right")
-                                .flipsForRightToLeftLayoutDirection(true)
-                        }
-                        .font(FontLoader.font(family: .inter, size: 11, weight: .semibold))
-                        .foregroundStyle(AppColors.accent)
-                    }
-                    .buttonStyle(.plain)
-                    .keyboardFocusRing(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                    .accessibilityIdentifier("capture.dictate.openLibrary")
+                    CaptureRecentLink(
+                        title: localized("Open Library", locale: locale),
+                        identifier: "capture.dictate.openLibrary",
+                        action: onOpenLibrary
+                    )
                 }
             }
 
@@ -384,7 +265,9 @@ struct DictateView: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(recentRecords) { record in
-                        homeRecentRow(record)
+                        CaptureRecentRow(record: record) {
+                            onOpenLibraryRecord?(record.id)
+                        }
                     }
                 }
                 .padding(.top, 4)
@@ -398,63 +281,6 @@ struct DictateView: View {
             .foregroundStyle(AppColors.textTertiary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 12)
-    }
-
-    private static let rowTimeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        formatter.dateStyle = .none
-        return formatter
-    }()
-
-    private func homeRecentRow(_ record: TranscriptionRecord) -> some View {
-        let kind = record.resolvedSourceKind
-        let hasAudio = TranscriptionDetailAccess.shouldShowPlayback(for: record)
-        let isExpired = record.managedMediaPath == nil && kind == .voiceRecording
-        let preview: String = {
-            if kind == .manualCapture {
-                if let title = record.preferredTitle, !title.isEmpty { return title }
-            }
-            let text = record.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if text.isEmpty {
-                return record.preferredTitle ?? localized("Untitled", locale: locale)
-            }
-            return text
-        }()
-        let previewMeta: String? = {
-            guard kind == .manualCapture else { return nil }
-            let meta = record.meetingMetadataString(locale: locale)
-            return meta.isEmpty ? nil : meta
-        }()
-        let showExpiredChip = isExpired || (!hasAudio && record.duration > 0 && kind == .voiceRecording)
-
-        return LibraryRowChrome(
-            timeText: Self.rowTimeFormatter.string(from: record.timestamp),
-            preview: preview,
-            previewMeta: previewMeta,
-            destination: LibraryKindPresentation.destinationPill(
-                appName: record.destinationAppName,
-                layoutDirection: layoutDirection
-            ),
-            icon: {
-                Image(systemName: LibraryKindPresentation.systemImage(for: kind))
-                    .font(.system(size: 13))
-                    .foregroundStyle(AppColors.textTertiary)
-            },
-            playChip: {
-                PlayChip(
-                    durationText: formatDuration(record.duration),
-                    isExpired: showExpiredChip,
-                    action: { onOpenLibraryRecord?(record.id) }
-                )
-            },
-            action: {
-                onOpenLibraryRecord?(record.id)
-            }
-        )
-        // Row chrome includes 24 pt horizontal padding; counteract outer 40 so lanes
-        // sit flush with the page content edge the way Library rows do.
-        .padding(.horizontal, -24)
     }
 
     // MARK: - THIS WEEK chart
@@ -521,101 +347,242 @@ struct DictateView: View {
     }
 }
 
-// MARK: - Capture pillars
+// MARK: - Voice Note
 
 struct VoiceNoteView: View {
     @Environment(\.locale) private var locale
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \NoteSchema.Note.createdAt, order: .reverse) private var allNotes: [NoteSchema.Note]
     @ObservedObject private var settingsStore: SettingsStore
     let isCaptureBusy: Bool
     let onStartVoiceNote: (() -> Void)?
     let onOpenNotes: (() -> Void)?
-    let onOpenShortcuts: (() -> Void)?
 
     init(
         settingsStore: SettingsStore,
         isCaptureBusy: Bool = false,
         onStartVoiceNote: (() -> Void)? = nil,
-        onOpenNotes: (() -> Void)? = nil,
-        onOpenShortcuts: (() -> Void)? = nil
+        onOpenNotes: (() -> Void)? = nil
     ) {
         _settingsStore = ObservedObject(wrappedValue: settingsStore)
         self.isCaptureBusy = isCaptureBusy
         self.onStartVoiceNote = onStartVoiceNote
         self.onOpenNotes = onOpenNotes
-        self.onOpenShortcuts = onOpenShortcuts
+    }
+
+    private var calendar: Calendar { Calendar.current }
+
+    /// Voice notes are the notes backed by a captured transcript.
+    private var voiceNotes: [NoteSchema.Note] {
+        allNotes.filter { $0.sourceTranscriptionID != nil }
+    }
+
+    private var recentVoiceNotes: [NoteSchema.Note] {
+        Array(voiceNotes.prefix(5))
     }
 
     var body: some View {
-        CapturePillarPage {
-            CapturePillarSurface(
-                title: localized("Voice Note", locale: locale),
-                description: localized("Capture a thought and keep it in Notes.", locale: locale),
-                symbol: "note.text.badge.plus",
-                startTitle: localized("Start voice note", locale: locale),
-                startIdentifier: "main.capture.voiceNote.start",
-                currentShortcut: nil,
-                isBusy: isCaptureBusy,
-                isStartAvailable: onStartVoiceNote != nil,
-                onStart: { onStartVoiceNote?() }
-            )
-            VoiceNoteShortcutSummary(
-                holdShortcut: settingsStore.quickCapturePTTHotkey,
-                toggleShortcut: settingsStore.quickCaptureToggleHotkey,
-                onOpenShortcuts: onOpenShortcuts
-            )
-            .padding(.top, 32)
-            CaptureSupportLinks(prefix: "capture.voiceNote", onOpenNotes: onOpenNotes)
-                .padding(.top, 32)
+        TimelineView(HomeDayBoundarySchedule(calendar: calendar)) { _ in
+            content(now: Date())
         }
+    }
+
+    private func content(now: Date) -> some View {
+        ScrollView(showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top, spacing: 16) {
+                    CaptureEditorialHeader(
+                        kicker: HomePresentation.dateKicker(date: now, locale: locale, calendar: calendar),
+                        heroParts: HomePresentation.voiceNoteHeroParts(
+                            notesThisWeek: voiceNotesThisWeek(now: now),
+                            locale: locale
+                        ),
+                        subline: shortcutSubline
+                    )
+                    Spacer(minLength: 0)
+                    CaptureStartRow(
+                        startTitle: localized("Start voice note", locale: locale),
+                        startIdentifier: "main.capture.voiceNote.start",
+                        shortcut: nil,
+                        isBusy: isCaptureBusy,
+                        isStartAvailable: onStartVoiceNote != nil,
+                        onStart: { onStartVoiceNote?() }
+                    )
+                    .padding(.top, 24)
+                }
+
+                recentSection
+            }
+            .padding(.horizontal, 40)
+            .padding(.top, 40)
+            .padding(.bottom, 40)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(AppColors.contentBackground)
         .accessibilityIdentifier("main.destination.voiceNote")
+    }
+
+    private func voiceNotesThisWeek(now: Date) -> Int {
+        guard let weekStart = calendar.dateInterval(of: .weekOfYear, for: now)?.start else {
+            return 0
+        }
+        return voiceNotes.reduce(0) { $0 + ($1.createdAt >= weekStart ? 1 : 0) }
+    }
+
+    /// The page-specific hint: voice notes are meant to be captured from anywhere.
+    /// Only mentions the shortcuts that are actually configured.
+    private var shortcutSubline: String {
+        let hold = settingsStore.quickCapturePTTHotkey
+        let toggle = settingsStore.quickCaptureToggleHotkey
+        switch (hold.isEmpty, toggle.isEmpty) {
+        case (false, false):
+            return String(
+                format: localized("Hold %1$@ or press %2$@ anywhere.", locale: locale),
+                hold, toggle
+            )
+        case (false, true):
+            return String(format: localized("Hold %@ anywhere.", locale: locale), hold)
+        case (true, false):
+            return String(format: localized("Press %@ anywhere.", locale: locale), toggle)
+        case (true, true):
+            return ""
+        }
+    }
+
+    // MARK: - Recent voice notes
+
+    private var recentSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeader(title: localized("Recent", locale: locale), isFirst: true) {
+                if let onOpenNotes {
+                    CaptureRecentLink(
+                        title: localized("Open Notes", locale: locale),
+                        identifier: "capture.voiceNote.openNotes",
+                        action: onOpenNotes
+                    )
+                }
+            }
+            .padding(.top, 40)
+
+            if recentVoiceNotes.isEmpty {
+                Text(localized("Your voice notes will show up here.", locale: locale))
+                    .font(AppTypography.body)
+                    .foregroundStyle(AppColors.textTertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 12)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(recentVoiceNotes) { note in
+                        VoiceNoteRow(note: note) {
+                            openInEditor(note)
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+    }
+
+    private func openInEditor(_ note: NoteSchema.Note) {
+        NoteEditorWindowControllerRegistry.shared.presentEditor(
+            note: note,
+            isNewNote: false,
+            modelContainer: modelContext.container
+        )
     }
 }
 
+// MARK: - Meeting
+
 struct MeetingView: View {
     @Environment(\.locale) private var locale
+    @Query(sort: \TranscriptionRecord.timestamp, order: .reverse) private var transcriptions: [TranscriptionRecord]
     @State private var showMeetingCaptureOptions = false
+    let recordingState: RecordingFeatureState?
     let isCaptureBusy: Bool
     let onStartMeeting: ((Int?) -> Bool)?
     let onOpenLibrary: (() -> Void)?
-    let onOpenShortcuts: (() -> Void)?
+    let onOpenLibraryRecord: ((UUID) -> Void)?
+    let onDownloadDiarizationModel: (() -> Void)?
 
     init(
+        recordingState: RecordingFeatureState? = nil,
         isCaptureBusy: Bool = false,
         onStartMeeting: ((Int?) -> Bool)? = nil,
         onOpenLibrary: (() -> Void)? = nil,
-        onOpenShortcuts: (() -> Void)? = nil
+        onOpenLibraryRecord: ((UUID) -> Void)? = nil,
+        onDownloadDiarizationModel: (() -> Void)? = nil
     ) {
+        self.recordingState = recordingState
         self.isCaptureBusy = isCaptureBusy
         self.onStartMeeting = onStartMeeting
         self.onOpenLibrary = onOpenLibrary
-        self.onOpenShortcuts = onOpenShortcuts
+        self.onOpenLibraryRecord = onOpenLibraryRecord
+        self.onDownloadDiarizationModel = onDownloadDiarizationModel
+    }
+
+    private var calendar: Calendar { Calendar.current }
+
+    private var meetings: [TranscriptionRecord] {
+        transcriptions.filter { $0.resolvedSourceKind == .manualCapture }
+    }
+
+    private var recentMeetings: [TranscriptionRecord] {
+        Array(meetings.prefix(5))
     }
 
     var body: some View {
-        CapturePillarPage {
-            CapturePillarSurface(
-                title: localized("Meeting", locale: locale),
-                description: localized("Record microphone and system audio, then keep the meeting in Library.", locale: locale),
-                symbol: "person.2.wave.2",
-                startTitle: localized("Record Meeting…", locale: locale),
-                startIdentifier: "main.capture.meeting.start",
-                currentShortcut: nil,
-                isBusy: isCaptureBusy,
-                isStartAvailable: onStartMeeting != nil,
-                onStart: { showMeetingCaptureOptions = true }
-            )
-            MeetingCaptureSummary()
-                .padding(.top, 32)
-            CaptureSupportLinks(prefix: "capture.meeting", onOpenShortcuts: onOpenShortcuts)
-                .padding(.top, 20)
-            Text(localized("Library", locale: locale))
-                .font(AppTypography.sectionHeader)
-                .foregroundStyle(AppColors.textTertiary)
-                .tracking(0.88)
-                .padding(.top, 40)
-            CaptureSupportLinks(prefix: "capture.meeting", onOpenLibrary: onOpenLibrary)
-                .padding(.top, 10)
+        TimelineView(HomeDayBoundarySchedule(calendar: calendar)) { _ in
+            content(now: Date())
         }
+    }
+
+    private func content(now: Date) -> some View {
+        let weekStats = meetingWeekStats(now: now)
+        return ScrollView(showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 0) {
+                if let setupIssue = recordingState?.setupIssue {
+                    DiarizationSetupIssueBanner(
+                        message: setupIssue,
+                        isDownloading: recordingState?.isDiarizationModelDownloading ?? false,
+                        progress: recordingState?.diarizationModelDownloadProgress ?? 0.0,
+                        onDownload: onDownloadDiarizationModel
+                    )
+                    .padding(.bottom, 16)
+                }
+
+                HStack(alignment: .top, spacing: 16) {
+                    CaptureEditorialHeader(
+                        kicker: HomePresentation.dateKicker(date: now, locale: locale, calendar: calendar),
+                        heroParts: HomePresentation.meetingHeroParts(
+                            meetingsThisWeek: weekStats.count,
+                            locale: locale
+                        ),
+                        subline: HomePresentation.meetingSubLine(
+                            meetingDuration: weekStats.duration,
+                            locale: locale
+                        )
+                    )
+                    Spacer(minLength: 0)
+                    CaptureStartRow(
+                        startTitle: localized("Record Meeting…", locale: locale),
+                        startIdentifier: "main.capture.meeting.start",
+                        shortcut: nil,
+                        isBusy: isCaptureBusy,
+                        isStartAvailable: onStartMeeting != nil,
+                        onStart: { showMeetingCaptureOptions = true }
+                    )
+                    .padding(.top, 24)
+                }
+
+                recentSection
+            }
+            .padding(.horizontal, 40)
+            .padding(.top, 40)
+            .padding(.bottom, 40)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(AppColors.contentBackground)
         .sheet(isPresented: $showMeetingCaptureOptions) {
             MeetingCaptureOptionsSheet(isStartAvailable: !isCaptureBusy) { expectedSpeakerCount in
                 guard !isCaptureBusy, let onStartMeeting else { return false }
@@ -624,60 +591,141 @@ struct MeetingView: View {
         }
         .accessibilityIdentifier("main.destination.meeting")
     }
+
+    private func meetingWeekStats(now: Date) -> (count: Int, duration: TimeInterval) {
+        guard let weekStart = calendar.dateInterval(of: .weekOfYear, for: now)?.start else {
+            return (0, 0)
+        }
+        var count = 0
+        var duration: TimeInterval = 0
+        for meeting in meetings where meeting.timestamp >= weekStart {
+            count += 1
+            duration += meeting.duration
+        }
+        return (count, duration)
+    }
+
+    // MARK: - Recent meetings
+
+    private var recentSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeader(title: localized("Recent", locale: locale), isFirst: true) {
+                if let onOpenLibrary {
+                    CaptureRecentLink(
+                        title: localized("Open Library", locale: locale),
+                        identifier: "capture.meeting.openLibrary",
+                        action: onOpenLibrary
+                    )
+                }
+            }
+            .padding(.top, 40)
+
+            if recentMeetings.isEmpty {
+                Text(localized("Your recorded meetings will show up here.", locale: locale))
+                    .font(AppTypography.body)
+                    .foregroundStyle(AppColors.textTertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 12)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(recentMeetings) { record in
+                        CaptureRecentRow(record: record) {
+                            onOpenLibraryRecord?(record.id)
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+    }
 }
 
-private struct CapturePillarPage<Content: View>: View {
-    private let content: Content
+// MARK: - Shared capture chrome
 
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
+/// Editorial header shared by the capture destinations: date kicker, hero
+/// sentence with an accented metric, and an optional supporting line.
+private struct CaptureEditorialHeader: View {
+    let kicker: String
+    let heroParts: HomePresentation.HeroSentenceParts
+    let subline: String
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                content
+        VStack(alignment: .leading, spacing: 0) {
+            Text(kicker)
+                .font(FontLoader.font(family: .inter, size: HomeLayoutMetrics.kickerSize, weight: .semibold))
+                .foregroundStyle(AppColors.textTertiary)
+                .tracking(HomeLayoutMetrics.kickerTrackingEm * HomeLayoutMetrics.kickerSize)
+
+            captureHeroText(parts: heroParts)
+                .padding(.top, 6)
+                .padding(.bottom, HomeLayoutMetrics.heroBottomPadding)
+
+            if !subline.isEmpty {
+                Text(subline)
+                    .font(AppTypography.bodyMeta)
+                    .foregroundStyle(AppColors.textSecondary)
+                    .lineSpacing(AppTypography.bodyMetaLineSpacing)
             }
-            .frame(maxWidth: 640, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 40)
-            .padding(.vertical, 40)
-            .frame(minHeight: 560, alignment: .center)
         }
-        .background(AppColors.contentBackground)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-/// The one state-bearing instrument surface on each capture destination.
-private struct CapturePillarSurface: View {
+/// Hero sentence with the metric in accented italic Newsreader, shared by all
+/// three capture destinations.
+private func captureHeroText(parts: HomePresentation.HeroSentenceParts) -> some View {
+    let heroFont = FontLoader.font(
+        family: .newsreader,
+        size: HomeLayoutMetrics.heroFontSize,
+        weight: .regular
+    )
+    let metricFont = FontLoader.font(
+        family: .newsreader,
+        size: HomeLayoutMetrics.heroFontSize,
+        weight: .medium,
+        italic: true
+    )
+    let tracking = HomeLayoutMetrics.heroTrackingEm * HomeLayoutMetrics.heroFontSize
+    let lineSpacing = HomeLayoutMetrics.heroLineHeight - HomeLayoutMetrics.heroFontSize
+
+    return (
+        Text(parts.before)
+            .font(heroFont)
+            .foregroundStyle(AppColors.textPrimary)
+        + Text(parts.metric)
+            .font(metricFont)
+            .foregroundStyle(AppColors.accent)
+        + Text(parts.after)
+            .font(heroFont)
+            .foregroundStyle(AppColors.textPrimary)
+    )
+    .tracking(tracking)
+    .lineSpacing(lineSpacing)
+    .fixedSize(horizontal: false, vertical: true)
+}
+
+/// Primary start button with an optional shortcut hint and the busy warning.
+/// Sits at the trailing edge of the hero row on each capture page.
+private struct CaptureStartRow: View {
     @Environment(\.locale) private var locale
-    let title: String
-    let description: String
-    let symbol: String
     let startTitle: String
     let startIdentifier: String
-    let currentShortcut: String?
+    let shortcut: String?
     let isBusy: Bool
     let isStartAvailable: Bool
     let onStart: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Image(systemName: symbol)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(AppColors.accent)
-                    .accessibilityHidden(true)
-                Text(title)
-                    .font(FontLoader.font(family: .newsreader, size: 34, weight: .regular))
-                    .foregroundStyle(AppColors.textPrimary)
-            }
-            Text(description)
-                .font(AppTypography.body)
-                .foregroundStyle(AppColors.textSecondary)
-                .lineSpacing(AppTypography.bodyLineSpacing)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .trailing, spacing: 8) {
             HStack(alignment: .center, spacing: 12) {
+                if let shortcut, !shortcut.isEmpty {
+                    Text(shortcut)
+                        .font(AppTypography.monoSmall)
+                        .foregroundStyle(AppColors.textTertiary)
+                        .monospacedDigit()
+                        .environment(\.layoutDirection, .leftToRight)
+                }
+
                 PrimaryButton(
                     title: startTitle,
                     systemImage: "record.circle",
@@ -687,18 +735,10 @@ private struct CapturePillarSurface: View {
                 .keyboardFocusRing(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .accessibilityIdentifier(startIdentifier)
                 .accessibilityHint(isBusy ? localized("Finish the current capture before starting another.", locale: locale) : "")
-
-                if let currentShortcut, !currentShortcut.isEmpty {
-                    Text(currentShortcut)
-                        .font(AppTypography.monoSmall)
-                        .foregroundStyle(AppColors.textTertiary)
-                        .monospacedDigit()
-                        .environment(\.layoutDirection, .leftToRight)
-                }
             }
 
             if isBusy {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .trailing, spacing: 2) {
                     Label(localized("Capture in progress", locale: locale), systemImage: "record.circle.fill")
                     Text(localized("Finish the current capture before starting another.", locale: locale))
                 }
@@ -707,115 +747,229 @@ private struct CapturePillarSurface: View {
                 .accessibilityElement(children: .combine)
             }
         }
-        .padding(.vertical, 28)
         .accessibilityElement(children: .contain)
     }
 }
 
-private struct CaptureSupportLinks: View {
-    @Environment(\.locale) private var locale
-    let prefix: String
-    var onOpenLibrary: (() -> Void)?
-    var onOpenNotes: (() -> Void)?
-    var onOpenShortcuts: (() -> Void)?
-
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) { links }
-            VStack(alignment: .leading, spacing: 8) { links }
-        }
-    }
-
-    @ViewBuilder private var links: some View {
-        if let onOpenLibrary {
-            link(localized("Open Library", locale: locale), "books.vertical", "\(prefix).openLibrary", onOpenLibrary)
-        }
-        if let onOpenNotes {
-            link(localized("Open Notes", locale: locale), "note.text", "\(prefix).openNotes", onOpenNotes)
-        }
-        if let onOpenShortcuts {
-            link(localized("Change shortcut", locale: locale), "keyboard", "\(prefix).openShortcuts", onOpenShortcuts)
-        }
-    }
-
-    private func link(_ title: String, _ systemImage: String, _ identifier: String, _ action: @escaping () -> Void) -> some View {
-        SecondaryButton(title: title, systemImage: systemImage, action: action)
-            .keyboardFocusRing(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .accessibilityIdentifier(identifier)
-    }
-}
-
-private struct VoiceNoteShortcutSummary: View {
-    @Environment(\.locale) private var locale
-
-    let holdShortcut: String
-    let toggleShortcut: String
-    let onOpenShortcuts: (() -> Void)?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(localized("Shortcuts", locale: locale))
-                .font(AppTypography.sectionHeader)
-                .foregroundStyle(AppColors.textTertiary)
-                .tracking(0.88)
-
-            shortcutRow(
-                title: localized("Voice Note — Hold", locale: locale),
-                value: displayValue(holdShortcut)
-            )
-            shortcutRow(
-                title: localized("Voice Note — Toggle", locale: locale),
-                value: displayValue(toggleShortcut)
-            )
-
-            CaptureSupportLinks(
-                prefix: "capture.voiceNote",
-                onOpenShortcuts: onOpenShortcuts
-            )
-            .padding(.top, 2)
-        }
-        .frame(maxWidth: 360, alignment: .leading)
-    }
-
-    private func shortcutRow(title: String, value: String) -> some View {
-        HStack(spacing: 12) {
-            Text(title)
-                .font(AppTypography.body)
-                .foregroundStyle(AppColors.textSecondary)
-            Spacer(minLength: 16)
-            Text(value)
-                .font(AppTypography.monoSmall)
-                .foregroundStyle(AppColors.textPrimary)
-                .monospacedDigit()
-                .environment(\.layoutDirection, .leftToRight)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title), \(value)")
-    }
-
-    private func displayValue(_ shortcut: String) -> String {
-        shortcut.isEmpty ? localized("Not set", locale: locale) : shortcut
-    }
-}
-
-private struct MeetingCaptureSummary: View {
+/// Dictate's start row observes SettingsStore for the hotkey hint so the rest
+/// of the page stays isolated from unrelated settings publications.
+private struct DictateStartRow: View {
+    @ObservedObject var settingsStore: SettingsStore
+    let isBusy: Bool
+    let isStartAvailable: Bool
+    let onStart: () -> Void
     @Environment(\.locale) private var locale
 
     var body: some View {
-        HStack(spacing: 24) {
-            Text(localized("Expected speakers", locale: locale))
-                .font(AppTypography.body)
-                .foregroundStyle(AppColors.textSecondary)
-                .frame(width: 160, alignment: .leading)
-            Text(localized("Automatic", locale: locale))
-                .font(AppTypography.monoSmall)
-                .foregroundStyle(AppColors.textPrimary)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "\(localized("Expected speakers", locale: locale)), \(localized("Automatic", locale: locale))"
+        CaptureStartRow(
+            startTitle: localized("Start dictating", locale: locale),
+            startIdentifier: "main.capture.dictate.start",
+            shortcut: settingsStore.toggleHotkey,
+            isBusy: isBusy,
+            isStartAvailable: isStartAvailable,
+            onStart: onStart
         )
-        .frame(maxWidth: 360, alignment: .leading)
+    }
+}
+
+/// Section header with a trailing navigation link ("Open Library →").
+private struct CaptureRecentLink: View {
+    let title: String
+    let identifier: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 3) {
+                Text(title)
+                Image(systemName: "arrow.right")
+                    .flipsForRightToLeftLayoutDirection(true)
+            }
+            .font(FontLoader.font(family: .inter, size: 11, weight: .semibold))
+            .foregroundStyle(AppColors.accent)
+        }
+        .buttonStyle(.plain)
+        .keyboardFocusRing(RoundedRectangle(cornerRadius: 5, style: .continuous))
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+/// One transcription row in a capture page's Recent section. Same chrome as the
+/// Library rows so the destinations read as one app.
+private struct CaptureRecentRow: View {
+    @Environment(\.locale) private var locale
+    @Environment(\.layoutDirection) private var layoutDirection
+    let record: TranscriptionRecord
+    let action: () -> Void
+
+    private static let rowTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter
+    }()
+
+    var body: some View {
+        let kind = record.resolvedSourceKind
+        let hasAudio = TranscriptionDetailAccess.shouldShowPlayback(for: record)
+        let isExpired = record.managedMediaPath == nil && kind == .voiceRecording
+        let preview: String = {
+            if kind == .manualCapture {
+                if let title = record.preferredTitle, !title.isEmpty { return title }
+            }
+            let text = record.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.isEmpty {
+                return record.preferredTitle ?? localized("Untitled", locale: locale)
+            }
+            return text
+        }()
+        let previewMeta: String? = {
+            guard kind == .manualCapture else { return nil }
+            let meta = record.meetingMetadataString(locale: locale)
+            return meta.isEmpty ? nil : meta
+        }()
+        let showExpiredChip = isExpired || (!hasAudio && record.duration > 0 && kind == .voiceRecording)
+
+        LibraryRowChrome(
+            timeText: Self.rowTimeFormatter.string(from: record.timestamp),
+            preview: preview,
+            previewMeta: previewMeta,
+            destination: LibraryKindPresentation.destinationPill(
+                appName: record.destinationAppName,
+                layoutDirection: layoutDirection
+            ),
+            icon: {
+                Image(systemName: LibraryKindPresentation.systemImage(for: kind))
+                    .font(.system(size: 13))
+                    .foregroundStyle(AppColors.textTertiary)
+            },
+            playChip: {
+                PlayChip(
+                    durationText: formatDuration(record.duration),
+                    isExpired: showExpiredChip,
+                    action: action
+                )
+            },
+            action: action
+        )
+        // Row chrome includes 24 pt horizontal padding; counteract outer 40 so lanes
+        // sit flush with the page content edge the way Library rows do.
+        .padding(.horizontal, -24)
+    }
+}
+
+/// One voice note row: title, one-line snippet, capture time.
+private struct VoiceNoteRow: View {
+    @Environment(\.locale) private var locale
+    let note: NoteSchema.Note
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    private static let rowTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter
+    }()
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(Self.rowTimeFormatter.string(from: note.createdAt))
+                    .font(AppTypography.monoSmall)
+                    .foregroundStyle(AppColors.textTertiary)
+                    .monospacedDigit()
+                    .frame(width: 64, alignment: .leading)
+
+                Image(systemName: "note.text")
+                    .font(.system(size: 13))
+                    .foregroundStyle(AppColors.textTertiary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(note.title.isEmpty ? localized("Untitled", locale: locale) : note.title)
+                        .font(AppTypography.body.weight(.medium))
+                        .foregroundStyle(AppColors.textPrimary)
+                        .lineLimit(1)
+
+                    if !note.content.isEmpty {
+                        Text(note.content)
+                            .font(AppTypography.caption)
+                            .foregroundStyle(AppColors.textSecondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+
+                Spacer(minLength: 8)
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 24)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isHovered ? AppColors.sidebarItemHover : Color.clear)
+        )
+        .keyboardFocusRing(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .onHover { isHovered = $0 }
+        // Counteract the outer 40 pt page padding so rows sit flush like Library rows.
+        .padding(.horizontal, -24)
+    }
+}
+
+/// Diarization setup warning/download banner shared by Dictate and Meeting.
+private struct DiarizationSetupIssueBanner: View {
+    @Environment(\.locale) private var locale
+    let message: String
+    let isDownloading: Bool
+    let progress: Double
+    let onDownload: (() -> Void)?
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: isDownloading ? "arrow.down.circle" : "exclamationmark.triangle")
+                .font(.system(size: 14))
+                .foregroundStyle(isDownloading ? AppColors.accent : AppColors.warning)
+
+            if isDownloading {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(message)
+                        .font(AppTypography.caption)
+                        .foregroundStyle(AppColors.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    ProgressView(value: min(max(progress, 0), 1))
+                        .progressViewStyle(.linear)
+                        .tint(AppColors.accent)
+                        .frame(maxWidth: 180)
+                        .accessibilityValue("\(Int(progress * 100))%")
+                }
+            } else {
+                Text(message)
+                    .font(AppTypography.caption)
+                    .foregroundStyle(AppColors.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+
+            if !isDownloading, onDownload != nil {
+                Button(localized("Download model", locale: locale)) {
+                    onDownload?()
+                }
+                .buttonStyle(.plain)
+                .font(AppTypography.caption.weight(.semibold))
+                .foregroundStyle(AppColors.accent)
+                .accessibilityIdentifier("diarizationSetupIssueDownloadButton")
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(AppColors.warningBackground)
+        )
     }
 }
 
@@ -1264,29 +1418,17 @@ private struct DashboardActivityHeatmapCell: View {
     }
 }
 
-// MARK: - First-run welcome (settings observation isolated)
+// MARK: - First-run welcome
 
-/// Only this child observes SettingsStore so unrelated settings changes do not
-/// invalidate the rest of the Dashboard.
 private struct DashboardFirstRunWelcome: View {
-    @ObservedObject var settingsStore: SettingsStore
     @Environment(\.locale) private var locale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(localized("Speak. It's written.", locale: locale))
-                .font(FontLoader.font(family: .newsreader, size: HomeLayoutMetrics.heroFontSize, weight: .regular))
-                .foregroundStyle(AppColors.textPrimary)
-                .tracking(HomeLayoutMetrics.heroTrackingEm * HomeLayoutMetrics.heroFontSize)
-                .lineSpacing(HomeLayoutMetrics.heroLineHeight - HomeLayoutMetrics.heroFontSize)
-
-            let hotkey = settingsStore.toggleHotkey.isEmpty
-                ? localized("⌥Space", locale: locale)
-                : settingsStore.toggleHotkey
-            Text(String(format: localized("Press %@ anywhere to start dictating.", locale: locale), hotkey))
-                .font(AppTypography.bodyMeta)
-                .foregroundStyle(AppColors.textSecondary)
-        }
+        Text(localized("Speak. It's written.", locale: locale))
+            .font(FontLoader.font(family: .newsreader, size: HomeLayoutMetrics.heroFontSize, weight: .regular))
+            .foregroundStyle(AppColors.textPrimary)
+            .tracking(HomeLayoutMetrics.heroTrackingEm * HomeLayoutMetrics.heroFontSize)
+            .lineSpacing(HomeLayoutMetrics.heroLineHeight - HomeLayoutMetrics.heroFontSize)
     }
 }
 
@@ -1369,4 +1511,18 @@ private struct HomeDayBoundarySchedule: TimelineSchedule {
         .modelContainer(PreviewContainer.withSampleData)
         .frame(width: 800, height: 700)
         .preferredColorScheme(.dark)
+}
+
+#Preview("Voice Note - With Data") {
+    VoiceNoteView(settingsStore: SettingsStore())
+        .modelContainer(PreviewContainer.withSampleNotes)
+        .frame(width: 800, height: 700)
+        .preferredColorScheme(.light)
+}
+
+#Preview("Meeting - With Data") {
+    MeetingView()
+        .modelContainer(PreviewContainer.withSampleData)
+        .frame(width: 800, height: 700)
+        .preferredColorScheme(.light)
 }

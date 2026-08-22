@@ -851,6 +851,18 @@ pillars:
   finish_current_capture: "অন্য ক্যাপচার শুরু করার আগে বর্তমান ক্যাপচার শেষ করুন।"
   voice_note_hold: "ভয়েস নোট — ধরে রাখুন"
   voice_note_toggle: "ভয়েস নোট — টগল"
+  you_captured_this_week: "আপনি এই সপ্তাহে %@ ক্যাপচার করেছেন।"
+  you_recorded_this_week: "আপনি এই সপ্তাহে %@ রেকর্ড করেছেন।"
+  one_voice_note: "১টি ভয়েস নোট"
+  n_voice_notes: "%@টি ভয়েস নোট"
+  one_meeting: "১টি মিটিং"
+  n_meetings: "%@টি মিটিং"
+  of_meeting_audio: "%@ মিটিং অডিও।"
+  voice_note_shortcut_hint: "যেকোনো জায়গায় %1$@ ধরে রাখুন বা %2$@ চাপুন।"
+  hold_anywhere: "যেকোনো জায়গায় %@ ধরে রাখুন।"
+  press_anywhere: "যেকোনো জায়গায় %@ চাপুন।"
+  voice_notes_empty: "আপনার ভয়েস নোটগুলো এখানে দেখা যাবে।"
+  meetings_empty: "আপনার রেকর্ড করা মিটিংগুলো এখানে দেখা যাবে।"
 pin:
   to_screen_always_on_top: "স্ক্রিনে পিন করুন (সর্বদা উপরে)"
 pindrop:

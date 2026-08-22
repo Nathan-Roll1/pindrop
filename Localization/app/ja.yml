@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "現在のキャプチャを完了してから、別のキャプチャを開始してください。"
   voice_note_hold: "ボイスメモ — ホールド"
   voice_note_toggle: "ボイスメモ — 切り替え"
+  you_captured_this_week: "今週 %@ をキャプチャしました。"
+  you_recorded_this_week: "今週 %@ を録音しました。"
+  one_voice_note: "1 件のボイスメモ"
+  n_voice_notes: "%@ 件のボイスメモ"
+  one_meeting: "1 件のミーティング"
+  n_meetings: "%@ 件のミーティング"
+  of_meeting_audio: "ミーティング音声 %@。"
+  voice_note_shortcut_hint: "どこでも %1$@ を長押しするか %2$@ を押します。"
+  hold_anywhere: "どこでも %@ を長押しします。"
+  press_anywhere: "どこでも %@ を押します。"
+  voice_notes_empty: "ボイスメモはここに表示されます。"
+  meetings_empty: "録音したミーティングはここに表示されます。"
 pin:
   to_screen_always_on_top: "画面にピン留めする (常に一番上)"
 pindrop:

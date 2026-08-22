@@ -145,6 +145,61 @@ enum HomePresentation {
     static func heroSentenceParts(wordsThisWeek: Int, locale: Locale) -> HeroSentenceParts {
         let metric = wordMetric(count: wordsThisWeek, locale: locale)
         let template = localized("You spoke %@ this week.", locale: locale)
+        return heroParts(template: template, metric: metric)
+    }
+
+    // MARK: Capture pillar heroes (Voice Note / Meeting)
+
+    /// "1 voice note" or "4 voice notes" (grouped count for plural).
+    static func voiceNoteMetric(count: Int, locale: Locale) -> String {
+        if count == 1 {
+            return localized("1 voice note", locale: locale)
+        }
+        return String(
+            format: localized("%@ voice notes", locale: locale),
+            formatGrouped(count, locale: locale)
+        )
+    }
+
+    /// "1 meeting" or "3 meetings" (grouped count for plural).
+    static func meetingMetric(count: Int, locale: Locale) -> String {
+        if count == 1 {
+            return localized("1 meeting", locale: locale)
+        }
+        return String(
+            format: localized("%@ meetings", locale: locale),
+            formatGrouped(count, locale: locale)
+        )
+    }
+
+    /// Voice Note hero: "You captured %@ this week." split around the metric.
+    static func voiceNoteHeroParts(notesThisWeek: Int, locale: Locale) -> HeroSentenceParts {
+        let metric = voiceNoteMetric(count: notesThisWeek, locale: locale)
+        let template = localized("You captured %@ this week.", locale: locale)
+        return heroParts(template: template, metric: metric)
+    }
+
+    /// Meeting hero: "You recorded %@ this week." split around the metric.
+    static func meetingHeroParts(meetingsThisWeek: Int, locale: Locale) -> HeroSentenceParts {
+        let metric = meetingMetric(count: meetingsThisWeek, locale: locale)
+        let template = localized("You recorded %@ this week.", locale: locale)
+        return heroParts(template: template, metric: metric)
+    }
+
+    /// Meeting sub-line: "4 h 12 m of meeting audio." Empty when there is no audio.
+    static func meetingSubLine(meetingDuration: TimeInterval, locale: Locale) -> String {
+        let recorded = formatCompactDuration(meetingDuration, locale: locale)
+        guard !recorded.isEmpty else { return "" }
+        return String(
+            format: localized("%@ of meeting audio.", locale: locale),
+            recorded
+        )
+    }
+
+    /// Splits a localized hero template around its `%@` metric placeholder so the
+    /// metric can be styled independently. Falls back to a plain template when a
+    /// locale omits the placeholder.
+    private static func heroParts(template: String, metric: String) -> HeroSentenceParts {
         if let range = template.range(of: "%@") {
             return HeroSentenceParts(
                 before: String(template[..<range.lowerBound]),
@@ -152,7 +207,6 @@ enum HomePresentation {
                 after: String(template[range.upperBound...])
             )
         }
-        // Fallback if a locale omits the placeholder.
         return HeroSentenceParts(before: template, metric: metric, after: "")
     }
 

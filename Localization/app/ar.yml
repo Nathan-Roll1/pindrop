@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "أكمل الالتقاط الحالي قبل بدء التقاط آخر."
   voice_note_hold: "ملاحظة صوتية — اضغط مع الاستمرار"
   voice_note_toggle: "ملاحظة صوتية — تبديل"
+  you_captured_this_week: "التقطت %@ هذا الأسبوع."
+  you_recorded_this_week: "سجلت %@ هذا الأسبوع."
+  one_voice_note: "ملاحظة صوتية واحدة"
+  n_voice_notes: "%@ ملاحظات صوتية"
+  one_meeting: "اجتماع واحد"
+  n_meetings: "%@ اجتماعات"
+  of_meeting_audio: "%@ من صوت الاجتماعات."
+  voice_note_shortcut_hint: "اضغط مع الاستمرار على %1$@ أو اضغط على %2$@ في أي مكان."
+  hold_anywhere: "اضغط مع الاستمرار على %@ في أي مكان."
+  press_anywhere: "اضغط على %@ في أي مكان."
+  voice_notes_empty: "ستظهر ملاحظاتك الصوتية هنا."
+  meetings_empty: "ستظهر اجتماعاتك المسجلة هنا."
 pin:
   to_screen_always_on_top: "تثبيت على الشاشة (دائما في الأعلى)"
 pindrop:

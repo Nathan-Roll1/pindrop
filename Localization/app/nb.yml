@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "Fullfør det nåværende opptaket før du starter et nytt."
   voice_note_hold: "Lydnotat — hold inne"
   voice_note_toggle: "Lydnotat — veksle"
+  you_captured_this_week: "Du har tatt opp %@ denne uken."
+  you_recorded_this_week: "Du har spilt inn %@ denne uken."
+  one_voice_note: "1 talenotat"
+  n_voice_notes: "%@ talenotater"
+  one_meeting: "1 møte"
+  n_meetings: "%@ møter"
+  of_meeting_audio: "%@ møtelyd."
+  voice_note_shortcut_hint: "Hold %1$@ eller trykk %2$@ hvor som helst."
+  hold_anywhere: "Hold %@ hvor som helst."
+  press_anywhere: "Trykk %@ hvor som helst."
+  voice_notes_empty: "Talenotatene dine vises her."
+  meetings_empty: "De innspilte møtene dine vises her."
 pin:
   to_screen_always_on_top: "Fest til skjermen (alltid øverst)"
 pindrop:

@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "현재 캡처를 완료한 후 다른 캡처를 시작하세요."
   voice_note_hold: "음성 메모 — 길게 누르기"
   voice_note_toggle: "음성 메모 — 토글"
+  you_captured_this_week: "이번 주에 %@을(를) 캡처했습니다."
+  you_recorded_this_week: "이번 주에 %@을(를) 녹음했습니다."
+  one_voice_note: "음성 메모 1개"
+  n_voice_notes: "음성 메모 %@개"
+  one_meeting: "회의 1개"
+  n_meetings: "회의 %@개"
+  of_meeting_audio: "회의 오디오 %@."
+  voice_note_shortcut_hint: "어디서든 %1$@을(를) 길게 누르거나 %2$@을(를) 누르세요."
+  hold_anywhere: "어디서든 %@을(를) 길게 누르세요."
+  press_anywhere: "어디서든 %@을(를) 누르세요."
+  voice_notes_empty: "음성 메모가 여기에 표시됩니다."
+  meetings_empty: "녹음된 회의가 여기에 표시됩니다."
 pin:
   to_screen_always_on_top: "화면에 고정(항상 맨 위에)"
 pindrop:

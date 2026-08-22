@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "Beenden Sie die aktuelle Aufnahme, bevor Sie eine weitere starten."
   voice_note_hold: "Sprachnotiz — gedrückt halten"
   voice_note_toggle: "Sprachnotiz — Umschalten"
+  you_captured_this_week: "Sie haben diese Woche %@ aufgenommen."
+  you_recorded_this_week: "Sie haben diese Woche %@ aufgezeichnet."
+  one_voice_note: "1 Sprachnotiz"
+  n_voice_notes: "%@ Sprachnotizen"
+  one_meeting: "1 Besprechung"
+  n_meetings: "%@ Besprechungen"
+  of_meeting_audio: "%@ Besprechungsaudio."
+  voice_note_shortcut_hint: "Halten Sie %1$@ gedrückt oder drücken Sie %2$@ an beliebiger Stelle."
+  hold_anywhere: "Halten Sie %@ an beliebiger Stelle gedrückt."
+  press_anywhere: "Drücken Sie %@ an beliebiger Stelle."
+  voice_notes_empty: "Ihre Sprachnotizen werden hier angezeigt."
+  meetings_empty: "Ihre aufgezeichneten Besprechungen werden hier angezeigt."
 pin:
   to_screen_always_on_top: "An Bildschirm anheften (immer im Vordergrund)"
 pindrop:

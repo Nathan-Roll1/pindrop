@@ -4,8 +4,8 @@
 //
 //  Created on 2026-01-29.
 //
-//  Note editor window (U5 scorched-earth restyle, spec §10): 480×560 fixed,
-//  Pinned badge, listening chip, footer word count + ⌘S hint.
+//  Note editor window (U5 scorched-earth restyle, spec §10): document-style,
+//  margin heading markers, listening chip, footer word count + ⌘S hint.
 //
 
 import SwiftUI
@@ -104,15 +104,16 @@ final class NoteEditorWindowController: NSObject, NSWindowDelegate {
         let locale = appLocale.locale
         Log.ui.infoVisible("Creating note editor window for locale=\(locale.identifier) isNewNote=\(isNewNote)")
         window.title = isNewNote ? localized("New Note", locale: locale) : (note?.title ?? localized("Note", locale: locale))
-        // Fixed 480×560 design size; keep modest min if user resizes.
+        // Document-style window (Granola-class notes), not a fixed Post-it:
+        // comfortable default size with a modest minimum for small screens.
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.titleVisibility = .visible
         window.titlebarAppearsTransparent = false
         window.backgroundColor = NSColor(AppColors.contentBackground)
         window.isReleasedWhenClosed = false
         window.delegate = self
-        window.setContentSize(NSSize(width: 480, height: 560))
-        window.minSize = NSSize(width: 400, height: 420)
+        window.setContentSize(NSSize(width: 680, height: 760))
+        window.minSize = NSSize(width: 460, height: 480)
         window.center()
         applyInterfaceLayoutDirection(to: window, locale: locale)
 
@@ -519,18 +520,24 @@ struct NoteEditorView: View {
 
     // MARK: - Editor content
 
+    /// The editor's text column starts after the heading-marker margin so the
+    /// title, tags, and body text share one left edge (Granola-style gutter).
+    private let textColumnInset: CGFloat = MarkdownTextView.headingMarginWidth
+
     private var editorContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             TextField(localized("Note Title", locale: locale), text: $title)
-                .font(FontLoader.font(family: .newsreader, size: 22, weight: .medium))
+                .font(FontLoader.font(family: .newsreader, size: 28, weight: .medium))
                 .foregroundStyle(AppColors.textPrimary)
                 .textFieldStyle(.plain)
                 .focused($titleFieldFocused)
+                .padding(.leading, textColumnInset)
                 .onSubmit {
                     contentFieldFocused = true
                 }
 
             tagsRow
+                .padding(.leading, textColumnInset)
 
             MarkdownEditor(text: $content)
                 .accessibilityIdentifier("note-editor-body")
@@ -538,14 +545,14 @@ struct NoteEditorView: View {
 
             if !generatedCitations.isEmpty {
                 citationPanel
+                    .padding(.leading, textColumnInset)
             }
         }
 
         .disabled(isAppendLocked)
-        .padding(.horizontal, 24)
-        .padding(.top, 16)
+        .padding(.horizontal, 40)
+        .padding(.top, 20)
         .padding(.bottom, 8)
-        .frame(maxWidth: 432 + 48) // content ~432 + horizontal padding
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
@@ -663,7 +670,7 @@ struct NoteEditorView: View {
                 .onTapGesture { saveNow() }
                 .help(localized("Save now (⌘S)", locale: locale))
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 40)
         .frame(height: 39)
         .background(AppColors.contentBackground)
         .overlay(alignment: .top) {
@@ -1661,7 +1668,7 @@ struct TagChip: View {
         onClose: {},
         onSave: { _ in }
     )
-    .frame(width: 480, height: 560)
+    .frame(width: 680, height: 760)
     .modelContainer(container)
 }
 
@@ -1681,6 +1688,6 @@ struct TagChip: View {
         onClose: {},
         onSave: { _ in }
     )
-    .frame(width: 480, height: 560)
+    .frame(width: 680, height: 760)
     .modelContainer(container)
 }

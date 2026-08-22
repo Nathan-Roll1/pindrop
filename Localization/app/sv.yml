@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "Slutför den aktuella inspelningen innan du startar en ny."
   voice_note_hold: "Röstanteckning — håll in"
   voice_note_toggle: "Röstanteckning — växla"
+  you_captured_this_week: "Du har spelat in %@ den här veckan."
+  you_recorded_this_week: "Du har spelat in %@ den här veckan."
+  one_voice_note: "1 röstanteckning"
+  n_voice_notes: "%@ röstanteckningar"
+  one_meeting: "1 möte"
+  n_meetings: "%@ möten"
+  of_meeting_audio: "%@ mötesljud."
+  voice_note_shortcut_hint: "Håll %1$@ eller tryck på %2$@ var som helst."
+  hold_anywhere: "Håll %@ var som helst."
+  press_anywhere: "Tryck på %@ var som helst."
+  voice_notes_empty: "Dina röstanteckningar visas här."
+  meetings_empty: "Dina inspelade möten visas här."
 pin:
   to_screen_always_on_top: "Fäst på skärmen (alltid överst)"
 pindrop:

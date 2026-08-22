@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "Rond de huidige vastlegging af voordat je een nieuwe start."
   voice_note_hold: "Spraaknotitie — ingedrukt houden"
   voice_note_toggle: "Spraaknotitie — schakelen"
+  you_captured_this_week: "Je hebt deze week %@ vastgelegd."
+  you_recorded_this_week: "Je hebt deze week %@ opgenomen."
+  one_voice_note: "1 spraaknotitie"
+  n_voice_notes: "%@ spraaknotities"
+  one_meeting: "1 vergadering"
+  n_meetings: "%@ vergaderingen"
+  of_meeting_audio: "%@ aan vergaderaudio."
+  voice_note_shortcut_hint: "Houd %1$@ ingedrukt of druk op %2$@, waar je ook bent."
+  hold_anywhere: "Houd %@ overal ingedrukt."
+  press_anywhere: "Druk overal op %@."
+  voice_notes_empty: "Je spraaknotities verschijnen hier."
+  meetings_empty: "Je opgenomen vergaderingen verschijnen hier."
 pin:
   to_screen_always_on_top: "Vastzetten op scherm (altijd bovenaan)"
 pindrop:

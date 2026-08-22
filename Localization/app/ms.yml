@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "Selesaikan tangkapan semasa sebelum memulakan yang lain."
   voice_note_hold: "Nota suara — Tahan"
   voice_note_toggle: "Nota suara — Togol"
+  you_captured_this_week: "Anda merakam %@ minggu ini."
+  you_recorded_this_week: "Anda merakam %@ minggu ini."
+  one_voice_note: "1 nota suara"
+  n_voice_notes: "%@ nota suara"
+  one_meeting: "1 mesyuarat"
+  n_meetings: "%@ mesyuarat"
+  of_meeting_audio: "%@ audio mesyuarat."
+  voice_note_shortcut_hint: "Tahan %1$@ atau tekan %2$@ di mana-mana."
+  hold_anywhere: "Tahan %@ di mana-mana."
+  press_anywhere: "Tekan %@ di mana-mana."
+  voice_notes_empty: "Nota suara anda akan dipaparkan di sini."
+  meetings_empty: "Mesyuarat yang dirakam akan dipaparkan di sini."
 pin:
   to_screen_always_on_top: "Semat pada skrin (sentiasa di atas)"
 pindrop:

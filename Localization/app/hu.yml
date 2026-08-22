@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "Fejezd be az aktuális rögzítést, mielőtt újat indítanál."
   voice_note_hold: "Hangjegyzet — nyomva tartás"
   voice_note_toggle: "Hangjegyzet — kapcsoló"
+  you_captured_this_week: "Ezen a héten %@ rögzített."
+  you_recorded_this_week: "Ezen a héten %@ rögzített."
+  one_voice_note: "1 hangjegyzet"
+  n_voice_notes: "%@ hangjegyzet"
+  one_meeting: "1 megbeszélés"
+  n_meetings: "%@ megbeszélés"
+  of_meeting_audio: "%@ megbeszélés-hang."
+  voice_note_shortcut_hint: "Tartsa lenyomva: %1$@, vagy nyomja meg: %2$@ bárhol."
+  hold_anywhere: "Tartsa lenyomva: %@ bárhol."
+  press_anywhere: "Nyomja meg: %@ bárhol."
+  voice_notes_empty: "A hangjegyzetei itt jelennek meg."
+  meetings_empty: "A rögzített megbeszélései itt jelennek meg."
 pin:
   to_screen_always_on_top: "Rögzítés a képernyőn (mindig felül)"
 pindrop:

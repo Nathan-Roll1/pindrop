@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "请先完成当前录制，再开始新的录制。"
   voice_note_hold: "语音笔记 — 按住"
   voice_note_toggle: "语音笔记 — 切换"
+  you_captured_this_week: "本周您记录了 %@。"
+  you_recorded_this_week: "本周您录制了 %@。"
+  one_voice_note: "1 条语音笔记"
+  n_voice_notes: "%@ 条语音笔记"
+  one_meeting: "1 个会议"
+  n_meetings: "%@ 个会议"
+  of_meeting_audio: "%@ 的会议音频。"
+  voice_note_shortcut_hint: "在任意位置按住 %1$@ 或按下 %2$@。"
+  hold_anywhere: "在任意位置按住 %@。"
+  press_anywhere: "在任意位置按下 %@。"
+  voice_notes_empty: "您的语音笔记将显示在这里。"
+  meetings_empty: "您录制的会议将显示在这里。"
 pin:
   to_screen_always_on_top: "固定到屏幕（始终置顶）"
 pindrop:

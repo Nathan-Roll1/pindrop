@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "दूसरा कैप्चर शुरू करने से पहले मौजूदा कैप्चर पूरा करें।"
   voice_note_hold: "वॉइस नोट — होल्ड"
   voice_note_toggle: "वॉइस नोट — टॉगल"
+  you_captured_this_week: "आपने इस सप्ताह %@ कैप्चर किए।"
+  you_recorded_this_week: "आपने इस सप्ताह %@ रिकॉर्ड किए।"
+  one_voice_note: "1 वॉइस नोट"
+  n_voice_notes: "%@ वॉइस नोट"
+  one_meeting: "1 मीटिंग"
+  n_meetings: "%@ मीटिंग"
+  of_meeting_audio: "%@ मीटिंग ऑडियो।"
+  voice_note_shortcut_hint: "कहीं भी %1$@ दबाकर रखें या %2$@ दबाएँ।"
+  hold_anywhere: "कहीं भी %@ दबाकर रखें।"
+  press_anywhere: "कहीं भी %@ दबाएँ।"
+  voice_notes_empty: "आपके वॉइस नोट यहाँ दिखेंगे।"
+  meetings_empty: "आपकी रिकॉर्ड की गई मीटिंग यहाँ दिखेंगी।"
 pin:
   to_screen_always_on_top: "स्क्रीन पर पिन करें (हमेशा शीर्ष पर)"
 pindrop:

@@ -850,6 +850,18 @@ pillars:
   finish_current_capture: "Viimeistele nykyinen tallennus ennen uuden aloittamista."
   voice_note_hold: "Äänimuistio — pidä painettuna"
   voice_note_toggle: "Äänimuistio — vaihda"
+  you_captured_this_week: "Tallensit %@ tällä viikolla."
+  you_recorded_this_week: "Nauhoitit %@ tällä viikolla."
+  one_voice_note: "1 äänimuistiinpano"
+  n_voice_notes: "%@ äänimuistiinpanoa"
+  one_meeting: "1 kokous"
+  n_meetings: "%@ kokousta"
+  of_meeting_audio: "%@ kokousääntä."
+  voice_note_shortcut_hint: "Pidä %1$@ painettuna tai paina %2$@ missä tahansa."
+  hold_anywhere: "Pidä %@ painettuna missä tahansa."
+  press_anywhere: "Paina %@ missä tahansa."
+  voice_notes_empty: "Äänimuistiinpanosi näkyvät tässä."
+  meetings_empty: "Nauhoitetut kokouksesi näkyvät tässä."
 pin:
   to_screen_always_on_top: "Kiinnitä näyttöön (aina päällä)"
 pindrop:

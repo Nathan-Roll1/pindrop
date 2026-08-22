@@ -52,6 +52,40 @@ struct HomePresentationTests {
         #expect(parts.after == " this week.")
     }
 
+    // MARK: - Capture pillar heroes
+
+    @Test func voiceNoteMetricSingularAndPlural() {
+        #expect(HomePresentation.voiceNoteMetric(count: 1, locale: en) == "1 voice note")
+        #expect(HomePresentation.voiceNoteMetric(count: 0, locale: en) == "0 voice notes")
+        #expect(HomePresentation.voiceNoteMetric(count: 4210, locale: en) == "4,210 voice notes")
+    }
+
+    @Test func meetingMetricSingularAndPlural() {
+        #expect(HomePresentation.meetingMetric(count: 1, locale: en) == "1 meeting")
+        #expect(HomePresentation.meetingMetric(count: 0, locale: en) == "0 meetings")
+        #expect(HomePresentation.meetingMetric(count: 12, locale: en) == "12 meetings")
+    }
+
+    @Test func voiceNoteHeroPartsSplitAroundMetric() {
+        let parts = HomePresentation.voiceNoteHeroParts(notesThisWeek: 3, locale: en)
+        #expect(parts.before == "You captured ")
+        #expect(parts.metric == "3 voice notes")
+        #expect(parts.after == " this week.")
+    }
+
+    @Test func meetingHeroPartsSplitAroundMetric() {
+        let parts = HomePresentation.meetingHeroParts(meetingsThisWeek: 1, locale: en)
+        #expect(parts.before == "You recorded ")
+        #expect(parts.metric == "1 meeting")
+        #expect(parts.after == " this week.")
+    }
+
+    @Test func meetingSubLineFormatsDurationAndHidesZero() {
+        #expect(HomePresentation.meetingSubLine(meetingDuration: 0, locale: en) == "")
+        #expect(HomePresentation.meetingSubLine(meetingDuration: 4 * 3600 + 12 * 60, locale: en) == "4 h 12 m of meeting audio.")
+        #expect(HomePresentation.meetingSubLine(meetingDuration: 150, locale: en) == "2 m of meeting audio.")
+    }
+
     // MARK: - Streak
 
     @Test func streakLabelsIncludeZeroAndSingular() {
