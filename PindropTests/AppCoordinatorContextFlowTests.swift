@@ -24,6 +24,43 @@ struct AppCoordinatorContextFlowTests {
         #expect(RecordingStopRoute.resolve(isQuickCapture: false, noteAppendEditorID: nil, isManualTranscription: true) == .manualTranscription)
     }
 
+    @Test func voiceIsolationRouteMatrixKeepsNonDictationAudioRaw() {
+        let enabledRoutes: [CoordinatorTranscriptionRoute] = [
+            .dictation,
+            .noteAppend,
+            .quickCapture,
+        ]
+        for route in enabledRoutes {
+            #expect(
+                AppCoordinator.audioPreprocessingMode(
+                    for: route,
+                    voiceIsolationEnabled: true
+                ) == .voiceIsolation
+            )
+            #expect(
+                AppCoordinator.audioPreprocessingMode(
+                    for: route,
+                    voiceIsolationEnabled: false
+                ) == .none
+            )
+        }
+
+        let excludedRoutes: [CoordinatorTranscriptionRoute] = [
+            .manualCapture(.microphone),
+            .manualCapture(.systemAudio),
+            .manualCapture(.microphoneAndSystemAudio),
+            .importedMedia,
+        ]
+        for route in excludedRoutes {
+            #expect(
+                AppCoordinator.audioPreprocessingMode(
+                    for: route,
+                    voiceIsolationEnabled: true
+                ) == .none
+            )
+        }
+    }
+
     @Test func recordingStopAdmissionLetsOnlyFirstUserOrLimitEventClaimStop() {
         let admission = RecordingStopAdmission()
 
@@ -228,6 +265,7 @@ struct AppCoordinatorContextFlowTests {
         #expect(controller.isCurrent(third))
         #expect(controller.isCurrent(second) == false)
     }
+
 
     @Test func productionCleanupSkipsResetWhenOperationSupersededAfterCancel() {
         // Production stop paths defer through shouldResetProcessingStateOnExit.

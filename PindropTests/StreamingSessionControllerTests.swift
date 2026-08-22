@@ -48,6 +48,7 @@ struct StreamingSessionControllerTests {
         func hide() {}
     }
 
+
     private func makeDictionaryStore() throws -> DictionaryStore {
         let schema = Schema([VocabularyWord.self, WordReplacement.self])
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
@@ -60,13 +61,15 @@ struct StreamingSessionControllerTests {
         toastPresenter: RecordingToastPresenter,
         transcriptionService: TranscriptionService? = nil,
         dictionaryStore: DictionaryStore? = nil,
-        transcriptionBackend: TranscriptionBackend = .parakeet
+        transcriptionBackend: TranscriptionBackend = .parakeet,
+        voiceIsolationEnabled: Bool = false
     ) throws -> StreamingSessionController {
         let settings = SettingsStore()
         settings.resetAllSettings()
         settings.addTrailingSpace = false
         settings.selectedTranscriptionBackend = transcriptionBackend
 
+        settings.voiceIsolationEnabled = voiceIsolationEnabled
         let outputManager = OutputManager(
             outputMode: .clipboard,
             clipboard: clipboard,
@@ -337,7 +340,11 @@ struct StreamingSessionControllerTests {
         await controller.cancel()
     }
 
-    @Test func parakeetFinalizeOmitsVocabularyAndRecordsEnhancementMetrics() async throws {
+
+    @Test(arguments: [false, true])
+    func parakeetFinalizeOmitsVocabularyAndRecordsEnhancementMetrics(
+        voiceIsolationEnabled: Bool
+    ) async throws {
         final class FinalizingStreamingEngine: PindropSpeech.StreamingTranscriptionEngine, @unchecked Sendable {
             private(set) var state: StreamingTranscriptionState = .unloaded
             private var finalUtteranceCallback: EndOfUtteranceCallback?
@@ -421,7 +428,8 @@ struct StreamingSessionControllerTests {
                     .appendingPathComponent("pindrop-streaming-finalize-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
             ),
             engineFactory: { _ in batchEngine },
-            streamingEngineFactory: { _, _ in engine }
+            streamingEngineFactory: { _, _ in engine },
+            audioPreprocessor: PassthroughAudioPreprocessor()
         )
         try await transcriptionService.loadModel(
             modelName: "openai_whisper-tiny",
@@ -433,7 +441,8 @@ struct StreamingSessionControllerTests {
             clipboard: clipboard,
             toastPresenter: toastPresenter,
             transcriptionService: transcriptionService,
-            dictionaryStore: dictionaryStore
+            dictionaryStore: dictionaryStore,
+            voiceIsolationEnabled: voiceIsolationEnabled
         )
         var enhancementInput: String?
         var enhancementCallCount = 0
@@ -474,11 +483,14 @@ struct StreamingSessionControllerTests {
             recordedAudioData: Data(repeating: 0, count: MemoryLayout<Float>.size),
             recordingDuration: 0
         )
+        let expectedAudioPreprocessingMode: AudioPreprocessingMode =
+            voiceIsolationEnabled ? .voiceIsolation : .none
 
         #expect(enhancementCallCount == 1)
         #expect(enhancementInput == "batch transcript")
         #expect(enhancementVocabulary == [])
         #expect(batchEngine.receivedOptions?.vocabularyBiasWords == [])
+        #expect(batchEngine.receivedOptions?.audioPreprocessingMode == expectedAudioPreprocessingMode)
         #expect(outcome.originalStreamedText == enhancementInput)
         #expect(outcome.finalText == "Enhanced final text.")
         #expect(outcome.enhancedWithModel == "mock-model")
@@ -492,5 +504,11 @@ struct StreamingSessionControllerTests {
         #expect(outcome.pipelineMetrics.enhancementSeconds != nil)
         #expect(insertedText == "Enhanced final text.")
     }
+
+private struct PassthroughAudioPreprocessor: AudioPreprocessing {
+    func process(audioData: Data, mode: AudioPreprocessingMode) async throws -> Data {
+        audioData
+    }
+}
 
 }

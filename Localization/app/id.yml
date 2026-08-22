@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "Kosakata"
 voice:
   _self: "Voice"
+  isolation: "Isolasi suara"
+  reduce_background_noise_before_transcription: "Kurangi kebisingan latar belakang sebelum transkripsi"
 vs:
   typing: "vs mengetik"
 web:

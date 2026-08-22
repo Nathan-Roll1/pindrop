@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "Λεξιλόγιο"
 voice:
   _self: "Voice"
+  isolation: "Απομόνωση φωνής"
+  reduce_background_noise_before_transcription: "Μείωση θορύβου παρασκηνίου πριν από τη μεταγραφή"
 vs:
   typing: "έναντι πληκτρολόγησης"
 web:

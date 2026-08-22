@@ -57,6 +57,10 @@ final class PindropUITests: XCTestCase {
             app.descendants(matching: .any)["settings.picker.dictationLanguage"]
                 .waitForExistence(timeout: 5)
         )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["settings.toggle.voiceIsolation"]
+                .waitForExistence(timeout: 5)
+        )
         XCTAssertTrue(app.staticTexts["Microphone"].exists)
     }
 

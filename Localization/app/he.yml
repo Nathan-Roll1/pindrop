@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "אוֹצָר מִילִים"
 voice:
   _self: "Voice"
+  isolation: "בידוד קול"
+  reduce_background_noise_before_transcription: "הפחתת רעשי רקע לפני התמלול"
 vs:
   typing: "לעומת הקלדה"
 web:

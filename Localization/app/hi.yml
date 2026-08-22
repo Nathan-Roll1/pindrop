@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "शब्दावली"
 voice:
   _self: "Voice"
+  isolation: "वॉइस आइसोलेशन"
+  reduce_background_noise_before_transcription: "ट्रांसक्रिप्शन से पहले पृष्ठभूमि का शोर कम करें"
 vs:
   typing: "बनाम टाइपिंग"
 web:

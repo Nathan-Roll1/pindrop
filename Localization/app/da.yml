@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "Ordforråd"
 voice:
   _self: "Voice"
+  isolation: "Stemmeisolering"
+  reduce_background_noise_before_transcription: "Reducer baggrundsstøj før transskription"
 vs:
   typing: "vs at skrive"
 web:

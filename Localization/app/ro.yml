@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "Vocabular"
 voice:
   _self: "Voice"
+  isolation: "Izolarea vocii"
+  reduce_background_noise_before_transcription: "Reduceți zgomotul de fundal înainte de transcriere"
 vs:
   typing: "vs tastarea"
 web:

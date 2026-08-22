@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "Словниковий запас"
 voice:
   _self: "Voice"
+  isolation: "Ізоляція голосу"
+  reduce_background_noise_before_transcription: "Зменшувати фоновий шум перед транскрибуванням"
 vs:
   typing: "проти набору тексту"
 web:

@@ -1493,6 +1493,8 @@ vocabulary:
   _self: "শব্দভান্ডার"
 voice:
   _self: "Voice"
+  isolation: "ভয়েস আইসোলেশন"
+  reduce_background_noise_before_transcription: "ট্রান্সক্রিপশনের আগে পটভূমির শব্দ কমান"
 vs:
   typing: "বনাম টাইপিং"
 web:

@@ -682,7 +682,6 @@ mode:
 model:
   _self: "Model"
   loading_failed: "Model Loading Failed"
-  loading_timed_out: "Model Loading Timed Out"
   validation: "Model Validation"
 models:
   _self: "Models"
@@ -1188,7 +1187,6 @@ thanks:
   to_for_the_contribution_pr_61: "Thanks to %@ for the contribution (PR #61)."
 the:
   floating_indicator_is_hidden: "The floating indicator is hidden."
-  model_failed_to_load_within_60_seconds_this: "\"\"             The model failed to load within 60 seconds. This usually means the model files are corrupted or incompatible.                          To fix this:             1. Open Settings → Models             2. Delete the problematic model             3. Re-download the model                          If the problem persists, try a smaller model (Tiny or Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "The new Nemotron streaming engine shows words as you say them, and the engine prewarms at launch so your first dictation starts without a delay."
   selected_chunk_variant_isn_t_downloaded_yet: "The selected chunk variant isn't downloaded yet. Toggling will start a download."
 theme:
@@ -1503,6 +1501,8 @@ vocabulary:
   _self: "Vocabulary"
 voice:
   _self: "Voice"
+  isolation: "Voice isolation"
+  reduce_background_noise_before_transcription: "Reduce background noise before transcription"
 vs:
   typing: "vs typing"
 web:

@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "perbendaharaan kata"
 voice:
   _self: "Voice"
+  isolation: "Pengasingan suara"
+  reduce_background_noise_before_transcription: "Kurangkan bunyi latar sebelum transkripsi"
 vs:
   typing: "vs menaip"
 web:

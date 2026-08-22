@@ -7,14 +7,25 @@
 
 import Foundation
 
+public enum AudioPreprocessingMode: Sendable, Equatable {
+    case none
+    case voiceIsolation
+}
+
 public struct TranscriptionOptions: Sendable, Equatable {
     public let language: AppLanguage
     /// Vocabulary words for WhisperKit initial-prompt biasing. Empty = no bias.
     public let vocabularyBiasWords: [String]
+    public let audioPreprocessingMode: AudioPreprocessingMode
 
-    public init(language: AppLanguage = .automatic, vocabularyBiasWords: [String] = []) {
+    public init(
+        language: AppLanguage = .automatic,
+        vocabularyBiasWords: [String] = [],
+        audioPreprocessingMode: AudioPreprocessingMode = .none
+    ) {
         self.language = language
         self.vocabularyBiasWords = vocabularyBiasWords
+        self.audioPreprocessingMode = audioPreprocessingMode
     }
 }
 

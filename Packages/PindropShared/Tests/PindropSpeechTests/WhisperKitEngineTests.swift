@@ -52,6 +52,19 @@ struct WhisperKitEngineTests {
         #expect(engine.error == nil, "Initial error should be nil")
     }
 
+    @Test func localModelLoadConfigurationPrewarmsBeforeLoading() {
+        let modelPath = "/tmp/pindrop-whisper-large-v3-turbo"
+        let config = WhisperKitEngine.loadConfiguration(
+            modelFolder: modelPath,
+            download: false
+        )
+
+        #expect(config.modelFolder == modelPath)
+        #expect(config.prewarm == true)
+        #expect(config.load == true)
+        #expect(config.download == false)
+    }
+
     // MARK: - Offline load failure paths (no network)
 
     @Test func loadModelWithInvalidPathThrowsError() async throws {
@@ -292,6 +305,33 @@ struct WhisperKitEngineTests {
         #expect(error.errorDescription != nil, "Error should have description")
         #expect(error.errorDescription?.contains(message) ?? false,
                 "Error description should contain the failure message")
+    }
+}
+
+// MARK: - Integration (local model) — opt-in only
+
+@MainActor
+@Suite(
+    "WhisperKitEngine (integration, local model)",
+    .enabled(
+        if: ProcessInfo.processInfo.environment["PINDROP_WHISPERKIT_MODEL_PATH"] != nil,
+        "Set PINDROP_WHISPERKIT_MODEL_PATH to exercise a downloaded model."
+    )
+)
+struct WhisperKitEngineLocalModelIntegrationTests {
+    @Test func loadLocalModelPrewarmsAndSetsReady() async throws {
+        let modelPath = try #require(
+            ProcessInfo.processInfo.environment["PINDROP_WHISPERKIT_MODEL_PATH"]
+        )
+        let engine = WhisperKitEngine()
+
+        try await engine.loadModel(path: modelPath)
+
+        #expect(engine.state == .ready)
+        #expect(engine.error == nil)
+
+        await engine.unloadModel()
+        #expect(engine.state == .unloaded)
     }
 }
 

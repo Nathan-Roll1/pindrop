@@ -227,6 +227,21 @@ struct SettingsStoreTests {
         #expect(!store.launchWithoutShowingWindow)
         #expect(!store.telemetryEnabled)
         #expect(store.telemetryConsentPromptVersion == 0)
+        #expect(!store.voiceIsolationEnabled)
+    }
+
+    @Test func testVoiceIsolationDefaultsOffPersistsAndResets() {
+        let settingsStore = makeSettingsStore()
+        defer { cleanup(settingsStore) }
+
+        #expect(!settingsStore.voiceIsolationEnabled)
+
+        settingsStore.voiceIsolationEnabled = true
+        #expect(SettingsStore().voiceIsolationEnabled)
+
+        settingsStore.resetAllSettings()
+        #expect(!settingsStore.voiceIsolationEnabled)
+        #expect(!SettingsStore().voiceIsolationEnabled)
     }
 
     @Test func testLaunchWithoutShowingWindowDefaultsOffAndPersists() {

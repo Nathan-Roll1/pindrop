@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "词汇"
 voice:
   _self: "Voice"
+  isolation: "语音隔离"
+  reduce_background_noise_before_transcription: "转写前减少背景噪音"
 vs:
   typing: "对比输入"
 web:

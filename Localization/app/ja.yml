@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "語彙"
 voice:
   _self: "Voice"
+  isolation: "声の分離"
+  reduce_background_noise_before_transcription: "文字起こし前に背景ノイズを低減"
 vs:
   typing: "対タイピング"
 web:

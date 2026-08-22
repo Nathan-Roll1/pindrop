@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "Vokabular"
 voice:
   _self: "Voice"
+  isolation: "Stimmisolation"
+  reduce_background_noise_before_transcription: "Hintergrundgeräusche vor der Transkription reduzieren"
 vs:
   typing: "vs Tippen"
 web:

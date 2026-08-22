@@ -50,6 +50,27 @@ public final class WhisperKitEngine: TranscriptionEngine, CapabilityReporting {
     private var transcribingTask: Task<String, Error>?
 
     public init() {}
+    static func loadConfiguration(
+        model: String? = nil,
+        downloadBase: URL? = nil,
+        modelFolder: String? = nil,
+        download: Bool = true
+    ) -> WhisperKitConfig {
+        WhisperKitConfig(
+            model: model,
+            downloadBase: downloadBase,
+            modelFolder: modelFolder,
+            computeOptions: ModelComputeOptions(
+                audioEncoderCompute: .cpuAndNeuralEngine,
+                textDecoderCompute: .cpuAndNeuralEngine
+            ),
+            verbose: false,
+            logLevel: .error,
+            prewarm: true,
+            load: true,
+            download: download
+        )
+    }
 
     /// Load a model from a local file path
     public func loadModel(path: String) async throws {
@@ -62,23 +83,17 @@ public final class WhisperKitEngine: TranscriptionEngine, CapabilityReporting {
         Log.boot.info("WhisperKitEngine.loadModel(path) begin")
 
         do {
-            let config = WhisperKitConfig(
+            // Core ML can evict its device-specialization cache after an OS update.
+            // Prewarming serializes specialization before the normal load, avoiding
+            // the large peak-memory spike that can stall non-Tiny models.
+            let config = Self.loadConfiguration(
                 modelFolder: path,
-                computeOptions: ModelComputeOptions(
-                    audioEncoderCompute: .cpuAndNeuralEngine,
-                    textDecoderCompute: .cpuAndNeuralEngine
-                ),
-                verbose: false,
-                logLevel: .error
+                download: false
             )
 
             let initStart = CFAbsoluteTimeGetCurrent()
             whisperKit = try await WhisperKit(config)
-            Log.boot.info("WhisperKitEngine(path) WhisperKit(config) elapsed=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - initStart))")
-
-            let loadModelsStart = CFAbsoluteTimeGetCurrent()
-            try await whisperKit?.loadModels()
-            Log.boot.info("WhisperKitEngine(path) loadModels elapsed=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - loadModelsStart)) total=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - wallStart))")
+            Log.boot.info("WhisperKitEngine(path) prewarm and load elapsed=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - initStart)) total=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - wallStart))")
 
             state = .ready
         } catch {
@@ -114,25 +129,15 @@ public final class WhisperKitEngine: TranscriptionEngine, CapabilityReporting {
         Log.boot.info("WhisperKitEngine.loadModel(name) begin name=\(name) downloadBaseProvided=\(downloadBase != nil) download=\(download)")
 
         do {
-            let config = WhisperKitConfig(
+            let config = Self.loadConfiguration(
                 model: name,
                 downloadBase: downloadBase,
-                computeOptions: ModelComputeOptions(
-                    audioEncoderCompute: .cpuAndNeuralEngine,
-                    textDecoderCompute: .cpuAndNeuralEngine
-                ),
-                verbose: false,
-                logLevel: .error,
                 download: download
             )
 
             let initStart = CFAbsoluteTimeGetCurrent()
             whisperKit = try await WhisperKit(config)
-            Log.boot.info("WhisperKitEngine WhisperKit(config) await returned elapsed=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - initStart)) cumulative=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - wallStart))")
-
-            let loadModelsStart = CFAbsoluteTimeGetCurrent()
-            try await whisperKit?.loadModels()
-            Log.boot.info("WhisperKitEngine loadModels() finished elapsed=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - loadModelsStart)) total=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - wallStart))")
+            Log.boot.info("WhisperKitEngine prewarm and load elapsed=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - initStart)) total=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - wallStart))")
 
             state = .ready
         } catch {

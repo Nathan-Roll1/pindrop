@@ -1171,7 +1171,6 @@ thanks:
   to_for_the_contribution_pr_61: "Gracias a %@ por la contribución (PR #61)."
 the:
   floating_indicator_is_hidden: "El indicador flotante está oculto."
-  model_failed_to_load_within_60_seconds_this: "\"\"             The model failed to load within 60 seconds. This usually means the model files are corrupted or incompatible.                          To fix this:             1. Open Settings → Models             2. Delete the problematic model             3. Re-download the model                          If the problem persists, try a smaller model (Tiny or Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "El nuevo motor de streaming Nemotron muestra las palabras a medida que las dices y se precalienta al iniciar para que tu primer dictado comience sin demora."
   selected_chunk_variant_isn_t_downloaded_yet: "La variante seleccionada aún no se ha descargado. Al cambiar se iniciará una descarga."
 theme:
@@ -1486,6 +1485,8 @@ vocabulary:
   _self: "Vocabulario"
 voice:
   _self: "Voice"
+  isolation: "Aislamiento de voz"
+  reduce_background_noise_before_transcription: "Reducir el ruido de fondo antes de la transcripción"
 vs:
   typing: "vs escribir"
 web:

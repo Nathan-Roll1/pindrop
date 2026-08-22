@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "Szójegyzék"
 voice:
   _self: "Voice"
+  isolation: "Hangizolálás"
+  reduce_background_noise_before_transcription: "Háttérzaj csökkentése az átírás előtt"
 vs:
   typing: "vs gépelés"
 web:

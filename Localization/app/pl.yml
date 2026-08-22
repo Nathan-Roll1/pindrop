@@ -1553,6 +1553,8 @@ vocabulary:
   _self: "Słownictwo"
 voice:
   _self: "Głos"
+  isolation: "Izolacja głosu"
+  reduce_background_noise_before_transcription: "Zmniejsz hałas w tle przed transkrypcją"
 vs:
   typing: "kontra pisanie"
 web:

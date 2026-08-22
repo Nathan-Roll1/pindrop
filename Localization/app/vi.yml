@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "Từ vựng"
 voice:
   _self: "Voice"
+  isolation: "Tách giọng nói"
+  reduce_background_noise_before_transcription: "Giảm tiếng ồn nền trước khi chép lời"
 vs:
   typing: "vs đánh máy"
 web:

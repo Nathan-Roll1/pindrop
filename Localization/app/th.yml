@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "คำศัพท์"
 voice:
   _self: "Voice"
+  isolation: "การแยกเสียงพูด"
+  reduce_background_noise_before_transcription: "ลดเสียงรบกวนเบื้องหลังก่อนถอดเสียง"
 vs:
   typing: "เทียบกับการพิมพ์"
 web:

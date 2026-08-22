@@ -81,7 +81,6 @@ public final class TranscriptionService {
     private static let maximumTranscriptChunkWordCount = 28
     private static let targetTranscriptChunkWordCount = 20
     public nonisolated static let defaultDiarizationTimeoutSeconds: TimeInterval = 300
-    public nonisolated static let defaultModelLoadTimeoutSeconds: TimeInterval = 120
 
     public private(set) var state: State = .unloaded
     public private(set) var error: Error?
@@ -213,8 +212,8 @@ public final class TranscriptionService {
     private var streamingBackendProvider: @MainActor () -> TranscriptionBackend
     private let speakerIdentityService: (any SpeakerIdentityMatching)?
     private let storageLocations: ModelStorageLocations
+    private let audioPreprocessor: any AudioPreprocessing
     private let diarizationTimeoutSeconds: TimeInterval?
-    private let modelLoadTimeoutSeconds: TimeInterval
 
     /// True once this service substituted Parakeet for a user-requested Apple backend
     /// that couldn't be provisioned this run. AppCoordinator reads it to surface a
@@ -234,7 +233,7 @@ public final class TranscriptionService {
         streamingBackendProvider: @escaping @MainActor () -> TranscriptionBackend = { .parakeet },
         speakerIdentityService: (any SpeakerIdentityMatching)? = nil,
         diarizationTimeoutSeconds: TimeInterval? = TranscriptionService.defaultDiarizationTimeoutSeconds,
-        modelLoadTimeoutSeconds: TimeInterval = TranscriptionService.defaultModelLoadTimeoutSeconds
+        audioPreprocessor: any AudioPreprocessing = AppleSoundIsolationPreprocessor()
     ) {
         self.storageLocations = storageLocations
         self.engineFactory = engineFactory ?? { provider in
@@ -260,7 +259,7 @@ public final class TranscriptionService {
         self.streamingBackendProvider = streamingBackendProvider
         self.speakerIdentityService = speakerIdentityService
         self.diarizationTimeoutSeconds = diarizationTimeoutSeconds
-        self.modelLoadTimeoutSeconds = modelLoadTimeoutSeconds
+        self.audioPreprocessor = audioPreprocessor
     }
 
     /// Replace the provider that resolves which streaming chunk profile to use. Safe to
@@ -311,21 +310,14 @@ public final class TranscriptionService {
             } else {
                 newEngine = try engineFactory(provider)
             }
-            let modelLoadTimeoutSeconds = self.modelLoadTimeoutSeconds
             Log.boot.info("TranscriptionService.loadModel engine instance created provider=\(provider.rawValue) elapsed=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - loadStarted))")
-
-            try await withAsyncWatchdog(
-                timeoutSeconds: modelLoadTimeoutSeconds,
-                timeoutError: { Self.modelLoadTimeoutError(after: modelLoadTimeoutSeconds) }
-            ) {
-                Log.boot.info("TranscriptionService.loadModel engine.loadModel task started name=\(modelName)")
-                let engineLoadStart = CFAbsoluteTimeGetCurrent()
-                try await newEngine.loadModel(
-                    name: modelName,
-                    downloadBase: self.downloadBase(for: provider, modelName: modelName)
-                )
-                Log.boot.info("TranscriptionService.loadModel engine.loadModel task finished elapsed=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - engineLoadStart))")
-            }
+            Log.boot.info("TranscriptionService.loadModel engine.loadModel task started name=\(modelName)")
+            let engineLoadStart = CFAbsoluteTimeGetCurrent()
+            try await newEngine.loadModel(
+                name: modelName,
+                downloadBase: self.downloadBase(for: provider, modelName: modelName)
+            )
+            Log.boot.info("TranscriptionService.loadModel engine.loadModel task finished elapsed=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - engineLoadStart))")
 
             engine = newEngine
             currentProvider = provider
@@ -371,17 +363,10 @@ public final class TranscriptionService {
 
         do {
             let newEngine = WhisperKitEngine()
-            let modelLoadTimeoutSeconds = self.modelLoadTimeoutSeconds
             Log.boot.info("TranscriptionService.loadModel(path) WhisperKitEngine created elapsed=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - loadStarted))")
-
-            try await withAsyncWatchdog(
-                timeoutSeconds: modelLoadTimeoutSeconds,
-                timeoutError: { Self.modelLoadTimeoutError(after: modelLoadTimeoutSeconds) }
-            ) {
-                Log.boot.info("TranscriptionService.loadModel(path) engine.loadModel(path) task started")
-                try await newEngine.loadModel(path: modelPath)
-                Log.boot.info("TranscriptionService.loadModel(path) engine.loadModel(path) task finished")
-            }
+            Log.boot.info("TranscriptionService.loadModel(path) engine.loadModel(path) task started")
+            try await newEngine.loadModel(path: modelPath)
+            Log.boot.info("TranscriptionService.loadModel(path) engine.loadModel(path) task finished")
 
             engine = newEngine
             currentProvider = .whisperKit
@@ -509,7 +494,32 @@ public final class TranscriptionService {
         state = .transcribing
 
         do {
-            let floatCount = audioData.count / MemoryLayout<Float>.size
+            let transcriptionAudioData: Data
+            if options.audioPreprocessingMode == .voiceIsolation {
+                do {
+                    let preprocessor = audioPreprocessor
+                    let processedAudioData = try await withPromptCancellation {
+                        try await preprocessor.process(
+                            audioData: audioData,
+                            mode: options.audioPreprocessingMode
+                        )
+                    }
+                    try Task.checkCancellation()
+                    transcriptionAudioData = processedAudioData
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    try Task.checkCancellation()
+                    Log.transcription.warning(
+                        "Voice isolation failed; continuing with raw audio: \(error.localizedDescription)"
+                    )
+                    transcriptionAudioData = audioData
+                }
+            } else {
+                transcriptionAudioData = audioData
+            }
+
+            let floatCount = transcriptionAudioData.count / MemoryLayout<Float>.size
             let duration = Double(floatCount) / Double(Self.sampleRate)
             let providerName = currentProvider?.rawValue ?? "unknown"
             Log.transcription.info("Transcribing \(floatCount) samples (\(String(format: "%.2f", duration))s) using \(providerName)")
@@ -518,7 +528,7 @@ public final class TranscriptionService {
 
             let output = try await transcribeWithOptionalDiarization(
                 engine: engine,
-                audioData: audioData,
+                audioData: transcriptionAudioData,
                 sampleRate: Self.sampleRate,
                 diarizationEnabled: diarizationEnabled,
                 options: options,
@@ -2047,11 +2057,6 @@ public final class TranscriptionService {
         }
     }
 
-    private nonisolated static func modelLoadTimeoutError(after timeoutSeconds: TimeInterval) -> TranscriptionError {
-        .modelLoadFailed(
-            "Model loading timed out after \(Int(timeoutSeconds))s. This can happen on first launch after an update. Try restarting the app, or delete and re-download the model from Settings."
-        )
-    }
 
     /// Installs the stable engine→delivery bridge once per engine instance.
     /// Must complete before `loadModel` / `startStreaming` so emissions cannot
@@ -2321,7 +2326,7 @@ private struct DiarizationTimeoutError: Error, LocalizedError {
     }
 }
 
-private final class AsyncWatchdogState<Output>: @unchecked Sendable {
+private final class AsyncOneShotState<Output>: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<Output, Error>?
     private var operationTask: Task<Void, Never>?
@@ -2401,13 +2406,41 @@ private final class AsyncWatchdogState<Output>: @unchecked Sendable {
     }
 }
 
+private func withPromptCancellation<Output>(
+    operation: @escaping @Sendable () async throws -> Output
+) async throws -> Output {
+    let state = AsyncOneShotState<Output>()
+
+    return try await withTaskCancellationHandler {
+        try await withCheckedThrowingContinuation { continuation in
+            guard state.activate(continuation) else { return }
+
+            if Task.isCancelled {
+                state.resolve(.failure(CancellationError()))
+                return
+            }
+
+            let operationTask = Task.detached {
+                do {
+                    state.resolve(.success(try await operation()))
+                } catch {
+                    state.resolve(.failure(error))
+                }
+            }
+            state.setOperationTask(operationTask)
+        }
+    } onCancel: {
+        state.resolve(.failure(CancellationError()))
+    }
+}
+
 @MainActor
 private func withAsyncWatchdog<Output>(
     timeoutSeconds: TimeInterval,
     timeoutError: @escaping @Sendable () -> Error,
     operation: @escaping @MainActor () async throws -> Output
 ) async throws -> Output {
-    let state = AsyncWatchdogState<Output>()
+    let state = AsyncOneShotState<Output>()
 
     return try await withTaskCancellationHandler {
         try await withCheckedThrowingContinuation { continuation in

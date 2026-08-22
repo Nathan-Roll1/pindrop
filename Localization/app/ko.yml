@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "어휘"
 voice:
   _self: "Voice"
+  isolation: "음성 분리"
+  reduce_background_noise_before_transcription: "텍스트 변환 전에 배경 소음 줄이기"
 vs:
   typing: "vs 타이핑"
 web:

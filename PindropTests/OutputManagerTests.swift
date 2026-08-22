@@ -252,6 +252,7 @@ struct OutputManagerTests {
         #expect(result.previousClipboardSnapshot == nil)
     }
 
+
     // Once the paste keystroke lands the insertion is committed: cancelling the
     // surrounding operation during the deferred restore window must neither fail
     // the output nor skip the clipboard restore.

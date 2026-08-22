@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "Sanasto"
 voice:
   _self: "Voice"
+  isolation: "Äänen eristys"
+  reduce_background_noise_before_transcription: "Vähennä taustamelua ennen litterointia"
 vs:
   typing: "vs kirjoittaminen"
 web:

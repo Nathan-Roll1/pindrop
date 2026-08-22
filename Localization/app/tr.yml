@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "Kelime bilgisi"
 voice:
   _self: "Voice"
+  isolation: "Ses yalıtımı"
+  reduce_background_noise_before_transcription: "Transkripsiyondan önce arka plan gürültüsünü azalt"
 vs:
   typing: "yazmaya karşı"
 web:

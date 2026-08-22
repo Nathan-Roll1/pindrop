@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "مفردات"
 voice:
   _self: "Voice"
+  isolation: "عزل الصوت"
+  reduce_background_noise_before_transcription: "تقليل ضوضاء الخلفية قبل النسخ"
 vs:
   typing: "مقابل الكتابة"
 web:

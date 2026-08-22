@@ -308,6 +308,152 @@ struct TranscriptionServiceTests {
         }
     }
 
+    // MARK: - Audio preprocessing
+
+    @Test func transcriptionWithoutPreprocessingSkipsProcessorAndUsesOriginalAudio() async throws {
+        let engine = MockDiarizationTranscriptionEngine()
+        engine.transcribeResponses = ["raw transcript"]
+        let preprocessor = StubAudioPreprocessor(result: .output(Data([9, 9, 9, 9])))
+        let service = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            engineFactory: { _ in engine },
+            audioPreprocessor: preprocessor
+        )
+        try await service.loadModel(modelName: "tiny", provider: .whisperKit)
+        let input = makeFloatAudioData(seconds: 0.01)
+
+        let result = try await service.transcribe(
+            audioData: input,
+            options: TranscriptionOptions(audioPreprocessingMode: .none)
+        )
+
+        #expect(result == "raw transcript")
+        #expect(await preprocessor.callCount == 0)
+        #expect(engine.receivedAudioData == [input])
+    }
+
+    @Test func voiceIsolationRoutesProcessedAudioThroughDiarizationToEngine() async throws {
+        let engine = MockDiarizationTranscriptionEngine()
+        engine.transcribeResponses = ["processed transcript"]
+        let processedSamples = Array(repeating: Float(0.25), count: 16_000)
+        let processed = processedSamples.withUnsafeBufferPointer { Data(buffer: $0) }
+        let preprocessor = StubAudioPreprocessor(result: .output(processed))
+        let diarizer = MockSpeakerDiarizer()
+        let speaker = Speaker(id: "speaker-a", label: "", embedding: nil)
+        diarizer.nextResult = DiarizationResult(
+            segments: [
+                SpeakerSegment(
+                    speaker: speaker,
+                    startTime: 0,
+                    endTime: 1,
+                    confidence: 0.9
+                )
+            ],
+            speakers: [speaker],
+            audioDuration: 1
+        )
+        let service = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            engineFactory: { _ in engine },
+            diarizerFactory: { _ in diarizer },
+            diarizationTimeoutSeconds: nil,
+            audioPreprocessor: preprocessor
+        )
+        try await service.loadModel(modelName: "tiny", provider: .whisperKit)
+
+        let result = try await service.transcribe(
+            audioData: makeFloatAudioData(seconds: 1),
+            diarizationEnabled: true,
+            options: TranscriptionOptions(audioPreprocessingMode: .voiceIsolation)
+        )
+
+        #expect(result.text == "processed transcript")
+        #expect(await preprocessor.callCount == 1)
+        #expect(await preprocessor.lastMode == .voiceIsolation)
+        #expect(diarizer.lastSamples == processedSamples)
+        #expect(engine.receivedAudioData == [processed])
+    }
+
+    @Test func preprocessingFailureFallsBackToOriginalAudio() async throws {
+        let engine = MockDiarizationTranscriptionEngine()
+        engine.transcribeResponses = ["fallback transcript"]
+        let preprocessor = StubAudioPreprocessor(result: .failure)
+        let service = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            engineFactory: { _ in engine },
+            audioPreprocessor: preprocessor
+        )
+        try await service.loadModel(modelName: "tiny", provider: .whisperKit)
+        let input = makeFloatAudioData(seconds: 0.01)
+
+        let result = try await service.transcribe(
+            audioData: input,
+            options: TranscriptionOptions(audioPreprocessingMode: .voiceIsolation)
+        )
+
+        #expect(result == "fallback transcript")
+        #expect(await preprocessor.callCount == 1)
+        #expect(engine.receivedAudioData == [input])
+        #expect(service.state == .ready)
+    }
+
+    @Test func cancellationPromptlyAbandonsNonCooperativePreprocessorLateSuccess() async throws {
+        try await assertPromptPreprocessingCancellation(
+            lateResult: .output(Data(repeating: 1, count: 16))
+        )
+    }
+
+    @Test func cancellationPromptlyAbandonsNonCooperativePreprocessorLateFailure() async throws {
+        try await assertPromptPreprocessingCancellation(lateResult: .failure)
+    }
+
+    private func assertPromptPreprocessingCancellation(
+        lateResult: ConcurrentStubAudioPreprocessor.FirstResult
+    ) async throws {
+        let engine = MockDiarizationTranscriptionEngine()
+        engine.transcribeResponses = ["replacement transcript"]
+        let gate = StreamingCallbackSuspendGate()
+        let preprocessor = ConcurrentStubAudioPreprocessor(firstResult: lateResult, gate: gate)
+        let service = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            engineFactory: { _ in engine },
+            audioPreprocessor: preprocessor
+        )
+        try await service.loadModel(modelName: "tiny", provider: .whisperKit)
+        let input = makeFloatAudioData(seconds: 0.01)
+
+        let abandonedTask = Task {
+            try await service.transcribe(
+                audioData: input,
+                options: TranscriptionOptions(audioPreprocessingMode: .voiceIsolation)
+            )
+        }
+        await gate.waitUntilEntered()
+        abandonedTask.cancel()
+
+        // The non-cooperative worker remains parked behind the closed gate.
+        await #expect(throws: CancellationError.self) {
+            try await abandonedTask.value
+        }
+        #expect(service.state == .ready)
+
+        let replacement = try await service.transcribe(
+            audioData: input,
+            options: TranscriptionOptions(audioPreprocessingMode: .voiceIsolation)
+        )
+        #expect(replacement == "replacement transcript")
+        #expect(engine.receivedAudioData == [input])
+
+        // Release the abandoned worker so both its success and failure paths can
+        // attempt a late resolution without leaking suspended test work.
+        await gate.open()
+        await preprocessor.waitUntilCompleted()
+        #expect(await preprocessor.wasCancelledAtCompletion())
+        await Task.yield()
+        #expect(engine.receivedAudioData == [input])
+        #expect(service.state == .ready)
+    }
+
     // MARK: - Speaker Diarization Tests
 
     @Test func transcribeWithDiarizationDisabledReturnsPlainTranscript() async throws {
@@ -1769,6 +1915,7 @@ struct TranscriptionServiceTests {
         }
     }
 
+
     @Test func unloadModelClearsStreamingEngine() async throws {
         let mockStreamingEngine = MockStreamingTranscriptionEngine()
         let service = TranscriptionService(
@@ -1891,6 +2038,7 @@ private final class MockDiarizationTranscriptionEngine: TranscriptionEngine {
     private(set) var detectLanguageCallCount = 0
     private(set) var detectLanguageSampleCounts: [Int] = []
     private(set) var receivedOptions: [TranscriptionOptions] = []
+    private(set) var receivedAudioData: [Data] = []
     private(set) var lastLoadName: String?
     private(set) var lastDownloadBase: URL?
     private(set) var loadModelNameCallCount = 0
@@ -1922,6 +2070,7 @@ private final class MockDiarizationTranscriptionEngine: TranscriptionEngine {
             throw transcribeError
         }
 
+        receivedAudioData.append(audioData)
         receivedOptions.append(options)
         transcribeCallCount += 1
         if transcribeResponses.isEmpty {
@@ -1958,6 +2107,7 @@ private final class MockSpeakerDiarizer: SpeakerDiarizer {
     var diarizeDelayNanoseconds: UInt64?
     var nonCooperativeDiarizeDelayNanoseconds: UInt64?
     private(set) var lastOptions: DiarizationOptions?
+    private(set) var lastSamples: [Float]?
     private(set) var loadModelsCallCount = 0
     private(set) var unloadModelsCallCount = 0
     private(set) var diarizeCallCount = 0
@@ -1981,6 +2131,7 @@ private final class MockSpeakerDiarizer: SpeakerDiarizer {
     ) async throws -> DiarizationResult {
         _ = options
         lastOptions = options
+        lastSamples = samples
         diarizeCallCount += 1
         if let nonCooperativeDiarizeDelayNanoseconds {
             await withCheckedContinuation { continuation in
@@ -2034,6 +2185,141 @@ private final class MockSpeakerIdentityService: SpeakerIdentityMatching {
 
     private func match(for embedding: [Float]) -> SpeakerIdentityMatch? {
         matchesByEmbeddingKey[embedding.map { String(format: "%.4f", $0) }.joined(separator: ",")]
+    }
+}
+
+private actor StubAudioPreprocessor: AudioPreprocessing {
+    enum Result: Sendable {
+        case output(Data)
+        case failure
+    }
+
+    private struct Failure: Error {}
+
+    let result: Result
+    let gate: StreamingCallbackSuspendGate?
+    private(set) var callCount = 0
+    private(set) var lastMode: AudioPreprocessingMode?
+    private(set) var wasCancelledAtCompletion = false
+    private var didComplete = false
+    private var completionWaiters: [CheckedContinuation<Void, Never>] = []
+
+    init(result: Result, gate: StreamingCallbackSuspendGate? = nil) {
+        self.result = result
+        self.gate = gate
+    }
+
+    func process(audioData: Data, mode: AudioPreprocessingMode) async throws -> Data {
+        defer {
+            wasCancelledAtCompletion = Task.isCancelled
+            didComplete = true
+            let waiters = completionWaiters
+            completionWaiters.removeAll()
+            for waiter in waiters {
+                waiter.resume()
+            }
+        }
+        callCount += 1
+        lastMode = mode
+        if let gate {
+            await gate.enterAndWait()
+        }
+        switch result {
+        case .output(let output):
+            return output
+        case .failure:
+            throw Failure()
+        }
+    }
+    func waitUntilCompleted() async {
+        if didComplete { return }
+        await withCheckedContinuation { continuation in
+            if didComplete {
+                continuation.resume()
+            } else {
+                completionWaiters.append(continuation)
+            }
+        }
+    }
+}
+
+private final class ConcurrentStubAudioPreprocessor: AudioPreprocessing, @unchecked Sendable {
+    enum FirstResult: Sendable {
+        case output(Data)
+        case failure
+    }
+
+    private struct Failure: Error {}
+
+    private let firstResult: FirstResult
+    private let gate: StreamingCallbackSuspendGate
+    private let lock = NSLock()
+    private let completionProbe = PreprocessorCompletionProbe()
+    private var callCount = 0
+
+    init(firstResult: FirstResult, gate: StreamingCallbackSuspendGate) {
+        self.firstResult = firstResult
+        self.gate = gate
+    }
+
+    func process(audioData: Data, mode: AudioPreprocessingMode) async throws -> Data {
+        let callIndex = lock.withLock {
+            callCount += 1
+            return callCount
+        }
+
+        guard callIndex == 1 else {
+            return audioData
+        }
+
+        await gate.enterAndWait()
+        await completionProbe.finish(wasCancelled: Task.isCancelled)
+
+        switch firstResult {
+        case .output(let output):
+            return output
+        case .failure:
+            throw Failure()
+        }
+    }
+
+    func waitUntilCompleted() async {
+        await completionProbe.waitUntilCompleted()
+    }
+
+    func wasCancelledAtCompletion() async -> Bool {
+        await completionProbe.cancellationAtCompletion()
+    }
+}
+
+private actor PreprocessorCompletionProbe {
+    private var didComplete = false
+    private var wasCancelled = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func finish(wasCancelled: Bool) {
+        didComplete = true
+        self.wasCancelled = wasCancelled
+        let pendingWaiters = waiters
+        waiters.removeAll()
+        for waiter in pendingWaiters {
+            waiter.resume()
+        }
+    }
+
+    func waitUntilCompleted() async {
+        if didComplete { return }
+        await withCheckedContinuation { continuation in
+            if didComplete {
+                continuation.resume()
+            } else {
+                waiters.append(continuation)
+            }
+        }
+    }
+
+    func cancellationAtCompletion() -> Bool {
+        wasCancelled
     }
 }
 

@@ -240,6 +240,24 @@ enum RecordingStopRoute: Equatable {
     }
 }
 
+enum CoordinatorTranscriptionRoute: Equatable {
+    case dictation
+    case noteAppend
+    case quickCapture
+    case manualCapture(AudioRecordingMode)
+    case importedMedia
+
+    var appliesVoiceIsolation: Bool {
+        switch self {
+        case .dictation, .noteAppend, .quickCapture:
+            return true
+        case .manualCapture, .importedMedia:
+            return false
+        }
+    }
+}
+
+
 /// A synchronous, coordinator-owned admission gate shared by every stop source.
 /// It lets only the first user/limit event own a recording's finalization route.
 /// Claims are lease/generation-owned: cancel can free the gate immediately, and a
@@ -1489,10 +1507,6 @@ final class AppCoordinator {
         self.error = error
         Log.app.error("\(context): \(error)")
 
-        let errorMessage = (error as? LocalizedError)?.errorDescription ?? ""
-        if errorMessage.contains("timed out") {
-            AlertManager.shared.showModelTimeoutAlert()
-        }
     }
     
     private func startNormalOperation() async {
@@ -3035,7 +3049,7 @@ final class AppCoordinator {
             transcriptionOutput = try await transcriptionService.transcribe(
                 audioData: audioData,
                 diarizationEnabled: diarizationEnabled,
-                options: makeTranscriptionOptions(),
+                options: makeTranscriptionOptions(route: .noteAppend),
                 diarizationOptions: .init(),
                 diarizationFailurePolicy: .bestEffort
             )
@@ -3142,7 +3156,7 @@ final class AppCoordinator {
             transcriptionOutput = try await transcriptionService.transcribe(
                 audioData: audioData,
                 diarizationEnabled: diarizationEnabled,
-                options: makeTranscriptionOptions(),
+                options: makeTranscriptionOptions(route: .quickCapture),
                 diarizationOptions: .init(),
                 diarizationFailurePolicy: .bestEffort
             )
@@ -3436,13 +3450,25 @@ final class AppCoordinator {
 
     /// Builds transcription options including WhisperKit vocabulary bias words.
     private func makeTranscriptionOptions(
-        language: AppLanguage? = nil
+        language: AppLanguage? = nil,
+        route: CoordinatorTranscriptionRoute
     ) -> TranscriptionOptions {
         let bias = (try? dictionaryStore.vocabularyBiasWords()) ?? []
         return TranscriptionOptions(
             language: language ?? settingsStore.selectedAppLanguage,
-            vocabularyBiasWords: bias
+            vocabularyBiasWords: bias,
+            audioPreprocessingMode: Self.audioPreprocessingMode(
+                for: route,
+                voiceIsolationEnabled: settingsStore.voiceIsolationEnabled
+            )
         )
+    }
+
+    static func audioPreprocessingMode(
+        for route: CoordinatorTranscriptionRoute,
+        voiceIsolationEnabled: Bool
+    ) -> AudioPreprocessingMode {
+        voiceIsolationEnabled && route.appliesVoiceIsolation ? .voiceIsolation : .none
     }
 
     private func normalizedTranscriptionText(_ text: String) -> String {
@@ -3921,7 +3947,7 @@ final class AppCoordinator {
             transcriptionOutput = try await transcriptionService.transcribe(
                 audioData: audioData,
                 diarizationEnabled: diarizationEnabled,
-                options: makeTranscriptionOptions(),
+                options: makeTranscriptionOptions(route: .dictation),
                 diarizationOptions: .init(),
                 diarizationFailurePolicy: .bestEffort
             )
@@ -5437,7 +5463,7 @@ final class AppCoordinator {
             let transcriptionOutput = try await transcriptionService.transcribe(
                 audioData: audioData,
                 diarizationEnabled: job.options.diarizationEnabled,
-                options: makeTranscriptionOptions(),
+                options: makeTranscriptionOptions(route: .manualCapture(mode)),
                 diarizationOptions: .init(expectedSpeakerCount: job.options.expectedSpeakerCount),
                 diarizationFailurePolicy: .required
             )
@@ -5485,7 +5511,6 @@ final class AppCoordinator {
                 resetProcessingState()
                 didResetProcessingState = true
             }
-            recordingState.completeCurrentJob(with: record.id, message: "Meeting recording transcribed successfully.")
             let meetingRecordID = record.id
             mainWindowController.showHistory()
             // Post after nav so HistoryView is mounted and listening.
@@ -5803,7 +5828,10 @@ final class AppCoordinator {
             let transcriptionOutput = try await transcriptionService.transcribe(
                 audioData: preparedAudio.audioData,
                 diarizationEnabled: options.diarizationEnabled,
-                options: makeTranscriptionOptions(language: options.language),
+                options: makeTranscriptionOptions(
+                    language: options.language,
+                    route: .importedMedia
+                ),
                 diarizationOptions: .init(expectedSpeakerCount: options.expectedSpeakerCount),
                 diarizationFailurePolicy: options.diarizationEnabled ? .required : .bestEffort
             )

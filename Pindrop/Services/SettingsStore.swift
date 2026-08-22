@@ -107,6 +107,7 @@ final class SettingsStore: ObservableObject, AppSettingsProviding {
       static let programmaticFormattingEnabled = false
 
       static let selectedInputDeviceUID = ""
+      static let voiceIsolationEnabled = false
       static let aiModel = "openai/gpt-4o-mini"
       static let aiEnhancementPrompt = AIEnhancementDefaults.transcriptionPrompt
       static let floatingIndicatorEnabled = true
@@ -226,6 +227,8 @@ final class SettingsStore: ObservableObject, AppSettingsProviding {
    var automaticDictionaryLearningEnabled: Bool = Defaults.automaticDictionaryLearningEnabled
    @AppStorage("selectedInputDeviceUID", store: SettingsStoreRuntime.appStorageStore)
    var selectedInputDeviceUID: String = Defaults.selectedInputDeviceUID
+   @AppStorage("voiceIsolationEnabled", store: SettingsStoreRuntime.appStorageStore)
+   var voiceIsolationEnabled: Bool = Defaults.voiceIsolationEnabled
    @AppStorage("aiEnhancementEnabled", store: SettingsStoreRuntime.appStorageStore)
    var aiEnhancementEnabled: Bool = false
    @AppStorage("aiProvider", store: SettingsStoreRuntime.appStorageStore)
@@ -971,6 +974,7 @@ final class SettingsStore: ObservableObject, AppSettingsProviding {
       selectedAppLocaleRawValue = Defaults.selectedAppLocale
       selectedLanguage = Defaults.selectedLanguage
       selectedInputDeviceUID = Defaults.selectedInputDeviceUID
+      voiceIsolationEnabled = Defaults.voiceIsolationEnabled
       aiEnhancementEnabled = false
       aiEnhancementPrompt = Defaults.aiEnhancementPrompt
       noteEnhancementPrompt = Defaults.noteEnhancementPrompt

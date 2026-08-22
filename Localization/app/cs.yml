@@ -1486,6 +1486,8 @@ vocabulary:
   _self: "Slovník"
 voice:
   _self: "Voice"
+  isolation: "Izolace hlasu"
+  reduce_background_noise_before_transcription: "Omezit hluk na pozadí před přepisem"
 vs:
   typing: "vs psaní"
 web:

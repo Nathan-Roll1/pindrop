@@ -50,7 +50,7 @@ struct DictationSettingsView: View {
         SettingsPaneStack {
             // Microphone
             SettingsGroupCard {
-                SettingsRow(showSeparator: false) {
+                SettingsRow(showSeparator: true) {
                     SettingsRowLabel(title: localized("Microphone", locale: locale))
                 } control: {
                     HStack(spacing: 8) {
@@ -85,6 +85,19 @@ struct DictationSettingsView: View {
                         }
                         .buttonStyle(.plain)
                     }
+                }
+
+                SettingsRow(showSeparator: false) {
+                    SettingsRowLabel(
+                        title: localized("Voice isolation", locale: locale),
+                        subtitle: localized("Reduce background noise before transcription", locale: locale)
+                    )
+                } control: {
+                    SettingsToggle(
+                        isOn: $settings.voiceIsolationEnabled,
+                        label: localized("Voice isolation", locale: locale)
+                    )
+                    .accessibilityIdentifier("settings.toggle.voiceIsolation")
                 }
             }
 
