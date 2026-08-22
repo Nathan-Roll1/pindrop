@@ -3905,6 +3905,53 @@ struct CaptureSessionStoreTests {
         )
     }
 
+    @Test func discardingAnEmptyAnchorNoteRemovesTheNoteAndItsReference() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+        let handle = try store.startNoteCapture(includeSystemAudio: false, intent: noteIntent())
+        let anchor = try store.ensureMeetingHumanAnchor(handle, title: "Untitled Note")
+
+        #expect(try store.discardEmptyCaptureAnchorNote(handle))
+
+        let context = ModelContext(container)
+        #expect(try context.fetch(FetchDescriptor<Note>()).allSatisfy { $0.id != anchor.noteID })
+        #expect(
+            try context.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+                .filter { $0.sessionID == handle.sessionID }
+                .isEmpty
+        )
+        #expect(try store.meetingHumanAnchor(handle) == nil)
+    }
+
+    @Test func discardingAnAnchorNoteKeepsAnythingSomebodyPutInIt() throws {
+        let container = try makeContainer()
+        let store = makeStore(in: container)
+
+        let typed = try store.startNoteCapture(includeSystemAudio: false, intent: noteIntent())
+        let typedAnchor = try store.ensureMeetingHumanAnchor(typed, title: "Untitled Note")
+        let writeContext = ModelContext(container)
+        let typedNote = try #require(
+            try writeContext.fetch(FetchDescriptor<Note>())
+                .first { $0.id == typedAnchor.noteID }
+        )
+        typedNote.content = "roof quotes are due friday"
+        try writeContext.save()
+        #expect(try store.discardEmptyCaptureAnchorNote(typed) == false)
+        #expect(try store.meetingHumanAnchor(typed)?.noteID == typedAnchor.noteID)
+
+        let pinned = try store.startNoteCapture(includeSystemAudio: false, intent: noteIntent())
+        let pinnedAnchor = try store.ensureMeetingHumanAnchor(pinned, title: "Untitled Note")
+        let pinContext = ModelContext(container)
+        let pinnedNote = try #require(
+            try pinContext.fetch(FetchDescriptor<Note>())
+                .first { $0.id == pinnedAnchor.noteID }
+        )
+        pinnedNote.isPinned = true
+        try pinContext.save()
+        #expect(try store.discardEmptyCaptureAnchorNote(pinned) == false)
+        #expect(try store.meetingHumanAnchor(pinned)?.noteID == pinnedAnchor.noteID)
+    }
+
     @Test func generatedNotePreflightRejectsNonExecutableAssignmentsAndUnresolvedPrompts() throws {
         let container = try makeContainer()
         let store = makeStore(in: container)

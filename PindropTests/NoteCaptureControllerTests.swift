@@ -42,6 +42,7 @@ struct NoteCaptureControllerTests {
         private(set) var createdNoteIDs: [UUID] = []
         private(set) var producedRecordIDs: [UUID] = []
         private(set) var observedErrors: [Error] = []
+        private(set) var noSpeechReports = 0
         private(set) var progressDetails: [String] = []
         private(set) var activatedModels: [String] = []
         private var nextClaimID: UInt64 = 0
@@ -67,6 +68,7 @@ struct NoteCaptureControllerTests {
         func captureDidBegin(startedAt: Date) { didBeginAt = startedAt }
         func captureDidEnterProcessing() { didEnterProcessing = true }
         func captureDidEnd(message: String?) { endMessages.append(message) }
+        func captureDidFinishWithoutSpeech() { noSpeechReports += 1 }
 
         func activateBatchModel(named name: String, providerIdentifier: String) async throws {
             activatedModels.append(name)
@@ -512,6 +514,208 @@ struct NoteCaptureControllerTests {
         #expect(anchor.noteID != recordID)
     }
 
+    // MARK: - Quick capture delivery
+
+    @Test func quickCaptureWritesItsTranscriptIntoTheNoteItCreated() async throws {
+        let fixture = try makeFixture()
+        let handle = try fixture.captureSessionStore.startNoteCapture(
+            includeSystemAudio: false,
+            intent: CaptureIntentRequest(destination: .newNote, origin: .hotkey)
+        )
+        let anchor = try fixture.captureSessionStore.ensureMeetingHumanAnchor(
+            handle,
+            title: "Untitled Note"
+        )
+        try freezeAssignments(in: fixture.captureSessionStore, sessionID: handle.sessionID)
+        try fixture.captureSessionStore.checkpointVoiceNoteLiveTranscript(
+            for: handle,
+            committedText: "call the roofer back on Tuesday"
+        )
+        try fixture.captureSessionStore.beginMeetingFinalization(handle)
+        try recordOneSealedChunk(in: fixture.captureSessionStore, handle: handle)
+        try fixture.captureSessionStore.finishMeetingSources(handle, sourceFailures: [])
+
+        try await fixture.controller.finalize(
+            handle,
+            spoolPlan: makeSpoolPlan(fixture, handle: handle),
+            expectedSpeakerCount: nil,
+            operationGuard: {}
+        )
+
+        let note = try fixture.notesStore.fetch(id: anchor.noteID)
+        #expect(note.content == "call the roofer back on Tuesday")
+        // The default title is replaced so the note is findable in the list.
+        #expect(note.title != "Untitled Note")
+        #expect(!note.title.isEmpty)
+    }
+
+    @Test func quickCaptureDeliveryNeverOverwritesWhatSomebodyTyped() async throws {
+        let fixture = try makeFixture()
+        let typed = try await fixture.notesStore.create(
+            title: "Roof",
+            content: "quotes are due friday"
+        )
+        let handle = try fixture.captureSessionStore.startNoteCapture(
+            includeSystemAudio: false,
+            intent: CaptureIntentRequest(
+                destination: .existingNote,
+                destinationNoteID: typed.id,
+                origin: .hotkey
+            )
+        )
+        _ = try fixture.captureSessionStore.ensureMeetingHumanAnchor(handle, noteID: typed.id)
+        try freezeAssignments(in: fixture.captureSessionStore, sessionID: handle.sessionID)
+        try fixture.captureSessionStore.checkpointVoiceNoteLiveTranscript(
+            for: handle,
+            committedText: "call the roofer back on Tuesday"
+        )
+        try fixture.captureSessionStore.beginMeetingFinalization(handle)
+        try recordOneSealedChunk(in: fixture.captureSessionStore, handle: handle)
+        try fixture.captureSessionStore.finishMeetingSources(handle, sourceFailures: [])
+
+        try await fixture.controller.finalize(
+            handle,
+            spoolPlan: makeSpoolPlan(fixture, handle: handle),
+            expectedSpeakerCount: nil,
+            operationGuard: {}
+        )
+
+        let note = try fixture.notesStore.fetch(id: typed.id)
+        #expect(note.content == "quotes are due friday")
+        #expect(note.title == "Roof")
+    }
+
+    @Test func aSilentQuickCaptureLeavesNoNoteAndNoErrorToDismiss() async throws {
+        let fixture = try makeFixture()
+        let noteID = try await fixture.controller.startNote(
+            request: NoteCaptureRequest(includeSystemAudio: false),
+            origin: .hotkey
+        )
+        #expect(try fixture.notesStore.contains(id: noteID))
+
+        // Nothing was recorded, so finalization finds no transcript. That is not
+        // a failure the person has to dismiss: it is one line, and the note the
+        // capture made for itself goes away with it.
+        try await fixture.controller.stop()
+
+        #expect(!(try fixture.notesStore.contains(id: noteID)))
+        #expect(fixture.arbiter.noSpeechReports == 1)
+        #expect(fixture.arbiter.endMessages == [nil])
+        #expect(fixture.state.phase == .idle)
+        #expect(fixture.state.noteID == nil)
+        #expect(!fixture.controller.isActive)
+    }
+
+    @Test func aSilentMainWindowCaptureKeepsItsNoteAndReportsTheFailure() async throws {
+        let fixture = try makeFixture()
+        let noteID = try await fixture.controller.startNote(
+            request: NoteCaptureRequest(includeSystemAudio: false),
+            origin: .mainWindow
+        )
+
+        await #expect(throws: NoteCaptureController.NoteCaptureError.noRetainedSources) {
+            try await fixture.controller.stop()
+        }
+
+        // The note is on screen and may already hold typed notes, so it stays.
+        #expect(try fixture.notesStore.contains(id: noteID))
+        #expect(fixture.arbiter.noSpeechReports == 0)
+        #expect(fixture.state.failureMessage != nil)
+    }
+
+    // MARK: - Startup recovery
+
+    @Test func recoveryCurrencyIsGenerationAndHandleExact() {
+        let activeHandle = NoteCaptureHandle(
+            sessionID: UUID(),
+            microphoneSourceID: UUID(),
+            systemAudioSourceID: UUID()
+        )
+        let differentHandle = NoteCaptureHandle(
+            sessionID: activeHandle.sessionID,
+            microphoneSourceID: activeHandle.microphoneSourceID,
+            systemAudioSourceID: UUID()
+        )
+
+        #expect(NoteCaptureController.isRecoveryCurrent(
+            activeGeneration: 4,
+            candidateGeneration: 4,
+            activeHandle: activeHandle,
+            candidateHandle: activeHandle
+        ))
+        #expect(!NoteCaptureController.isRecoveryCurrent(
+            activeGeneration: 4,
+            candidateGeneration: 3,
+            activeHandle: activeHandle,
+            candidateHandle: activeHandle
+        ))
+        #expect(!NoteCaptureController.isRecoveryCurrent(
+            activeGeneration: 4,
+            candidateGeneration: 4,
+            activeHandle: activeHandle,
+            candidateHandle: differentHandle
+        ))
+    }
+
+    @Test func cancelledRecoveryAfterAwaitCannotMutateStore() {
+        let handle = NoteCaptureHandle(
+            sessionID: UUID(),
+            microphoneSourceID: UUID(),
+            systemAudioSourceID: UUID()
+        )
+
+        #expect(!NoteCaptureController.shouldApplyRecoveryMutation(
+            isCancelled: true,
+            isHostStopping: false,
+            activeGeneration: 8,
+            candidateGeneration: 8,
+            activeHandle: handle,
+            candidateHandle: handle
+        ))
+        #expect(!NoteCaptureController.shouldApplyRecoveryMutation(
+            isCancelled: false,
+            isHostStopping: true,
+            activeGeneration: 8,
+            candidateGeneration: 8,
+            activeHandle: handle,
+            candidateHandle: handle
+        ))
+        #expect(NoteCaptureController.shouldApplyRecoveryMutation(
+            isCancelled: false,
+            isHostStopping: false,
+            activeGeneration: 8,
+            candidateGeneration: 8,
+            activeHandle: handle,
+            candidateHandle: handle
+        ))
+    }
+
+    @Test func recoveryContinuesPastCorruptCandidateButStopsForCancellation() {
+        struct CorruptArtifact: Error {}
+
+        #expect(NoteCaptureController.shouldContinueRecovery(after: CorruptArtifact()))
+        #expect(!NoteCaptureController.shouldContinueRecovery(after: CancellationError()))
+    }
+
+    @Test func recoveryLeavesMicrophoneOnlyCapturesForTheirDeliveryStep() async throws {
+        let fixture = try makeFixture()
+        _ = try await fixture.controller.startNote(
+            request: NoteCaptureRequest(includeSystemAudio: false),
+            origin: .hotkey
+        )
+        await fixture.controller.checkpointForTermination()
+        #expect(try fixture.captureSessionStore.noteCaptureRecoveryCandidates().count == 1)
+
+        await fixture.controller.recoverInterruptedCaptures()
+
+        // Delivering a recovered microphone-only note is P7's job. Until then the
+        // session stays interrupted rather than being finalized with nowhere
+        // agreed to put its transcript.
+        let session = try #require(try sessions(in: fixture.container).first)
+        #expect(session.stateRawValue == CaptureSessionState.interrupted.rawValue)
+        #expect(try fixture.captureSessionStore.noteCaptureRecoveryCandidates().count == 1)
+    }
+
     // MARK: - Observable state
 
     @Test func stateWalksIdleToCapturingToFinalizingToCompleted() {
@@ -519,8 +723,9 @@ struct NoteCaptureControllerTests {
         #expect(state.phase == .idle)
         #expect(!state.isActive)
 
-        state.beginStarting(includesSystemAudio: false)
+        state.beginStarting(includesSystemAudio: false, origin: .mainWindow)
         #expect(state.phase == .starting)
+        #expect(state.origin == .mainWindow)
         state.beginCapturing(startedAt: .now)
         #expect(state.phase == .capturing)
         #expect(state.isActive)
@@ -542,7 +747,7 @@ struct NoteCaptureControllerTests {
 
     @Test func stateKeepsFailureTextAndDegradedLiveTranscriptFlag() {
         let state = NoteCaptureState()
-        state.beginStarting(includesSystemAudio: true)
+        state.beginStarting(includesSystemAudio: true, origin: .hotkey)
         state.updateLiveTranscript("half a sentence")
         state.markLiveTranscriptDegraded()
 
@@ -555,6 +760,43 @@ struct NoteCaptureControllerTests {
     }
 
     // MARK: - Helpers
+
+    private func makeSpoolPlan(
+        _ fixture: Fixture,
+        handle: NoteCaptureHandle
+    ) -> MeetingCaptureSpoolPlan {
+        MeetingCaptureSpoolPlan(
+            libraryRootURL: fixture.libraryRoot,
+            sessionID: handle.sessionID,
+            microphoneSourceID: handle.microphoneSourceID,
+            systemAudioSourceID: handle.systemAudioSourceID
+        )
+    }
+
+    /// One sealed microphone chunk, so finalization has a source window to work
+    /// against without any audio existing on disk.
+    private func recordOneSealedChunk(
+        in store: CaptureSessionStore,
+        handle: NoteCaptureHandle
+    ) throws {
+        try store.recordSealedMeetingChunk(
+            handle,
+            checkpoint: MeetingChunkCheckpoint(
+                sourceID: handle.microphoneSourceID,
+                sequence: 0,
+                startOffset: 0,
+                duration: MeetingCaptureSpoolPlan.chunkDuration,
+                managedMediaPath: CaptureSourceArtifactPath.relativePath(
+                    sessionID: handle.sessionID,
+                    sourceID: handle.microphoneSourceID,
+                    chunkSequence: 0
+                ),
+                byteCount: MeetingCaptureSpoolPlan.defaultChunkByteCount,
+                sha256: String(format: "%064x", 1),
+                sealedAt: .now
+            )
+        )
+    }
 
     /// Freezes the four start assignments so finalization runs without asking
     /// settings for a provider. The final-transcription stage is deliberately

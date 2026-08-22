@@ -19,17 +19,19 @@ import PindropData
 struct AppCoordinatorContextFlowTests {
     @Test func recordingStopRoutePreservesEveryRecordingMode() {
         let editorID = UUID()
-        #expect(RecordingStopRoute.resolve(isQuickCapture: false, noteAppendEditorID: nil, isManualTranscription: false) == .dictation)
-        #expect(RecordingStopRoute.resolve(isQuickCapture: true, noteAppendEditorID: nil, isManualTranscription: false) == .quickCapture)
-        #expect(RecordingStopRoute.resolve(isQuickCapture: false, noteAppendEditorID: editorID, isManualTranscription: false) == .noteAppend(editorID))
-        #expect(RecordingStopRoute.resolve(isQuickCapture: false, noteAppendEditorID: nil, isManualTranscription: true) == .manualTranscription)
+        #expect(RecordingStopRoute.resolve(noteAppendEditorID: nil, isNoteCapture: false) == .dictation)
+        #expect(RecordingStopRoute.resolve(noteAppendEditorID: editorID, isNoteCapture: false) == .noteAppend(editorID))
+        #expect(RecordingStopRoute.resolve(noteAppendEditorID: nil, isNoteCapture: true) == .noteCapture)
+        // Note-append owns the stop even while a note capture is active: an open
+        // editor's speak-to-append session is the one being finished.
+        #expect(RecordingStopRoute.resolve(noteAppendEditorID: editorID, isNoteCapture: true) == .noteAppend(editorID))
     }
 
     @Test func voiceIsolationRouteMatrixKeepsNonDictationAudioRaw() {
         let enabledRoutes: [CoordinatorTranscriptionRoute] = [
             .dictation,
             .noteAppend,
-            .quickCapture,
+            .manualCapture(.microphone),
         ]
         for route in enabledRoutes {
             #expect(
@@ -47,7 +49,6 @@ struct AppCoordinatorContextFlowTests {
         }
 
         let excludedRoutes: [CoordinatorTranscriptionRoute] = [
-            .manualCapture(.microphone),
             .manualCapture(.systemAudio),
             .manualCapture(.microphoneAndSystemAudio),
             .importedMedia,
@@ -67,11 +68,11 @@ struct AppCoordinatorContextFlowTests {
 
         let first = admission.claim(.dictation)
         #expect(first?.route == .dictation)
-        #expect(admission.claim(.quickCapture) == nil)
+        #expect(admission.claim(.noteCapture) == nil)
         if let first {
             admission.release(first)
         }
-        #expect(admission.claim(.quickCapture)?.route == .quickCapture)
+        #expect(admission.claim(.noteCapture)?.route == .noteCapture)
     }
 
     @Test func recordingStopAdmissionCancellationReleasesImmediatelyForNewClaim() {
@@ -81,18 +82,18 @@ struct AppCoordinatorContextFlowTests {
 
         // Cancel frees the gate even while the old stop task is still alive.
         admission.invalidateCurrentClaim()
-        let second = admission.claim(.quickCapture)
-        #expect(second?.route == .quickCapture)
+        let second = admission.claim(.noteCapture)
+        #expect(second?.route == .noteCapture)
 
         // Stale deferred release from the cancelled stop must not clear the new claim.
         if let first {
             admission.release(first)
         }
-        #expect(admission.claim(.manualTranscription) == nil)
+        #expect(admission.claim(.noteCapture) == nil)
         if let second {
             admission.release(second)
         }
-        #expect(admission.claim(.manualTranscription)?.route == .manualTranscription)
+        #expect(admission.claim(.noteCapture)?.route == .noteCapture)
     }
 
     @Test func recordingStopAdmissionStaleReleaseDoesNotClearNewerClaim() throws {
@@ -100,7 +101,7 @@ struct AppCoordinatorContextFlowTests {
         let first = try #require(admission.claim(.dictation))
         admission.release(first)
 
-        let second = try #require(admission.claim(.quickCapture))
+        let second = try #require(admission.claim(.noteCapture))
         // Releasing an already-finished claim is a no-op against the newer lease.
         admission.release(first)
         #expect(admission.claim(.noteAppend(UUID())) == nil)
@@ -404,15 +405,13 @@ struct AppCoordinatorContextFlowTests {
         )
     }
 
-    @Test func meetingRecoveryAdmissionAndGenerationAreExact() {
+    /// Scheduling admission stays with the shell: it decides when recovery may
+    /// run. What a recovery pass does, and whether one is still current, moved
+    /// onto `NoteCaptureController` (see `NoteCaptureControllerTests`).
+    @Test func meetingRecoveryAdmissionIsExact() {
         let activeHandle = NoteCaptureHandle(
             sessionID: UUID(),
             microphoneSourceID: UUID(),
-            systemAudioSourceID: UUID()
-        )
-        let differentHandle = NoteCaptureHandle(
-            sessionID: activeHandle.sessionID,
-            microphoneSourceID: activeHandle.microphoneSourceID,
             systemAudioSourceID: UUID()
         )
 
@@ -435,25 +434,6 @@ struct AppCoordinatorContextFlowTests {
             activeHandle: nil,
             recoveryTaskActive: false,
             isShutdown: true
-        ))
-
-        #expect(AppCoordinator.isMeetingRecoveryCurrent(
-            activeGeneration: 4,
-            candidateGeneration: 4,
-            activeHandle: activeHandle,
-            candidateHandle: activeHandle
-        ))
-        #expect(!AppCoordinator.isMeetingRecoveryCurrent(
-            activeGeneration: 4,
-            candidateGeneration: 3,
-            activeHandle: activeHandle,
-            candidateHandle: activeHandle
-        ))
-        #expect(!AppCoordinator.isMeetingRecoveryCurrent(
-            activeGeneration: 4,
-            candidateGeneration: 4,
-            activeHandle: activeHandle,
-            candidateHandle: differentHandle
         ))
     }
 
@@ -809,7 +789,7 @@ struct AppCoordinatorContextFlowTests {
         let admission = RecordingStopAdmission()
 
         let firstToken = controller.begin()
-        let firstClaim = admission.claim(.manualTranscription)
+        let firstClaim = admission.claim(.noteCapture)
         #expect(firstClaim != nil)
 
         // Cancel operation and free admission so a newer manual job can start.
@@ -818,7 +798,7 @@ struct AppCoordinatorContextFlowTests {
         #expect(controller.isCurrent(firstToken) == false)
 
         let secondToken = controller.begin()
-        let secondClaim = admission.claim(.manualTranscription)
+        let secondClaim = admission.claim(.noteCapture)
         #expect(secondClaim != nil)
         #expect(controller.isCurrent(secondToken))
 
@@ -1016,13 +996,12 @@ struct AppCoordinatorContextFlowTests {
     }
 
     @Test func shouldUseStreamingTranscriptionTruthTable() {
-        // Baseline: streaming enabled, indicator available, not quick-capture → stream.
+        // Baseline: streaming enabled, indicator available → stream.
         // Output mode no longer gates — the live transcript renders in the overlay, and
         // the final text lands via output() per mode (clipboard users stream too).
         #expect(
             AppCoordinator.shouldUseStreamingTranscription(
                 streamingFeatureEnabled: true,
-                isQuickCaptureMode: false,
                 floatingIndicatorAvailable: true
             )
         )
@@ -1031,7 +1010,6 @@ struct AppCoordinatorContextFlowTests {
         #expect(
             AppCoordinator.shouldUseStreamingTranscription(
                 streamingFeatureEnabled: false,
-                isQuickCaptureMode: false,
                 floatingIndicatorAvailable: true
             ) == false
         )
@@ -1042,17 +1020,16 @@ struct AppCoordinatorContextFlowTests {
         #expect(
             AppCoordinator.shouldUseStreamingTranscription(
                 streamingFeatureEnabled: true,
-                isQuickCaptureMode: false,
                 floatingIndicatorAvailable: false
             ) == false
         )
 
-        // Quick-capture mode → never stream.
+        // Note-append listening → never stream; the in-editor chip is the surface.
         #expect(
             AppCoordinator.shouldUseStreamingTranscription(
                 streamingFeatureEnabled: true,
-                isQuickCaptureMode: true,
-                floatingIndicatorAvailable: true
+                floatingIndicatorAvailable: true,
+                isNoteAppendMode: true
             ) == false
         )
     }
@@ -1242,31 +1219,6 @@ struct AppCoordinatorContextFlowTests {
         )
 
         #expect(events == ["prepared", "shutdown", "reply"])
-    }
-
-    @Test func cancelledRecoveryAfterAwaitCannotMutateStore() {
-        let handle = NoteCaptureHandle(
-            sessionID: UUID(),
-            microphoneSourceID: UUID(),
-            systemAudioSourceID: UUID()
-        )
-
-        #expect(!AppCoordinator.shouldApplyMeetingRecoveryMutation(
-            isCancelled: true,
-            isShutdown: false,
-            isPreparingForTermination: false,
-            activeGeneration: 8,
-            candidateGeneration: 8,
-            activeHandle: handle,
-            candidateHandle: handle
-        ))
-    }
-
-    @Test func recoveryContinuesPastCorruptCandidateButStopsForCancellation() {
-        struct CorruptArtifact: Error {}
-
-        #expect(AppCoordinator.shouldContinueMeetingRecovery(after: CorruptArtifact()))
-        #expect(!AppCoordinator.shouldContinueMeetingRecovery(after: CancellationError()))
     }
 
 }

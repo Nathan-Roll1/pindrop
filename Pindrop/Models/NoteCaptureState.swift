@@ -11,6 +11,7 @@
 //
 
 import Foundation
+import PindropCore
 
 @MainActor
 @Observable
@@ -42,6 +43,10 @@ final class NoteCaptureState {
     /// before audio starts, so the UI can open the note while it is still empty.
     private(set) var noteID: UUID?
     private(set) var sessionID: UUID?
+    /// What asked for this capture. The shell reads it to decide where finished
+    /// output lands: a capture started from the main window is already on
+    /// screen, a hotkey capture must not pull a window forward mid-sentence.
+    private(set) var origin: CaptureIntentOrigin?
     private(set) var includesSystemAudio = false
     private(set) var startedAt: Date?
     private(set) var audioLevel: Float = 0
@@ -80,9 +85,10 @@ final class NoteCaptureState {
 
     // MARK: - Transitions
 
-    func beginStarting(includesSystemAudio: Bool) {
+    func beginStarting(includesSystemAudio: Bool, origin: CaptureIntentOrigin) {
         phase = .starting
         self.includesSystemAudio = includesSystemAudio
+        self.origin = origin
         noteID = nil
         sessionID = nil
         startedAt = nil
@@ -94,6 +100,13 @@ final class NoteCaptureState {
 
     func bindNote(id: UUID) {
         noteID = id
+    }
+
+    /// Forgets which note the capture wrote to. Used when the capture removed
+    /// the note it had created for itself, so nothing points at a note that no
+    /// longer exists.
+    func clearNote() {
+        noteID = nil
     }
 
     func bindSession(id: UUID) {

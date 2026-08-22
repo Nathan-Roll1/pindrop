@@ -681,6 +681,12 @@ public final class CaptureSessionStore {
         try save(context)
     }
 
+    /// Starts a legacy `voiceNote` capture.
+    ///
+    /// Deprecated for production use: every capture now starts through
+    /// `startNoteCapture`. This creator survives so the suites that read legacy
+    /// `voiceNote` rows can still write one, and it must keep producing exactly
+    /// the shape those stores hold today.
     @discardableResult
     public func startVoiceNoteCapture(
         startedAt: Date = Date(),
@@ -710,7 +716,12 @@ public final class CaptureSessionStore {
             microphoneSourceID: microphoneSource.id
         )
     }
-    /// Starts a legacy `meeting` capture. New captures use `startNoteCapture`.
+    /// Starts a legacy `meeting` capture.
+    ///
+    /// Deprecated for production use: every capture now starts through
+    /// `startNoteCapture`. This creator survives so the suites that read legacy
+    /// `meeting` rows (and the UI-test fixture in `AppTestMode`) can still write
+    /// one.
     @discardableResult
     public func startMeetingCapture(
         startedAt: Date = Date(),
@@ -1564,6 +1575,44 @@ public final class CaptureSessionStore {
         let context = ModelContext(modelContainer)
         _ = try fetchOwnedNoteCapture(for: handle, in: context)
         return try validMeetingHumanAnchor(sessionID: handle.sessionID, in: context)
+    }
+
+    /// Removes the anchor note a capture created for itself when that capture
+    /// produced nothing.
+    ///
+    /// A capture creates its note before audio starts so the person can type
+    /// into it immediately. When the recording turns out to be silent, that note
+    /// would otherwise stay behind as an empty row nobody asked for.
+    ///
+    /// Nothing a person could have written is ever removed: the note is
+    /// discarded only while it is still untouched (no content, no tags, no
+    /// pin, no linked transcription) and only while this capture owns the sole
+    /// note reference. Returns `true` when the note was removed.
+    @discardableResult
+    public func discardEmptyCaptureAnchorNote(
+        _ handle: NoteCaptureHandle
+    ) throws -> Bool {
+        let context = ModelContext(modelContainer)
+        _ = try fetchOwnedNoteCapture(for: handle, in: context)
+        let references = try meetingNoteReferences(sessionID: handle.sessionID, in: context)
+        guard references.count == 1,
+              let reference = references.first,
+              (try? reference.resolvedRole()) == .humanAnchor else {
+            return false
+        }
+        guard let note = try fetchNote(id: reference.noteID, in: context) else {
+            return false
+        }
+        guard note.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              note.tags.isEmpty,
+              !note.isPinned,
+              note.sourceTranscriptionID == nil else {
+            return false
+        }
+        context.delete(reference)
+        context.delete(note)
+        try save(context)
+        return true
     }
 
     /// Validates the reservation and immutable provenance required for generated output.

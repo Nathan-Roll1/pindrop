@@ -76,6 +76,10 @@ protocol CaptureArbiter: AnyObject {
     func captureDidEnterProcessing()
     func captureDidEnd(message: String?)
 
+    /// The capture finished with nothing to transcribe. Silence is not a failure
+    /// the person has to dismiss, so the host says so once and moves on.
+    func captureDidFinishWithoutSpeech()
+
     // MARK: - Shell collaborators
 
     /// The batch model currently loaded, so an assignment that names the same

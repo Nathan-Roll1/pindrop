@@ -290,7 +290,7 @@ final class NoteCaptureController {
         let claim = try arbiter.claimCapture()
         defer { arbiter.release(claim) }
 
-        state.beginStarting(includesSystemAudio: request.includeSystemAudio)
+        state.beginStarting(includesSystemAudio: request.includeSystemAudio, origin: origin)
         do {
             return try await performStart(request: request, origin: origin, claim: claim)
         } catch {
@@ -460,7 +460,7 @@ final class NoteCaptureController {
 
         let anchor = try captureSessionStore.ensureMeetingHumanAnchor(
             handle,
-            title: localized("Untitled Note", locale: settingsStore.selectedAppLocale.locale),
+            title: untitledNoteTitle,
             at: timestamp
         )
         bindIntentDestination(sessionID: handle.sessionID, noteID: anchor.noteID)
@@ -555,6 +555,18 @@ final class NoteCaptureController {
             // The record notification already posts the success message; a
             // second one here would overwrite it with the same text.
             arbiter.captureDidProduceRecord(id: recordID)
+            arbiter.captureDidEnd(message: nil)
+        } catch NoteCaptureError.noRetainedSources where isQuickCapture(context.handle) {
+            // Quick capture is speak-and-get-a-note. Before the durable path
+            // owned this flow, silence produced no note at all: the person heard
+            // one "no speech" line and nothing was filed. The durable path
+            // creates the note up front, so that outcome now means taking the
+            // untouched note back out.
+            clearContext(ifCurrent: context)
+            discardEmptyQuickCaptureNote(context.handle)
+            state.clearNote()
+            state.reset()
+            arbiter.captureDidFinishWithoutSpeech()
             arbiter.captureDidEnd(message: nil)
         } catch is CancellationError {
             // A lifecycle interruption retains the session for startup recovery.
@@ -782,6 +794,220 @@ final class NoteCaptureController {
                 )
             }
         }
+    }
+
+    // MARK: - Startup recovery
+
+    private var recoveryGeneration: UInt64 = 0
+    private var recoveryHandle: PindropCore.NoteCaptureHandle?
+
+    /// Finishes the captures an interruption left behind, and reclaims the media
+    /// of captures the person cancelled.
+    ///
+    /// The host owns when this runs (once per launch, never while a capture is
+    /// live); the lifecycle owns what it does, because every step here is the
+    /// same durable step a live finish takes.
+    ///
+    /// Only captures that recorded system audio are recovered. A microphone-only
+    /// note keeps its interrupted session instead: the plan defers delivering
+    /// those to P7, and finalizing one now would produce a transcript with
+    /// nowhere agreed to put it.
+    func recoverInterruptedCaptures() async {
+        recoveryGeneration &+= 1
+        let generation = recoveryGeneration
+        defer {
+            if recoveryGeneration == generation {
+                recoveryHandle = nil
+            }
+        }
+
+        let cancelledSessionIDs: [UUID]
+        do {
+            cancelledSessionIDs = try captureSessionStore.cancelledNoteCaptureSessionIDs()
+        } catch {
+            cancelledSessionIDs = []
+            Log.app.warning(
+                "Cancelled note capture cleanup candidates unavailable: \(error.localizedDescription)"
+            )
+        }
+
+        for sessionID in cancelledSessionIDs {
+            do {
+                try Task.checkCancellation()
+                guard !arbiter.isCaptureHostStopping, recoveryGeneration == generation else {
+                    throw CancellationError()
+                }
+                try await mediaIngestionService.removeMeetingCaptureArtifacts(for: sessionID)
+            } catch is CancellationError {
+                return
+            } catch {
+                Log.app.warning(
+                    "Cancelled note capture cleanup deferred for \(sessionID.uuidString): \(error.localizedDescription)"
+                )
+            }
+        }
+
+        let candidates: [PindropData.NoteCaptureRecoverySnapshot]
+        do {
+            candidates = try captureSessionStore.meetingRecoveryCandidates()
+        } catch {
+            Log.app.warning("Note capture recovery candidates unavailable: \(error.localizedDescription)")
+            return
+        }
+
+        for candidate in candidates {
+            do {
+                try Task.checkCancellation()
+                guard !arbiter.isCaptureHostStopping, recoveryGeneration == generation else {
+                    throw CancellationError()
+                }
+                recoveryHandle = candidate.handle
+                try await recover(candidate.handle, generation: generation)
+            } catch let failure as MeetingNoteGenerationFailure {
+                guard Self.shouldContinueRecovery(after: failure) else { return }
+                guard isRecoveryCurrent(generation: generation, handle: candidate.handle) else {
+                    return
+                }
+                Log.app.warning(
+                    "Note capture recovery deferred note generation for \(candidate.handle.sessionID.uuidString): \(failure.message)"
+                )
+            } catch {
+                guard Self.shouldContinueRecovery(after: error) else { return }
+                guard isRecoveryCurrent(generation: generation, handle: candidate.handle) else {
+                    return
+                }
+                let nsError = error as NSError
+                try? captureSessionStore.recordMeetingFinalizationFailure(
+                    candidate.handle,
+                    stage: .finalTranscription,
+                    domain: nsError.domain,
+                    code: String(nsError.code),
+                    message: error.localizedDescription,
+                    retryable: true,
+                    at: .now
+                )
+                Log.app.warning(
+                    "Note capture recovery deferred for \(candidate.handle.sessionID.uuidString): \(error.localizedDescription)"
+                )
+            }
+        }
+    }
+
+    /// Runs one recovered capture through the same durable steps a live finish
+    /// takes: anchor, interruption record, finalization inventory, then finalize.
+    private func recover(
+        _ handle: PindropCore.NoteCaptureHandle,
+        generation: UInt64
+    ) async throws {
+        let operationGuard: () throws -> Void = { [self] in
+            try ensureRecoveryCurrent(generation: generation, handle: handle)
+        }
+
+        try operationGuard()
+        _ = try captureSessionStore.ensureMeetingHumanAnchor(
+            handle,
+            title: untitledNoteTitle,
+            at: .now
+        )
+        try operationGuard()
+        try captureSessionStore.interruptMeetingCapture(
+            handle,
+            errorDomain: "Pindrop",
+            errorCode: "startup-recovery",
+            message: "Recovered after application interruption.",
+            at: .now
+        )
+        try operationGuard()
+        try captureSessionStore.recoverMeetingForFinalization(handle, at: .now)
+
+        let spoolPlan = try await mediaIngestionService.makeMeetingCaptureSpoolPlan(
+            sessionID: handle.sessionID,
+            microphoneSourceID: handle.microphoneSourceID,
+            systemAudioSourceID: handle.systemAudioSourceID
+        )
+        try operationGuard()
+        let recovery = try await reconcileArtifacts(
+            handle: handle,
+            spoolPlan: spoolPlan,
+            operationGuard: operationGuard
+        )
+        try operationGuard()
+        try finishSources(
+            handle: handle,
+            artifacts: recovery.sealedChunks,
+            recoveryFailures: recovery.failures,
+            stopResult: nil
+        )
+        try operationGuard()
+        // A recovered capture has no live speaker-count selection to honor.
+        try await finalize(
+            handle,
+            spoolPlan: spoolPlan,
+            expectedSpeakerCount: nil,
+            operationGuard: operationGuard
+        )
+    }
+
+    /// Invalidates any recovery pass still in flight, so a shutdown cannot race
+    /// a durable write from work that is already on its way out.
+    func invalidateRecovery() {
+        recoveryGeneration &+= 1
+        recoveryHandle = nil
+    }
+
+    private func isRecoveryCurrent(
+        generation: UInt64,
+        handle: PindropCore.NoteCaptureHandle
+    ) -> Bool {
+        Self.shouldApplyRecoveryMutation(
+            isCancelled: Task.isCancelled,
+            isHostStopping: arbiter.isCaptureHostStopping,
+            activeGeneration: recoveryGeneration,
+            candidateGeneration: generation,
+            activeHandle: recoveryHandle,
+            candidateHandle: handle
+        )
+    }
+
+    private func ensureRecoveryCurrent(
+        generation: UInt64,
+        handle: PindropCore.NoteCaptureHandle
+    ) throws {
+        try Task.checkCancellation()
+        guard isRecoveryCurrent(generation: generation, handle: handle) else {
+            throw CancellationError()
+        }
+    }
+
+    static func isRecoveryCurrent(
+        activeGeneration: UInt64,
+        candidateGeneration: UInt64,
+        activeHandle: PindropCore.NoteCaptureHandle?,
+        candidateHandle: PindropCore.NoteCaptureHandle
+    ) -> Bool {
+        activeGeneration == candidateGeneration && activeHandle == candidateHandle
+    }
+
+    static func shouldApplyRecoveryMutation(
+        isCancelled: Bool,
+        isHostStopping: Bool,
+        activeGeneration: UInt64,
+        candidateGeneration: UInt64,
+        activeHandle: PindropCore.NoteCaptureHandle?,
+        candidateHandle: PindropCore.NoteCaptureHandle
+    ) -> Bool {
+        !isCancelled
+            && !isHostStopping
+            && isRecoveryCurrent(
+                activeGeneration: activeGeneration,
+                candidateGeneration: candidateGeneration,
+                activeHandle: activeHandle,
+                candidateHandle: candidateHandle
+            )
+    }
+
+    static func shouldContinueRecovery(after error: Error) -> Bool {
+        !isTaskCancellation(error)
     }
 
     // MARK: - Live signals
@@ -1203,6 +1429,7 @@ final class NoteCaptureController {
                     )
                 }
             )
+            deliverQuickCaptureTranscript(handle, text: finalText)
         } catch is CancellationError {
             throw CancellationError()
         } catch let failure as MeetingNoteGenerationFailure {
@@ -1299,6 +1526,7 @@ final class NoteCaptureController {
                 )
             }
         )
+        deliverQuickCaptureTranscript(handle, text: finalText)
     }
 
     private func transcribeWorkItem(
@@ -1535,6 +1763,66 @@ final class NoteCaptureController {
         } catch {
             Log.app.warning(
                 "Failed to bind capture intent to its note: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    // MARK: - Quick capture delivery
+
+    /// The title an anchor note is created with, and the only title this
+    /// controller is allowed to replace.
+    private var untitledNoteTitle: String {
+        localized("Untitled Note", locale: settingsStore.selectedAppLocale.locale)
+    }
+
+    /// True when the durable intent says the hotkey asked for this capture.
+    ///
+    /// Read from the persisted intent rather than from live state so a
+    /// superseded stop, a recovered capture, and the start itself all get the
+    /// same answer.
+    private func isQuickCapture(_ handle: PindropCore.NoteCaptureHandle) -> Bool {
+        let intent = (try? captureSessionStore.fetchCaptureIntent(sessionID: handle.sessionID)) ?? nil
+        return intent?.origin == .hotkey
+    }
+
+    /// Writes a finished quick capture's transcript into the note it created.
+    ///
+    /// Quick capture has always been "speak, get a note". The durable path
+    /// creates that note before audio starts instead of after transcription, so
+    /// delivery is an update rather than a create. Typed notes are never
+    /// overwritten: a note somebody wrote in, or renamed, keeps exactly what
+    /// they left there.
+    private func deliverQuickCaptureTranscript(
+        _ handle: PindropCore.NoteCaptureHandle,
+        text: String
+    ) {
+        guard isQuickCapture(handle) else { return }
+        do {
+            guard let anchor = try captureSessionStore.meetingHumanAnchor(handle) else { return }
+            let note = try notesStore.fetch(id: anchor.noteID)
+            guard Self.normalizedText(note.content).isEmpty else { return }
+            note.content = text
+            if note.title == untitledNoteTitle {
+                note.title = aiEnhancementService.generateFallbackTitle(from: text)
+            }
+            try notesStore.update(note)
+        } catch {
+            Log.app.warning(
+                "Quick-capture transcript could not be written into its note: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    /// Removes the untouched note a silent quick capture created for itself.
+    private func discardEmptyQuickCaptureNote(_ handle: PindropCore.NoteCaptureHandle) {
+        do {
+            let didDiscard = try captureSessionStore.discardEmptyCaptureAnchorNote(handle)
+            if didDiscard {
+                Log.app.info("Discarded the empty note a silent quick capture created")
+            }
+        } catch {
+            Log.app.warning(
+                "Empty quick-capture note could not be discarded: \(error.localizedDescription)"
             )
         }
     }
