@@ -96,6 +96,8 @@ struct NoteCaptureControllerTests {
     private struct Fixture {
         let controller: NoteCaptureController
         let arbiter: StubCaptureArbiter
+        let settingsStore: SettingsStore
+        let enhancementSession: StubEnhancementProviderSession
         let state: NoteCaptureState
         let captureSessionStore: CaptureSessionStore
         let notesStore: NotesStore
@@ -158,6 +160,21 @@ struct NoteCaptureControllerTests {
         )
         let arbiter = StubCaptureArbiter()
         let state = NoteCaptureState()
+        let assignmentResolver = CaptureStageAssignmentResolver(
+            settings: settingsStore,
+            modelManager: modelManager,
+            promptPresetStore: PromptPresetStore(modelContext: ModelContext(container))
+        )
+        let enhancementSession = StubEnhancementProviderSession()
+        let aiEnhancementService = AIEnhancementService(session: enhancementSession)
+        let noteEnhancementService = NoteEnhancementService(
+            captureSessionStore: captureSessionStore,
+            notesStore: notesStore,
+            promptPresetStore: PromptPresetStore(modelContext: ModelContext(container)),
+            assignmentResolver: assignmentResolver,
+            aiEnhancementService: aiEnhancementService,
+            settingsStore: settingsStore
+        )
         let controller = NoteCaptureController(
             audioRecorder: audioRecorder,
             streamingSession: streamingSession,
@@ -165,12 +182,9 @@ struct NoteCaptureControllerTests {
             notesStore: notesStore,
             historyStore: historyStore,
             mediaIngestionService: mediaIngestionService,
-            assignmentResolver: CaptureStageAssignmentResolver(
-                settings: settingsStore,
-                modelManager: modelManager,
-                promptPresetStore: PromptPresetStore(modelContext: ModelContext(container))
-            ),
-            aiEnhancementService: AIEnhancementService(),
+            assignmentResolver: assignmentResolver,
+            aiEnhancementService: aiEnhancementService,
+            noteEnhancementService: noteEnhancementService,
             transcriptionService: transcriptionService,
             settingsStore: settingsStore,
             toastService: toastService,
@@ -180,6 +194,8 @@ struct NoteCaptureControllerTests {
         return Fixture(
             controller: controller,
             arbiter: arbiter,
+            settingsStore: settingsStore,
+            enhancementSession: enhancementSession,
             state: state,
             captureSessionStore: captureSessionStore,
             notesStore: notesStore,
@@ -514,6 +530,108 @@ struct NoteCaptureControllerTests {
         #expect(anchor.noteID != recordID)
     }
 
+    // MARK: - Enhanced panel on finish
+
+    /// Assigns a note-enhancement model so the finish path has something to
+    /// generate with. The stubbed session answers the request.
+    private func configureNoteEnhancement(_ fixture: Fixture) throws {
+        let provider = ProviderConfig(kind: .openai, displayName: "Test OpenAI")
+        fixture.settingsStore.upsertProvider(provider)
+        try fixture.settingsStore.saveProviderAPIKey("note-secret", forProviderID: provider.id)
+        try fixture.settingsStore.saveProviderEndpoint(
+            "https://api.example.invalid/v1/chat/completions",
+            forProviderID: provider.id
+        )
+        fixture.settingsStore.setAssignment(
+            ModelAssignment(
+                providerID: provider.id,
+                modelID: "gpt-4o-mini",
+                promptPresetID: BuiltInPresetID.noteFormatting
+            ),
+            for: .noteEnhancement
+        )
+    }
+
+    @Test func finishingARecordedNoteGeneratesItsEnhancedPanel() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.settingsStore.resetAllSettings() }
+        try configureNoteEnhancement(fixture)
+        fixture.enhancementSession.responseContent = "Decisions: ship on Friday."
+        let handle = try fixture.captureSessionStore.startNoteCapture(
+            includeSystemAudio: false,
+            intent: CaptureIntentRequest(destination: .newNote, origin: .mainWindow)
+        )
+        let anchor = try fixture.captureSessionStore.ensureMeetingHumanAnchor(
+            handle,
+            title: "Untitled Note"
+        )
+        try freezeAssignments(in: fixture.captureSessionStore, sessionID: handle.sessionID)
+        try fixture.captureSessionStore.checkpointVoiceNoteLiveTranscript(
+            for: handle,
+            committedText: "the roof needs replacing before winter"
+        )
+        try fixture.captureSessionStore.beginMeetingFinalization(handle)
+        try recordOneSealedChunk(in: fixture.captureSessionStore, handle: handle)
+        try fixture.captureSessionStore.finishMeetingSources(handle, sourceFailures: [])
+
+        try await fixture.controller.finalize(
+            handle,
+            spoolPlan: makeSpoolPlan(fixture, handle: handle),
+            expectedSpeakerCount: nil,
+            operationGuard: {}
+        )
+
+        let panels = try fixture.captureSessionStore.currentPanels(noteID: anchor.noteID)
+        #expect(panels.count == 1)
+        #expect(panels[0].content == "Decisions: ship on Friday.")
+        #expect(fixture.enhancementSession.requestCount == 1)
+        // Panels only: a finished capture no longer files a second note row.
+        #expect(try fixture.notesStore.fetchAll().count == 1)
+        let session = try #require(try sessions(in: fixture.container).first { $0.id == handle.sessionID })
+        #expect(session.stateRawValue == CaptureSessionState.completed.rawValue)
+    }
+
+    @Test func aFailedPanelGenerationStillCompletesTheCapture() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.settingsStore.resetAllSettings() }
+        try configureNoteEnhancement(fixture)
+        fixture.enhancementSession.error = URLError(.timedOut)
+        let handle = try fixture.captureSessionStore.startNoteCapture(
+            includeSystemAudio: false,
+            intent: CaptureIntentRequest(destination: .newNote, origin: .mainWindow)
+        )
+        let anchor = try fixture.captureSessionStore.ensureMeetingHumanAnchor(
+            handle,
+            title: "Untitled Note"
+        )
+        try freezeAssignments(in: fixture.captureSessionStore, sessionID: handle.sessionID)
+        try fixture.captureSessionStore.checkpointVoiceNoteLiveTranscript(
+            for: handle,
+            committedText: "the roof needs replacing before winter"
+        )
+        try fixture.captureSessionStore.beginMeetingFinalization(handle)
+        try recordOneSealedChunk(in: fixture.captureSessionStore, handle: handle)
+        try fixture.captureSessionStore.finishMeetingSources(handle, sourceFailures: [])
+
+        try await fixture.controller.finalize(
+            handle,
+            spoolPlan: makeSpoolPlan(fixture, handle: handle),
+            expectedSpeakerCount: nil,
+            operationGuard: {}
+        )
+
+        // The recording is what matters: the session completed and its
+        // transcript is linked even though no panel could be generated.
+        let session = try #require(try sessions(in: fixture.container).first { $0.id == handle.sessionID })
+        #expect(session.stateRawValue == CaptureSessionState.completed.rawValue)
+        #expect(session.transcriptionRecordID != nil)
+        #expect(try fixture.captureSessionStore.enhancedPanels(noteID: anchor.noteID).isEmpty)
+        let failures = try ModelContext(fixture.container)
+            .fetch(FetchDescriptor<CaptureFailureRecordModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        #expect(failures.contains { $0.errorCode == "generation-failed" })
+    }
+
     // MARK: - Quick capture delivery
 
     @Test func quickCaptureWritesItsTranscriptIntoTheNoteItCreated() async throws {
@@ -757,6 +875,30 @@ struct NoteCaptureControllerTests {
         state.fail("The recorder did not start.")
         #expect(state.failureMessage == "The recorder did not start.")
         #expect(state.audioLevel == 0)
+    }
+
+    @Test func stateKeepsAPanelFailureWithoutFailingTheCapture() {
+        let state = NoteCaptureState()
+        state.beginStarting(includesSystemAudio: false, origin: .mainWindow)
+        state.beginCapturing(startedAt: Date(timeIntervalSinceReferenceDate: 100_000))
+        state.beginFinalizing(.assembling)
+        state.beginEnhancing()
+        #expect(state.enhancementFailureMessage == nil)
+
+        state.recordEnhancementFailure("The enhanced note could not be generated. Try again.")
+        state.complete()
+
+        // The capture completed: only the panel is missing, and the note page
+        // has the text that says why.
+        #expect(state.phase == .completed)
+        #expect(state.failureMessage == nil)
+        #expect(
+            state.enhancementFailureMessage
+                == "The enhanced note could not be generated. Try again."
+        )
+
+        state.clearEnhancementFailure()
+        #expect(state.enhancementFailureMessage == nil)
     }
 
     // MARK: - Helpers

@@ -254,6 +254,13 @@ public enum CaptureEnhancedPanelError: Error, Codable, Sendable, Equatable, Loca
 /// a new panel with the next generation and supersedes the previous one, so the
 /// evidence behind every shown panel stays readable.
 public struct CaptureEnhancedPanelSnapshot: Codable, Sendable, Equatable, Identifiable {
+    /// Template identity of the read-only panel a legacy generated meeting note
+    /// is presented as. No preset carries this identifier, so a legacy panel can
+    /// never collide with a generated one.
+    public static let legacyMeetingNoteTemplateIdentifier = "legacy.meeting-note"
+    /// Frozen label of that legacy panel.
+    public static let legacyMeetingNoteDisplayName = "Meeting note"
+
     public let id: UUID
     public let sessionID: UUID
     public let noteID: UUID
@@ -269,6 +276,11 @@ public struct CaptureEnhancedPanelSnapshot: Codable, Sendable, Equatable, Identi
     public let assignmentAttempt: Int
     public let feedback: CaptureNotePanelFeedback?
     public let createdAt: Date
+    /// True for a panel projected from a legacy generated meeting note. Legacy
+    /// panels are read-only: they are never superseded and never regenerated,
+    /// because their evidence belongs to the note rows this build must not
+    /// rewrite.
+    public let isLegacy: Bool
 
     public init(
         id: UUID,
@@ -283,7 +295,8 @@ public struct CaptureEnhancedPanelSnapshot: Codable, Sendable, Equatable, Identi
         promptSnapshotID: UUID? = nil,
         assignmentAttempt: Int,
         feedback: CaptureNotePanelFeedback? = nil,
-        createdAt: Date
+        createdAt: Date,
+        isLegacy: Bool = false
     ) throws {
         guard generation >= 1 else {
             throw CaptureEnhancedPanelError.invalidGeneration(generation)
@@ -308,11 +321,18 @@ public struct CaptureEnhancedPanelSnapshot: Codable, Sendable, Equatable, Identi
         self.assignmentAttempt = assignmentAttempt
         self.feedback = feedback
         self.createdAt = createdAt
+        self.isLegacy = isLegacy
     }
 
     /// True while this is the panel to show for its template.
     public var isCurrent: Bool {
         supersededAt == nil
+    }
+
+    /// True when this panel can be regenerated in place. A legacy panel cannot:
+    /// regenerating it would have to rewrite rows an older build wrote.
+    public var isRegenerable: Bool {
+        !isLegacy
     }
 
     public var viewSelection: CaptureNoteViewSelection {

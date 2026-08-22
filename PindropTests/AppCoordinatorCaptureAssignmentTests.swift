@@ -219,6 +219,7 @@ struct AppCoordinatorCaptureAssignmentTests {
 
     @Test func meetingNoteGenerationFailureMappingsUseFixedSafeValues() {
         let expected: [(NoteCaptureController.MeetingNoteGenerationFailure, String, NoteCaptureController.MeetingNoteGenerationFailureCategory, Bool)] = [
+            (.noteUnavailable, "note-unavailable", .persistence, false),
             (.assignmentUnavailable, "assignment-unavailable", .assignment, true),
             (.disabled, "assignment-disabled", .assignment, false),
             (.unavailable, "assignment-best-effort-unavailable", .assignment, false),
@@ -446,32 +447,32 @@ struct AppCoordinatorCaptureAssignmentTests {
         #expect(completedRecordID == recordID)
     }
 
-    @Test func completeMeetingAfterHistoryRecordsAndPropagatesRetryableGenerationFailure() async {
+    @Test func completeMeetingAfterHistoryRecordsAGenerationFailureAndStillCompletes() async throws {
         let recordID = UUID()
         var events = ["history"]
         var completedRecordID: UUID?
         var recordedFailure: NoteCaptureController.MeetingNoteGenerationFailure?
 
-        await #expect(throws: NoteCaptureController.MeetingNoteGenerationFailure.self) {
-            try await NoteCaptureController.completeMeetingAfterHistory(
-                recordID: recordID,
-                operationGuard: {
-                    events.append("guard")
-                },
-                generateNote: {
-                    events.append("generate")
-                    throw NoteCaptureController.MeetingNoteGenerationFailure.saveFailed
-                },
-                onGenerationFailure: { failure in
-                    events.append("generation-failure")
-                    recordedFailure = failure
-                },
-                complete: { completedID in
-                    events.append("complete")
-                    completedRecordID = completedID
-                }
-            )
-        }
+        // A panel that could not be generated must never cost the recording:
+        // the failure is durable and the session still completes.
+        try await NoteCaptureController.completeMeetingAfterHistory(
+            recordID: recordID,
+            operationGuard: {
+                events.append("guard")
+            },
+            generateNote: {
+                events.append("generate")
+                throw NoteCaptureController.MeetingNoteGenerationFailure.saveFailed
+            },
+            onGenerationFailure: { failure in
+                events.append("generation-failure")
+                recordedFailure = failure
+            },
+            complete: { completedID in
+                events.append("complete")
+                completedRecordID = completedID
+            }
+        )
 
         #expect(recordedFailure == .saveFailed)
         #expect(recordedFailure?.retryable == true)
@@ -480,8 +481,10 @@ struct AppCoordinatorCaptureAssignmentTests {
             "guard",
             "generate",
             "generation-failure",
+            "guard",
+            "complete",
         ])
-        #expect(completedRecordID == nil)
+        #expect(completedRecordID == recordID)
     }
 
     @Test func completeMeetingAfterHistoryPropagatesCancellationWithoutCompleting() async {

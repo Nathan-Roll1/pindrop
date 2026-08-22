@@ -84,6 +84,39 @@ public struct DiarizedTranscriptSegment: Codable, Sendable, Equatable {
     }
 }
 
+extension DiarizedTranscriptSegment {
+    /// Reads the diarization payload persisted beside one transcript revision.
+    ///
+    /// Returns nil when there is no payload and when the payload cannot be read.
+    /// Segment JSON is optional enrichment: a malformed payload degrades to the
+    /// un-attributed whole span instead of failing the read that needs it.
+    public static func decodeSegments(
+        fromJSON segmentsJSON: String?
+    ) -> [DiarizedTranscriptSegment]? {
+        guard let segmentsJSON else {
+            return nil
+        }
+        return try? JSONDecoder().decode(
+            [DiarizedTranscriptSegment].self,
+            from: Data(segmentsJSON.utf8)
+        )
+    }
+
+    /// The stable key that groups every span of one speaker together.
+    ///
+    /// The diarizer's own identifier wins, because a run of clustering keeps it
+    /// stable while the label can be rewritten for display. An empty pair falls
+    /// back to one shared key so un-attributed spans group with each other.
+    public var canonicalSpeakerKey: String {
+        let trimmedIdentifier = speakerId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedIdentifier.isEmpty {
+            return trimmedIdentifier
+        }
+        let trimmedLabel = speakerLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedLabel.isEmpty ? "_" : trimmedLabel
+    }
+}
+
 public struct TranscriptionOutput: Sendable, Equatable {
     public let text: String
     public let diarizedSegments: [DiarizedTranscriptSegment]?

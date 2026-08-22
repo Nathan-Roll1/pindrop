@@ -92,6 +92,7 @@ final class NoteCaptureController {
     }
 
     enum MeetingNoteGenerationFailure: String, Error, Equatable, Sendable, LocalizedError {
+        case noteUnavailable = "note-unavailable"
         case assignmentUnavailable = "assignment-unavailable"
         case disabled = "assignment-disabled"
         case unavailable = "assignment-best-effort-unavailable"
@@ -106,7 +107,7 @@ final class NoteCaptureController {
 
         var retryable: Bool {
             switch self {
-            case .disabled, .unavailable:
+            case .disabled, .unavailable, .noteUnavailable:
                 false
             case .assignmentUnavailable,
                     .runtimeUnavailable,
@@ -123,6 +124,8 @@ final class NoteCaptureController {
 
         var message: String {
             switch self {
+            case .noteUnavailable:
+                "The note this generation belongs to could not be read."
             case .assignmentUnavailable:
                 "Meeting note generation assignment was unavailable."
             case .disabled:
@@ -154,6 +157,8 @@ final class NoteCaptureController {
             switch self {
             case .assignmentUnavailable, .disabled, .unavailable:
                 .assignment
+            case .noteUnavailable:
+                .persistence
             case .runtimeUnavailable, .promptUnavailable:
                 .configuration
             case .derivationFailed, .sourceChanged:
@@ -215,6 +220,7 @@ final class NoteCaptureController {
     private let mediaIngestionService: MediaIngestionService
     private let assignmentResolver: CaptureStageAssignmentResolver
     private let aiEnhancementService: PindropAI.AIEnhancementService
+    private let noteEnhancementService: NoteEnhancementService
     private let transcriptionService: PindropSpeech.TranscriptionService
     private let settingsStore: SettingsStore
     private let toastService: ToastService
@@ -247,6 +253,7 @@ final class NoteCaptureController {
         mediaIngestionService: MediaIngestionService,
         assignmentResolver: CaptureStageAssignmentResolver,
         aiEnhancementService: PindropAI.AIEnhancementService,
+        noteEnhancementService: NoteEnhancementService,
         transcriptionService: PindropSpeech.TranscriptionService,
         settingsStore: SettingsStore,
         toastService: ToastService,
@@ -261,6 +268,7 @@ final class NoteCaptureController {
         self.mediaIngestionService = mediaIngestionService
         self.assignmentResolver = assignmentResolver
         self.aiEnhancementService = aiEnhancementService
+        self.noteEnhancementService = noteEnhancementService
         self.transcriptionService = transcriptionService
         self.settingsStore = settingsStore
         self.toastService = toastService
@@ -1412,7 +1420,7 @@ final class NoteCaptureController {
                 recordID: record.id,
                 operationGuard: operationGuard,
                 generateNote: {
-                    try await self.generateNoteIfNeeded(handle, operationGuard: operationGuard)
+                    try await self.generateEnhancedPanelIfNeeded(handle, operationGuard: operationGuard)
                 },
                 onGenerationFailure: { failure in
                     self.recordNoteGenerationFailure(
@@ -1509,7 +1517,7 @@ final class NoteCaptureController {
             recordID: record.id,
             operationGuard: operationGuard,
             generateNote: {
-                try await self.generateNoteIfNeeded(handle, operationGuard: operationGuard)
+                try await self.generateEnhancedPanelIfNeeded(handle, operationGuard: operationGuard)
             },
             onGenerationFailure: { failure in
                 self.recordNoteGenerationFailure(
@@ -1827,18 +1835,49 @@ final class NoteCaptureController {
         }
     }
 
-    // MARK: - Generated note
+    // MARK: - Enhanced panel
 
-    /// Generates the enhanced note for a finished capture.
+    /// Generates the enhanced panel for a finished capture.
     ///
     /// Decision 5 of the plan: every recorded note gets one on finish, meetings
-    /// and microphone-only notes alike. P5 lifts this into `NoteEnhancementService`;
-    /// the seam here is deliberately one call.
-    func generateNoteIfNeeded(
+    /// and microphone-only notes alike. The panel is a derived view stored beside
+    /// the typed notes, so nothing the person wrote is read back or replaced.
+    ///
+    /// A capture with no note (transcript only) has nothing to enhance and
+    /// returns quietly. A note that already has a panel for this template is not
+    /// generated again, so a recovered finalization cannot bill a second call.
+    func generateEnhancedPanelIfNeeded(
         _ handle: PindropCore.NoteCaptureHandle,
         operationGuard: () throws -> Void
     ) async throws {
-        let attempt = Self.captureAssignmentAttempt(for: .noteGeneration)
+        try operationGuard()
+        let anchor: MeetingHumanAnchorSnapshot?
+        do {
+            anchor = try captureSessionStore.meetingHumanAnchor(handle)
+        } catch {
+            if Self.isTaskCancellation(error) { throw CancellationError() }
+            throw MeetingNoteGenerationFailure.noteUnavailable
+        }
+        guard let anchor else {
+            return
+        }
+
+        let intent = (try? captureSessionStore.fetchCaptureIntent(sessionID: handle.sessionID)) ?? nil
+        let templatePresetIdentifier = intent?.requestedTemplatePresetIdentifier
+            ?? noteEnhancementService.defaultTemplatePresetIdentifier
+        let currentPanels = (try? captureSessionStore.currentPanels(noteID: anchor.noteID)) ?? []
+        let alreadyGenerated: Bool
+        if let templatePresetIdentifier {
+            alreadyGenerated = currentPanels.contains {
+                $0.templatePresetIdentifier == templatePresetIdentifier
+            }
+        } else {
+            alreadyGenerated = !currentPanels.isEmpty
+        }
+        guard Self.shouldGenerateMeetingNote(existingGeneratedNote: alreadyGenerated) else {
+            return
+        }
+
         // Recovery finalizes captures that no live state describes; only the
         // capture the UI is showing may move its phase.
         if state.sessionID == handle.sessionID {
@@ -1846,129 +1885,19 @@ final class NoteCaptureController {
         }
 
         do {
-            let existing = try captureSessionStore.generatedMeetingNote(
-                handle,
-                assignmentAttempt: attempt
-            )
-            guard Self.shouldGenerateMeetingNote(existingGeneratedNote: existing != nil) else {
-                return
-            }
-        } catch {
-            if Self.isTaskCancellation(error) { throw CancellationError() }
-            try operationGuard()
-            throw MeetingNoteGenerationFailure.generatedNoteDiscoveryFailed
-        }
-
-        let assignment: CaptureStageAssignment
-        do {
-            assignment = try captureAssignment(
+            _ = try await noteEnhancementService.generatePanel(
                 sessionID: handle.sessionID,
-                stage: .noteGeneration,
-                attempt: attempt
+                noteID: anchor.noteID,
+                templatePresetIdentifier: templatePresetIdentifier
             )
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             if Self.isTaskCancellation(error) { throw CancellationError() }
-            try operationGuard()
-            throw MeetingNoteGenerationFailure.assignmentUnavailable
-        }
-
-        switch Self.meetingNoteGenerationExecutionDecision(for: assignment) {
-        case .skipDisabled:
-            try operationGuard()
-            recordNoteGenerationFailure(.disabled, handle: handle, attempt: attempt)
-            return
-        case .skipUnavailable:
-            try operationGuard()
-            recordNoteGenerationFailure(.unavailable, handle: handle, attempt: attempt)
-            return
-        case .rejectInvalidAssignment:
-            try operationGuard()
-            throw MeetingNoteGenerationFailure.assignmentUnavailable
-        case .resolveRuntime:
-            break
-        }
-
-        guard let persistedAssignment = Self.noteGenerationRuntimeAssignment(from: assignment) else {
-            try operationGuard()
-            throw MeetingNoteGenerationFailure.runtimeUnavailable
-        }
-
-        let runtime: ResolvedAssignment
-        do {
-            runtime = try assignmentResolver.resolveNoteGenerationRuntime(for: persistedAssignment)
-        } catch {
-            if Self.isTaskCancellation(error) { throw CancellationError() }
-            try operationGuard()
-            throw MeetingNoteGenerationFailure.runtimeUnavailable
-        }
-
-        guard let prompt = runtime.prompt,
-              Self.canExecutePersistedNoteGeneration(resolvedPrompt: prompt) else {
-            try operationGuard()
-            throw MeetingNoteGenerationFailure.promptUnavailable
-        }
-
-        let source: MeetingNoteSourceBundle
-        do {
-            let preflight = try captureSessionStore.meetingGeneratedNotePreflight(
-                handle,
-                assignmentAttempt: attempt
-            )
-            guard let anchor = try captureSessionStore.meetingHumanAnchor(handle),
-                  anchor.noteID == preflight.humanAnchor.noteID else {
-                throw CaptureSessionStoreError.meetingHumanAnchorUnavailable(handle.sessionID)
+            if state.sessionID == handle.sessionID {
+                state.recordEnhancementFailure(error.localizedDescription)
             }
-            let currentAnchor = try notesStore.fetch(id: anchor.noteID)
-            let refreshedPlan = try captureSessionStore.makeMeetingFinalizationPlan(handle)
-            source = try MeetingNoteDerivation.make(
-                humanNoteContent: currentAnchor.content,
-                checkpoints: refreshedPlan.completedASRCheckpoints
-            )
-        } catch {
-            if Self.isTaskCancellation(error) { throw CancellationError() }
-            try operationGuard()
-            throw MeetingNoteGenerationFailure.derivationFailed
-        }
-
-        let enhancedNote: AIEnhancementService.EnhancedNote
-        do {
-            enhancedNote = try await aiEnhancementService.generateMeetingNote(
-                evidence: source.evidenceInput,
-                assignment: runtime,
-                formatPrompt: prompt
-            )
-            try operationGuard()
-        } catch {
-            if Self.isTaskCancellation(error) { throw CancellationError() }
-            try operationGuard()
-            throw MeetingNoteGenerationFailure.generationFailed
-        }
-
-        let content = MeetingNoteDerivation.sanitizingGeneratedContent(
-            Self.normalizedText(enhancedNote.content)
-        )
-        guard !content.isEmpty else {
-            try operationGuard()
-            throw MeetingNoteGenerationFailure.emptyOutput
-        }
-
-        do {
-            let title = Self.generatedMeetingNoteTitle(
-                enhancedNote.title,
-                fallback: localized("Untitled Note", locale: settingsStore.selectedAppLocale.locale)
-            )
-            _ = try captureSessionStore.saveGeneratedMeetingNote(
-                handle,
-                title: title,
-                content: content,
-                source: source,
-                assignmentAttempt: attempt,
-                at: .now
-            )
-        } catch {
-            if Self.isTaskCancellation(error) { throw CancellationError() }
-            try operationGuard()
-            throw Self.meetingNoteGenerationSaveFailure(for: error)
+            throw Self.enhancedPanelGenerationFailure(for: error)
         }
     }
 
@@ -2092,6 +2021,34 @@ final class NoteCaptureController {
             .resolveRuntime
         case .streamingSpeech, .batchSpeech, .localDiarization:
             .rejectInvalidAssignment
+        }
+    }
+
+    /// Maps a `NoteEnhancementService` failure onto the durable stage-failure
+    /// code recorded against the capture session.
+    static func enhancedPanelGenerationFailure(
+        for error: Error
+    ) -> MeetingNoteGenerationFailure {
+        guard let enhancementError = error as? NoteEnhancementService.NoteEnhancementError else {
+            return .generationFailed
+        }
+        switch enhancementError {
+        case .nothingToEnhance:
+            return .derivationFailed
+        case .noteUnavailable:
+            return .noteUnavailable
+        case .enhancementDisabled:
+            return .disabled
+        case .enhancementUnavailable:
+            return .runtimeUnavailable
+        case .promptUnavailable:
+            return .promptUnavailable
+        case .generationFailed:
+            return .generationFailed
+        case .emptyOutput:
+            return .emptyOutput
+        case .saveFailed:
+            return .saveFailed
         }
     }
 
@@ -2259,8 +2216,10 @@ final class NoteCaptureController {
         } catch is CancellationError {
             throw CancellationError()
         } catch let failure as MeetingNoteGenerationFailure {
+            // A panel that could not be generated must never cost the recording.
+            // The transcript and the typed notes are already durable, so the
+            // failure is recorded and the session still completes.
             onGenerationFailure(failure)
-            throw failure
         }
         try operationGuard()
         try complete(recordID)

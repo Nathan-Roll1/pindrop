@@ -673,6 +673,9 @@ final class AppCoordinator {
     /// Owner of the note-capture lifecycle. Assigned at the end of `init`, once
     /// the coordinator can be handed over as the capture arbiter.
     private(set) var noteCaptureController: NoteCaptureController!
+    /// Generates the enhanced panels of a note. The note page uses it to
+    /// regenerate under another template; the controller uses it on finish.
+    private(set) var noteEnhancementService: NoteEnhancementService!
     private let meetingCaptureStartAdmission = MeetingCaptureStartAdmission()
     /// One admitted capture start owns both gates. The arbiter hands the
     /// controller a single opaque claim so it cannot release one and keep the
@@ -1132,6 +1135,15 @@ final class AppCoordinator {
         }
         // The controller owns the note-capture lifecycle and reaches the shell
         // only through `CaptureArbiter`, which this coordinator implements.
+        let noteEnhancementService = NoteEnhancementService(
+            captureSessionStore: captureSessionStore,
+            notesStore: notesStore,
+            promptPresetStore: promptPresetStore,
+            assignmentResolver: captureAssignmentResolver,
+            aiEnhancementService: aiEnhancementService,
+            settingsStore: settingsStore
+        )
+        self.noteEnhancementService = noteEnhancementService
         self.noteCaptureController = NoteCaptureController(
             audioRecorder: audioRecorder,
             streamingSession: streamingSession,
@@ -1141,6 +1153,7 @@ final class AppCoordinator {
             mediaIngestionService: mediaIngestionService,
             assignmentResolver: captureAssignmentResolver,
             aiEnhancementService: aiEnhancementService,
+            noteEnhancementService: noteEnhancementService,
             transcriptionService: transcriptionService,
             settingsStore: settingsStore,
             toastService: toastService,

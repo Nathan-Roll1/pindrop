@@ -162,18 +162,37 @@ public enum MeetingNoteDerivation {
         return (checkpoint.startOffset + checkpoint.duration).isFinite
     }
 
-    private static func makeCitations(
-        for checkpoint: MeetingTranscriptionCheckpoint,
-        startingAt identifierNumber: Int
-    ) -> [MeetingNoteCitation] {
+    /// The diarized spans that describe one checkpoint exactly, or nil when the
+    /// whole checkpoint has to be read as a single un-attributed span.
+    ///
+    /// The evidence a note is generated from and the transcript a person reads
+    /// must agree span for span, so both resolve their spans here. Segments are
+    /// accepted only when every one of them fits inside the checkpoint, they run
+    /// in order without overlapping, and their joined text is the checkpoint's
+    /// text. Anything else is enrichment this build cannot trust.
+    public static func usableDiarizedSegments(
+        for checkpoint: MeetingTranscriptionCheckpoint
+    ) -> [DiarizedTranscriptSegment]? {
         guard
-            let segments = diarizedSegments(from: checkpoint.segmentsJSON),
+            let segments = DiarizedTranscriptSegment.decodeSegments(
+                fromJSON: checkpoint.segmentsJSON
+            ),
             !segments.isEmpty,
             segments.allSatisfy({ isValid($0, within: checkpoint) }),
             areOrderedAndNonOverlapping(segments),
             normalizedTranscriptText(segments.map(\.text).joined(separator: " "))
                 == normalizedTranscriptText(checkpoint.text)
         else {
+            return nil
+        }
+        return segments
+    }
+
+    private static func makeCitations(
+        for checkpoint: MeetingTranscriptionCheckpoint,
+        startingAt identifierNumber: Int
+    ) -> [MeetingNoteCitation] {
+        guard let segments = usableDiarizedSegments(for: checkpoint) else {
             return [wholeChunkCitation(for: checkpoint, identifierNumber: identifierNumber)]
         }
 
@@ -186,21 +205,6 @@ public enum MeetingNoteDerivation {
                 speakerLabel: normalizedSpeakerLabel(segment.speakerLabel),
                 text: segment.text
             )
-        }
-    }
-
-    private static func diarizedSegments(from segmentsJSON: String?) -> [DiarizedTranscriptSegment]? {
-        guard let segmentsJSON else {
-            return nil
-        }
-        do {
-            return try JSONDecoder().decode(
-                [DiarizedTranscriptSegment].self,
-                from: Data(segmentsJSON.utf8)
-            )
-        } catch {
-            // Segment JSON is optional enrichment; malformed payloads use the whole chunk.
-            return nil
         }
     }
 

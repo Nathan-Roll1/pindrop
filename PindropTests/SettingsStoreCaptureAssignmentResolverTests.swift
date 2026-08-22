@@ -309,6 +309,105 @@ struct SettingsStoreCaptureAssignmentResolverTests {
         #expect(runtime.prompt == prompt)
     }
 
+    @Test func noteGenerationTemplateOverrideResolvesThatPresetAndKeepsTheProvider() throws {
+        let fixture = try makeFixture()
+        defer { fixture.cleanup() }
+        let resolver = fixture.makeResolver()
+        let provider = ProviderConfig(kind: .openai, displayName: "Personal OpenAI")
+        fixture.settings.upsertProvider(provider)
+        try fixture.settings.saveProviderAPIKey("note-secret", forProviderID: provider.id)
+        fixture.settings.setAssignment(
+            ModelAssignment(
+                providerID: provider.id,
+                modelID: "gpt-4o-mini",
+                promptPresetID: BuiltInPresetID.noteFormatting
+            ),
+            for: .noteEnhancement
+        )
+
+        let overridden = try resolver.select(
+            stage: .noteGeneration,
+            attempt: 2,
+            activeBatchModelName: nil,
+            promptPresetOverride: BuiltInPresetID.cleanTranscript
+        )
+
+        // The template moves; the provider, the model, and the credential checks
+        // are exactly what the settings say.
+        #expect(overridden.providerKind == .generativeAI)
+        #expect(overridden.providerIdentifier == provider.id.uuidString)
+        #expect(overridden.modelIdentifier == "gpt-4o-mini")
+        #expect(overridden.attempt == 2)
+        #expect(overridden.prompt?.presetIdentifier == BuiltInPresetID.cleanTranscript)
+        #expect(
+            overridden.prompt?.resolvedPrompt
+                == BuiltInPresets.englishPrompt(for: BuiltInPresetID.cleanTranscript)
+        )
+
+        let settingsDriven = try resolver.select(
+            stage: .noteGeneration,
+            attempt: 1,
+            activeBatchModelName: nil
+        )
+        #expect(settingsDriven.prompt?.presetIdentifier == BuiltInPresetID.noteFormatting)
+    }
+
+    @Test func noteGenerationTemplateOverrideIgnoresThePromptOverrideOfAnotherPreset() throws {
+        let fixture = try makeFixture()
+        defer { fixture.cleanup() }
+        let resolver = fixture.makeResolver()
+        let provider = ProviderConfig(kind: .openai, displayName: "Personal OpenAI")
+        fixture.settings.upsertProvider(provider)
+        try fixture.settings.saveProviderAPIKey("note-secret", forProviderID: provider.id)
+        fixture.settings.setAssignment(
+            ModelAssignment(
+                providerID: provider.id,
+                modelID: "gpt-4o-mini",
+                promptOverride: "Edited instructions for the assigned template."
+            ),
+            for: .noteEnhancement
+        )
+
+        let settingsDriven = try resolver.select(
+            stage: .noteGeneration,
+            attempt: 1,
+            activeBatchModelName: nil
+        )
+        #expect(settingsDriven.prompt?.resolvedPrompt == "Edited instructions for the assigned template.")
+
+        let overridden = try resolver.select(
+            stage: .noteGeneration,
+            attempt: 2,
+            activeBatchModelName: nil,
+            promptPresetOverride: BuiltInPresetID.cleanTranscript
+        )
+
+        // The saved edit belongs to the assigned template, not to the one the
+        // person just picked.
+        #expect(overridden.prompt?.presetIdentifier == BuiltInPresetID.cleanTranscript)
+        #expect(
+            overridden.prompt?.resolvedPrompt
+                == BuiltInPresets.englishPrompt(for: BuiltInPresetID.cleanTranscript)
+        )
+    }
+
+    @Test func noteGenerationTemplateOverrideStillRequiresAConfiguredProvider() throws {
+        let fixture = try makeFixture()
+        defer { fixture.cleanup() }
+        let resolver = fixture.makeResolver()
+
+        let unassigned = try resolver.select(
+            stage: .noteGeneration,
+            attempt: 2,
+            activeBatchModelName: nil,
+            promptPresetOverride: BuiltInPresetID.cleanTranscript
+        )
+
+        #expect(unassigned.providerKind == .disabled)
+        #expect(unassigned.providerIdentifier == "note-enhancement-unassigned")
+        #expect(unassigned.prompt == nil)
+    }
+
     @Test func previewsMatchSelectionsForDefaultUnavailableAndReadyStages() throws {
         let fixture = try makeFixture()
         defer { fixture.cleanup() }

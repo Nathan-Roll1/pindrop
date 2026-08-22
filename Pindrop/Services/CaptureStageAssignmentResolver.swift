@@ -134,10 +134,17 @@ final class CaptureStageAssignmentResolver {
         ]
     }
 
+    /// Freezes the assignment one stage of one attempt runs with.
+    ///
+    /// `promptPresetOverride` names the template a note generation was asked for
+    /// at generation time, which is how regenerating a note under a different
+    /// template works. It replaces only which preset is resolved: the provider,
+    /// the model, and every credential check stay exactly what the settings say.
     func select(
         stage: CapturePipelineStage,
         attempt: Int,
         activeBatchModelName: String?,
+        promptPresetOverride: String? = nil,
         selectedAt: Date = .now
     ) throws -> CaptureStageAssignment {
         guard attempt >= 1 else {
@@ -155,7 +162,11 @@ final class CaptureStageAssignmentResolver {
         case .diarization:
             return try selectDiarization(attempt: attempt, selectedAt: selectedAt)
         case .noteGeneration:
-            return try selectNoteGeneration(attempt: attempt, selectedAt: selectedAt)
+            return try selectNoteGeneration(
+                attempt: attempt,
+                promptPresetOverride: promptPresetOverride,
+                selectedAt: selectedAt
+            )
         }
     }
 
@@ -249,6 +260,7 @@ final class CaptureStageAssignmentResolver {
 
     private func selectNoteGeneration(
         attempt: Int,
+        promptPresetOverride: String?,
         selectedAt: Date
     ) throws -> CaptureStageAssignment {
         let selection = Self.noteSelection(settings: settings)
@@ -264,9 +276,14 @@ final class CaptureStageAssignmentResolver {
             preconditionFailure("A ready note-generation selection requires a configured assignment.")
         }
 
-        let presetIdentifier = configuredAssignment.promptPresetID
+        let presetIdentifier = promptPresetOverride ?? configuredAssignment.promptPresetID
+        // The saved prompt override belongs to the preset the settings name. A
+        // generation that asked for a different template must get that
+        // template's text, not the edit somebody made to another one.
+        let usesConfiguredPreset = promptPresetOverride == nil
+            || promptPresetOverride == configuredAssignment.promptPresetID
         let resolvedPrompt: String
-        if let override = BuiltInPresets.normalizedPromptOverride(
+        if usesConfiguredPreset, let override = BuiltInPresets.normalizedPromptOverride(
             configuredAssignment.promptOverride,
             presetID: presetIdentifier
         ) {

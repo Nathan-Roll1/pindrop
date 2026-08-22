@@ -54,6 +54,11 @@ final class NoteCaptureState {
     /// The committed plus tentative live text, mirroring what the floating
     /// indicator shows. Empty while a capture has produced no words yet.
     private(set) var liveTranscript = ""
+    /// Why the enhanced panel could not be generated, or nil when nothing
+    /// failed. A failed generation never fails the capture: the typed notes and
+    /// the transcript are already durable, so the note page explains the gap and
+    /// offers to try again.
+    private(set) var enhancementFailureMessage: String?
     /// True once live transcription stopped early: the two-hour bound elapsed,
     /// or checkpoint persistence was disabled. The durable recording continues,
     /// so the UI explains the gap instead of implying the recording stopped.
@@ -96,6 +101,7 @@ final class NoteCaptureState {
         bandLevels = .zero
         liveTranscript = ""
         isLiveTranscriptDegraded = false
+        enhancementFailureMessage = nil
     }
 
     func bindNote(id: UUID) {
@@ -140,6 +146,17 @@ final class NoteCaptureState {
 
     func beginEnhancing() {
         phase = .enhancing
+        enhancementFailureMessage = nil
+    }
+
+    /// Records why the enhanced panel is missing. The capture is unaffected: the
+    /// typed notes and the transcript stay exactly as they were.
+    func recordEnhancementFailure(_ message: String) {
+        enhancementFailureMessage = message
+    }
+
+    func clearEnhancementFailure() {
+        enhancementFailureMessage = nil
     }
 
     func complete() {
@@ -164,5 +181,6 @@ final class NoteCaptureState {
         bandLevels = .zero
         liveTranscript = ""
         isLiveTranscriptDegraded = false
+        enhancementFailureMessage = nil
     }
 }

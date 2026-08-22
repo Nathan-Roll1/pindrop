@@ -6,7 +6,49 @@
 //
 
 import Foundation
+import PindropAI
 @testable import Pindrop
+
+/// Stubs the one seam `AIEnhancementService` already has for tests: its
+/// `URLSessionProtocol`. Request shaping and response parsing stay real, so a
+/// test asserts on what the provider would actually have been sent.
+final class StubEnhancementProviderSession: URLSessionProtocol, @unchecked Sendable {
+    var responseContent = "Decisions: ship on Friday."
+    var error: Error?
+    private(set) var requestCount = 0
+    private(set) var lastRequest: URLRequest?
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        requestCount += 1
+        lastRequest = request
+        if let error {
+            throw error
+        }
+        let payload = """
+        {"choices": [{"message": {"content": \(Self.jsonString(responseContent))}}]}
+        """
+        let response = HTTPURLResponse(
+            url: request.url ?? URL(string: "https://example.invalid")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (Data(payload.utf8), response)
+    }
+
+    /// JSON-escapes one string and returns it with its quotes, so any content
+    /// can be embedded in the stubbed response body.
+    private static func jsonString(_ value: String) -> String {
+        guard let data = try? JSONSerialization.data(
+            withJSONObject: [value],
+            options: [.fragmentsAllowed]
+        ) else {
+            return "\"\""
+        }
+        let encoded = String(decoding: data, as: UTF8.self)
+        return String(encoded.dropFirst().dropLast())
+    }
+}
 
 final class ManualTaskScheduler: TaskScheduling {
     private struct PendingTask {

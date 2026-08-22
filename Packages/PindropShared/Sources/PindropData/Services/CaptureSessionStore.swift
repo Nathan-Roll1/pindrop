@@ -418,6 +418,9 @@ public enum CaptureSessionStoreError: Error, Equatable, LocalizedError {
     case meetingGeneratedNoteSourceChanged(UUID)
     case invalidMeetingGeneratedNote(UUID)
     case meetingNoteEncodingFailed
+    case invalidEnhancedPanel(sessionID: UUID)
+    case enhancedPanelNotFound(UUID)
+    case noteCaptureHasNoMicrophoneSource(UUID)
     case noteNotFound(UUID)
     case fetchFailed(String)
     case saveFailed(String)
@@ -523,6 +526,12 @@ public enum CaptureSessionStoreError: Error, Equatable, LocalizedError {
             return "Meeting capture session \(sessionID.uuidString) has invalid generated-note provenance."
         case .meetingNoteEncodingFailed:
             return "Meeting note provenance could not be encoded."
+        case .invalidEnhancedPanel(let sessionID):
+            return "Capture session \(sessionID.uuidString) cannot store an enhanced panel with no template or no content."
+        case .enhancedPanelNotFound(let id):
+            return "Enhanced panel \(id.uuidString) was not found."
+        case .noteCaptureHasNoMicrophoneSource(let sessionID):
+            return "Capture session \(sessionID.uuidString) has no microphone source."
         case .noteNotFound(let id):
             return "Note \(id.uuidString) was not found."
         case .fetchFailed(let message):
@@ -540,7 +549,7 @@ public enum CaptureSessionStoreError: Error, Equatable, LocalizedError {
 /// dedicated stores before linking their IDs here.
 @MainActor
 public final class CaptureSessionStore {
-    private let modelContainer: ModelContainer
+    let modelContainer: ModelContainer
     /// The session and its owned source rows, microphone first.
     ///
     /// `sources` holds one row for a mic-only note capture and two when system
@@ -2919,7 +2928,7 @@ public final class CaptureSessionStore {
         )
     }
 
-    private func meetingNoteReferences(
+    func meetingNoteReferences(
         sessionID: UUID,
         in context: ModelContext
     ) throws -> [CaptureNoteReferenceModel] {
@@ -3144,11 +3153,24 @@ public final class CaptureSessionStore {
         )
     }
 
+    /// The chunk-level final-ASR checkpoints a meeting note is generated from.
+    /// Source-scoped revisions are excluded: they belong to the whole-capture
+    /// voice-note shape, which is not chunked evidence.
     private func finalASRCheckpoint(
         from revision: CaptureTranscriptRevisionModel
     ) -> MeetingTranscriptionCheckpoint? {
+        guard revision.sourceID == nil else {
+            return nil
+        }
+        return completedFinalTranscriptCheckpoint(from: revision)
+    }
+
+    /// One completed final-transcript revision as a checkpoint, whether it is
+    /// scoped to a chunk of the session or to the whole microphone source.
+    func completedFinalTranscriptCheckpoint(
+        from revision: CaptureTranscriptRevisionModel
+    ) -> MeetingTranscriptionCheckpoint? {
         guard
-            revision.sourceID == nil,
             revision.stageRawValue == CapturePipelineStage.finalTranscription.rawValue,
             revision.statusRawValue == "completed"
         else {
@@ -3165,7 +3187,7 @@ public final class CaptureSessionStore {
             languageCode: revision.languageCode
         )
     }
-    private func derivedMeetingNoteSource(
+    func derivedMeetingNoteSource(
         sessionID: UUID,
         humanNoteContent: String,
         in context: ModelContext
@@ -3372,7 +3394,7 @@ public final class CaptureSessionStore {
             throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
         }
     }
-    private func persistedAssignment(
+    func persistedAssignment(
         sessionID: UUID,
         stage: CapturePipelineStage,
         attempt: Int,
@@ -3457,7 +3479,7 @@ public final class CaptureSessionStore {
         }
     }
 
-    private func fetchAssignmentSession(
+    func fetchAssignmentSession(
         id: UUID,
         in context: ModelContext
     ) throws -> CaptureSessionModel {
@@ -3468,7 +3490,7 @@ public final class CaptureSessionStore {
         }
     }
 
-    private func fetchAssignmentSnapshots(
+    func fetchAssignmentSnapshots(
         sessionID: UUID,
         stage: CapturePipelineStage,
         attempt: Int,
@@ -3556,7 +3578,7 @@ public final class CaptureSessionStore {
         return snapshot
     }
 
-    private func latestValidLiveTranscriptCheckpoint(
+    func latestValidLiveTranscriptCheckpoint(
         sessionID: UUID,
         sourceID: UUID,
         in context: ModelContext
@@ -3925,7 +3947,7 @@ public final class CaptureSessionStore {
         }
     }
 
-    private func fetchSources(
+    func fetchSources(
         sessionID: UUID,
         in context: ModelContext
     ) throws -> [CaptureSourceModel] {
@@ -3939,7 +3961,7 @@ public final class CaptureSessionStore {
         }
     }
 
-    private func fetchTranscriptRevisions(
+    func fetchTranscriptRevisions(
         sessionID: UUID,
         in context: ModelContext
     ) throws -> [CaptureTranscriptRevisionModel] {
@@ -3968,7 +3990,7 @@ public final class CaptureSessionStore {
         }
     }
 
-    private func fetchSession(id: UUID, in context: ModelContext) throws -> CaptureSessionModel {
+    func fetchSession(id: UUID, in context: ModelContext) throws -> CaptureSessionModel {
         var descriptor = FetchDescriptor<CaptureSessionModel>(
             predicate: #Predicate<CaptureSessionModel> { $0.id == id }
         )
@@ -4037,7 +4059,7 @@ public final class CaptureSessionStore {
         }
     }
 
-    private func fetchNote(id: UUID, in context: ModelContext) throws -> Note? {
+    func fetchNote(id: UUID, in context: ModelContext) throws -> Note? {
         var descriptor = FetchDescriptor<Note>(
             predicate: #Predicate<Note> { $0.id == id }
         )
@@ -4061,7 +4083,7 @@ public final class CaptureSessionStore {
         }
     }
 
-    private func save(_ context: ModelContext) throws {
+    func save(_ context: ModelContext) throws {
         do {
             try context.save()
         } catch {

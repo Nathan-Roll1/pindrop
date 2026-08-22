@@ -402,6 +402,7 @@ english:
   only: "English-only"
 enhanced:
   _self: "Enhanced"
+  note: "Enhanced note"
 enhancement:
   prompts: "Enhancement Prompts"
 enhancing:
@@ -840,6 +841,7 @@ pause:
 permissions:
   _self: "Permissions"
 pick:
+  a_model_for_note_enhancement_in_settings_th: "Pick a model for note enhancement in Settings, then try again."
   which_provider_and_model_handles_each_ai_ta: "Pick which provider and model handles each AI task. Leave as \"Not assigned\" to skip a purpose."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
@@ -1233,6 +1235,10 @@ thanks:
   to_for_investigating_and_kicking_off_the: "Thanks to %@ for investigating and kicking off the fix (PR #64)."
   to_for_the_contribution_pr_61: "Thanks to %@ for the contribution (PR #61)."
 the:
+  enhanced_note_could_not_be_generated_try_aga: "The enhanced note could not be generated. Try again."
+  enhanced_note_could_not_be_saved_try_again: "The enhanced note could not be saved. Try again."
+  model_returned_an_empty_note_try_again: "The model returned an empty note. Try again."
+  note_enhancement_model_is_unavailable_check: "The note enhancement model is unavailable. Check it in Settings, then try again."
   note_this_recording_belongs_to_could_not_be_opened: "The note this recording belongs to could not be opened."
   recorded_audio_could_not_be_prepared: "The recorded audio could not be prepared for transcription."
   recorder_did_not_start: "The recorder did not start."
@@ -1244,10 +1250,13 @@ theme:
   changes_apply_live_across_the_workspace_se: "Theme changes apply live across the workspace, settings, note editor, and floating indicators."
   mode: "Theme mode"
   mode_bb6b0b3d: "Theme Mode"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "There is no transcript to enhance yet. Record this note first."
 these:
   options_are_mutually_exclusive_enabling_on: "These options are mutually exclusive. Enabling one turns the other off."
 this:
   preset_name_is_already_in_use: "This preset name is already in use."
+  template_could_not_be_read_pick_another_tem: "This template could not be read. Pick another template and try again."
   provider_will_be_available_in_a_future_upda: |-
     This provider will be available in a future update.
     For now, try OpenAI or use a Custom endpoint.
