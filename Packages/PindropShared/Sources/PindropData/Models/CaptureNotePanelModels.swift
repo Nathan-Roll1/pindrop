@@ -251,6 +251,16 @@ public final class CaptureIntentModel {
         }
     }
 
+    /// Points a `newNote` intent at the note the capture created.
+    ///
+    /// A capture that makes its own note only learns the note identifier after
+    /// the note is committed, so the destination is bound then. The store
+    /// rejects a rebind that would contradict an already bound destination.
+    public func bindDestinationNote(_ noteID: UUID) {
+        destinationRawValue = CaptureIntentDestination.existingNote.rawValue
+        destinationNoteID = noteID
+    }
+
     private static func encodeSourceKinds(_ kinds: [CaptureSourceKind]) throws -> String {
         let rawValues = kinds.map(\.rawValue)
         guard

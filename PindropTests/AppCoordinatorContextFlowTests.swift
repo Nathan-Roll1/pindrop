@@ -188,11 +188,11 @@ struct AppCoordinatorContextFlowTests {
     }
 
     @Test func voiceNoteCaptureAdmissionAndComparisonAreHandleExact() {
-        let activeHandle = VoiceNoteCaptureHandle(
+        let activeHandle = NoteCaptureHandle(
             sessionID: UUID(),
             microphoneSourceID: UUID()
         )
-        let differentHandle = VoiceNoteCaptureHandle(
+        let differentHandle = NoteCaptureHandle(
             sessionID: activeHandle.sessionID,
             microphoneSourceID: UUID()
         )
@@ -463,11 +463,11 @@ struct AppCoordinatorContextFlowTests {
 
         let controller = DictationOperationController()
         let token = controller.begin()
-        let handle = VoiceNoteCaptureHandle(
+        let handle = NoteCaptureHandle(
             sessionID: UUID(),
             microphoneSourceID: UUID()
         )
-        let differentHandle = VoiceNoteCaptureHandle(
+        let differentHandle = NoteCaptureHandle(
             sessionID: handle.sessionID,
             microphoneSourceID: UUID()
         )
@@ -511,11 +511,11 @@ struct AppCoordinatorContextFlowTests {
     @Test func pendingNoteAppendCaptureOwnershipIsRequestAndHandleExact() {
         let editorID = UUID()
         let noteID = UUID()
-        let handle = VoiceNoteCaptureHandle(
+        let handle = NoteCaptureHandle(
             sessionID: UUID(),
             microphoneSourceID: UUID()
         )
-        let differentHandle = VoiceNoteCaptureHandle(
+        let differentHandle = NoteCaptureHandle(
             sessionID: handle.sessionID,
             microphoneSourceID: UUID()
         )

@@ -304,6 +304,9 @@ public struct NoteCaptureRecoverySnapshot: Sendable, Equatable {
     public let mode: CaptureSessionMode
     public let state: CaptureSessionState
     public let recoveryTarget: CaptureRecoveryTarget?
+    /// What the capture was started for. `nil` for a session started before
+    /// intent was recorded, and for a stored intent this build cannot read.
+    public let intent: CaptureIntent?
     public let startedAt: Date?
     public let lastActivityAt: Date?
     public let latestLiveCheckpoint: VoiceNoteLiveTranscriptCheckpoint?
@@ -321,6 +324,7 @@ public struct NoteCaptureRecoverySnapshot: Sendable, Equatable {
         mode: CaptureSessionMode,
         state: CaptureSessionState,
         recoveryTarget: CaptureRecoveryTarget?,
+        intent: CaptureIntent? = nil,
         startedAt: Date? = nil,
         lastActivityAt: Date? = nil,
         latestLiveCheckpoint: VoiceNoteLiveTranscriptCheckpoint? = nil,
@@ -334,6 +338,7 @@ public struct NoteCaptureRecoverySnapshot: Sendable, Equatable {
         self.mode = mode
         self.state = state
         self.recoveryTarget = recoveryTarget
+        self.intent = intent
         self.startedAt = startedAt
         self.lastActivityAt = lastActivityAt
         self.latestLiveCheckpoint = latestLiveCheckpoint
@@ -411,6 +416,9 @@ public enum CaptureSessionStoreError: Error, Equatable, LocalizedError {
     case liveTranscriptRegression(sessionID: UUID)
     case liveTranscriptConflict(sessionID: UUID, sequence: Int)
     case voiceNoteFinalTranscriptConflict(sessionID: UUID)
+    case invalidCaptureIntent(CaptureIntentError)
+    case captureIntentNotFound(UUID)
+    case captureIntentDestinationConflict(sessionID: UUID, requestedNoteID: UUID)
     case invalidAssignmentAttempt(Int)
     case assignmentSessionNotFound(UUID)
     case assignmentKeyMismatch
@@ -500,6 +508,12 @@ public enum CaptureSessionStoreError: Error, Equatable, LocalizedError {
             return "Live transcript revision \(sequence) for capture session \(sessionID.uuidString) is corrupt or conflicts with its persisted chain."
         case .voiceNoteFinalTranscriptConflict(let sessionID):
             return "Final transcript revisions for voice-note capture session \(sessionID.uuidString) conflict with the committed lineage."
+        case .invalidCaptureIntent(let error):
+            return error.errorDescription ?? "The capture intent is not valid."
+        case .captureIntentNotFound(let sessionID):
+            return "Capture session \(sessionID.uuidString) has no recorded intent."
+        case .captureIntentDestinationConflict(let sessionID, let requestedNoteID):
+            return "Capture session \(sessionID.uuidString) is already bound to a different destination than note \(requestedNoteID.uuidString)."
         case .invalidAssignmentAttempt(let attempt):
             return "Capture assignment attempt \(attempt) must be at least one."
         case .assignmentSessionNotFound(let id):
@@ -718,20 +732,26 @@ public final class CaptureSessionStore {
             mode: .meeting,
             startedAt: startedAt,
             includeSystemAudio: true,
+            intent: nil,
             microphoneDisplayName: microphoneDisplayName,
             systemAudioDisplayName: systemAudioDisplayName
         )
     }
 
-    /// Starts one note capture with the source set the request asked for.
+    /// Starts one note capture with the source set the request asked for, and
+    /// records what the capture is for in the same transaction.
     ///
     /// A mic-only capture creates no system-audio source row. Creating one and
     /// failing it later would make finalization reject a source that never
     /// recorded anything, and would leave that session unrecoverable.
+    ///
+    /// The intent is written with the session, never after it: a started
+    /// session that survives a crash always says where its output belongs.
     @discardableResult
     public func startNoteCapture(
         startedAt: Date = Date(),
         includeSystemAudio: Bool,
+        intent: CaptureIntentRequest,
         microphoneDisplayName: String? = nil,
         systemAudioDisplayName: String? = nil
     ) throws -> NoteCaptureHandle {
@@ -739,6 +759,7 @@ public final class CaptureSessionStore {
             mode: .note,
             startedAt: startedAt,
             includeSystemAudio: includeSystemAudio,
+            intent: intent,
             microphoneDisplayName: microphoneDisplayName,
             systemAudioDisplayName: systemAudioDisplayName
         )
@@ -748,11 +769,29 @@ public final class CaptureSessionStore {
         mode: CaptureSessionMode,
         startedAt: Date,
         includeSystemAudio: Bool,
+        intent intentRequest: CaptureIntentRequest?,
         microphoneDisplayName: String?,
         systemAudioDisplayName: String?
     ) throws -> NoteCaptureHandle {
         var session = try CaptureSession(mode: mode, createdAt: startedAt)
         try session.start(at: startedAt)
+
+        // The recorded source kinds are the source rows this call creates, so
+        // the intent can never claim a source the session does not own.
+        let requestedSourceKinds: [CaptureSourceKind] = includeSystemAudio
+            ? [.microphone, .systemAudio]
+            : [.microphone]
+        let intent: CaptureIntent? = try intentRequest.map { request in
+            do {
+                return try request.intent(
+                    sessionID: session.id,
+                    requestedSourceKinds: requestedSourceKinds,
+                    createdAt: startedAt
+                )
+            } catch let error as CaptureIntentError {
+                throw CaptureSessionStoreError.invalidCaptureIntent(error)
+            }
+        }
 
         let context = ModelContext(modelContainer)
         let sessionModel = CaptureSessionModel(session: session, lastActivityAt: startedAt)
@@ -784,6 +823,9 @@ public final class CaptureSessionStore {
             context.insert(systemAudioSource)
             systemAudioSourceID = systemAudioSource.id
         }
+        if let intent {
+            context.insert(try CaptureIntentModel(intent: intent))
+        }
         try save(context)
 
         return NoteCaptureHandle(
@@ -791,6 +833,50 @@ public final class CaptureSessionStore {
             microphoneSourceID: microphoneSource.id,
             systemAudioSourceID: systemAudioSourceID
         )
+    }
+
+    /// The recorded intent for one capture session.
+    ///
+    /// Returns `nil` for a session started before intent was recorded. A stored
+    /// intent this build cannot read throws instead: an unreadable intent is a
+    /// different problem from an absent one.
+    public func fetchCaptureIntent(sessionID: UUID) throws -> CaptureIntent? {
+        let context = ModelContext(modelContainer)
+        return try fetchCaptureIntentModel(sessionID: sessionID, in: context)?.restoreIntent()
+    }
+
+    /// Points a `newNote` intent at the note the capture created.
+    ///
+    /// A capture that makes its own note only learns the note identifier once
+    /// the note is committed. Calling this again with the same note is a no-op;
+    /// a different note, or a `transcriptOnly` intent, is a conflict rather than
+    /// a silent rewrite of what the capture was for.
+    public func updateIntentDestination(sessionID: UUID, noteID: UUID) throws {
+        let context = ModelContext(modelContainer)
+        guard let model = try fetchCaptureIntentModel(sessionID: sessionID, in: context) else {
+            throw CaptureSessionStoreError.captureIntentNotFound(sessionID)
+        }
+        let intent = try model.restoreIntent()
+        switch intent.destination {
+        case .newNote:
+            break
+        case .existingNote:
+            guard intent.destinationNoteID == noteID else {
+                throw CaptureSessionStoreError.captureIntentDestinationConflict(
+                    sessionID: sessionID,
+                    requestedNoteID: noteID
+                )
+            }
+            return
+        case .transcriptOnly:
+            throw CaptureSessionStoreError.captureIntentDestinationConflict(
+                sessionID: sessionID,
+                requestedNoteID: noteID
+            )
+        }
+
+        model.bindDestinationNote(noteID)
+        try save(context)
     }
 
     public func beginMeetingFinalization(
@@ -977,6 +1063,7 @@ public final class CaptureSessionStore {
             }
         )
         do {
+            let intentsBySessionID = try fetchCaptureIntentsBySessionID(in: context)
             var candidates: [NoteCaptureRecoverySnapshot] = []
             for sessionModel in try context.fetch(descriptor) {
                 guard
@@ -1014,6 +1101,9 @@ public final class CaptureSessionStore {
                         handle: handle,
                         mode: mode,
                         session: session,
+                        // A pre-intent session has none, and an intent this
+                        // build cannot read must not drop the whole listing.
+                        intent: try? intentsBySessionID[session.id]?.restoreIntent(),
                         lastActivityAt: sessionModel.lastActivityAt,
                         latestLiveCheckpoint: try? latestValidLiveTranscriptCheckpoint(
                             sessionID: session.id,
@@ -1309,6 +1399,10 @@ public final class CaptureSessionStore {
             handle: handle,
             mode: session.mode,
             session: session,
+            intent: try? fetchCaptureIntentModel(
+                sessionID: handle.sessionID,
+                in: context
+            )?.restoreIntent(),
             lastActivityAt: ownedCapture.session.lastActivityAt,
             latestLiveCheckpoint: nil,
             chunks: chunks,
@@ -2894,6 +2988,7 @@ public final class CaptureSessionStore {
         handle: NoteCaptureHandle,
         mode: CaptureSessionMode,
         session: CaptureSession,
+        intent: CaptureIntent?,
         lastActivityAt: Date?,
         latestLiveCheckpoint: VoiceNoteLiveTranscriptCheckpoint?,
         chunks: [CaptureChunkModel],
@@ -2916,6 +3011,7 @@ public final class CaptureSessionStore {
             mode: mode,
             state: session.state,
             recoveryTarget: session.recoveryTarget,
+            intent: intent,
             startedAt: session.startedAt,
             lastActivityAt: lastActivityAt,
             latestLiveCheckpoint: latestLiveCheckpoint,
@@ -3701,6 +3797,35 @@ public final class CaptureSessionStore {
             throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
         }
     }
+    private func fetchCaptureIntentModel(
+        sessionID: UUID,
+        in context: ModelContext
+    ) throws -> CaptureIntentModel? {
+        var descriptor = FetchDescriptor<CaptureIntentModel>(
+            predicate: #Predicate<CaptureIntentModel> { $0.sessionID == sessionID }
+        )
+        descriptor.fetchLimit = 1
+        do {
+            return try context.fetch(descriptor).first
+        } catch {
+            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
+        }
+    }
+
+    /// Every recorded intent, keyed by session, for one pass over the candidates.
+    private func fetchCaptureIntentsBySessionID(
+        in context: ModelContext
+    ) throws -> [UUID: CaptureIntentModel] {
+        do {
+            return try context.fetch(FetchDescriptor<CaptureIntentModel>())
+                .reduce(into: [:]) { result, model in
+                    result[model.sessionID] = model
+                }
+        } catch {
+            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
+        }
+    }
+
     private func fetchSources(
         sessionID: UUID,
         in context: ModelContext

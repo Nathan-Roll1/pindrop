@@ -3021,15 +3021,21 @@ final class MixedAudioCaptureBackend: SourceSeparatedAudioCaptureBackend, Meetin
             state = State(isStarting: true)
         }
 
+        // Only the microphone child feeds `onBuffer`. That callback is the live
+        // transcription pump; system audio must never reach it, because one mixed
+        // stream would destroy speaker attribution in the live transcript. Durable
+        // spooling keeps both sources separate through `configureMeetingRecording`.
         start(
             source: .microphone,
             backend: microphoneBackend,
+            onBuffer: onBuffer,
             onAudioLevel: onAudioLevel,
             onError: onError
         )
         start(
             source: .systemAudio,
             backend: systemAudioBackend,
+            onBuffer: { _ in },
             onAudioLevel: onAudioLevel,
             onError: onError
         )
@@ -3043,8 +3049,6 @@ final class MixedAudioCaptureBackend: SourceSeparatedAudioCaptureBackend, Meetin
         if let terminalFailure {
             throw terminalFailure
         }
-
-        _ = onBuffer
     }
 
     func configureMeetingRecording(
@@ -3064,6 +3068,10 @@ final class MixedAudioCaptureBackend: SourceSeparatedAudioCaptureBackend, Meetin
             source: .microphone,
             onChunkSealed: onChunkSealed
         )
+        // A mic-only plan has no system-audio source row, so the system child must
+        // spool nothing: a configured child would seal chunks against a source the
+        // ledger never created, and finalization would reject the whole capture.
+        guard spoolPlan.systemAudioSourceID != nil else { return }
         try systemAudio.configureMeetingRecording(
             spoolPlan: spoolPlan,
             source: .systemAudio,
@@ -3192,6 +3200,7 @@ final class MixedAudioCaptureBackend: SourceSeparatedAudioCaptureBackend, Meetin
     private func start(
         source: CaptureSourceKind,
         backend: AudioCaptureBackend,
+        onBuffer: @escaping (AVAudioPCMBuffer) -> Void,
         onAudioLevel: @escaping (Float) -> Void,
         onError: @escaping (Error) -> Void
     ) {
@@ -3205,7 +3214,7 @@ final class MixedAudioCaptureBackend: SourceSeparatedAudioCaptureBackend, Meetin
 
         do {
             try backend.startCapture(
-                onBuffer: { _ in },
+                onBuffer: onBuffer,
                 onAudioLevel: { [weak self] level in
                     self?.noteAudioLevel(source: source, level: level, deliver: onAudioLevel)
                 },
@@ -3826,9 +3835,12 @@ final class AudioRecorder {
         try await startRecording(configuration: .microphone)
     }
 
-    /// Starts direct-to-library source-separated meeting capture. Unlike legacy
-    /// recording, it never applies the ten-minute ASR cap or materializes PCM as
-    /// one `Data` value.
+    /// Starts direct-to-library durable capture. Unlike legacy recording, it never
+    /// applies the ten-minute ASR cap or materializes PCM as one `Data` value.
+    ///
+    /// The plan decides the source set: a plan without a system-audio source runs
+    /// mic-only, so it never asks for system-audio permission and never starts a
+    /// system child.
     @discardableResult
     func startMeetingRecording(
         spoolPlan: MeetingCaptureSpoolPlan,
@@ -3850,12 +3862,16 @@ final class AudioRecorder {
             throw AudioRecorderError.permissionDenied
         }
         try Task.checkCancellation()
-        guard await permissionManager.requestSystemAudioPermission() else {
-            throw AudioRecorderError.systemAudioPermissionDenied
+        let capturesSystemAudio = spoolPlan.systemAudioSourceID != nil
+        if capturesSystemAudio {
+            guard await permissionManager.requestSystemAudioPermission() else {
+                throw AudioRecorderError.systemAudioPermissionDenied
+            }
+            try Task.checkCancellation()
         }
-        try Task.checkCancellation()
 
-        let captureBackend = try makeCaptureBackend(for: .microphoneAndSystemAudio)
+        let captureMode: AudioRecordingMode = capturesSystemAudio ? .microphoneAndSystemAudio : .microphone
+        let captureBackend = try makeCaptureBackend(for: captureMode)
         guard let meetingBackend = captureBackend as? any MeetingAudioCaptureBackend else {
             throw AudioRecorderError.unsupportedCaptureMode(
                 "Meeting capture requires source-separated durable capture backends."
@@ -3890,6 +3906,11 @@ final class AudioRecorder {
                 onBuffer: { [weak self, callbackLease] buffer in
                     guard callbackLease.isActive else { return }
                     let bands = levelNormalizer.scaled(bandLevelAnalyzer.process(buffer))
+                    guard callbackLease.isActive else { return }
+                    // Microphone buffers only (the mixed backend forwards no system
+                    // audio here), straight to the live transcription pump from the
+                    // capture thread. Durable spooling is a separate path.
+                    self?.onAudioBuffer?(buffer)
                     meterDelivery.note(bands: bands) { [weak self, callbackLease] level, deliveredBands in
                         guard callbackLease.isActive else { return }
                         if let level {
@@ -3934,7 +3955,7 @@ final class AudioRecorder {
         }
 
         activeCaptureBackend = captureBackend
-        currentConfiguration = AudioRecordingConfiguration(mode: .microphoneAndSystemAudio)
+        currentConfiguration = AudioRecordingConfiguration(mode: captureMode)
         isRecording = true
         return true
     }

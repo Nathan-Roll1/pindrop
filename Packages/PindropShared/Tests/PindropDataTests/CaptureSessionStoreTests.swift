@@ -22,6 +22,20 @@ struct CaptureSessionStoreTests {
         CaptureSessionStore(modelContext: ModelContext(container))
     }
 
+    private func noteIntent(
+        destination: CaptureIntentDestination = .newNote,
+        destinationNoteID: UUID? = nil,
+        templatePresetIdentifier: String? = nil,
+        origin: CaptureIntentOrigin = .mainWindow
+    ) -> CaptureIntentRequest {
+        CaptureIntentRequest(
+            destination: destination,
+            destinationNoteID: destinationNoteID,
+            requestedTemplatePresetIdentifier: templatePresetIdentifier,
+            origin: origin
+        )
+    }
+
     private func retained(
         _ sourceID: UUID,
         sessionID: UUID,
@@ -1077,6 +1091,7 @@ struct CaptureSessionStoreTests {
         let handle = try store.startNoteCapture(
             startedAt: startedAt,
             includeSystemAudio: false,
+            intent: noteIntent(),
             microphoneDisplayName: "Built-in Microphone"
         )
 
@@ -1103,6 +1118,7 @@ struct CaptureSessionStoreTests {
         let handle = try store.startNoteCapture(
             startedAt: startedAt,
             includeSystemAudio: true,
+            intent: noteIntent(),
             microphoneDisplayName: "Built-in Microphone",
             systemAudioDisplayName: "System Audio"
         )
@@ -1123,7 +1139,11 @@ struct CaptureSessionStoreTests {
         let container = try makeContainer()
         let store = makeStore(in: container)
         let startedAt = Date(timeIntervalSinceReferenceDate: 8_570)
-        let handle = try store.startNoteCapture(startedAt: startedAt, includeSystemAudio: false)
+        let handle = try store.startNoteCapture(
+            startedAt: startedAt,
+            includeSystemAudio: false,
+            intent: noteIntent()
+        )
         try store.beginMeetingFinalization(handle, at: startedAt.addingTimeInterval(1))
         let checkpoint = chunk(
             handle.microphoneSourceID,
@@ -1175,8 +1195,16 @@ struct CaptureSessionStoreTests {
         let container = try makeContainer()
         let store = makeStore(in: container)
         let startedAt = Date(timeIntervalSinceReferenceDate: 8_575)
-        let cancelled = try store.startNoteCapture(startedAt: startedAt, includeSystemAudio: false)
-        let failedCapture = try store.startNoteCapture(startedAt: startedAt, includeSystemAudio: false)
+        let cancelled = try store.startNoteCapture(
+            startedAt: startedAt,
+            includeSystemAudio: false,
+            intent: noteIntent()
+        )
+        let failedCapture = try store.startNoteCapture(
+            startedAt: startedAt,
+            includeSystemAudio: false,
+            intent: noteIntent()
+        )
 
         try store.cancelMeetingCapture(cancelled, at: startedAt.addingTimeInterval(1))
         try store.failMeetingCapture(
@@ -1206,11 +1234,13 @@ struct CaptureSessionStoreTests {
         let legacyMeeting = try store.startMeetingCapture(startedAt: startedAt.addingTimeInterval(1))
         let micOnlyNote = try store.startNoteCapture(
             startedAt: startedAt.addingTimeInterval(2),
-            includeSystemAudio: false
+            includeSystemAudio: false,
+            intent: noteIntent()
         )
         let dualSourceNote = try store.startNoteCapture(
             startedAt: startedAt.addingTimeInterval(3),
-            includeSystemAudio: true
+            includeSystemAudio: true,
+            intent: noteIntent()
         )
 
         let candidates = try store.noteCaptureRecoveryCandidates()

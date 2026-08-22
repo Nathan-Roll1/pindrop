@@ -7,8 +7,10 @@
 
 import AVFoundation
 import CryptoKit
+import Foundation
 import Testing
 @testable import Pindrop
+import PindropCore
 import PindropSpeech
 
 @MainActor
@@ -31,6 +33,16 @@ struct AudioRecorderTests {
             systemAudioCaptureBackend: mockSystemBackend
         )
         return (sut, mockPermission, mockBackend, mockSystemBackend)
+    }
+
+    private func makeSpoolPlan(includeSystemAudio: Bool) -> MeetingCaptureSpoolPlan {
+        MeetingCaptureSpoolPlan(
+            libraryRootURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("pindrop-spool-\(UUID().uuidString)", isDirectory: true),
+            sessionID: UUID(),
+            microphoneSourceID: UUID(),
+            systemAudioSourceID: includeSystemAudio ? UUID() : nil
+        )
     }
 
     @Test func audioRecorderInitialization() throws {
@@ -785,6 +797,111 @@ struct AudioRecorderTests {
         #expect(result.microphone.failure?.stage == .runtime)
         #expect(result.systemAudio.capturedFile != nil)
         #expect(result.mixedAudioData?.isEmpty == false)
+    }
+
+    // MARK: - Live transcript during durable capture
+
+    @Test func sourceSeparatedCaptureForwardsMicrophoneBuffersOnly() throws {
+        let microphone = MockAudioCaptureBackend(identifier: "microphone")
+        let systemAudio = MockAudioCaptureBackend(identifier: "system")
+        let backend = MixedAudioCaptureBackend(
+            microphoneBackend: microphone,
+            systemAudioBackend: systemAudio
+        )
+        var forwarded: [AVAudioPCMBuffer] = []
+
+        try backend.startCapture(
+            onBuffer: { forwarded.append($0) },
+            onAudioLevel: { _ in },
+            onError: { _ in }
+        )
+        let microphoneBuffer = try #require(
+            MockAudioCaptureBackend.makeSynthesizedBuffer(format: microphone.targetFormat)
+        )
+        let systemBuffer = try #require(
+            MockAudioCaptureBackend.makeSynthesizedBuffer(format: systemAudio.targetFormat, frequency: 220)
+        )
+        microphone.capturedOnBuffer?(microphoneBuffer)
+        systemAudio.capturedOnBuffer?(systemBuffer)
+        backend.cancelCapture()
+
+        #expect(forwarded.count == 1)
+        #expect(forwarded.first === microphoneBuffer)
+    }
+
+    @Test func durableCaptureForwardsMicrophoneBuffersToTheStreamingPump() async throws {
+        let fixture = try makeFixture()
+        let plan = makeSpoolPlan(includeSystemAudio: true)
+        var pumped: [AVAudioPCMBuffer] = []
+        fixture.sut.onAudioBuffer = { pumped.append($0) }
+
+        try await fixture.sut.startMeetingRecording(spoolPlan: plan) { _ in }
+        let microphoneBuffer = try #require(
+            MockAudioCaptureBackend.makeSynthesizedBuffer(format: fixture.mockBackend.targetFormat)
+        )
+        let systemBuffer = try #require(
+            MockAudioCaptureBackend.makeSynthesizedBuffer(
+                format: fixture.mockSystemBackend.targetFormat,
+                frequency: 220
+            )
+        )
+        fixture.mockBackend.capturedOnBuffer?(microphoneBuffer)
+        fixture.mockSystemBackend.capturedOnBuffer?(systemBuffer)
+        _ = try await fixture.sut.stopMeetingRecording()
+        fixture.sut.onAudioBuffer = nil
+
+        #expect(pumped.count == 1)
+        #expect(pumped.first === microphoneBuffer)
+    }
+
+    @Test func micOnlyDurableCaptureSpoolsTheMicrophoneAndNeverStartsSystemAudio() async throws {
+        let fixture = try makeFixture()
+        fixture.mockBackend.simulatedBuffers = [
+            try #require(MockAudioCaptureBackend.makeSynthesizedBuffer(format: fixture.mockBackend.targetFormat))
+        ]
+        let plan = makeSpoolPlan(includeSystemAudio: false)
+
+        try await fixture.sut.startMeetingRecording(spoolPlan: plan) { _ in }
+
+        #expect(fixture.mockPermission.requestSystemAudioPermissionCallCount == 0)
+        #expect(fixture.mockBackend.configuredMeetingSources == [.microphone])
+        #expect(fixture.mockSystemBackend.configuredMeetingSources.isEmpty)
+        #expect(fixture.mockSystemBackend.startCaptureCallCount == 0)
+
+        let result = try await fixture.sut.stopMeetingRecording()
+
+        #expect(result.sealedChunks.count == 1)
+        #expect(result.sealedChunks.allSatisfy { $0.sourceID == plan.microphoneSourceID })
+        #expect(result.systemAudioFailure == nil)
+        #expect(fixture.mockSystemBackend.stopMeetingRecordingCallCount == 0)
+        for chunk in result.sealedChunks {
+            try? FileManager.default.removeItem(at: chunk.fileURL)
+        }
+    }
+
+    @Test func dualSourceDurableCaptureStillSpoolsBothSources() async throws {
+        let fixture = try makeFixture()
+        fixture.mockBackend.simulatedBuffers = [
+            try #require(MockAudioCaptureBackend.makeSynthesizedBuffer(format: fixture.mockBackend.targetFormat))
+        ]
+        fixture.mockSystemBackend.simulatedBuffers = [
+            try #require(MockAudioCaptureBackend.makeSynthesizedBuffer(format: fixture.mockSystemBackend.targetFormat))
+        ]
+        let plan = makeSpoolPlan(includeSystemAudio: true)
+
+        try await fixture.sut.startMeetingRecording(spoolPlan: plan) { _ in }
+
+        #expect(fixture.mockPermission.requestSystemAudioPermissionCallCount == 1)
+        #expect(fixture.mockBackend.configuredMeetingSources == [.microphone])
+        #expect(fixture.mockSystemBackend.configuredMeetingSources == [.systemAudio])
+
+        let result = try await fixture.sut.stopMeetingRecording()
+        let sourceIDs = Set(result.sealedChunks.map(\.sourceID))
+
+        #expect(sourceIDs == Set(plan.sourceIDs))
+        for chunk in result.sealedChunks {
+            try? FileManager.default.removeItem(at: chunk.fileURL)
+        }
     }
 
     @Test func mixedRuntimeFailureSchedulesChildCancellationOutsideChildCallback() async throws {

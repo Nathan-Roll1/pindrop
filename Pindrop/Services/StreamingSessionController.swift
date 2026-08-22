@@ -79,6 +79,12 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
 
     /// Upper bound on the post-stop LLM enhancement call (network + inference).
     static let postStopEnhanceTimeoutNanoseconds: UInt64 = 20_000_000_000
+    /// How long live transcription may run alongside a durable capture. The spool is
+    /// the product; the live transcript is a convenience. Past this bound the
+    /// controller stops feeding the streaming engine rather than let an all-day
+    /// capture keep a decoder resident behind the durable writer. Generous by
+    /// design: ordinary meetings never reach it.
+    static let defaultArtifactLiveTranscriptionLimit: TimeInterval = 2 * 60 * 60
     /// Keep the live path close to real time under a slow decoder. On overflow,
     /// discard the oldest pending buffers and retain the newest 32 (~8 seconds at
     /// a 4,096-frame 16 kHz tap), while the file-backed recorder still retains the
@@ -100,6 +106,7 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
 
     private let normalizeText: (String) -> String
     private let isEffectivelyEmptyText: (String) -> Bool
+    private let artifactLiveTranscriptionLimit: TimeInterval
 
     /// The coordinator's post-stop LLM pass (it needs prompt presets and the
     /// enhancement service, which stay app-level). Wired via `configure` after
@@ -124,10 +131,15 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         activeSessionToken != nil || isArtifactCaptureActive
     }
 
-    private var artifactCaptureHandle: VoiceNoteCaptureHandle?
+    private var artifactCaptureHandle: NoteCaptureHandle?
     private var artifactAssignment: CaptureStageAssignment?
     private var artifactPersistenceDisabled = false
     private var artifactFailureRecorded = false
+    /// True once a durable capture ran past `artifactLiveTranscriptionLimit` and the
+    /// controller stopped feeding the streaming engine. The durable spool keeps
+    /// running; only the live transcript stops growing. UI reads this to explain why.
+    private(set) var isArtifactLiveTranscriptionStopped = false
+    private var artifactLiveTranscriptionLimitTask: Task<Void, Never>?
 
     /// Direct engine handle for the audio pump. Captured once per session so the
     /// per-buffer path never hops through the @MainActor TranscriptionService.
@@ -159,8 +171,11 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         captureSessionStore: CaptureSessionStore,
 
         normalizeText: @escaping (String) -> String,
-        isEffectivelyEmptyText: @escaping (String) -> Bool
+        isEffectivelyEmptyText: @escaping (String) -> Bool,
+        artifactLiveTranscriptionLimit: TimeInterval = StreamingSessionController
+            .defaultArtifactLiveTranscriptionLimit
     ) {
+        self.artifactLiveTranscriptionLimit = artifactLiveTranscriptionLimit
         self.transcriptionService = transcriptionService
         self.settingsStore = settingsStore
         self.dictionaryStore = dictionaryStore
@@ -226,11 +241,13 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         }
     }
 
-    /// Begins a voice-note-only live session that writes stable cumulative text to
-    /// capture artifacts. Unlike generic dictation, this has no display or output sink.
+    /// Begins a note-capture-only live session that writes stable cumulative text to
+    /// capture artifacts. Unlike generic dictation, this has no display or output
+    /// sink. The handle may carry a system-audio source; live transcription stays
+    /// microphone-only either way, so checkpoints key on the microphone source.
     @discardableResult
     func beginArtifactCapture(
-        for handle: VoiceNoteCaptureHandle,
+        for handle: NoteCaptureHandle,
         assignment: CaptureStageAssignment
     ) async -> Bool {
         await awaitPriorTeardown()
@@ -248,6 +265,7 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         artifactAssignment = assignment
         artifactPersistenceDisabled = false
         artifactFailureRecorded = false
+        isArtifactLiveTranscriptionStopped = false
         setEngineCallbacks()
 
         do {
@@ -277,7 +295,8 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
             refinementCoordinator = coordinator
             pumpEngine = transcriptionService.activeStreamingEngine
             attachAudioForwarding()
-            Log.transcription.info("Artifact live transcription enabled for current voice-note capture")
+            scheduleArtifactLiveTranscriptionLimit(for: handle)
+            Log.transcription.info("Artifact live transcription enabled for current note capture")
             return true
         } catch {
             guard isArtifactCaptureCurrent(handle) else {
@@ -298,7 +317,7 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
 
     /// Drains the live audio pump and commits the engine's final cumulative text.
     /// Artifact capture intentionally never invokes the dictation finalize pipeline.
-    func finishArtifactCapture(for handle: VoiceNoteCaptureHandle) async {
+    func finishArtifactCapture(for handle: NoteCaptureHandle) async {
         await awaitPriorTeardown()
         guard isArtifactCaptureCurrent(handle) else { return }
 
@@ -338,16 +357,16 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         clearArtifactCaptureState()
     }
 
-    /// Cancels only the artifact capture that owns `handle`; a stale voice-note
+    /// Cancels only the artifact capture that owns `handle`; a stale note-capture
     /// operation must never tear down a newer capture's streaming engine.
-    func cancelArtifactCapture(for handle: VoiceNoteCaptureHandle) async {
+    func cancelArtifactCapture(for handle: NoteCaptureHandle) async {
         await awaitPriorTeardown()
         cancelArtifactCaptureDetached(for: handle)
         await awaitPriorTeardown()
     }
 
     /// Synchronously aborts only the artifact capture that owns `handle`.
-    func cancelArtifactCaptureDetached(for handle: VoiceNoteCaptureHandle) {
+    func cancelArtifactCaptureDetached(for handle: NoteCaptureHandle) {
         guard isArtifactCaptureCurrent(handle) else { return }
         cancelDetached()
     }
@@ -822,8 +841,14 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         }
 
         do {
+            // Checkpoints are keyed on the microphone source: live transcription
+            // never hears the system-audio source, so a two-source capture persists
+            // exactly the same revision chain as a mic-only one.
             try captureSessionStore.checkpointVoiceNoteLiveTranscript(
-                for: handle,
+                for: VoiceNoteCaptureHandle(
+                    sessionID: handle.sessionID,
+                    microphoneSourceID: handle.microphoneSourceID
+                ),
                 committedText: committedText,
                 assignmentAttempt: assignment.attempt
             )
@@ -881,16 +906,50 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         }
     }
 
-    private func isArtifactCaptureCurrent(_ handle: VoiceNoteCaptureHandle) -> Bool {
+    private func isArtifactCaptureCurrent(_ handle: NoteCaptureHandle) -> Bool {
         isArtifactCaptureActive && artifactCaptureHandle == handle
     }
 
     private func clearArtifactCaptureState() {
+        artifactLiveTranscriptionLimitTask?.cancel()
+        artifactLiveTranscriptionLimitTask = nil
         isArtifactCaptureActive = false
         artifactCaptureHandle = nil
         artifactAssignment = nil
         artifactPersistenceDisabled = false
         artifactFailureRecorded = false
+        isArtifactLiveTranscriptionStopped = false
+    }
+
+    /// Arms the live-transcription duration bound for one durable capture.
+    private func scheduleArtifactLiveTranscriptionLimit(for handle: NoteCaptureHandle) {
+        artifactLiveTranscriptionLimitTask?.cancel()
+        artifactLiveTranscriptionLimitTask = nil
+        let limit = artifactLiveTranscriptionLimit
+        guard limit > 0, limit.isFinite else { return }
+        artifactLiveTranscriptionLimitTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(limit))
+            guard !Task.isCancelled else { return }
+            self?.stopArtifactLiveTranscription(for: handle, afterSeconds: limit)
+        }
+    }
+
+    /// Stops feeding the streaming engine while the durable capture keeps spooling.
+    /// Buffers stop at the recorder tap, so the writer behind `startMeetingRecording`
+    /// is untouched; the engine still stops normally at `finishArtifactCapture`, so
+    /// the text decoded before the bound is kept and checkpointed.
+    private func stopArtifactLiveTranscription(
+        for handle: NoteCaptureHandle,
+        afterSeconds: TimeInterval
+    ) {
+        guard isArtifactCaptureCurrent(handle), !isArtifactLiveTranscriptionStopped else { return }
+        isArtifactLiveTranscriptionStopped = true
+        audioRecorder.onAudioBuffer = nil
+        audioStreamContinuation?.finish()
+        audioStreamContinuation = nil
+        Log.transcription.warning(
+            "Live transcription stopped after \(Int(afterSeconds))s; durable recording continues"
+        )
     }
 
     /// Buffers flow: capture thread → AsyncStream → one detached consumer → engine

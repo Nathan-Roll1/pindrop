@@ -137,6 +137,17 @@ struct StreamingSessionControllerTests {
         return (CaptureSessionStore(modelContext: ModelContext(container)), container)
     }
 
+    @discardableResult
+    private func startNoteCapture(
+        in store: CaptureSessionStore,
+        includeSystemAudio: Bool = false
+    ) throws -> NoteCaptureHandle {
+        try store.startNoteCapture(
+            includeSystemAudio: includeSystemAudio,
+            intent: CaptureIntentRequest(destination: .newNote, origin: .mainWindow)
+        )
+    }
+
     private func liveAssignment(
         modelIdentifier: String = StreamingChunkProfile.standard.repoFolderName,
         providerIdentifier: String = TranscriptionBackend.parakeet.rawValue
@@ -161,7 +172,9 @@ struct StreamingSessionControllerTests {
         captureSessionStore: CaptureSessionStore? = nil,
         audioRecorder: AudioRecorder? = nil,
         transcriptionBackend: TranscriptionBackend = .parakeet,
-        voiceIsolationEnabled: Bool = false
+        voiceIsolationEnabled: Bool = false,
+        artifactLiveTranscriptionLimit: TimeInterval = StreamingSessionController
+            .defaultArtifactLiveTranscriptionLimit
     ) throws -> StreamingSessionController {
         let settings = SettingsStore()
         settings.resetAllSettings()
@@ -197,7 +210,8 @@ struct StreamingSessionControllerTests {
             audioRecorder: effectiveAudioRecorder,
             captureSessionStore: effectiveCaptureSessionStore,
             normalizeText: { AppCoordinator.normalizedTranscriptionText($0) },
-            isEffectivelyEmptyText: { AppCoordinator.isTranscriptionEffectivelyEmpty($0) }
+            isEffectivelyEmptyText: { AppCoordinator.isTranscriptionEffectivelyEmpty($0) },
+            artifactLiveTranscriptionLimit: artifactLiveTranscriptionLimit
         )
     }
 
@@ -761,8 +775,8 @@ struct StreamingSessionControllerTests {
         )
         let (store, _) = try makeCaptureStore()
         let assignment = try liveAssignment()
-        let firstHandle = try store.startVoiceNoteCapture()
-        let secondHandle = try store.startVoiceNoteCapture()
+        let firstHandle = try startNoteCapture(in: store)
+        let secondHandle = try startNoteCapture(in: store)
         let controller = try makeController(
             clipboard: clipboard,
             toastPresenter: toastPresenter,
@@ -802,8 +816,8 @@ struct StreamingSessionControllerTests {
             streamingBackendProvider: { .parakeet }
         )
         let (store, _) = try makeCaptureStore()
-        let firstHandle = try store.startVoiceNoteCapture()
-        let secondHandle = try store.startVoiceNoteCapture()
+        let firstHandle = try startNoteCapture(in: store)
+        let secondHandle = try startNoteCapture(in: store)
         let controller = try makeController(
             clipboard: clipboard,
             toastPresenter: toastPresenter,
@@ -845,7 +859,7 @@ struct StreamingSessionControllerTests {
             streamingBackendProvider: { requestedBackend }
         )
         let (store, _) = try makeCaptureStore()
-        let handle = try store.startVoiceNoteCapture()
+        let handle = try startNoteCapture(in: store)
         let assignment = try liveAssignment(
             providerIdentifier: TranscriptionBackend.appleSpeechTranscriber.rawValue
         )
@@ -887,7 +901,7 @@ struct StreamingSessionControllerTests {
             streamingBackendProvider: { .parakeet }
         )
         let (store, _) = try makeCaptureStore()
-        let handle = try store.startVoiceNoteCapture()
+        let handle = try startNoteCapture(in: store)
         let assignment = try liveAssignment()
         _ = try store.resolveAssignment(
             sessionID: handle.sessionID,
@@ -933,7 +947,7 @@ struct StreamingSessionControllerTests {
             streamingBackendProvider: { .parakeet }
         )
         let (store, container) = try makeCaptureStore()
-        let handle = try store.startVoiceNoteCapture()
+        let handle = try startNoteCapture(in: store)
         let assignment = try liveAssignment(modelIdentifier: StreamingChunkProfile.lowLatency.repoFolderName)
         let controller = try makeController(
             clipboard: clipboard,
@@ -976,7 +990,7 @@ struct StreamingSessionControllerTests {
             streamingBackendProvider: { .parakeet }
         )
         let (store, container) = try makeCaptureStore()
-        let handle = try store.startVoiceNoteCapture()
+        let handle = try startNoteCapture(in: store)
         let assignment = try liveAssignment()
         let controller = try makeController(
             clipboard: clipboard,
@@ -1001,6 +1015,145 @@ struct StreamingSessionControllerTests {
         #expect(engine.stopCallCount == 1)
         #expect(clipboard.copied.isEmpty)
         #expect(toastPresenter.payloads.isEmpty)
+    }
+
+    @Test func twoSourceArtifactCaptureCheckpointsOnTheMicrophoneSourceOnly() async throws {
+        let clipboard = RecordingClipboard()
+        let toastPresenter = RecordingToastPresenter()
+        let engine = ArtifactStreamingEngine()
+        engine.stopResult = "hello meeting"
+        let transcriptionService = TranscriptionService(
+            storageLocations: ModelStorageLocations(
+                pindropApplicationSupportRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("artifact-two-source-\(UUID().uuidString)/Pindrop", isDirectory: true),
+                fluidAudioModelsRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("artifact-two-source-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
+            ),
+            streamingEngineFactory: { _, _ in engine },
+            streamingChunkProfileProvider: { .standard },
+            streamingBackendProvider: { .parakeet }
+        )
+        let (store, container) = try makeCaptureStore()
+        let handle = try startNoteCapture(in: store, includeSystemAudio: true)
+        let systemAudioSourceID = try #require(handle.systemAudioSourceID)
+        let assignment = try liveAssignment()
+        _ = try store.resolveAssignment(
+            sessionID: handle.sessionID,
+            stage: .liveTranscription,
+            attempt: assignment.attempt
+        ) {
+            assignment
+        }
+        let controller = try makeController(
+            clipboard: clipboard,
+            toastPresenter: toastPresenter,
+            transcriptionService: transcriptionService,
+            captureSessionStore: store
+        )
+
+        #expect(await controller.beginArtifactCapture(for: handle, assignment: assignment))
+        await controller.finishArtifactCapture(for: handle)
+
+        let revisions = try ModelContext(container).fetch(
+            FetchDescriptor<CaptureTranscriptRevisionModel>()
+        ).filter { $0.sessionID == handle.sessionID }
+        #expect(!revisions.isEmpty)
+        #expect(revisions.allSatisfy { $0.sourceID == handle.microphoneSourceID })
+        #expect(!revisions.contains { $0.sourceID == systemAudioSourceID })
+        #expect(revisions.last?.text == "Hello meeting")
+        #expect(!controller.isArtifactCaptureActive)
+    }
+
+    @Test func artifactCaptureStopsLiveTranscriptionPastTheDurationLimit() async throws {
+        let clipboard = RecordingClipboard()
+        let toastPresenter = RecordingToastPresenter()
+        let engine = ArtifactStreamingEngine()
+        let transcriptionService = TranscriptionService(
+            storageLocations: ModelStorageLocations(
+                pindropApplicationSupportRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("artifact-limit-\(UUID().uuidString)/Pindrop", isDirectory: true),
+                fluidAudioModelsRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("artifact-limit-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
+            ),
+            streamingEngineFactory: { _, _ in engine },
+            streamingChunkProfileProvider: { .standard },
+            streamingBackendProvider: { .parakeet }
+        )
+        let (store, _) = try makeCaptureStore()
+        let handle = try startNoteCapture(in: store, includeSystemAudio: true)
+        let assignment = try liveAssignment()
+        let audioRecorder = try AudioRecorder(
+            permissionManager: MockPermissionProvider(),
+            captureBackend: MockAudioCaptureBackend(identifier: "microphone"),
+            systemAudioCaptureBackend: MockAudioCaptureBackend(identifier: "system")
+        )
+        let controller = try makeController(
+            clipboard: clipboard,
+            toastPresenter: toastPresenter,
+            transcriptionService: transcriptionService,
+            captureSessionStore: store,
+            audioRecorder: audioRecorder,
+            artifactLiveTranscriptionLimit: 0.05
+        )
+
+        #expect(await controller.beginArtifactCapture(for: handle, assignment: assignment))
+        #expect(audioRecorder.onAudioBuffer != nil)
+        #expect(!controller.isArtifactLiveTranscriptionStopped)
+
+        try await Task.sleep(for: .milliseconds(300))
+
+        // The live transcript stops growing; the capture itself stays active so the
+        // durable spool keeps running and the ordinary finish path still applies.
+        #expect(controller.isArtifactLiveTranscriptionStopped)
+        #expect(audioRecorder.onAudioBuffer == nil)
+        #expect(controller.isArtifactCaptureActive)
+
+        await controller.finishArtifactCapture(for: handle)
+        #expect(!controller.isArtifactCaptureActive)
+        #expect(!controller.isArtifactLiveTranscriptionStopped)
+        #expect(engine.stopCallCount == 1)
+    }
+
+    @Test func artifactCaptureKeepsLiveTranscriptionInsideTheDurationLimit() async throws {
+        let clipboard = RecordingClipboard()
+        let toastPresenter = RecordingToastPresenter()
+        let engine = ArtifactStreamingEngine()
+        let transcriptionService = TranscriptionService(
+            storageLocations: ModelStorageLocations(
+                pindropApplicationSupportRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("artifact-within-limit-\(UUID().uuidString)/Pindrop", isDirectory: true),
+                fluidAudioModelsRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("artifact-within-limit-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
+            ),
+            streamingEngineFactory: { _, _ in engine },
+            streamingChunkProfileProvider: { .standard },
+            streamingBackendProvider: { .parakeet }
+        )
+        let (store, _) = try makeCaptureStore()
+        let handle = try startNoteCapture(in: store)
+        let assignment = try liveAssignment()
+        let audioRecorder = try AudioRecorder(
+            permissionManager: MockPermissionProvider(),
+            captureBackend: MockAudioCaptureBackend(identifier: "microphone"),
+            systemAudioCaptureBackend: MockAudioCaptureBackend(identifier: "system")
+        )
+        let controller = try makeController(
+            clipboard: clipboard,
+            toastPresenter: toastPresenter,
+            transcriptionService: transcriptionService,
+            captureSessionStore: store,
+            audioRecorder: audioRecorder,
+            artifactLiveTranscriptionLimit: 600
+        )
+
+        #expect(await controller.beginArtifactCapture(for: handle, assignment: assignment))
+        try await Task.sleep(for: .milliseconds(300))
+
+        #expect(!controller.isArtifactLiveTranscriptionStopped)
+        #expect(audioRecorder.onAudioBuffer != nil)
+
+        await controller.finishArtifactCapture(for: handle)
+        #expect(!controller.isArtifactCaptureActive)
     }
 
 

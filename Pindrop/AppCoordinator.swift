@@ -487,9 +487,18 @@ final class AppCoordinator {
     }
 
     private struct VoiceNoteCaptureContext {
-        let handle: PindropData.VoiceNoteCaptureHandle
+        let handle: PindropCore.NoteCaptureHandle
         let noteID: UUID?
         let liveAssignment: CaptureStageAssignment
+
+        /// `CaptureSessionStore`'s voice-note lifecycle API still keys on the
+        /// microphone source alone. A mic-only note capture maps onto it exactly.
+        var storeHandle: PindropData.VoiceNoteCaptureHandle {
+            PindropData.VoiceNoteCaptureHandle(
+                sessionID: handle.sessionID,
+                microphoneSourceID: handle.microphoneSourceID
+            )
+        }
     }
 
     private struct VoiceNoteCaptureResult {
@@ -1195,17 +1204,7 @@ final class AppCoordinator {
                 self?.handleMainWindowDictationStart()
             },
             onStartNoteCapture: { [weak self] request in
-                guard let self else { return false }
-                // Until P4 lands the unified note-capture controller, the old
-                // paths still do the work: system audio means the meeting path,
-                // microphone only means the voice-note path.
-                if request.includeSystemAudio {
-                    return self.handleStartMeetingCapture(
-                        expectedSpeakerCount: request.expectedSpeakerCount
-                    )
-                }
-                self.handleMainWindowVoiceNoteStart()
-                return true
+                self?.handleStartNoteCapture(request, origin: .mainWindow) ?? false
             }
         )
         self.mainWindowController.configureTranscribeFeature(
@@ -1230,7 +1229,9 @@ final class AppCoordinator {
         self.statusBarController.configureNoteCapture { [weak self] request in
             guard let self else { return false }
             self.mainWindowController.show()
-            return self.mainWindowController.onStartNoteCapture?(request) ?? false
+            // Same work as the main window seam, but the recorded intent has to
+            // say the menu bar asked for it.
+            return self.handleStartNoteCapture(request, origin: .menuBar)
         }
 
         self.statusBarController.onCopyLastTranscript = { [weak self] in
@@ -3476,7 +3477,7 @@ final class AppCoordinator {
 
         var context: VoiceNoteCaptureContext?
         do {
-            try beginVoiceNoteCapture(noteID: nil)
+            try beginVoiceNoteCapture(noteID: nil, origin: .hotkey)
             guard let activeContext = voiceNoteCaptureContext else {
                 throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
             }
@@ -3527,7 +3528,8 @@ final class AppCoordinator {
     // MARK: - Quick Capture Handlers (Toggle)
 
     private func handleQuickCaptureToggle(
-        captureStartClaim: CaptureStartClaim? = nil
+        captureStartClaim: CaptureStartClaim? = nil,
+        origin: CaptureIntentOrigin = .hotkey
     ) async {
         if isRecording && isQuickCaptureMode {
             do {
@@ -3552,7 +3554,7 @@ final class AppCoordinator {
 
             var context: VoiceNoteCaptureContext?
             do {
-                try beginVoiceNoteCapture(noteID: nil)
+                try beginVoiceNoteCapture(noteID: nil, origin: origin)
                 guard let activeContext = voiceNoteCaptureContext else {
                     throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
                 }
@@ -3756,7 +3758,7 @@ final class AppCoordinator {
         preservingAudioStartupOwnership: Bool = false
     ) {
         do {
-            try captureSessionStore.cancel(context.handle, at: .now)
+            try captureSessionStore.cancel(context.storeHandle, at: .now)
         } catch {
             Log.app.error("Failed to cancel pending voice-note capture: \(error)")
         }
@@ -3829,7 +3831,7 @@ final class AppCoordinator {
                 noteID: request.noteID
             )
 
-            try beginVoiceNoteCapture(noteID: request.noteID)
+            try beginVoiceNoteCapture(noteID: request.noteID, origin: .mainWindow)
             guard let activeContext = voiceNoteCaptureContext else {
                 throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
             }
@@ -4070,14 +4072,14 @@ final class AppCoordinator {
     }
 
     static func canBeginVoiceNoteCapture(
-        activeHandle: PindropData.VoiceNoteCaptureHandle?
+        activeHandle: PindropCore.NoteCaptureHandle?
     ) -> Bool {
         activeHandle == nil
     }
 
     static func isVoiceNoteCaptureCurrent(
-        activeHandle: PindropData.VoiceNoteCaptureHandle?,
-        candidateHandle: PindropData.VoiceNoteCaptureHandle
+        activeHandle: PindropCore.NoteCaptureHandle?,
+        candidateHandle: PindropCore.NoteCaptureHandle
     ) -> Bool {
         activeHandle == candidateHandle
     }
@@ -4273,10 +4275,10 @@ final class AppCoordinator {
     static func isPendingNoteAppendCaptureCurrent(
         pendingEditorID: UUID?,
         pendingNoteID: UUID?,
-        pendingHandle: PindropData.VoiceNoteCaptureHandle?,
+        pendingHandle: PindropCore.NoteCaptureHandle?,
         candidateEditorID: UUID,
         candidateNoteID: UUID,
-        candidateHandle: PindropData.VoiceNoteCaptureHandle
+        candidateHandle: PindropCore.NoteCaptureHandle
     ) -> Bool {
         pendingEditorID == candidateEditorID
             && pendingNoteID == candidateNoteID
@@ -5294,7 +5296,10 @@ final class AppCoordinator {
         try await loadAndActivateModel(named: model.name, provider: model.provider)
     }
 
-    private func beginVoiceNoteCapture(noteID: UUID?) throws {
+    private func beginVoiceNoteCapture(
+        noteID: UUID?,
+        origin: CaptureIntentOrigin = .mainWindow
+    ) throws {
         guard Self.canBeginVoiceNoteCapture(activeHandle: voiceNoteCaptureContext?.handle) else {
             throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
         }
@@ -5304,14 +5309,18 @@ final class AppCoordinator {
             .first(where: { $0.uid == preferredInputUID })?
             .displayName ?? "Microphone"
         // A voice note is a mic-only note capture: no system-audio source row.
-        let noteHandle = try captureSessionStore.startNoteCapture(
+        // A note id at start means this capture appends to a note that already
+        // exists. Without one the capture creates its own note, so the intent
+        // says `newNote` now and is bound once that note is committed.
+        let handle = try captureSessionStore.startNoteCapture(
             startedAt: .now,
             includeSystemAudio: false,
+            intent: CaptureIntentRequest(
+                destination: noteID == nil ? .newNote : .existingNote,
+                destinationNoteID: noteID,
+                origin: origin
+            ),
             microphoneDisplayName: microphoneDisplayName
-        )
-        let handle = PindropData.VoiceNoteCaptureHandle(
-            sessionID: noteHandle.sessionID,
-            microphoneSourceID: noteHandle.microphoneSourceID
         )
         do {
             let liveAssignment = try captureAssignment(
@@ -5330,6 +5339,23 @@ final class AppCoordinator {
         }
     }
 
+    /// Binds a `newNote` capture intent to the note the capture just created.
+    ///
+    /// The bind only improves crash recovery, so a failure never fails the note
+    /// the person just recorded: it is logged and the save continues.
+    private func bindCaptureIntentDestination(sessionID: UUID, noteID: UUID) {
+        do {
+            try captureSessionStore.updateIntentDestination(
+                sessionID: sessionID,
+                noteID: noteID
+            )
+        } catch {
+            Log.app.warning(
+                "Failed to bind capture intent to its note: \(error.localizedDescription)"
+            )
+        }
+    }
+
     private func failVoiceNoteCapture(
         _ context: VoiceNoteCaptureContext,
         stage: String,
@@ -5341,7 +5367,7 @@ final class AppCoordinator {
     }
 
     private func failVoiceNoteCapture(
-        _ handle: PindropData.VoiceNoteCaptureHandle,
+        _ handle: PindropCore.NoteCaptureHandle,
         stage: String,
         error: Error
     ) {
@@ -5356,7 +5382,10 @@ final class AppCoordinator {
         }
         do {
             try captureSessionStore.fail(
-                handle,
+                PindropData.VoiceNoteCaptureHandle(
+                    sessionID: handle.sessionID,
+                    microphoneSourceID: handle.microphoneSourceID
+                ),
                 stage: captureStage,
                 errorDomain: nsError.domain,
                 errorCode: String(nsError.code),
@@ -5376,7 +5405,7 @@ final class AppCoordinator {
     private func cancelActiveVoiceNoteCapture() {
         guard let context = voiceNoteCaptureContext else { return }
         do {
-            try captureSessionStore.cancel(context.handle, at: .now)
+            try captureSessionStore.cancel(context.storeHandle, at: .now)
         } catch {
             Log.app.error("Failed to cancel voice-note capture: \(error)")
         }
@@ -5418,7 +5447,7 @@ final class AppCoordinator {
                     try ensureVoiceNoteCaptureCurrent(context, token: token)
                 },
                 beginFinalization: { [captureSessionStore] in
-                    try captureSessionStore.beginFinalization(context.handle, at: .now)
+                    try captureSessionStore.beginFinalization(context.storeHandle, at: .now)
                 }
             )
         } catch {
@@ -5586,7 +5615,7 @@ final class AppCoordinator {
                     try ensureVoiceNoteCaptureCurrent(context, token: token)
                 },
                 beginFinalization: { [captureSessionStore] in
-                    try captureSessionStore.beginFinalization(context.handle, at: .now)
+                    try captureSessionStore.beginFinalization(context.storeHandle, at: .now)
                 }
             )
         } catch {
@@ -5819,7 +5848,7 @@ final class AppCoordinator {
         do {
             try ensureVoiceNoteCaptureCurrent(result.context, token: token)
             let revisions = try captureSessionStore.saveTranscriptRevisions(
-                for: result.context.handle,
+                for: result.context.storeHandle,
                 rawText: result.rawText,
                 finalText: result.finalText,
                 duration: result.duration,
@@ -5842,7 +5871,7 @@ final class AppCoordinator {
             try ensureVoiceNoteCaptureCurrent(result.context, token: token)
             try captureSessionStore.linkTranscriptionRecord(
                 linkageIDs.historyRecordID,
-                to: result.context.handle,
+                to: result.context.storeHandle,
                 at: .now
             )
             try ensureVoiceNoteCaptureCurrent(result.context, token: token)
@@ -5852,9 +5881,13 @@ final class AppCoordinator {
                 tags: result.tags,
                 sourceTranscriptionID: linkageIDs.historyRecordID
             )
+            bindCaptureIntentDestination(
+                sessionID: result.context.handle.sessionID,
+                noteID: note.id
+            )
             try ensureVoiceNoteCaptureCurrent(result.context, token: token)
             try captureSessionStore.complete(
-                result.context.handle,
+                result.context.storeHandle,
                 noteID: note.id,
                 finalTranscriptRevisionID: linkageIDs.finalTranscriptRevisionID,
                 at: .now
@@ -5883,7 +5916,7 @@ final class AppCoordinator {
         do {
             try ensureVoiceNoteCaptureCurrent(result.context, token: token)
             let revisions = try captureSessionStore.saveTranscriptRevisions(
-                for: result.context.handle,
+                for: result.context.storeHandle,
                 rawText: result.rawText,
                 finalText: result.finalText,
                 duration: result.duration,
@@ -5906,7 +5939,7 @@ final class AppCoordinator {
             try ensureVoiceNoteCaptureCurrent(result.context, token: token)
             try captureSessionStore.linkTranscriptionRecord(
                 linkageIDs.historyRecordID,
-                to: result.context.handle,
+                to: result.context.storeHandle,
                 at: .now
             )
             try ensureVoiceNoteCaptureCurrent(result.context, token: token)
@@ -5917,7 +5950,7 @@ final class AppCoordinator {
             )
             try ensureVoiceNoteCaptureCurrent(result.context, token: token)
             try captureSessionStore.complete(
-                result.context.handle,
+                result.context.storeHandle,
                 noteID: append.noteID,
                 finalTranscriptRevisionID: linkageIDs.finalTranscriptRevisionID,
                 at: .now
@@ -5966,7 +5999,27 @@ final class AppCoordinator {
         }
     }
 
-    private func handleMainWindowVoiceNoteStart() {
+    /// Starts one note capture on behalf of a UI entry point.
+    ///
+    /// Until P4 lands the unified note-capture controller, the old paths still
+    /// do the work: system audio means the meeting path, microphone only means
+    /// the voice-note path. `origin` is what the recorded intent will say asked
+    /// for the capture.
+    private func handleStartNoteCapture(
+        _ request: NoteCaptureRequest,
+        origin: CaptureIntentOrigin
+    ) -> Bool {
+        if request.includeSystemAudio {
+            return handleStartMeetingCapture(
+                expectedSpeakerCount: request.expectedSpeakerCount,
+                origin: origin
+            )
+        }
+        handleMainWindowVoiceNoteStart(origin: origin)
+        return true
+    }
+
+    private func handleMainWindowVoiceNoteStart(origin: CaptureIntentOrigin = .mainWindow) {
         guard !isRecording,
               !isProcessing,
               let claim = recordingState.claimCaptureStart() else { return }
@@ -5977,7 +6030,7 @@ final class AppCoordinator {
                 self.recordingState.releaseCaptureStart(claim)
                 self.mainWindowCaptureStartTask = nil
             }
-            await self.handleQuickCaptureToggle(captureStartClaim: claim)
+            await self.handleQuickCaptureToggle(captureStartClaim: claim, origin: origin)
         }
     }
 
@@ -8252,7 +8305,10 @@ final class AppCoordinator {
         }
     }
 
-    private func handleStartMeetingCapture(expectedSpeakerCount: Int?) -> Bool {
+    private func handleStartMeetingCapture(
+        expectedSpeakerCount: Int?,
+        origin: CaptureIntentOrigin = .mainWindow
+    ) -> Bool {
         guard !isRecording,
               !isProcessing,
               Self.canBeginMeetingCapture(
@@ -8282,7 +8338,8 @@ final class AppCoordinator {
                 try await self.startManualTranscriptionRecording(
                     mode: .microphoneAndSystemAudio,
                     expectedSpeakerCount: expectedSpeakerCount,
-                    pendingStart: meetingClaim
+                    pendingStart: meetingClaim,
+                    origin: origin
                 )
             } catch {
                 guard !self.isShutdown,
@@ -8301,7 +8358,8 @@ final class AppCoordinator {
     private func startManualTranscriptionRecording(
         mode: AudioRecordingMode,
         expectedSpeakerCount: Int? = nil,
-        pendingStart: MeetingCaptureStartClaim
+        pendingStart: MeetingCaptureStartClaim,
+        origin: CaptureIntentOrigin = .mainWindow
     ) async throws {
         try ensurePendingMeetingCaptureStartCurrent(pendingStart)
         guard !isRecording && !isProcessing else {
@@ -8323,9 +8381,12 @@ final class AppCoordinator {
         let microphoneDisplayName = AudioDeviceManager.inputDevices()
             .first(where: { $0.uid == preferredInputUID })?
             .displayName ?? "Microphone"
+        // The human anchor note needs the session to exist first, so the intent
+        // starts as `newNote` and is bound to the anchor a moment later.
         let handle = try captureSessionStore.startNoteCapture(
             startedAt: startedAt,
             includeSystemAudio: true,
+            intent: CaptureIntentRequest(destination: .newNote, origin: origin),
             microphoneDisplayName: microphoneDisplayName,
             systemAudioDisplayName: "System Audio"
         )
@@ -8340,6 +8401,10 @@ final class AppCoordinator {
                     locale: settingsStore.selectedAppLocale.locale
                 ),
                 at: startedAt
+            )
+            bindCaptureIntentDestination(
+                sessionID: handle.sessionID,
+                noteID: humanAnchor.noteID
             )
             _ = try captureMeetingStartAssignments(sessionID: handle.sessionID)
             try ensurePendingMeetingCaptureStartCurrent(pendingStart)

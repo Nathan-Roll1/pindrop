@@ -184,6 +184,53 @@ public struct CaptureIntent: Codable, Sendable, Equatable, Identifiable {
     }
 }
 
+/// One capture intent before the store gives it a session identity.
+///
+/// A caller cannot know the session identifier until the store creates the
+/// session, and it must not guess the source set either. The store binds this
+/// request to the session it creates and to the source rows it creates in the
+/// same transaction, so the persisted `requestedSourceKinds` can never disagree
+/// with the sources that exist.
+public struct CaptureIntentRequest: Sendable, Equatable {
+    public let destination: CaptureIntentDestination
+    public let destinationNoteID: UUID?
+    public let requestedTemplatePresetIdentifier: String?
+    public let origin: CaptureIntentOrigin
+
+    public init(
+        destination: CaptureIntentDestination,
+        destinationNoteID: UUID? = nil,
+        requestedTemplatePresetIdentifier: String? = nil,
+        origin: CaptureIntentOrigin
+    ) {
+        self.destination = destination
+        self.destinationNoteID = destinationNoteID
+        self.requestedTemplatePresetIdentifier = requestedTemplatePresetIdentifier
+        self.origin = origin
+    }
+
+    /// Binds this request to one session and the sources that session owns.
+    ///
+    /// Validation is `CaptureIntent`'s: this throws the same `CaptureIntentError`
+    /// values, so an impossible request fails at the moment the capture starts
+    /// rather than at recovery time.
+    public func intent(
+        sessionID: UUID,
+        requestedSourceKinds: [CaptureSourceKind],
+        createdAt: Date = Date()
+    ) throws -> CaptureIntent {
+        try CaptureIntent(
+            sessionID: sessionID,
+            destination: destination,
+            destinationNoteID: destinationNoteID,
+            requestedSourceKinds: requestedSourceKinds,
+            requestedTemplatePresetIdentifier: requestedTemplatePresetIdentifier,
+            origin: origin,
+            createdAt: createdAt
+        )
+    }
+}
+
 public enum CaptureEnhancedPanelError: Error, Codable, Sendable, Equatable, LocalizedError {
     case invalidGeneration(Int)
     case invalidAssignmentAttempt(Int)
