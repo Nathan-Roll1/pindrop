@@ -269,11 +269,16 @@ final class MediaTranscriptionFeatureState {
     }
 }
 
+struct CaptureStartClaim: Equatable, Sendable {
+    fileprivate let id = UUID()
+}
+
 @MainActor
 @Observable
 final class RecordingFeatureState {
     var selectedCaptureMode: AudioRecordingMode = .systemAudio
     var isRecording = false
+    private(set) var isProcessing = false
     var recordingStartedAt: Date?
     var audioLevel: Float = 0.0
     var isDiarizationModelDownloading = false
@@ -282,6 +287,40 @@ final class RecordingFeatureState {
     var setupIssue: String?
     var message: String?
     var lastCompletedRecordID: UUID?
+    private var pendingCaptureStart: CaptureStartClaim?
+
+    var isCaptureStartPending: Bool {
+        pendingCaptureStart != nil
+    }
+
+    var isCaptureBusy: Bool {
+        isCaptureStartPending || isRecording || isProcessing || currentJob != nil
+    }
+
+    func setCaptureActivity(isRecording: Bool, isProcessing: Bool) {
+        self.isRecording = isRecording
+        self.isProcessing = isProcessing
+    }
+
+    func claimCaptureStart() -> CaptureStartClaim? {
+        guard pendingCaptureStart == nil else { return nil }
+        let claim = CaptureStartClaim()
+        pendingCaptureStart = claim
+        return claim
+    }
+
+    func isCaptureStartClaimCurrent(_ claim: CaptureStartClaim) -> Bool {
+        pendingCaptureStart == claim
+    }
+
+    func releaseCaptureStart(_ claim: CaptureStartClaim) {
+        guard pendingCaptureStart == claim else { return }
+        pendingCaptureStart = nil
+    }
+
+    func invalidateCaptureStart() {
+        pendingCaptureStart = nil
+    }
 
     func beginRecording(mode: AudioRecordingMode, startedAt: Date = Date()) {
         selectedCaptureMode = mode

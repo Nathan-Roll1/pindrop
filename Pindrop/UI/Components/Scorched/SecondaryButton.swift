@@ -38,6 +38,7 @@ struct SecondaryButton: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(title)
     }
 }
 

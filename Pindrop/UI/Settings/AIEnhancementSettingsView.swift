@@ -1217,7 +1217,7 @@ struct AIEnhancementSettingsView: View {
          )
          modelListCache[provider.id] = models
       } catch {
-         Log.aiEnhancement.error("Failed to fetch models for provider \(provider.id): \(error)")
+         Log.aiEnhancement.error("Failed to fetch models providerID=\(provider.id)")
          modelListErrors[provider.id] = error.localizedDescription
       }
    }
@@ -1573,7 +1573,10 @@ private struct ProviderEditSheet: View {
                )
             } footer: {
                if !isApple {
-                  Text(localized("Credentials are stored securely in Keychain.", locale: locale))
+                  VStack(alignment: .leading, spacing: 2) {
+                     Text(localized("Credentials are stored securely in Keychain.", locale: locale))
+                     Text(localized("Changes to this provider's credentials and endpoint apply to in-progress and recovered captures. The selected model and prompt stay fixed.", locale: locale))
+                  }
                }
             }
 

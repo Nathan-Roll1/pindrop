@@ -26,7 +26,9 @@ struct MarkdownEditor: NSViewRepresentable {
         textView.isEditable = true
         textView.isSelectable = true
         textView.drawsBackground = false
-        textView.textContainerInset = NSSize(width: 0, height: 8)
+        // Left inset is the heading-marker margin: `#` markers for headings are
+        // collapsed inline and drawn dimmed in the margin instead (Granola-style).
+        textView.textContainerInset = NSSize(width: MarkdownTextView.headingMarginWidth, height: 8)
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = false
@@ -85,6 +87,10 @@ struct MarkdownEditor: NSViewRepresentable {
 
 class MarkdownTextView: NSTextView {
 
+    /// Width of the left gutter where heading markers are drawn. Matches the
+    /// text container's left inset so body text starts at the content column.
+    static let headingMarginWidth: CGFloat = 28
+
     var onCheckboxToggle: ((String) -> Void)?
 
     private let baseFont = FontLoader.nsFont(family: .inter, size: 13, weight: .regular)
@@ -97,6 +103,19 @@ class MarkdownTextView: NSTextView {
         FontLoader.nsFont(family: .inter, size: 13, weight: .medium)
     ]
     private let codeFont = FontLoader.nsFont(family: .jetbrainsMono, size: 12, weight: .regular)
+    private let marginMarkerFont = FontLoader.nsFont(family: .inter, size: 12, weight: .medium)
+    /// Marker collapse: a 1 pt font makes the inline `# ` effectively zero-width
+    /// while keeping the characters editable and undo-safe.
+    private let collapsedMarkerFont = NSFont.systemFont(ofSize: 1)
+
+    /// Heading lines whose markers render in the margin. Character ranges are
+    /// refreshed on every styling pass (each text change restyles).
+    private struct MarginHeading {
+        let lineRange: NSRange
+        let level: Int
+        let marker: String
+    }
+    private var marginHeadings: [MarginHeading] = []
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
@@ -130,6 +149,8 @@ class MarkdownTextView: NSTextView {
             .foregroundColor: NSColor(AppColors.textPrimary)
         ], range: fullRange)
 
+        marginHeadings = []
+
         applyHeadings(to: textStorage, text: text)
         applyBold(to: textStorage, text: text)
         applyItalic(to: textStorage, text: text)
@@ -142,26 +163,86 @@ class MarkdownTextView: NSTextView {
         applyTaskCheckboxes(to: textStorage, text: text)
 
         textStorage.endEditing()
+
+        // Margin markers are painted in draw(_:); restyling must repaint.
+        needsDisplay = true
     }
 
     private func applyHeadings(to textStorage: NSTextStorage, text: String) {
-        let pattern = "^(#{1,6})\\s+(.+)$"
+        let pattern = "^(#{1,6})(\\s+)(.+)$"
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .anchorsMatchLines) else { return }
 
         let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
         for match in matches {
             let hashRange = match.range(at: 1)
-            let contentRange = match.range(at: 2)
+            let spacingRange = match.range(at: 2)
+            let contentRange = match.range(at: 3)
             let level = min(hashRange.length - 1, 5)
 
+            // Collapse the inline marker ("# ") so the heading content starts at
+            // the content column; the marker is drawn in the margin instead.
+            let markerRange = NSRange(
+                location: hashRange.location,
+                length: NSMaxRange(spacingRange) - hashRange.location
+            )
             textStorage.addAttributes([
-                .foregroundColor: NSColor(AppColors.textTertiary)
-            ], range: hashRange)
+                .font: collapsedMarkerFont,
+                .foregroundColor: NSColor.clear
+            ], range: markerRange)
 
             textStorage.addAttributes([
                 .font: headingFonts[level],
                 .foregroundColor: NSColor(AppColors.textPrimary)
             ], range: contentRange)
+
+            marginHeadings.append(MarginHeading(
+                lineRange: match.range(at: 0),
+                level: level,
+                marker: (text as NSString).substring(with: hashRange)
+            ))
+        }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        // NSTextView leaves the text-container clip installed after glyph
+        // drawing; reset it so margin markers (inside the container inset)
+        // are not clipped away.
+        let context = NSGraphicsContext.current?.cgContext
+        context?.saveGState()
+        context?.resetClip()
+        drawMarginHeadingMarkers()
+        context?.restoreGState()
+    }
+
+    /// Paints the dimmed `#` markers in the left gutter, aligned to each
+    /// heading's first line. Coordinates: layout manager rects are in container
+    /// coordinates, so add the container origin (the inset) for view space.
+    private func drawMarginHeadingMarkers() {
+        guard !marginHeadings.isEmpty,
+              let layoutManager,
+              let textContainer else { return }
+
+        let origin = textContainerOrigin
+        let markerColor = NSColor(AppColors.textTertiary)
+
+        for heading in marginHeadings {
+            let glyphRange = layoutManager.glyphRange(forCharacterRange: heading.lineRange, actualCharacterRange: nil)
+            let lineRect = layoutManager.lineFragmentRect(forGlyphAt: glyphRange.location, effectiveRange: nil)
+            let contentFont = headingFonts[heading.level]
+
+            let markerSize = (heading.marker as NSString).size(withAttributes: [.font: marginMarkerFont])
+            // Baseline-align the marker to the heading text, then nudge up so it
+            // optically sits on the cap line rather than the baseline.
+            let baselineY = origin.y + lineRect.minY + contentFont.ascender
+            let drawPoint = NSPoint(
+                x: origin.x + lineRect.minX - 6 - markerSize.width,
+                y: baselineY - marginMarkerFont.ascender
+            )
+            (heading.marker as NSString).draw(at: drawPoint, withAttributes: [
+                .font: marginMarkerFont,
+                .foregroundColor: markerColor
+            ])
         }
     }
 

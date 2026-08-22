@@ -218,6 +218,80 @@ struct HistoryStoreTests {
         #expect(records.first?.destinationAppBundleID == nil)
     }
 
+    @Test func saveWithSameIDIsIdempotentAndRejectsConflicts() throws {
+        let fixture = try makeFixture()
+        let contributionService = ContributionService(
+            modelContext: fixture.modelContext,
+            metadataProvider: {
+                ContributionCaptureMetadata(
+                    isEnabled: true,
+                    languageRawValue: "en",
+                    localeIdentifier: "en_US",
+                    appVersion: "test"
+                )
+            }
+        )
+        let historyStore = HistoryStore(
+            modelContext: fixture.modelContext,
+            contributionService: contributionService
+        )
+        let id = UUID()
+        var notificationCount = 0
+        let observer = NotificationCenter.default.addObserver(
+            forName: .historyStoreDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in
+            notificationCount += 1
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        let firstRecord = try historyStore.save(
+            text: "Hello, world!",
+            originalText: "helo world",
+            duration: 5.0,
+            modelUsed: "tiny",
+            enhancedWith: "test-enhancer",
+            id: id
+        )
+        let retriedRecord = try historyStore.save(
+            text: "Hello, world!",
+            originalText: "helo world",
+            duration: 5.0,
+            modelUsed: "tiny",
+            enhancedWith: "test-enhancer",
+            id: id
+        )
+
+        #expect(firstRecord.id == id)
+        #expect(retriedRecord.id == id)
+        #expect(try historyStore.fetchAll().count == 1)
+        #expect(notificationCount == 1)
+        #expect(contributionService.count() == 1)
+
+        do {
+            _ = try historyStore.save(
+                text: "Changed text",
+                originalText: "helo world",
+                duration: 5.0,
+                modelUsed: "tiny",
+                enhancedWith: "test-enhancer",
+                id: id
+            )
+            Issue.record("Expected conflictingRecordID HistoryStoreError")
+        } catch let error as HistoryStore.HistoryStoreError {
+            guard case .conflictingRecordID(let conflictingID) = error else {
+                Issue.record("Expected conflictingRecordID error, got \(error)")
+                return
+            }
+            #expect(conflictingID == id)
+        }
+
+        #expect(try historyStore.fetchAll().count == 1)
+        #expect(notificationCount == 1)
+        #expect(contributionService.count() == 1)
+    }
+
     @Test func savePersistsDestinationAppAndWordCount() throws {
         let fixture = try makeFixture()
 

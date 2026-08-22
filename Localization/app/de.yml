@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "Ändere deine Wahl jederzeit unter Einstellungen → Datenschutz."
 changes:
   the_language_used_by_pindrop_s_interface: "Ändert die Sprache der Pindrop-Oberfläche."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "Änderungen an den Anmeldedaten und dem Endpunkt dieses Anbieters gelten für laufende und wiederhergestellte Aufnahmen. Das ausgewählte Modell und der Prompt bleiben unverändert."
 check:
   for_updates: "Auf Updates prüfen..."
   for_updates_736b9062: "Auf Updates prüfen"
@@ -831,6 +832,36 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Wähle Anbieter und Modell für jede KI-Aufgabe. Unzugewiesene Zwecke werden übersprungen."
 pill:
   _self: "Pille"
+pillars:
+  capture: "Aufnahme"
+  workspace: "Arbeitsbereich"
+  tools: "Werkzeuge"
+  dictate: "Diktieren"
+  voice_note: "Sprachnotiz"
+  meeting: "Besprechung"
+  dictate_description: "Sprechen Sie, dann schreibt Pindrop in die von Ihnen verwendete App."
+  voice_note_description: "Halten Sie einen Gedanken fest und bewahren Sie ihn in Notizen auf."
+  meeting_description: "Nehmen Sie Mikrofon- und Systemaudio auf und bewahren Sie die Besprechung anschließend in der Bibliothek auf."
+  start_dictating: "Diktieren starten"
+  start_voice_note: "Sprachnotiz starten"
+  open_notes: "Notizen öffnen"
+  change_shortcut: "Kurzbefehl ändern"
+  capture_in_progress: "Aufnahme läuft"
+  finish_current_capture: "Beenden Sie die aktuelle Aufnahme, bevor Sie eine weitere starten."
+  voice_note_hold: "Sprachnotiz — gedrückt halten"
+  voice_note_toggle: "Sprachnotiz — Umschalten"
+  you_captured_this_week: "Sie haben diese Woche %@ aufgenommen."
+  you_recorded_this_week: "Sie haben diese Woche %@ aufgezeichnet."
+  one_voice_note: "1 Sprachnotiz"
+  n_voice_notes: "%@ Sprachnotizen"
+  one_meeting: "1 Besprechung"
+  n_meetings: "%@ Besprechungen"
+  of_meeting_audio: "%@ Besprechungsaudio."
+  voice_note_shortcut_hint: "Halten Sie %1$@ gedrückt oder drücken Sie %2$@ an beliebiger Stelle."
+  hold_anywhere: "Halten Sie %@ an beliebiger Stelle gedrückt."
+  press_anywhere: "Drücken Sie %@ an beliebiger Stelle."
+  voice_notes_empty: "Ihre Sprachnotizen werden hier angezeigt."
+  meetings_empty: "Ihre aufgezeichneten Besprechungen werden hier angezeigt."
 pin:
   to_screen_always_on_top: "An Bildschirm anheften (immer im Vordergrund)"
 pindrop:
@@ -1128,7 +1159,7 @@ start:
   using_pindrop: "Pindrop verwenden"
   in_the_menu_bar_without_opening_the_main_w: "In der Menüleiste starten, ohne das Hauptfenster zu öffnen. Sie können es weiterhin über das Menüleistensymbol öffnen."
 stats:
-  _self: "Stats"
+  _self: "Statistiken"
 status:
   _self: "Status"
 stop:

@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "Thay đổi lựa chọn của bạn bất cứ lúc nào trong Cài đặt → Quyền riêng tư."
 changes:
   the_language_used_by_pindrop_s_interface: "Changes the language used by Pindrop's interface."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "Các thay đổi đối với thông tin xác thực và điểm cuối của nhà cung cấp này sẽ áp dụng cho các bản ghi đang thực hiện và đã khôi phục. Mô hình và lời nhắc đã chọn vẫn được giữ nguyên."
 check:
   for_updates: "Kiểm tra cập nhật..."
   for_updates_736b9062: "Kiểm tra các bản cập nhật"
@@ -831,6 +832,36 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "Thuốc viên"
+pillars:
+  capture: "Ghi âm"
+  workspace: "Không gian làm việc"
+  tools: "Công cụ"
+  dictate: "Đọc chính tả"
+  voice_note: "Ghi chú bằng giọng nói"
+  meeting: "Cuộc họp"
+  dictate_description: "Hãy nói, Pindrop sẽ viết vào ứng dụng bạn đang sử dụng."
+  voice_note_description: "Ghi lại một ý tưởng và lưu vào Ghi chú."
+  meeting_description: "Ghi âm thanh từ micrô và hệ thống, sau đó lưu cuộc họp vào Thư viện."
+  start_dictating: "Bắt đầu đọc chính tả"
+  start_voice_note: "Bắt đầu ghi chú bằng giọng nói"
+  open_notes: "Mở Ghi chú"
+  change_shortcut: "Thay đổi phím tắt"
+  capture_in_progress: "Đang ghi âm"
+  finish_current_capture: "Hãy hoàn tất bản ghi hiện tại trước khi bắt đầu bản ghi khác."
+  voice_note_hold: "Ghi chú bằng giọng nói — Nhấn giữ"
+  voice_note_toggle: "Ghi chú bằng giọng nói — Bật/tắt"
+  you_captured_this_week: "Bạn đã ghi %@ tuần này."
+  you_recorded_this_week: "Bạn đã ghi %@ tuần này."
+  one_voice_note: "1 ghi chú giọng nói"
+  n_voice_notes: "%@ ghi chú giọng nói"
+  one_meeting: "1 cuộc họp"
+  n_meetings: "%@ cuộc họp"
+  of_meeting_audio: "%@ âm thanh cuộc họp."
+  voice_note_shortcut_hint: "Giữ %1$@ hoặc nhấn %2$@ ở bất kỳ đâu."
+  hold_anywhere: "Giữ %@ ở bất kỳ đâu."
+  press_anywhere: "Nhấn %@ ở bất kỳ đâu."
+  voice_notes_empty: "Ghi chú giọng nói của bạn sẽ hiện ở đây."
+  meetings_empty: "Các cuộc họp đã ghi của bạn sẽ hiện ở đây."
 pin:
   to_screen_always_on_top: "Ghim vào màn hình (luôn ở trên cùng)"
 pindrop:
@@ -1128,7 +1159,7 @@ start:
   using_pindrop: "Bắt đầu sử dụng Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "Bắt đầu trên thanh menu mà không mở cửa sổ chính. Bạn vẫn có thể mở nó từ biểu tượng thanh menu."
 stats:
-  _self: "Stats"
+  _self: "Thống kê"
 status:
   _self: "Trạng thái"
 stop:

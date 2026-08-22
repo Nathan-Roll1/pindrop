@@ -14,16 +14,31 @@ extension Notification.Name {
     public static let pindropNoteTagsDidChange = Notification.Name("PindropNoteTagsDidChange")
 }
 
+/// Durable result of a speak-to-append write.
+public struct NoteAppendResult: Sendable, Equatable {
+    public let noteID: UUID
+    public let content: String
+    public let sourceTranscriptionID: UUID
+
+    public init(noteID: UUID, content: String, sourceTranscriptionID: UUID) {
+        self.noteID = noteID
+        self.content = content
+        self.sourceTranscriptionID = sourceTranscriptionID
+    }
+}
+
 @MainActor
 @Observable
 public final class NotesStore {
 
-    public enum NotesStoreError: Error, LocalizedError {
+    public enum NotesStoreError: Error, Equatable, LocalizedError {
         case saveFailed(String)
         case fetchFailed(String)
         case deleteFailed(String)
         case searchFailed(String)
         case metadataGenerationFailed(String)
+        case noteNotFound(UUID)
+        case meetingAnchorProtected(noteID: UUID)
 
         public var errorDescription: String? {
             switch self {
@@ -37,6 +52,10 @@ public final class NotesStore {
                 return "Failed to search notes: \(message)"
             case .metadataGenerationFailed(let message):
                 return "Failed to generate metadata: \(message)"
+            case .noteNotFound(let id):
+                return "Note \(id.uuidString) was not found."
+            case .meetingAnchorProtected(let noteID):
+                return "Meeting anchor note \(noteID.uuidString) cannot be deleted."
             }
         }
     }
@@ -80,13 +99,14 @@ public final class NotesStore {
         noteTagsChangeObserverRegistration.tearDown()
     }
 
+    @discardableResult
     public func create(
         title: String? = nil,
         content: String,
         tags: [String]? = nil,
         sourceTranscriptionID: UUID? = nil,
         generateMetadata: Bool = false
-    ) async throws {
+    ) async throws -> Note {
         var finalTitle = title
         var finalTags = tags
 
@@ -104,8 +124,7 @@ public final class NotesStore {
                     }
                 }
             } catch {
-                Log.aiEnhancement.warning(
-                    "Failed to generate note metadata: \(error.localizedDescription)")
+                Log.aiEnhancement.warning("Note metadata generation failed; using fallback")
                 // Fall back to default behavior on generator failure
             }
         }
@@ -134,15 +153,131 @@ public final class NotesStore {
             tags: finalTags!,
             sourceTranscriptionID: sourceTranscriptionID
         )
-
-        modelContext.insert(note)
+        let creationContext = ModelContext(modelContext.container)
+        creationContext.insert(note)
 
         do {
-            try modelContext.save()
-            invalidateUniqueTagsCache()
+            try creationContext.save()
         } catch {
             throw NotesStoreError.saveFailed(error.localizedDescription)
         }
+        invalidateUniqueTagsCache()
+
+        let noteID = note.id
+        var descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate<Note> { $0.id == noteID }
+        )
+        descriptor.fetchLimit = 1
+        do {
+            guard let durableNote = try modelContext.fetch(descriptor).first else {
+                throw NotesStoreError.noteNotFound(note.id)
+            }
+            return durableNote
+        } catch let error as NotesStoreError {
+            throw error
+        } catch {
+            throw NotesStoreError.fetchFailed(error.localizedDescription)
+        }
+    }
+
+    /// Checks durable note existence from a context that cannot return a stale registered model.
+    public func contains(id: UUID) throws -> Bool {
+        let context = ModelContext(modelContext.container)
+        var descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate<Note> { note in
+                note.id == id
+            }
+        )
+        descriptor.fetchLimit = 1
+
+        do {
+            return try context.fetch(descriptor).first != nil
+        } catch {
+            throw NotesStoreError.fetchFailed(error.localizedDescription)
+        }
+    }
+
+    /// Fetches a durable note after proving its existence in a fresh context.
+    public func fetch(id: UUID) throws -> Note {
+        let durableContext = ModelContext(modelContext.container)
+        var descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate<Note> { note in
+                note.id == id
+            }
+        )
+        descriptor.fetchLimit = 1
+
+        do {
+            guard let durableNote = try durableContext.fetch(descriptor).first else {
+                throw NotesStoreError.noteNotFound(id)
+            }
+            let registered: Note? = modelContext.registeredModel(
+                for: durableNote.persistentModelID
+            )
+            if let registered {
+                return registered
+            }
+            guard let registered = modelContext.model(
+                for: durableNote.persistentModelID
+            ) as? Note else {
+                throw NotesStoreError.noteNotFound(id)
+            }
+            return registered
+        } catch let error as NotesStoreError {
+            throw error
+        } catch {
+            throw NotesStoreError.fetchFailed(error.localizedDescription)
+        }
+    }
+
+    /// Appends a committed transcript to a durable note.
+    ///
+    /// The first originating transcription remains authoritative when a note
+    /// receives multiple append operations.
+    @discardableResult
+    public func appendTranscript(
+        to noteID: UUID,
+        content: String,
+        sourceTranscriptionID: UUID
+    ) throws -> NoteAppendResult {
+        let context = ModelContext(modelContext.container)
+        var descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate<Note> { note in
+                note.id == noteID
+            }
+        )
+        descriptor.fetchLimit = 1
+
+        let note: Note
+        do {
+            guard let fetchedNote = try context.fetch(descriptor).first else {
+                throw NotesStoreError.noteNotFound(noteID)
+            }
+            note = fetchedNote
+        } catch let error as NotesStoreError {
+            throw error
+        } catch {
+            throw NotesStoreError.fetchFailed(error.localizedDescription)
+        }
+
+        note.content = NoteContentAppend.append(transcript: content, to: note.content)
+        let effectiveSourceTranscriptionID = note.sourceTranscriptionID ?? sourceTranscriptionID
+        if note.sourceTranscriptionID == nil {
+            note.sourceTranscriptionID = effectiveSourceTranscriptionID
+        }
+        note.updatedAt = Date()
+
+        do {
+            try context.save()
+        } catch {
+            throw NotesStoreError.saveFailed(error.localizedDescription)
+        }
+
+        return NoteAppendResult(
+            noteID: note.id,
+            content: note.content,
+            sourceTranscriptionID: effectiveSourceTranscriptionID
+        )
     }
 
     public func fetchAll() throws -> [Note] {
@@ -182,10 +317,37 @@ public final class NotesStore {
     }
 
     public func delete(_ note: Note) throws {
-        modelContext.delete(note)
-
+        let noteID = note.id
+        let context = ModelContext(modelContext.container)
+        let references: [CaptureNoteReferenceModel]
         do {
-            try modelContext.save()
+            references = try noteReferences(for: noteID, in: context)
+            for reference in references {
+                switch try reference.resolvedRole() {
+                case .humanAnchor:
+                    throw NotesStoreError.meetingAnchorProtected(noteID: noteID)
+                case .generated:
+                    break
+                }
+            }
+        } catch let error as NotesStoreError {
+            throw error
+        } catch {
+            throw NotesStoreError.deleteFailed("Note has an unrecognized meeting role.")
+        }
+
+        let descriptor = FetchDescriptor<Note>(
+            predicate: #Predicate<Note> { $0.id == noteID }
+        )
+        do {
+            guard let durableNote = try context.fetch(descriptor).first else {
+                return
+            }
+            for reference in references {
+                context.delete(reference)
+            }
+            context.delete(durableNote)
+            try context.save()
             invalidateUniqueTagsCache()
         } catch {
             throw NotesStoreError.deleteFailed(error.localizedDescription)
@@ -193,9 +355,30 @@ public final class NotesStore {
     }
 
     public func deleteAll() throws {
+        let context = ModelContext(modelContext.container)
+        let references: [CaptureNoteReferenceModel]
         do {
-            try modelContext.delete(model: Note.self)
-            try modelContext.save()
+            references = try noteReferences(in: context)
+            for reference in references {
+                switch try reference.resolvedRole() {
+                case .humanAnchor:
+                    throw NotesStoreError.meetingAnchorProtected(noteID: reference.noteID)
+                case .generated:
+                    break
+                }
+            }
+        } catch let error as NotesStoreError {
+            throw error
+        } catch {
+            throw NotesStoreError.deleteFailed("Note has an unrecognized meeting role.")
+        }
+
+        do {
+            for reference in references {
+                context.delete(reference)
+            }
+            try context.delete(model: Note.self)
+            try context.save()
             invalidateUniqueTagsCache()
         } catch {
             throw NotesStoreError.deleteFailed(error.localizedDescription)
@@ -276,6 +459,22 @@ public final class NotesStore {
     private func invalidateUniqueTagsCache() {
         uniqueTagsCacheGeneration &+= 1
         uniqueTagsCache = nil
+    }
+
+    private func noteReferences(
+        for noteID: UUID,
+        in context: ModelContext
+    ) throws -> [CaptureNoteReferenceModel] {
+        let descriptor = FetchDescriptor<CaptureNoteReferenceModel>(
+            predicate: #Predicate<CaptureNoteReferenceModel> { $0.noteID == noteID }
+        )
+        return try context.fetch(descriptor)
+    }
+
+    private func noteReferences(
+        in context: ModelContext
+    ) throws -> [CaptureNoteReferenceModel] {
+        try context.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
     }
 }
 

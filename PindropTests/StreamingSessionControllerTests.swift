@@ -48,6 +48,82 @@ struct StreamingSessionControllerTests {
         func hide() {}
     }
 
+    @MainActor
+    private final class BeginTeardownWaitProbe {
+        private var arrived = false
+        private var waiter: CheckedContinuation<Void, Never>?
+
+        func arrive() {
+            arrived = true
+            waiter?.resume()
+            waiter = nil
+        }
+
+        func waitUntilArrived() async {
+            if arrived { return }
+            await withCheckedContinuation { waiter = $0 }
+        }
+    }
+
+    private final class ArtifactStreamingEngine: PindropSpeech.StreamingTranscriptionEngine, @unchecked Sendable {
+        private(set) var state: StreamingTranscriptionState = .unloaded
+        private(set) var startStreamingCallCount = 0
+        private(set) var stopCallCount = 0
+        var startError: Error?
+        var stopResult = ""
+        private var transcriptionCallback: StreamingTranscriptionCallback?
+        private var finalUtteranceCallback: EndOfUtteranceCallback?
+
+        func loadModel(name: String) async throws {
+            state = .ready
+        }
+
+        func unloadModel() async {
+            state = .unloaded
+        }
+
+        func startStreaming() async throws {
+            startStreamingCallCount += 1
+            if let startError {
+                throw startError
+            }
+            state = .streaming
+        }
+
+        func stopStreaming() async throws -> String {
+            stopCallCount += 1
+            state = .ready
+            return stopResult
+        }
+
+        func pauseStreaming() async {
+            state = .paused
+        }
+
+        func resumeStreaming() async throws {
+            state = .streaming
+        }
+
+        func processAudioChunk(_ samples: [Float]) async throws {}
+        func processAudioBuffer(_ buffer: AVAudioPCMBuffer) async throws {}
+
+        func setTranscriptionCallback(_ callback: @escaping StreamingTranscriptionCallback) async {
+            transcriptionCallback = callback
+        }
+
+        func setEndOfUtteranceCallback(_ callback: @escaping EndOfUtteranceCallback) async {
+            finalUtteranceCallback = callback
+        }
+
+        func reset() async {
+            state = .ready
+        }
+
+        func emitFinal(_ text: String) {
+            finalUtteranceCallback?(text)
+        }
+    }
+
 
     private func makeDictionaryStore() throws -> DictionaryStore {
         let schema = Schema([VocabularyWord.self, WordReplacement.self])
@@ -56,11 +132,34 @@ struct StreamingSessionControllerTests {
         return DictionaryStore(modelContext: ModelContext(container))
     }
 
+    private func makeCaptureStore() throws -> (CaptureSessionStore, ModelContainer) {
+        let container = try PindropModelContainerFactory.makeInMemoryContainer()
+        return (CaptureSessionStore(modelContext: ModelContext(container)), container)
+    }
+
+    private func liveAssignment(
+        modelIdentifier: String = StreamingChunkProfile.standard.repoFolderName,
+        providerIdentifier: String = TranscriptionBackend.parakeet.rawValue
+    ) throws -> CaptureStageAssignment {
+        try CaptureStageAssignment(
+            stage: .liveTranscription,
+            providerKind: .streamingSpeech,
+            providerIdentifier: providerIdentifier,
+            modelIdentifier: modelIdentifier,
+            prompt: nil,
+            selectedAt: .now,
+            attempt: 1
+        )
+    }
+
+
     private func makeController(
         clipboard: RecordingClipboard,
         toastPresenter: RecordingToastPresenter,
         transcriptionService: TranscriptionService? = nil,
         dictionaryStore: DictionaryStore? = nil,
+        captureSessionStore: CaptureSessionStore? = nil,
+        audioRecorder: AudioRecorder? = nil,
         transcriptionBackend: TranscriptionBackend = .parakeet,
         voiceIsolationEnabled: Bool = false
     ) throws -> StreamingSessionController {
@@ -76,9 +175,10 @@ struct StreamingSessionControllerTests {
             accessibilityPermissionChecker: { false }
         )
         let toastService = ToastService(presenter: toastPresenter)
-        let permissionManager = PermissionManager()
-        let audioRecorder = try AudioRecorder(permissionManager: permissionManager)
+        let effectiveAudioRecorder = try audioRecorder ?? AudioRecorder(permissionManager: PermissionManager())
         let effectiveDictionaryStore = try dictionaryStore ?? makeDictionaryStore()
+        let effectiveCaptureSessionStore = try captureSessionStore ?? makeCaptureStore().0
+
 
         return StreamingSessionController(
             transcriptionService: transcriptionService ?? TranscriptionService(
@@ -94,7 +194,8 @@ struct StreamingSessionControllerTests {
             outputManager: outputManager,
             toastService: toastService,
             liveTranscriptState: LiveTranscriptState(),
-            audioRecorder: audioRecorder,
+            audioRecorder: effectiveAudioRecorder,
+            captureSessionStore: effectiveCaptureSessionStore,
             normalizeText: { AppCoordinator.normalizedTranscriptionText($0) },
             isEffectivelyEmptyText: { AppCoordinator.isTranscriptionEffectivelyEmpty($0) }
         )
@@ -151,7 +252,9 @@ struct StreamingSessionControllerTests {
 
         actor Gate {
             private var isOpen = false
+            private var arrived = false
             private var waiters: [CheckedContinuation<Void, Never>] = []
+            private var arrivalWaiters: [CheckedContinuation<Void, Never>] = []
 
             func open() {
                 isOpen = true
@@ -160,10 +263,21 @@ struct StreamingSessionControllerTests {
                 for waiter in pending { waiter.resume() }
             }
 
-            func waitUntilOpen() async {
+            func arriveThenWait() async {
+                arrived = true
+                let pending = arrivalWaiters
+                arrivalWaiters.removeAll()
+                for waiter in pending { waiter.resume() }
                 if isOpen { return }
                 await withCheckedContinuation { continuation in
                     waiters.append(continuation)
+                }
+            }
+
+            func waitUntilArrived() async {
+                if arrived { return }
+                await withCheckedContinuation { continuation in
+                    arrivalWaiters.append(continuation)
                 }
             }
         }
@@ -173,7 +287,7 @@ struct StreamingSessionControllerTests {
         // performFinalStreamingInsertion catch must prefer task cancellation over
         // clipboard/toast fallback.
         controller.setFinalInsertionOverrideForTesting { _ in
-            await gate.waitUntilOpen()
+            await gate.arriveThenWait()
             throw OutputFailure()
         }
 
@@ -182,7 +296,7 @@ struct StreamingSessionControllerTests {
         }
 
         // Cancel while insertion is in-flight, then release the failing output.
-        try await Task.sleep(for: .milliseconds(5))
+        await gate.waitUntilArrived()
         task.cancel()
         await gate.open()
 
@@ -320,7 +434,7 @@ struct StreamingSessionControllerTests {
             transcriptionService: transcriptionService
         )
 
-        await controller.begin()
+        let session = try #require(await controller.begin())
 
         #expect(controller.isSessionActive)
         // Both engine callbacks must already be installed when load and start run.
@@ -337,7 +451,556 @@ struct StreamingSessionControllerTests {
         #expect(engine.state == .streaming)
         #expect(transcriptionService.state == .transcribing)
 
-        await controller.cancel()
+        await controller.cancel(session: session)
+    }
+
+    @Test func detachedTeardownsSerializeDirectPumpBeforeSuccessorBegins() async throws {
+        actor DirectPumpGate {
+            private var isOpen = false
+            private var consumerEntered = false
+            private var openWaiters: [CheckedContinuation<Void, Never>] = []
+            private var consumerEntryWaiters: [CheckedContinuation<Void, Never>] = []
+
+            func enterAndWait() async {
+                consumerEntered = true
+                let pendingEntryWaiters = consumerEntryWaiters
+                consumerEntryWaiters.removeAll()
+                for waiter in pendingEntryWaiters { waiter.resume() }
+
+                if isOpen { return }
+                await withCheckedContinuation { openWaiters.append($0) }
+            }
+
+            func waitUntilConsumerEntered() async {
+                if consumerEntered { return }
+                await withCheckedContinuation { consumerEntryWaiters.append($0) }
+            }
+
+            func open() {
+                isOpen = true
+                let pendingOpenWaiters = openWaiters
+                openWaiters.removeAll()
+                for waiter in pendingOpenWaiters { waiter.resume() }
+            }
+        }
+
+        final class GatedStreamingEngine: PindropSpeech.StreamingTranscriptionEngine, @unchecked Sendable {
+            private(set) var state: StreamingTranscriptionState = .unloaded
+            private(set) var startStreamingCallCount = 0
+            private(set) var resetCallCount = 0
+            private let directPumpGate: DirectPumpGate
+
+            init(directPumpGate: DirectPumpGate) {
+                self.directPumpGate = directPumpGate
+            }
+
+            func loadModel(name: String) async throws {
+                state = .ready
+            }
+
+            func unloadModel() async {
+                state = .unloaded
+            }
+
+            func startStreaming() async throws {
+                startStreamingCallCount += 1
+                state = .streaming
+            }
+
+            func stopStreaming() async throws -> String {
+                state = .ready
+                return ""
+            }
+
+            func pauseStreaming() async {
+                state = .paused
+            }
+
+            func resumeStreaming() async throws {
+                state = .streaming
+            }
+
+            func processAudioChunk(_ samples: [Float]) async throws {}
+
+            func processAudioBuffer(_ buffer: AVAudioPCMBuffer) async throws {
+                await directPumpGate.enterAndWait()
+            }
+
+            func setTranscriptionCallback(_ callback: @escaping StreamingTranscriptionCallback) async {}
+            func setEndOfUtteranceCallback(_ callback: @escaping EndOfUtteranceCallback) async {}
+
+            func reset() async {
+                resetCallCount += 1
+                state = .ready
+            }
+        }
+
+        let clipboard = RecordingClipboard()
+        let toastPresenter = RecordingToastPresenter()
+        let audioRecorder = try AudioRecorder(permissionManager: PermissionManager())
+        let directPumpGate = DirectPumpGate()
+        let engine = GatedStreamingEngine(directPumpGate: directPumpGate)
+        let transcriptionService = TranscriptionService(
+            storageLocations: ModelStorageLocations(
+                pindropApplicationSupportRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("pindrop-streaming-teardown-\(UUID().uuidString)/Pindrop", isDirectory: true),
+                fluidAudioModelsRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("pindrop-streaming-teardown-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
+            ),
+            streamingEngineFactory: { _, _ in engine },
+            streamingChunkProfileProvider: { .standard },
+            streamingBackendProvider: { .parakeet }
+        )
+        let controller = try makeController(
+            clipboard: clipboard,
+            toastPresenter: toastPresenter,
+            transcriptionService: transcriptionService,
+            audioRecorder: audioRecorder
+        )
+
+        _ = try #require(await controller.begin())
+        let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1)!
+        buffer.frameLength = 1
+        audioRecorder.onAudioBuffer?(buffer)
+        await directPumpGate.waitUntilConsumerEntered()
+
+        controller.cancelDetached() // T1: waits for the direct consumer.
+        controller.cancelDetached() // T2: must await T1 even without an active session.
+
+        let beginWaitProbe = BeginTeardownWaitProbe()
+        controller.setBeginTeardownWaitObserverForTesting { beginWaitProbe.arrive() }
+        let successorBegin = Task { @MainActor in
+            await controller.begin()
+        }
+        await beginWaitProbe.waitUntilArrived()
+
+        // C reached begin but must remain behind T2 while T1's direct pump is blocked.
+        #expect(engine.startStreamingCallCount == 1)
+
+        await directPumpGate.open()
+        let successorSession = try #require(await successorBegin.value)
+
+        // T1 reset before C started; it cannot arrive late and cancel C.
+        #expect(engine.resetCallCount == 2)
+        #expect(engine.startStreamingCallCount == 2)
+        #expect(engine.state == .streaming)
+
+        await controller.cancel(session: successorSession)
+    }
+    @Test func concurrentBeginReturnsNilWhileExactFirstSessionStarts() async throws {
+        actor StartGate {
+            private var hasStarted = false
+            private var isOpen = false
+            private var startWaiters: [CheckedContinuation<Void, Never>] = []
+            private var openWaiter: CheckedContinuation<Void, Never>?
+
+            func arriveThenWait() async {
+                hasStarted = true
+                let waiters = startWaiters
+                startWaiters.removeAll()
+                for waiter in waiters {
+                    waiter.resume()
+                }
+                guard !isOpen else { return }
+                await withCheckedContinuation { openWaiter = $0 }
+            }
+
+            func waitUntilStarted() async {
+                guard !hasStarted else { return }
+                await withCheckedContinuation { startWaiters.append($0) }
+            }
+
+            func open() {
+                isOpen = true
+                openWaiter?.resume()
+                openWaiter = nil
+            }
+        }
+
+        final class GatedStreamingEngine: PindropSpeech.StreamingTranscriptionEngine, @unchecked Sendable {
+            private(set) var state: StreamingTranscriptionState = .unloaded
+            private(set) var startStreamingCallCount = 0
+            private(set) var stopCallCount = 0
+            let startGate: StartGate
+
+            init(startGate: StartGate) {
+                self.startGate = startGate
+            }
+
+            func loadModel(name: String) async throws {
+                state = .ready
+            }
+
+            func unloadModel() async {
+                state = .unloaded
+            }
+
+            func startStreaming() async throws {
+                startStreamingCallCount += 1
+                await startGate.arriveThenWait()
+                state = .streaming
+            }
+
+            func stopStreaming() async throws -> String {
+                stopCallCount += 1
+                state = .ready
+                return ""
+            }
+
+            func pauseStreaming() async {
+                state = .paused
+            }
+
+            func resumeStreaming() async throws {
+                state = .streaming
+            }
+
+            func processAudioChunk(_ samples: [Float]) async throws {}
+            func processAudioBuffer(_ buffer: AVAudioPCMBuffer) async throws {}
+            func setTranscriptionCallback(_ callback: @escaping StreamingTranscriptionCallback) async {}
+            func setEndOfUtteranceCallback(_ callback: @escaping EndOfUtteranceCallback) async {}
+
+            func reset() async {
+                state = .ready
+            }
+        }
+
+        let clipboard = RecordingClipboard()
+        let toastPresenter = RecordingToastPresenter()
+        let startGate = StartGate()
+        let engine = GatedStreamingEngine(startGate: startGate)
+        let transcriptionService = TranscriptionService(
+            storageLocations: ModelStorageLocations(
+                pindropApplicationSupportRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("generic-exact-owner-\(UUID().uuidString)/Pindrop", isDirectory: true),
+                fluidAudioModelsRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("generic-exact-owner-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
+            ),
+            streamingEngineFactory: { _, _ in engine },
+            streamingChunkProfileProvider: { .standard },
+            streamingBackendProvider: { .parakeet }
+        )
+        let controller = try makeController(
+            clipboard: clipboard,
+            toastPresenter: toastPresenter,
+            transcriptionService: transcriptionService
+        )
+
+        let firstBegin = Task { await controller.begin() }
+        await startGate.waitUntilStarted()
+
+        #expect(await controller.begin() == nil)
+        await startGate.open()
+
+        let session = try #require(await firstBegin.value)
+        #expect(engine.startStreamingCallCount == 1)
+        await controller.cancel(session: session)
+        #expect(transcriptionService.state == .ready)
+        #expect(!controller.isSessionActive)
+    }
+
+    @Test func staleGenericCancelAndFinalizeDoNotAffectSuccessor() async throws {
+        let clipboard = RecordingClipboard()
+        let toastPresenter = RecordingToastPresenter()
+        let engine = ArtifactStreamingEngine()
+        let transcriptionService = TranscriptionService(
+            storageLocations: ModelStorageLocations(
+                pindropApplicationSupportRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("generic-stale-owner-\(UUID().uuidString)/Pindrop", isDirectory: true),
+                fluidAudioModelsRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("generic-stale-owner-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
+            ),
+            streamingEngineFactory: { _, _ in engine },
+            streamingChunkProfileProvider: { .standard },
+            streamingBackendProvider: { .parakeet }
+        )
+        let controller = try makeController(
+            clipboard: clipboard,
+            toastPresenter: toastPresenter,
+            transcriptionService: transcriptionService
+        )
+
+        let first = try #require(await controller.begin())
+        await controller.cancel(session: first)
+        let successor = try #require(await controller.begin())
+
+        controller.cancelDetached(session: first)
+        #expect(controller.isSessionActive)
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await controller.finalize(
+                recordedAudioData: Data(),
+                recordingDuration: 0,
+                session: first
+            )
+        }
+
+        #expect(controller.isSessionActive)
+        await controller.cancel(session: successor)
+    }
+
+
+    @Test func artifactCancellationClearsUnifiedActivityBeforeAnotherArtifactOrGenericSession() async throws {
+        let clipboard = RecordingClipboard()
+        let toastPresenter = RecordingToastPresenter()
+        let engine = ArtifactStreamingEngine()
+        let transcriptionService = TranscriptionService(
+            storageLocations: ModelStorageLocations(
+                pindropApplicationSupportRoot: FileManager.default
+                    .temporaryDirectory
+
+                    .appendingPathComponent("artifact-restart-\(UUID().uuidString)/Pindrop", isDirectory: true),
+                fluidAudioModelsRoot: FileManager.default
+                    .temporaryDirectory
+                    .appendingPathComponent("artifact-restart-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
+            ),
+            streamingEngineFactory: { _, _ in engine },
+            streamingChunkProfileProvider: { .standard },
+            streamingBackendProvider: { .parakeet }
+        )
+        let (store, _) = try makeCaptureStore()
+        let assignment = try liveAssignment()
+        let firstHandle = try store.startVoiceNoteCapture()
+        let secondHandle = try store.startVoiceNoteCapture()
+        let controller = try makeController(
+            clipboard: clipboard,
+            toastPresenter: toastPresenter,
+            transcriptionService: transcriptionService,
+            captureSessionStore: store
+        )
+
+        #expect(await controller.beginArtifactCapture(for: firstHandle, assignment: assignment))
+        #expect(controller.hasActiveStreamingSession)
+        controller.cancelDetached()
+        #expect(!controller.hasActiveStreamingSession)
+
+        #expect(await controller.beginArtifactCapture(for: secondHandle, assignment: assignment))
+        #expect(controller.hasActiveStreamingSession)
+        await controller.finishArtifactCapture(for: secondHandle)
+        #expect(!controller.hasActiveStreamingSession)
+
+        let session = try #require(await controller.begin())
+        #expect(controller.hasActiveStreamingSession)
+        await controller.cancel(session: session)
+        #expect(!controller.hasActiveStreamingSession)
+    }
+
+    @Test func staleArtifactHandleCancelAndFinishDoNotAffectSuccessor() async throws {
+        let clipboard = RecordingClipboard()
+        let toastPresenter = RecordingToastPresenter()
+        let engine = ArtifactStreamingEngine()
+        let transcriptionService = TranscriptionService(
+            storageLocations: ModelStorageLocations(
+                pindropApplicationSupportRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("artifact-stale-owner-\(UUID().uuidString)/Pindrop", isDirectory: true),
+                fluidAudioModelsRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("artifact-stale-owner-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
+            ),
+            streamingEngineFactory: { _, _ in engine },
+            streamingChunkProfileProvider: { .standard },
+            streamingBackendProvider: { .parakeet }
+        )
+        let (store, _) = try makeCaptureStore()
+        let firstHandle = try store.startVoiceNoteCapture()
+        let secondHandle = try store.startVoiceNoteCapture()
+        let controller = try makeController(
+            clipboard: clipboard,
+            toastPresenter: toastPresenter,
+            transcriptionService: transcriptionService,
+            captureSessionStore: store
+        )
+        let assignment = try liveAssignment()
+
+        #expect(await controller.beginArtifactCapture(for: firstHandle, assignment: assignment))
+        await controller.cancelArtifactCapture(for: firstHandle)
+        #expect(await controller.beginArtifactCapture(for: secondHandle, assignment: assignment))
+
+        await controller.cancelArtifactCapture(for: firstHandle)
+        await controller.finishArtifactCapture(for: firstHandle)
+
+        #expect(controller.isArtifactCaptureActive)
+        #expect(engine.stopCallCount == 0)
+        await controller.finishArtifactCapture(for: secondHandle)
+        #expect(!controller.isArtifactCaptureActive)
+        #expect(engine.stopCallCount == 1)
+    }
+
+    @Test func artifactFallbackStartFailureDoesNotLeakToastIntoNextGenericSession() async throws {
+        let clipboard = RecordingClipboard()
+        let toastPresenter = RecordingToastPresenter()
+        let engine = ArtifactStreamingEngine()
+        engine.startError = OutputFailure()
+        var requestedBackend: TranscriptionBackend = .appleSpeechTranscriber
+        let transcriptionService = TranscriptionService(
+            storageLocations: ModelStorageLocations(
+                pindropApplicationSupportRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("artifact-fallback-isolation-\(UUID().uuidString)/Pindrop", isDirectory: true),
+                fluidAudioModelsRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("artifact-fallback-isolation-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
+            ),
+            streamingEngineFactory: { _, _ in engine },
+            appleSpeechEngineFactory: { nil },
+            streamingChunkProfileProvider: { .standard },
+            streamingBackendProvider: { requestedBackend }
+        )
+        let (store, _) = try makeCaptureStore()
+        let handle = try store.startVoiceNoteCapture()
+        let assignment = try liveAssignment(
+            providerIdentifier: TranscriptionBackend.appleSpeechTranscriber.rawValue
+        )
+        let controller = try makeController(
+            clipboard: clipboard,
+            toastPresenter: toastPresenter,
+            transcriptionService: transcriptionService,
+            captureSessionStore: store,
+            transcriptionBackend: .appleSpeechTranscriber
+        )
+
+        #expect(await controller.beginArtifactCapture(for: handle, assignment: assignment) == false)
+        #expect(engine.startStreamingCallCount == 1)
+        #expect(toastPresenter.payloads.isEmpty)
+
+        engine.startError = nil
+        requestedBackend = .parakeet
+
+        let session = try #require(await controller.begin())
+        #expect(engine.startStreamingCallCount == 2)
+        #expect(toastPresenter.payloads.isEmpty)
+        await controller.cancel(session: session)
+    }
+
+    @Test func artifactCaptureCheckpointsOnlyExactEffectiveEngineAndFinishesWithoutOutput() async throws {
+        let clipboard = RecordingClipboard()
+        let toastPresenter = RecordingToastPresenter()
+        let engine = ArtifactStreamingEngine()
+        engine.stopResult = "hello artifact"
+        let transcriptionService = TranscriptionService(
+            storageLocations: ModelStorageLocations(
+                pindropApplicationSupportRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("artifact-exact-\(UUID().uuidString)/Pindrop", isDirectory: true),
+                fluidAudioModelsRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("artifact-exact-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
+            ),
+            streamingEngineFactory: { _, _ in engine },
+            streamingChunkProfileProvider: { .standard },
+            streamingBackendProvider: { .parakeet }
+        )
+        let (store, _) = try makeCaptureStore()
+        let handle = try store.startVoiceNoteCapture()
+        let assignment = try liveAssignment()
+        _ = try store.resolveAssignment(
+            sessionID: handle.sessionID,
+            stage: .liveTranscription,
+            attempt: assignment.attempt
+        ) {
+            assignment
+        }
+        let controller = try makeController(
+            clipboard: clipboard,
+            toastPresenter: toastPresenter,
+            transcriptionService: transcriptionService,
+            captureSessionStore: store
+        )
+
+        let started = await controller.beginArtifactCapture(for: handle, assignment: assignment)
+        #expect(started)
+        #expect(controller.isArtifactCaptureActive)
+        await controller.finishArtifactCapture(for: handle)
+        let recovery = try #require(store.voiceNoteRecoveryCandidates().first)
+        #expect(recovery.latestCheckpoint.committedText == "Hello artifact")
+
+        #expect(!controller.isArtifactCaptureActive)
+        #expect(engine.stopCallCount == 1)
+        #expect(transcriptionService.state == .ready)
+        #expect(clipboard.copied.isEmpty)
+        #expect(toastPresenter.payloads.isEmpty)
+    }
+
+    @Test func artifactCaptureMismatchProducesNoRevisionAndOneRetryableFailure() async throws {
+        let clipboard = RecordingClipboard()
+        let toastPresenter = RecordingToastPresenter()
+        let engine = ArtifactStreamingEngine()
+        let transcriptionService = TranscriptionService(
+            storageLocations: ModelStorageLocations(
+                pindropApplicationSupportRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("artifact-mismatch-\(UUID().uuidString)/Pindrop", isDirectory: true),
+                fluidAudioModelsRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("artifact-mismatch-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
+            ),
+            streamingEngineFactory: { _, _ in engine },
+            streamingChunkProfileProvider: { .standard },
+            streamingBackendProvider: { .parakeet }
+        )
+        let (store, container) = try makeCaptureStore()
+        let handle = try store.startVoiceNoteCapture()
+        let assignment = try liveAssignment(modelIdentifier: StreamingChunkProfile.lowLatency.repoFolderName)
+        let controller = try makeController(
+            clipboard: clipboard,
+            toastPresenter: toastPresenter,
+            transcriptionService: transcriptionService,
+            captureSessionStore: store
+        )
+
+        let started = await controller.beginArtifactCapture(for: handle, assignment: assignment)
+        #expect(!started)
+        #expect(!controller.isArtifactCaptureActive)
+        #expect(try store.voiceNoteRecoveryCandidates().isEmpty)
+        let revisions = try ModelContext(container).fetch(
+            FetchDescriptor<CaptureTranscriptRevisionModel>()
+        ).filter { $0.sessionID == handle.sessionID }
+        #expect(revisions.isEmpty)
+        let failures = try ModelContext(container).fetch(FetchDescriptor<CaptureFailureRecordModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        #expect(failures.count == 1)
+        #expect(failures[0].stageRawValue == CapturePipelineStage.liveTranscription.rawValue)
+        #expect(failures[0].errorCode == "streaming-engine-identity-mismatch")
+        #expect(failures[0].isRetryable)
+        #expect(clipboard.copied.isEmpty)
+        #expect(toastPresenter.payloads.isEmpty)
+    }
+
+    @Test func artifactCheckpointFailureRecordsOnceAndStillFinishes() async throws {
+        let clipboard = RecordingClipboard()
+        let toastPresenter = RecordingToastPresenter()
+        let engine = ArtifactStreamingEngine()
+        let transcriptionService = TranscriptionService(
+            storageLocations: ModelStorageLocations(
+                pindropApplicationSupportRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("artifact-checkpoint-\(UUID().uuidString)/Pindrop", isDirectory: true),
+                fluidAudioModelsRoot: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("artifact-checkpoint-\(UUID().uuidString)/FluidAudio/Models", isDirectory: true)
+            ),
+            streamingEngineFactory: { _, _ in engine },
+            streamingChunkProfileProvider: { .standard },
+            streamingBackendProvider: { .parakeet }
+        )
+        let (store, container) = try makeCaptureStore()
+        let handle = try store.startVoiceNoteCapture()
+        let assignment = try liveAssignment()
+        let controller = try makeController(
+            clipboard: clipboard,
+            toastPresenter: toastPresenter,
+            transcriptionService: transcriptionService,
+            captureSessionStore: store
+        )
+
+        let started = await controller.beginArtifactCapture(for: handle, assignment: assignment)
+        #expect(started)
+        engine.emitFinal("first checkpoint")
+        engine.emitFinal("first checkpoint grows")
+        try await Task.sleep(for: .milliseconds(10))
+        await controller.finishArtifactCapture(for: handle)
+
+        let failures = try ModelContext(container).fetch(FetchDescriptor<CaptureFailureRecordModel>())
+            .filter { $0.sessionID == handle.sessionID }
+        #expect(failures.count == 1)
+        #expect(failures[0].errorCode == "live-transcript-checkpoint-failed")
+        #expect(failures[0].isRetryable)
+        #expect(!controller.isArtifactCaptureActive)
+        #expect(engine.stopCallCount == 1)
+        #expect(clipboard.copied.isEmpty)
+        #expect(toastPresenter.payloads.isEmpty)
     }
 
 
@@ -474,14 +1137,15 @@ struct StreamingSessionControllerTests {
             )
         }
 
-        await controller.begin()
+        let session = try #require(await controller.begin())
         engine.emitFinalUtterance("hello world")
         await Task.yield()
         await Task.yield()
 
         let outcome = try await controller.finalize(
             recordedAudioData: Data(repeating: 0, count: MemoryLayout<Float>.size),
-            recordingDuration: 0
+            recordingDuration: 0,
+            session: session
         )
         let expectedAudioPreprocessingMode: AudioPreprocessingMode =
             voiceIsolationEnabled ? .voiceIsolation : .none

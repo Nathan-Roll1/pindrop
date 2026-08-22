@@ -271,7 +271,7 @@ struct AIEnhancementStepView: View {
           if provider == .custom && resolvedCustomProvider.supportsModelListing {
              availableModels = []
           }
-          Log.aiEnhancement.error("Failed to fetch \(provider.rawValue) models: \(error)")
+          Log.aiEnhancement.error("Failed to fetch models provider=\(provider.rawValue)")
           modelError = error.localizedDescription
        }
     }

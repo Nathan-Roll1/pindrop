@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "Wijzig je keuze op elk moment in Instellingen → Privacy."
 changes:
   the_language_used_by_pindrop_s_interface: "Wijzigt de taal van de Pindrop-interface."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "Wijzigingen in de inloggegevens en het eindpunt van deze aanbieder zijn van toepassing op lopende en herstelde opnamen. Het geselecteerde model en de prompt blijven ongewijzigd."
 check:
   for_updates: "Controleer op updates..."
   for_updates_736b9062: "Controleer op updates"
@@ -831,6 +832,36 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "Pil"
+pillars:
+  capture: "Vastleggen"
+  workspace: "Werkruimte"
+  tools: "Hulpmiddelen"
+  dictate: "Dicteren"
+  voice_note: "Spraaknotitie"
+  meeting: "Vergadering"
+  dictate_description: "Spreek, en Pindrop schrijft vervolgens in de app die je gebruikt."
+  voice_note_description: "Leg een gedachte vast en bewaar die in Notities."
+  meeting_description: "Neem microfoon- en systeemaudio op en bewaar de vergadering in de bibliotheek."
+  start_dictating: "Begin met dicteren"
+  start_voice_note: "Spraaknotitie starten"
+  open_notes: "Notities openen"
+  change_shortcut: "Sneltoets wijzigen"
+  capture_in_progress: "Bezig met vastleggen"
+  finish_current_capture: "Rond de huidige vastlegging af voordat je een nieuwe start."
+  voice_note_hold: "Spraaknotitie — ingedrukt houden"
+  voice_note_toggle: "Spraaknotitie — schakelen"
+  you_captured_this_week: "Je hebt deze week %@ vastgelegd."
+  you_recorded_this_week: "Je hebt deze week %@ opgenomen."
+  one_voice_note: "1 spraaknotitie"
+  n_voice_notes: "%@ spraaknotities"
+  one_meeting: "1 vergadering"
+  n_meetings: "%@ vergaderingen"
+  of_meeting_audio: "%@ aan vergaderaudio."
+  voice_note_shortcut_hint: "Houd %1$@ ingedrukt of druk op %2$@, waar je ook bent."
+  hold_anywhere: "Houd %@ overal ingedrukt."
+  press_anywhere: "Druk overal op %@."
+  voice_notes_empty: "Je spraaknotities verschijnen hier."
+  meetings_empty: "Je opgenomen vergaderingen verschijnen hier."
 pin:
   to_screen_always_on_top: "Vastzetten op scherm (altijd bovenaan)"
 pindrop:
@@ -1128,7 +1159,7 @@ start:
   using_pindrop: "Begin met het gebruik van Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "Start in de menubalk zonder het hoofdvenster te openen. Je kunt het later nog openen via het menubalkpictogram."
 stats:
-  _self: "Stats"
+  _self: "Statistieken"
 status:
   _self: "Status"
 stop:

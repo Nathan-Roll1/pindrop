@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "설정 → 개인정보 보호에서 언제든지 선택을 변경할 수 있습니다."
 changes:
   the_language_used_by_pindrop_s_interface: "Pindrop 인터페이스 언어를 변경합니다."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "이 제공업체의 자격 증명과 엔드포인트를 변경하면 진행 중인 캡처와 복구된 캡처에 적용됩니다. 선택한 모델과 프롬프트는 그대로 유지됩니다."
 check:
   for_updates: "업데이트 확인..."
   for_updates_736b9062: "업데이트 확인"
@@ -831,6 +832,36 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "각 AI 작업을 처리할 제공자와 모델을 선택합니다. 미할당 목적은 건너뜁니다."
 pill:
   _self: "알약"
+pillars:
+  capture: "캡처"
+  workspace: "작업 공간"
+  tools: "도구"
+  dictate: "받아쓰기"
+  voice_note: "음성 메모"
+  meeting: "회의"
+  dictate_description: "말하면 Pindrop이 사용 중인 앱에 글을 입력합니다."
+  voice_note_description: "생각을 캡처해 메모에 보관하세요."
+  meeting_description: "마이크와 시스템 오디오를 녹음한 후 회의를 라이브러리에 보관하세요."
+  start_dictating: "받아쓰기 시작"
+  start_voice_note: "음성 메모 시작"
+  open_notes: "메모 열기"
+  change_shortcut: "단축키 변경"
+  capture_in_progress: "캡처 진행 중"
+  finish_current_capture: "현재 캡처를 완료한 후 다른 캡처를 시작하세요."
+  voice_note_hold: "음성 메모 — 길게 누르기"
+  voice_note_toggle: "음성 메모 — 토글"
+  you_captured_this_week: "이번 주에 %@을(를) 캡처했습니다."
+  you_recorded_this_week: "이번 주에 %@을(를) 녹음했습니다."
+  one_voice_note: "음성 메모 1개"
+  n_voice_notes: "음성 메모 %@개"
+  one_meeting: "회의 1개"
+  n_meetings: "회의 %@개"
+  of_meeting_audio: "회의 오디오 %@."
+  voice_note_shortcut_hint: "어디서든 %1$@을(를) 길게 누르거나 %2$@을(를) 누르세요."
+  hold_anywhere: "어디서든 %@을(를) 길게 누르세요."
+  press_anywhere: "어디서든 %@을(를) 누르세요."
+  voice_notes_empty: "음성 메모가 여기에 표시됩니다."
+  meetings_empty: "녹음된 회의가 여기에 표시됩니다."
 pin:
   to_screen_always_on_top: "화면에 고정(항상 맨 위에)"
 pindrop:
@@ -1128,7 +1159,7 @@ start:
   using_pindrop: "Pindrop 사용 시작"
   in_the_menu_bar_without_opening_the_main_w: "메인 창을 열지 않고 메뉴 막대에서 시작합니다. 메뉴 막대 아이콘으로 나중에 열 수 있습니다."
 stats:
-  _self: "Stats"
+  _self: "통계"
 status:
   _self: "상태"
 stop:

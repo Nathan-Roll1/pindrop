@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Observation
 import SwiftData
 import AppKit
 import PindropCore
@@ -14,75 +15,132 @@ import PindropSpeech
 
 // MARK: - Navigation
 
-enum MainNavItem: String, Identifiable {
-    case home = "Home"
-    case stats = "Stats"
-    case history = "History"
-    case notes = "Notes"
-    /// Unrouted as of U2 — kept for API compatibility; navigation redirects to Library.
-    case transcribe = "Transcribe"
-    case models = "Models"
-    case dictionary = "Dictionary"
-
-    /// Primary sidebar destinations after U2 restructure.
-    /// Order: Home, Stats, Library, Notes, Dictionary, Models (⌘1–6).
-    static let primaryNavigationItems: [MainNavItem] = [
-        .home,
-        .stats,
-        .history,
-        .notes,
-        .dictionary,
-        .models
-    ]
-
-    /// View-menu keyboard shortcut digit for each primary nav item ("1"..."5").
-    static func viewMenuShortcut(for item: MainNavItem) -> String? {
-        guard let index = primaryNavigationItems.firstIndex(of: item) else { return nil }
-        return String(index + 1)
-    }
-
-    /// Resolves legacy / removed destinations onto a routed page.
-    var resolvedDestination: MainNavItem {
-        switch self {
-        case .transcribe: return .history
-        default: return self
-        }
-    }
+enum MainNavGroup: String, CaseIterable, Identifiable, Sendable {
+    case capture
+    case workspace
+    case tools
 
     var id: String { rawValue }
 
     func title(locale: Locale) -> String {
         switch self {
-        case .history:
-            return localized("Library", locale: locale)
-        default:
-            return localized(rawValue, locale: locale)
+        case .capture:
+            localized("Capture", locale: locale)
+        case .workspace:
+            localized("Workspace", locale: locale)
+        case .tools:
+            localized("Tools", locale: locale)
+        }
+    }
+}
+
+enum MainNavItem: String, CaseIterable, Identifiable, Sendable {
+    case dictate = "dictate"
+    case voiceNote = "voice-note"
+    case meeting = "meeting"
+    case library = "library"
+    case notes = "notes"
+    case stats = "stats"
+    case dictionary = "dictionary"
+    case models = "models"
+
+    static let sidebarGroups: [(group: MainNavGroup, items: [MainNavItem])] = [
+        (.capture, [.dictate, .voiceNote, .meeting]),
+        (.workspace, [.library, .notes]),
+        (.tools, [.stats, .dictionary, .models])
+    ]
+    static let allSidebarItems = sidebarGroups.flatMap { $0.items }
+
+    static func viewMenuShortcut(for item: MainNavItem) -> String {
+        guard let index = allSidebarItems.firstIndex(of: item) else {
+            preconditionFailure("Every main navigation item must have a View-menu shortcut.")
+        }
+        return String(index + 1)
+    }
+
+    var id: String { rawValue }
+    var accessibilityIdentifierComponent: String {
+        self == .voiceNote ? "voiceNote" : rawValue
+    }
+
+    func title(locale: Locale) -> String {
+        switch self {
+        case .dictate:
+            localized("Dictate", locale: locale)
+        case .voiceNote:
+            localized("Voice Note", locale: locale)
+        case .meeting:
+            localized("Meeting", locale: locale)
+        case .library:
+            localized("Library", locale: locale)
+        case .notes:
+            localized("Notes", locale: locale)
+        case .stats:
+            localized("Stats", locale: locale)
+        case .dictionary:
+            localized("Dictionary", locale: locale)
+        case .models:
+            localized("Models", locale: locale)
         }
     }
 
     var icon: String {
         switch self {
-        case .home: return "house"
-        case .stats: return "chart.xyaxis.line"
-        case .history: return "books.vertical"
-        case .notes: return "note.text"
-        case .transcribe: return "waveform"
-        case .models: return "cpu"
-        case .dictionary: return "text.book.closed"
+        case .dictate: "waveform"
+        case .voiceNote: "note.text.badge.plus"
+        case .meeting: "person.2.wave.2"
+        case .library: "books.vertical"
+        case .notes: "note.text"
+        case .stats: "chart.xyaxis.line"
+        case .dictionary: "text.book.closed"
+        case .models: "cpu"
         }
     }
-
-    var isComingSoon: Bool { false }
 }
 
-// MARK: - Navigation Notification
+struct LibraryOpenRequest: Equatable, Sendable {
+    let recordID: UUID
+    let generation: UInt
+}
 
-extension Notification.Name {
-    static let navigateToMainNavItem = Notification.Name("navigateToMainNavItem")
-    static let openHistoryRecord = Notification.Name("openHistoryRecord")
-    static let sidebarStateChanged = Notification.Name("sidebarStateChanged")
-    static let mainNavItemDidChange = Notification.Name("mainNavItemDidChange")
-    static let focusHistorySearch = Notification.Name("focusHistorySearch")
+@MainActor
+@Observable
+final class MainWindowRouteState {
+    private(set) var selectedItem: MainNavItem = .dictate
+    private(set) var libraryOpenRequest: LibraryOpenRequest?
+    private(set) var librarySearchRequest: UInt?
+
+    private var nextLibraryRequestGeneration: UInt = 0
+    private var nextLibrarySearchGeneration: UInt = 0
+
+    func navigate(to item: MainNavItem) {
+        selectedItem = item
+    }
+
+    func openLibrary(recordID: UUID) {
+        nextLibraryRequestGeneration &+= 1
+        libraryOpenRequest = LibraryOpenRequest(
+            recordID: recordID,
+            generation: nextLibraryRequestGeneration
+        )
+        selectedItem = .library
+    }
+
+    func focusLibrarySearch() {
+        nextLibrarySearchGeneration &+= 1
+        librarySearchRequest = nextLibrarySearchGeneration
+        selectedItem = .library
+    }
+
+    func consumeLibraryOpenRequest(generation: UInt) {
+        guard libraryOpenRequest?.generation == generation else { return }
+        libraryOpenRequest = nil
+    }
+
+    func consumeLibrarySearchRequest(generation: UInt) {
+        guard librarySearchRequest == generation else { return }
+        librarySearchRequest = nil
+    }
 }
 
 // MARK: - Window chrome metrics
@@ -98,33 +156,21 @@ enum MainWindowChrome {
 struct MainWindow: View {
     @ObservedObject private var theme = PindropThemeController.shared
     @ObservedObject var settingsStore: SettingsStore
-    @State private var selectedNav: MainNavItem = .home
-    @State private var historyRecordIDToOpen: UUID?
+    let routeState: MainWindowRouteState
     let floatingIndicatorState: FloatingIndicatorState?
     let mediaTranscriptionState: MediaTranscriptionFeatureState?
     let recordingState: RecordingFeatureState?
     let modelManager: ModelManager?
     let onImportMediaFiles: (([URL], TranscriptionJobOptions) -> Void)?
     let onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?
-    let onClearMediaQueue: (() -> Void)?
     let onDownloadDiarizationModel: (() -> Void)?
-    let onNewTranscription: (() -> Void)?
-    let onStartMeetingCapture: ((Int?) -> Void)?
-    let onStartNoteCapture: (() -> Void)?
+    let onStartDictation: (() -> Void)?
+    let onStartVoiceNote: (() -> Void)?
+    let onStartMeeting: ((Int?) -> Bool)?
     let onOpenSettings: (SettingsTab) -> Void
 
-    private func navigateTo(_ item: MainNavItem) {
-        let destination = item.resolvedDestination
-        selectedNav = destination
-        NotificationCenter.default.post(
-            name: .mainNavItemDidChange,
-            object: nil,
-            userInfo: ["navItem": destination.rawValue]
-        )
-    }
-
-    private func navigateToSettings(_ tab: SettingsTab) {
-        onOpenSettings(tab)
+    private var isCaptureBusy: Bool {
+        recordingState?.isCaptureBusy == true
     }
 
     var body: some View {
@@ -154,18 +200,6 @@ struct MainWindow: View {
         .environment(\.locale, settingsStore.selectedAppLocale.locale)
         .environment(\.layoutDirection, settingsStore.selectedAppLocale.layoutDirection)
         .themeRefresh()
-        .onReceive(NotificationCenter.default.publisher(for: .navigateToMainNavItem)) { notification in
-            if let rawValue = notification.userInfo?["navItem"] as? String,
-               let navItem = MainNavItem(rawValue: rawValue) {
-                navigateTo(navItem)
-            }
-        }
-        .onChange(of: settingsStore.sidebarExpanded) { _, _ in
-            NotificationCenter.default.post(name: .sidebarStateChanged, object: nil)
-        }
-        .onChange(of: settingsStore.sidebarPosition) { _, _ in
-            NotificationCenter.default.post(name: .sidebarStateChanged, object: nil)
-        }
     }
 
     private var isLeadingSidebar: Bool {
@@ -176,12 +210,11 @@ struct MainWindow: View {
         MainSidebar(
             isExpanded: $settingsStore.sidebarExpanded,
             position: settingsStore.selectedSidebarPosition,
-            selectedNav: selectedNav,
+            selectedNav: routeState.selectedItem,
             floatingIndicatorState: floatingIndicatorState,
-            hotkeyHint: settingsStore.toggleHotkey,
             /// Leading sidebar owns top-left → clear traffic lights; trailing does not.
             reservesTrafficLightClearance: isLeadingSidebar,
-            onSelect: navigateTo,
+            onSelect: routeState.navigate,
             onOpenSettings: { onOpenSettings(.general) }
         )
         .frame(maxHeight: .infinity, alignment: .top)
@@ -215,60 +248,65 @@ struct MainWindow: View {
 
     @ViewBuilder
     private var detailContent: some View {
-        switch selectedNav {
-        case .home:
-            DashboardView(
-                floatingIndicatorState: floatingIndicatorState,
+        switch routeState.selectedItem {
+        case .dictate:
+            DictateView(
                 settingsStore: settingsStore,
                 recordingState: recordingState,
-                onOpenHotkeys: { navigateToSettings(.shortcuts) },
-                onViewAllHistory: { navigateTo(.history) },
-                onShowMoreStats: { navigateTo(.stats) },
-                onOpenHistoryRecord: { recordID in
-                    historyRecordIDToOpen = recordID
-                    navigateTo(.history)
-                },
-                onNewTranscription: onNewTranscription,
-                onTranscribeFile: { navigateTo(.history) },
-                onRecordMeeting: onStartMeetingCapture,
-                onNewNote: onStartNoteCapture,
+                isCaptureBusy: isCaptureBusy,
+                onStartDictation: onStartDictation,
+                onOpenLibrary: { routeState.navigate(to: .library) },
+                onShowMoreStats: { routeState.navigate(to: .stats) },
+                onOpenLibraryRecord: routeState.openLibrary,
                 onDownloadDiarizationModel: onDownloadDiarizationModel
             )
-        case .stats:
-            StatsView()
-        case .history:
+        case .voiceNote:
+            VoiceNoteView(
+                settingsStore: settingsStore,
+                isCaptureBusy: isCaptureBusy,
+                onStartVoiceNote: onStartVoiceNote,
+                onOpenNotes: { routeState.navigate(to: .notes) }
+            )
+        case .meeting:
+            MeetingView(
+                recordingState: recordingState,
+                isCaptureBusy: isCaptureBusy,
+                onStartMeeting: onStartMeeting,
+                onOpenLibrary: { routeState.navigate(to: .library) },
+                onOpenLibraryRecord: routeState.openLibrary,
+                onDownloadDiarizationModel: onDownloadDiarizationModel
+            )
+        case .library:
             HistoryView(
-                recordIDToOpen: historyRecordIDToOpen,
+                libraryOpenRequest: routeState.libraryOpenRequest,
+                librarySearchRequest: routeState.librarySearchRequest,
+                onConsumeLibraryOpenRequest: routeState.consumeLibraryOpenRequest,
+                onConsumeLibrarySearchRequest: routeState.consumeLibrarySearchRequest,
                 mediaTranscriptionState: mediaTranscriptionState,
                 recordingState: recordingState,
                 settingsStore: settingsStore,
                 onImportMediaFiles: onImportMediaFiles,
                 onSubmitMediaLink: onSubmitMediaLink,
-                onStartMeetingCapture: onStartMeetingCapture,
                 onDownloadDiarizationModel: onDownloadDiarizationModel
             )
+            .accessibilityIdentifier("main.destination.library")
         case .notes:
             NotesView()
-        case .transcribe:
-            // Unreachable via primary nav; resolvedDestination maps .transcribe → .history.
-            HistoryView(
-                recordIDToOpen: historyRecordIDToOpen,
-                mediaTranscriptionState: mediaTranscriptionState,
-                recordingState: recordingState,
-                settingsStore: settingsStore,
-                onImportMediaFiles: onImportMediaFiles,
-                onSubmitMediaLink: onSubmitMediaLink,
-                onStartMeetingCapture: onStartMeetingCapture,
-                onDownloadDiarizationModel: onDownloadDiarizationModel
-            )
+                .accessibilityIdentifier("main.destination.notes")
+        case .stats:
+            StatsView()
+                .accessibilityIdentifier("main.destination.stats")
+        case .dictionary:
+            DictionaryView()
+                .accessibilityIdentifier("main.destination.dictionary")
         case .models:
             if let modelManager {
                 ModelsSettingsView(settings: settingsStore, modelManager: modelManager)
+                    .accessibilityIdentifier("main.destination.models")
             } else {
-                comingSoonView(for: selectedNav)
+                comingSoonView(for: .models)
+                    .accessibilityIdentifier("main.destination.models")
             }
-        case .dictionary:
-            DictionaryView()
         }
     }
 
@@ -291,63 +329,6 @@ struct MainWindow: View {
     }
 }
 
-// MARK: - Meeting capture options
-
-/// Shared speaker-count picker for Dashboard and Library "Record Meeting…" flows.
-/// Start invokes the callback with `nil` (Automatic) or `1...20`; Cancel starts nothing.
-struct MeetingCaptureOptionsSheet: View {
-    @Environment(\.locale) private var locale
-    @Environment(\.dismiss) private var dismiss
-
-    let onStart: (Int?) -> Void
-
-    /// `0` represents Automatic detection; `1...20` are exact speaker counts.
-    @State private var selectedOption: Int = 0
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(localized("Record Meeting…", locale: locale))
-                .font(AppTypography.headline)
-                .foregroundStyle(AppColors.textPrimary)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(localized("Expected speakers", locale: locale))
-                    .font(AppTypography.body)
-                    .foregroundStyle(AppColors.textSecondary)
-
-                Picker(localized("Expected speakers", locale: locale), selection: $selectedOption) {
-                    Text(localized("Automatic", locale: locale)).tag(0)
-                    ForEach(1...20, id: \.self) { count in
-                        Text("\(count)").tag(count)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("meetingExpectedSpeakerPicker")
-            }
-
-            HStack {
-                Spacer()
-                Button(localized("Cancel", locale: locale)) {
-                    dismiss()
-                }
-                .keyboardShortcut(.cancelAction)
-                .accessibilityIdentifier("meetingCaptureCancelButton")
-
-                Button(localized("Start Recording", locale: locale)) {
-                    let expectedCount = selectedOption == 0 ? nil : selectedOption
-                    onStart(expectedCount)
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-                .accessibilityIdentifier("meetingCaptureStartButton")
-            }
-        }
-        .padding(24)
-        .frame(minWidth: 360)
-        .accessibilityIdentifier("meetingCaptureOptionsSheet")
-    }
-}
 
 
 // MARK: - Sidebar
@@ -360,7 +341,6 @@ private struct MainSidebar: View {
     let position: SidebarPosition
     let selectedNav: MainNavItem
     @ObservedObject private var indicatorState: FloatingIndicatorState
-    let hotkeyHint: String
     /// When true, insert a draggable top strip so content clears traffic lights.
     let reservesTrafficLightClearance: Bool
     let onSelect: (MainNavItem) -> Void
@@ -377,7 +357,6 @@ private struct MainSidebar: View {
         position: SidebarPosition,
         selectedNav: MainNavItem,
         floatingIndicatorState: FloatingIndicatorState?,
-        hotkeyHint: String,
         reservesTrafficLightClearance: Bool,
         onSelect: @escaping (MainNavItem) -> Void,
         onOpenSettings: @escaping () -> Void
@@ -386,7 +365,6 @@ private struct MainSidebar: View {
         self.position = position
         self.selectedNav = selectedNav
         self._indicatorState = ObservedObject(wrappedValue: floatingIndicatorState ?? FloatingIndicatorState())
-        self.hotkeyHint = hotkeyHint
         self.reservesTrafficLightClearance = reservesTrafficLightClearance
         self.onSelect = onSelect
         self.onOpenSettings = onOpenSettings
@@ -509,16 +487,33 @@ private struct MainSidebar: View {
     // MARK: - Main Navigation
 
     private var mainNavSection: some View {
-        VStack(spacing: 2) {
-            ForEach(MainNavItem.primaryNavigationItems) { item in
-                SidebarItem(
-                    title: item.title(locale: locale),
-                    systemImage: item.icon,
-                    count: item == .history && isExpanded ? libraryCount : nil,
-                    isCollapsed: !isExpanded,
-                    isSelected: selectedNav == item,
-                    action: { onSelect(item) }
-                )
+        VStack(alignment: .leading, spacing: isExpanded ? 14 : 8) {
+            ForEach(MainNavGroup.allCases) { group in
+                if let section = MainNavItem.sidebarGroups.first(where: { $0.group == group }) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        if isExpanded {
+                            Text(group.title(locale: locale))
+                                .font(AppTypography.monoSmall)
+                                .foregroundStyle(AppColors.textTertiary)
+                                .textCase(.uppercase)
+                                .padding(.horizontal, 10)
+                                .padding(.bottom, 4)
+                                .accessibilityIdentifier("sidebar.group.\(group.rawValue)")
+                        }
+
+                        ForEach(section.items) { item in
+                            SidebarItem(
+                                title: item.title(locale: locale),
+                                systemImage: item.icon,
+                                count: item == .library && isExpanded && libraryCount > 0 ? libraryCount : nil,
+                                isCollapsed: !isExpanded,
+                                accessibilityIdentifier: "sidebar.nav.\(item.accessibilityIdentifierComponent)",
+                                isSelected: selectedNav == item,
+                                action: { onSelect(item) }
+                            )
+                        }
+                    }
+                }
             }
         }
         .padding(.trailing, isExpanded ? 4 : 0)
@@ -537,7 +532,7 @@ private struct MainSidebar: View {
     @ViewBuilder
     private var statusFooter: some View {
         if isExpanded {
-            StatusCard(state: indicatorState, hotkeyHint: hotkeyHint)
+            StatusCard(phase: statusPhase, readyTitle: localized("Ready", locale: locale))
         } else {
             StatusCardDot(phase: statusPhase)
                 .frame(maxWidth: .infinity)
@@ -561,6 +556,8 @@ private struct MainSidebar: View {
                         Text("⌘,")
                             .font(AppTypography.monoSmall)
                             .foregroundStyle(AppColors.textTertiary)
+                            .fixedSize()
+                            .layoutPriority(1)
                     }
                     .padding(.vertical, 7)
                     .padding(.horizontal, 10)
@@ -581,6 +578,7 @@ private struct MainSidebar: View {
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("sidebar.settings")
         .accessibilityLabel(localized("Settings", locale: locale))
         .help(localized("Settings", locale: locale))
         .onHover { hovering in isSettingsHovered = hovering }
@@ -642,10 +640,6 @@ final class MainWindowController {
     /// (not Settings / Note Editor / other panels) to be key.
     static let windowIdentifier = NSUserInterfaceItemIdentifier("tech.watzon.pindrop.main-window")
 
-    /// Set when Find (⌘F) is requested before HistoryView is mounted; consumed
-    /// when History appears so focus is not lost to a navigation race.
-    static var pendingHistorySearchFocus = false
-
     private var window: NSWindow?
     private var modelContainer: ModelContainer?
     private var floatingIndicatorState: FloatingIndicatorState?
@@ -653,16 +647,13 @@ final class MainWindowController {
     private var recordingState: RecordingFeatureState?
     private var modelManager: ModelManager?
     private var settingsStore: SettingsStore?
-    private var navObserver: Any?
-    /// Last known main-window navigation destination (updated via notification).
-    private(set) var currentNavigationItem: MainNavItem = .home
+    let routeState = MainWindowRouteState()
     var onImportMediaFiles: (([URL], TranscriptionJobOptions) -> Void)?
     var onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?
-    var onClearMediaQueue: (() -> Void)?
     var onDownloadDiarizationModel: (() -> Void)?
-    var onNewTranscription: (() -> Void)?
-    var onStartMeetingCapture: ((Int?) -> Void)?
-    var onStartNoteCapture: (() -> Void)?
+    var onStartDictation: (() -> Void)?
+    var onStartVoiceNote: (() -> Void)?
+    var onStartMeeting: ((Int?) -> Bool)?
     var onOpenSettings: ((SettingsTab) -> Void)?
 
     /// The main app window, if created. Used by list keyboard monitors for identity checks.
@@ -682,18 +673,18 @@ final class MainWindowController {
         self.modelContainer = container
     }
 
-    func configureMeetingCapture(
+    func configureCapture(
         floatingIndicatorState: FloatingIndicatorState,
         recordingState: RecordingFeatureState? = nil,
-        onNewTranscription: @escaping () -> Void,
-        onStartMeetingCapture: @escaping (Int?) -> Void,
-        onStartNoteCapture: @escaping () -> Void
+        onStartDictation: @escaping () -> Void,
+        onStartVoiceNote: @escaping () -> Void,
+        onStartMeeting: @escaping (Int?) -> Bool
     ) {
         self.floatingIndicatorState = floatingIndicatorState
         self.recordingState = recordingState
-        self.onNewTranscription = onNewTranscription
-        self.onStartMeetingCapture = onStartMeetingCapture
-        self.onStartNoteCapture = onStartNoteCapture
+        self.onStartDictation = onStartDictation
+        self.onStartVoiceNote = onStartVoiceNote
+        self.onStartMeeting = onStartMeeting
     }
 
     func configureTranscribeFeature(
@@ -702,7 +693,6 @@ final class MainWindowController {
         settingsStore: SettingsStore,
         onImportMediaFiles: @escaping ([URL], TranscriptionJobOptions) -> Void,
         onSubmitMediaLink: @escaping (String, TranscriptionJobOptions) -> Void,
-        onClearMediaQueue: @escaping () -> Void,
         onDownloadDiarizationModel: @escaping () -> Void
     ) {
         self.mediaTranscriptionState = state
@@ -710,29 +700,26 @@ final class MainWindowController {
         self.settingsStore = settingsStore
         self.onImportMediaFiles = onImportMediaFiles
         self.onSubmitMediaLink = onSubmitMediaLink
-        self.onClearMediaQueue = onClearMediaQueue
         self.onDownloadDiarizationModel = onDownloadDiarizationModel
     }
 
     func show() {
-        show(navigationItem: nil)
+        presentWindow()
     }
 
-    func showHistory() {
-        show(navigationItem: .history)
+    func navigate(to item: MainNavItem) {
+        routeState.navigate(to: item)
+        presentWindow()
     }
 
-    /// Transcribe page removed in U3 — open Library (inline import lives there).
-    func showTranscribe() {
-        show(navigationItem: .history)
+    func openLibrary(recordID: UUID) {
+        routeState.openLibrary(recordID: recordID)
+        presentWindow()
     }
 
-    func showModels() {
-        show(navigationItem: .models)
-    }
-
-    func showNavigationItem(_ item: MainNavItem) {
-        show(navigationItem: item.resolvedDestination)
+    func focusLibrarySearch() {
+        routeState.focusLibrarySearch()
+        presentWindow()
     }
 
     func showSettings(tab: SettingsTab = .general) {
@@ -744,17 +731,7 @@ final class MainWindowController {
         onOpenSettings(tab)
     }
 
-    func focusHistorySearch() {
-        // Pending flag covers the case where History is not yet mounted (nav race).
-        Self.pendingHistorySearchFocus = true
-        show(navigationItem: .history)
-        // Notification covers the case where History is already visible.
-        DispatchQueue.main.async {
-            NotificationCenter.default.post(name: .focusHistorySearch, object: nil)
-        }
-    }
-
-    private func show(navigationItem: MainNavItem?) {
+    private func presentWindow() {
         guard let container = modelContainer else {
             Log.ui.error("ModelContainer not set - cannot show MainWindow")
             return
@@ -767,17 +744,17 @@ final class MainWindowController {
         if window == nil {
             let mainView = MainWindow(
                 settingsStore: settingsStore,
+                routeState: routeState,
                 floatingIndicatorState: floatingIndicatorState,
                 mediaTranscriptionState: mediaTranscriptionState,
                 recordingState: recordingState,
                 modelManager: modelManager,
                 onImportMediaFiles: onImportMediaFiles,
                 onSubmitMediaLink: onSubmitMediaLink,
-                onClearMediaQueue: onClearMediaQueue,
                 onDownloadDiarizationModel: onDownloadDiarizationModel,
-                onNewTranscription: onNewTranscription,
-                onStartMeetingCapture: onStartMeetingCapture,
-                onStartNoteCapture: onStartNoteCapture,
+                onStartDictation: onStartDictation,
+                onStartVoiceNote: onStartVoiceNote,
+                onStartMeeting: onStartMeeting,
                 onOpenSettings: onOpenSettings ?? { _ in
                     Log.ui.error("Settings presenter not set - cannot show settings")
                 }
@@ -827,15 +804,6 @@ final class MainWindowController {
 
             self.window = window
 
-            navObserver = NotificationCenter.default.addObserver(
-                forName: .mainNavItemDidChange,
-                object: nil,
-                queue: .main
-            ) { [weak self] notification in
-                guard let rawValue = notification.userInfo?["navItem"] as? String,
-                      let item = MainNavItem(rawValue: rawValue) else { return }
-                self?.currentNavigationItem = item.resolvedDestination
-            }
         }
 
         PindropThemeController.shared.apply(to: window)
@@ -846,17 +814,6 @@ final class MainWindowController {
         NSApp.activate(ignoringOtherApps: true)
         DispatchQueue.main.async { self.positionTrafficLights() }
 
-        if let item = navigationItem {
-            let destination = item.resolvedDestination
-            currentNavigationItem = destination
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(
-                    name: .navigateToMainNavItem,
-                    object: nil,
-                    userInfo: ["navItem": destination.rawValue]
-                )
-            }
-        }
     }
 
     /// Positions standard traffic lights in the leading-sidebar top pad (spec §3).
@@ -906,17 +863,17 @@ final class MainWindowController {
 #Preview("Main Window - Light") {
     MainWindow(
         settingsStore: SettingsStore(),
+        routeState: MainWindowRouteState(),
         floatingIndicatorState: nil,
         mediaTranscriptionState: nil,
         recordingState: nil,
         modelManager: nil,
         onImportMediaFiles: nil,
         onSubmitMediaLink: nil,
-        onClearMediaQueue: nil,
         onDownloadDiarizationModel: nil,
-        onNewTranscription: nil,
-        onStartMeetingCapture: nil,
-        onStartNoteCapture: nil,
+        onStartDictation: nil,
+        onStartVoiceNote: nil,
+        onStartMeeting: nil,
         onOpenSettings: { _ in }
     )
         .modelContainer(PreviewContainer.empty)
@@ -927,17 +884,17 @@ final class MainWindowController {
 #Preview("Main Window - Dark") {
     MainWindow(
         settingsStore: SettingsStore(),
+        routeState: MainWindowRouteState(),
         floatingIndicatorState: nil,
         mediaTranscriptionState: nil,
         recordingState: nil,
         modelManager: nil,
         onImportMediaFiles: nil,
         onSubmitMediaLink: nil,
-        onClearMediaQueue: nil,
         onDownloadDiarizationModel: nil,
-        onNewTranscription: nil,
-        onStartMeetingCapture: nil,
-        onStartNoteCapture: nil,
+        onStartDictation: nil,
+        onStartVoiceNote: nil,
+        onStartMeeting: nil,
         onOpenSettings: { _ in }
     )
         .modelContainer(PreviewContainer.empty)

@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "Skift dit valg når som helst i Indstillinger → Anonymitet."
 changes:
   the_language_used_by_pindrop_s_interface: "Changes the language used by Pindrop's interface."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "Ændringer af denne udbyders legitimationsoplysninger og slutpunkt gælder for igangværende og gendannede optagelser. Den valgte model og prompt forbliver uændrede."
 check:
   for_updates: "Se efter opdateringer..."
   for_updates_736b9062: "Se efter opdateringer"
@@ -831,6 +832,36 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "Pille"
+pillars:
+  capture: "Optagelse"
+  workspace: "Arbejdsområde"
+  tools: "Værktøjer"
+  dictate: "Diktering"
+  voice_note: "Stemmenote"
+  meeting: "Møde"
+  dictate_description: "Tal, så skriver Pindrop i den app, du bruger."
+  voice_note_description: "Fang en tanke, og gem den i Noter."
+  meeting_description: "Optag mikrofon- og systemlyd, og gem derefter mødet i Bibliotek."
+  start_dictating: "Start diktering"
+  start_voice_note: "Start stemmenote"
+  open_notes: "Åbn Noter"
+  change_shortcut: "Skift genvej"
+  capture_in_progress: "Optagelse i gang"
+  finish_current_capture: "Afslut den aktuelle optagelse, før du starter en ny."
+  voice_note_hold: "Stemmenote — hold nede"
+  voice_note_toggle: "Stemmenote — skift"
+  you_captured_this_week: "Du har optaget %@ denne uge."
+  you_recorded_this_week: "Du har optaget %@ denne uge."
+  one_voice_note: "1 stemmenote"
+  n_voice_notes: "%@ stemnenoter"
+  one_meeting: "1 møde"
+  n_meetings: "%@ møder"
+  of_meeting_audio: "%@ mødelyd."
+  voice_note_shortcut_hint: "Hold %1$@ nede, eller tryk på %2$@ hvor som helst."
+  hold_anywhere: "Hold %@ nede hvor som helst."
+  press_anywhere: "Tryk på %@ hvor som helst."
+  voice_notes_empty: "Dine stemnenoter vises her."
+  meetings_empty: "Dine optagne møder vises her."
 pin:
   to_screen_always_on_top: "Fastgør til skærmen (altid øverst)"
 pindrop:
@@ -1128,7 +1159,7 @@ start:
   using_pindrop: "Begynd at bruge Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "Start i menulinjen uden at åbne hovedvinduet. Du kan stadig åbne det fra menulinjeikonet."
 stats:
-  _self: "Stats"
+  _self: "Statistik"
 status:
   _self: "Status"
 stop:

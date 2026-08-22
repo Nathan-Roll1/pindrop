@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "Змініть свій вибір будь-коли в Налаштування → Конфіденційність."
 changes:
   the_language_used_by_pindrop_s_interface: "Changes the language used by Pindrop's interface."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "Зміни облікових даних і кінцевої точки цього постачальника застосовуються до поточних і відновлених записів. Вибрана модель і промпт залишаються незмінними."
 check:
   for_updates: "Перевірити наявність оновлень..."
   for_updates_736b9062: "Перевірте наявність оновлень"
@@ -831,6 +832,36 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "таблетки"
+pillars:
+  capture: "Запис"
+  workspace: "Робочий простір"
+  tools: "Інструменти"
+  dictate: "Диктування"
+  voice_note: "Голосова нотатка"
+  meeting: "Зустріч"
+  dictate_description: "Говоріть, а Pindrop записуватиме текст у програмі, якою ви користуєтеся."
+  voice_note_description: "Зафіксуйте думку й збережіть її в Примітках."
+  meeting_description: "Записуйте звук із мікрофона та системи, а потім збережіть зустріч у Бібліотеці."
+  start_dictating: "Почати диктування"
+  start_voice_note: "Почати голосову нотатку"
+  open_notes: "Відкрити Примітки"
+  change_shortcut: "Змінити сполучення клавіш"
+  capture_in_progress: "Триває запис"
+  finish_current_capture: "Завершіть поточний запис, перш ніж починати новий."
+  voice_note_hold: "Голосова нотатка — утримання"
+  voice_note_toggle: "Голосова нотатка — перемикання"
+  you_captured_this_week: "Цього тижня ви записали %@."
+  you_recorded_this_week: "Цього тижня ви записали %@."
+  one_voice_note: "1 голосова нотатка"
+  n_voice_notes: "%@ голосові нотатки"
+  one_meeting: "1 зустріч"
+  n_meetings: "%@ зустрічі"
+  of_meeting_audio: "%@ аудіо зустрічей."
+  voice_note_shortcut_hint: "Утримуйте %1$@ або натисніть %2$@ будь-де."
+  hold_anywhere: "Утримуйте %@ будь-де."
+  press_anywhere: "Натисніть %@ будь-де."
+  voice_notes_empty: "Ваші голосові нотатки з'являться тут."
+  meetings_empty: "Ваші записані зустрічі з'являться тут."
 pin:
   to_screen_always_on_top: "Закріпити на екрані (завжди зверху)"
 pindrop:
@@ -1128,7 +1159,7 @@ start:
   using_pindrop: "Почніть використовувати Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "Запускати в рядку меню, не відкриваючи головне вікно. Його й надалі можна відкрити з піктограми в рядку меню."
 stats:
-  _self: "Stats"
+  _self: "Статистика"
 status:
   _self: "Статус"
 stop:

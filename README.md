@@ -26,6 +26,12 @@
 - Offline speaker diarization with trainable speaker profiles. Single-speaker transcripts stay free of labels.
 - Global hotkeys: toggle mode, push-to-talk, and a dedicated cancel shortcut.
 
+### Capture workflows
+
+- Dictate writes speech into the app you are using.
+- Voice Note turns a quick recording into a linked note and transcript.
+- Meeting records microphone and system audio as separate durable sources, processes long recordings in recoverable chunks, and links notes and citations to the final transcript.
+
 ### Working with transcripts
 
 - Library with full-text search, inline editing, audio playback, and export to JSON, CSV, or plain text.
@@ -69,7 +75,7 @@ Pindrop runs in the menu bar only, so there is no dock icon. Look for the microp
 
 - Press the hotkey once to start recording, again to stop and transcribe. In push-to-talk mode, hold to record and release to transcribe. Both are configurable, along with the cancel shortcut, in Settings.
 - Every transcript is copied to the clipboard. With Accessibility permission granted, it is also inserted at the cursor in the active app.
-- Click the menu bar icon to open the main window: Home dashboard, Stats, Library, Notes, Dictionary, Models, and Settings.
+- Click the menu bar icon to open the main window. Capture contains Dictate, Voice Note, and Meeting. Workspace contains Library and Notes. Tools contains Stats, Dictionary, and Models. Settings remains one click away.
 - Transcripts are saved automatically. Search them in the Library, edit them in place, or export to JSON, CSV, or plain text.
 
 ## Privacy

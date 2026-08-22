@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "随时可在设置 → 隐私中更改你的选择。"
 changes:
   the_language_used_by_pindrop_s_interface: "更改 Pindrop 界面使用的语言。"
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "对该提供商凭据和端点的更改会应用于进行中的捕获和已恢复的捕获。所选模型和提示词保持不变。"
 check:
   for_updates: "检查更新..."
   for_updates_736b9062: "检查更新"
@@ -831,6 +832,36 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "为每项 AI 任务选择提供商和模型。未分配的用途会被跳过。"
 pill:
   _self: "胶囊"
+pillars:
+  capture: "录制"
+  workspace: "工作区"
+  tools: "工具"
+  dictate: "听写"
+  voice_note: "语音笔记"
+  meeting: "会议"
+  dictate_description: "说话，然后 Pindrop 会在您正在使用的应用中输入文字。"
+  voice_note_description: "记录一个想法并将其保存在笔记中。"
+  meeting_description: "录制麦克风和系统音频，然后将会议保存在资料库中。"
+  start_dictating: "开始听写"
+  start_voice_note: "开始语音笔记"
+  open_notes: "打开笔记"
+  change_shortcut: "更改快捷键"
+  capture_in_progress: "录制进行中"
+  finish_current_capture: "请先完成当前录制，再开始新的录制。"
+  voice_note_hold: "语音笔记 — 按住"
+  voice_note_toggle: "语音笔记 — 切换"
+  you_captured_this_week: "本周您记录了 %@。"
+  you_recorded_this_week: "本周您录制了 %@。"
+  one_voice_note: "1 条语音笔记"
+  n_voice_notes: "%@ 条语音笔记"
+  one_meeting: "1 个会议"
+  n_meetings: "%@ 个会议"
+  of_meeting_audio: "%@ 的会议音频。"
+  voice_note_shortcut_hint: "在任意位置按住 %1$@ 或按下 %2$@。"
+  hold_anywhere: "在任意位置按住 %@。"
+  press_anywhere: "在任意位置按下 %@。"
+  voice_notes_empty: "您的语音笔记将显示在这里。"
+  meetings_empty: "您录制的会议将显示在这里。"
 pin:
   to_screen_always_on_top: "固定到屏幕（始终置顶）"
 pindrop:
@@ -1128,7 +1159,7 @@ start:
   using_pindrop: "开始使用 Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "在菜单栏中启动且不打开主窗口。你仍可通过菜单栏图标打开它。"
 stats:
-  _self: "Stats"
+  _self: "统计"
 status:
   _self: "状态"
 stop:

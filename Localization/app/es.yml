@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "Cambia tu elección cuando quieras en Ajustes → Privacidad."
 changes:
   the_language_used_by_pindrop_s_interface: "Cambia el idioma de la interfaz de Pindrop."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "Los cambios en las credenciales y el endpoint de este proveedor se aplican a las capturas en curso y recuperadas. El modelo y el prompt seleccionados permanecen fijos."
 check:
   for_updates: "Buscar actualizaciones..."
   for_updates_736b9062: "Buscar actualizaciones"
@@ -831,6 +832,36 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Elige qué proveedor y modelo gestiona cada tarea de IA. Deja un propósito sin asignar para omitirlo."
 pill:
   _self: "Pill"
+pillars:
+  capture: "Captura"
+  workspace: "Espacio de trabajo"
+  tools: "Herramientas"
+  dictate: "Dictado"
+  voice_note: "Nota de voz"
+  meeting: "Reunión"
+  dictate_description: "Habla y Pindrop escribirá en la app que estés usando."
+  voice_note_description: "Captura una idea y guárdala en Notas."
+  meeting_description: "Graba el audio del micrófono y del sistema, y guarda después la reunión en la Biblioteca."
+  start_dictating: "Empezar a dictar"
+  start_voice_note: "Empezar nota de voz"
+  open_notes: "Abrir Notas"
+  change_shortcut: "Cambiar atajo"
+  capture_in_progress: "Captura en curso"
+  finish_current_capture: "Termina la captura actual antes de iniciar otra."
+  voice_note_hold: "Nota de voz — Mantener pulsado"
+  voice_note_toggle: "Nota de voz — Alternar"
+  you_captured_this_week: "Has capturado %@ esta semana."
+  you_recorded_this_week: "Has grabado %@ esta semana."
+  one_voice_note: "1 nota de voz"
+  n_voice_notes: "%@ notas de voz"
+  one_meeting: "1 reunión"
+  n_meetings: "%@ reuniones"
+  of_meeting_audio: "%@ de audio de reuniones."
+  voice_note_shortcut_hint: "Mantén pulsado %1$@ o pulsa %2$@ en cualquier lugar."
+  hold_anywhere: "Mantén pulsado %@ en cualquier lugar."
+  press_anywhere: "Pulsa %@ en cualquier lugar."
+  voice_notes_empty: "Tus notas de voz aparecerán aquí."
+  meetings_empty: "Tus reuniones grabadas aparecerán aquí."
 pin:
   to_screen_always_on_top: "Fijar en pantalla (siempre visible)"
 pindrop:
@@ -1128,7 +1159,7 @@ start:
   using_pindrop: "Empezar a usar Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "Inicia en la barra de menús sin abrir la ventana principal. Aún puedes abrirla desde el icono de la barra de menús."
 stats:
-  _self: "Stats"
+  _self: "Estadísticas"
 status:
   _self: "Estado"
 stop:

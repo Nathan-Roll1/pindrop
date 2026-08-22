@@ -376,7 +376,11 @@ final class OutputManager {
     }
 
     @discardableResult
-    func output(_ text: String) async throws -> OutputResult {
+    func output(
+        _ text: String,
+        validatingOwnership ownerValidation: @MainActor () throws -> Void = {}
+    ) async throws -> OutputResult {
+        try ownerValidation()
         guard !text.isEmpty else {
             throw OutputManagerError.emptyText
         }
@@ -390,7 +394,11 @@ final class OutputManager {
         case .clipboard:
             return try await outputViaClipboard(text, destination: destination)
         case .directInsert:
-            return try await outputViaDirectInsert(text, destination: destination)
+            return try await outputViaDirectInsert(
+                text,
+                destination: destination,
+                ownerValidation: ownerValidation
+            )
         }
     }
 
@@ -441,7 +449,8 @@ final class OutputManager {
     /// path with explicit physical Command events, and skip System Events fallback.
     private func outputViaDirectInsert(
         _ text: String,
-        destination: (name: String?, bundleID: String?)
+        destination: (name: String?, bundleID: String?),
+        ownerValidation: @MainActor () throws -> Void
     ) async throws -> OutputResult {
         guard checkAccessibilityPermission() else {
             let snapshot = try copyReplacingClipboard(text)
@@ -475,6 +484,10 @@ final class OutputManager {
             // cleanly instead of stomping the clipboard with the transcript.
             throw CancellationError()
         } catch {
+            // The paste did not land. A stale session or cancelled task must not turn
+            // that failed insert into a clipboard fallback (or its toast).
+            try Task.checkCancellation()
+            try ownerValidation()
             Log.output.error("Direct insert paste failed; leaving text on clipboard: \(error.localizedDescription)")
             try copyToClipboard(text)
             return .copiedToClipboard(

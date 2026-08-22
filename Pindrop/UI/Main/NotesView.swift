@@ -400,15 +400,11 @@ struct NotesView: View {
     }
 
     private func presentNoteEditor(note: NoteSchema.Note?, isNewNote: Bool) {
-        let editorController = NoteEditorWindowController()
-        let registry = NoteEditorWindowControllerRegistry.shared
-        editorController.setModelContainer(modelContext.container)
-        registry.retain(editorController)
-        editorController.onClose = { [weak registry, weak editorController] in
-            guard let editorController else { return }
-            registry?.release(editorController)
-        }
-        editorController.show(note: note, isNewNote: isNewNote)
+        NoteEditorWindowControllerRegistry.shared.presentEditor(
+            note: note,
+            isNewNote: isNewNote,
+            modelContainer: modelContext.container
+        )
     }
 
     private func togglePin(_ note: NoteSchema.Note) {
@@ -723,6 +719,18 @@ final class NoteEditorWindowControllerRegistry {
 
     func release(_ controller: NoteEditorWindowController) {
         controllers.removeAll { $0 === controller }
+    }
+
+    /// Presents a note editor window; the registry owns the controller until it closes.
+    func presentEditor(note: NoteSchema.Note?, isNewNote: Bool, modelContainer: ModelContainer) {
+        let editorController = NoteEditorWindowController()
+        editorController.setModelContainer(modelContainer)
+        retain(editorController)
+        editorController.onClose = { [weak self, weak editorController] in
+            guard let editorController else { return }
+            self?.release(editorController)
+        }
+        editorController.show(note: note, isNewNote: isNewNote)
     }
 }
 

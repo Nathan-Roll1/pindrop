@@ -4,8 +4,8 @@
 //
 //  Created on 2026-01-29.
 //
-//  Note editor window (U5 scorched-earth restyle, spec §10): 480×560 fixed,
-//  Pinned badge, listening chip, footer word count + ⌘S hint.
+//  Note editor window (U5 scorched-earth restyle, spec §10): document-style,
+//  margin heading markers, listening chip, footer word count + ⌘S hint.
 //
 
 import SwiftUI
@@ -104,15 +104,16 @@ final class NoteEditorWindowController: NSObject, NSWindowDelegate {
         let locale = appLocale.locale
         Log.ui.infoVisible("Creating note editor window for locale=\(locale.identifier) isNewNote=\(isNewNote)")
         window.title = isNewNote ? localized("New Note", locale: locale) : (note?.title ?? localized("Note", locale: locale))
-        // Fixed 480×560 design size; keep modest min if user resizes.
+        // Document-style window (Granola-class notes), not a fixed Post-it:
+        // comfortable default size with a modest minimum for small screens.
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.titleVisibility = .visible
         window.titlebarAppearsTransparent = false
         window.backgroundColor = NSColor(AppColors.contentBackground)
         window.isReleasedWhenClosed = false
         window.delegate = self
-        window.setContentSize(NSSize(width: 480, height: 560))
-        window.minSize = NSSize(width: 400, height: 420)
+        window.setContentSize(NSSize(width: 680, height: 760))
+        window.minSize = NSSize(width: 460, height: 480)
         window.center()
         applyInterfaceLayoutDirection(to: window, locale: locale)
 
@@ -216,10 +217,19 @@ struct NoteEditorView: View {
     @State private var autosaveTask: Task<Void, Never>?
     @State private var lastSavedSnapshot: NoteSnapshot?
     @State private var editorID = UUID()
+    @State private var appendRequestState = NoteAppendEditorRequestState()
+    @State private var appendStartPreflightTask: Task<Void, Never>?
+    @State private var appendStopFlushTask: Task<Void, Never>?
     @State private var lastEditedAt = Date()
     /// Displayed word count — updated independently of Markdown editor rendering.
     @State private var displayedWordCount = 0
     @State private var wordCountTask: Task<Void, Never>?
+    /// Immutable meeting-note citations rendered separately from the editable body.
+    @State private var generatedCitations: [MeetingNoteCitation] = []
+    /// Exact human-anchor snapshot that the meeting-note derivation consumed.
+    @State private var generatedHumanAnchorContent = ""
+    /// Invalidates citation lookups when the displayed note, title, or body changes.
+    @State private var citationValidationGeneration: UInt = 0
 
     /// Ownership + processing only — does NOT observe 4Hz `elapsed` ticks.
     @ObservedObject private var appendSessionState = NoteAppendListeningCoordinator.shared.sessionState
@@ -239,15 +249,28 @@ struct NoteEditorView: View {
         onPinChange: @escaping (Bool) -> Void = { _ in }
     ) {
         self.note = note
+        self._currentNote = State(initialValue: note)
         self.isNewNote = isNewNote
         self.onClose = onClose
         self.onSave = onSave
         self.onPinChange = onPinChange
     }
-
     private var isThisEditorListening: Bool {
         appendSessionState.activeEditorID == editorID
+            && appendSessionState.activeNoteID == currentNote?.id
             && (appendSessionState.isListening || appendSessionState.isProcessing)
+    }
+
+    private var isAppendRequested: Bool {
+        appendRequestState.isLocked(for: currentNote?.id)
+    }
+
+    private var isAppendLocked: Bool {
+        isAppendRequested || isThisEditorListening
+    }
+
+    private var shouldStopSpeakToAppend: Bool {
+        isAppendRequested || isThisEditorListening
     }
 
     private var wordCountLabel: String {
@@ -291,19 +314,25 @@ struct NoteEditorView: View {
             // reopened editor never starts from a pre-close snapshot.
             if let existing = note {
                 let modelID = existing.persistentModelID
+                let loadValidationGeneration = citationValidationGeneration
                 Task { @MainActor in
                     await NoteEditorPersistenceController.shared.flush(modelID: modelID)
+                    guard citationValidationGeneration == loadValidationGeneration,
+                          currentNote?.persistentModelID == modelID,
+                          currentNote?.id == existing.id
+                    else {
+                        return
+                    }
                     if let refreshed = modelContext.model(for: modelID) as? NoteSchema.Note {
                         title = refreshed.title
                         content = refreshed.content
                         isPinned = refreshed.isPinned
                         tags = refreshed.tags
                         lastEditedAt = refreshed.updatedAt
-                        if !isNewNote {
-                            currentNote = refreshed
-                        }
+                        currentNote = refreshed
                         lastSavedSnapshot = NoteSnapshot(note: refreshed)
                         displayedWordCount = refreshed.content.wordCount
+                        loadMeetingCitations(for: refreshed.id, expectedContent: refreshed.content)
                     } else {
                         loadNoteData()
                         refreshWordCountImmediately()
@@ -326,21 +355,38 @@ struct NoteEditorView: View {
                 }
             }
         }
+        .onChange(of: note?.id) { _, _ in
+            invalidateCitationValidation(clearingCitations: true)
+            loadNoteData()
+            refreshWordCountImmediately()
+        }
+
         .onDisappear {
             savedConfirmationTask?.cancel()
+            let requestedNoteID = appendRequestState.requestedNoteID
+            appendStartPreflightTask?.cancel()
+            appendStartPreflightTask = nil
+            appendStopFlushTask?.cancel()
+            appendStopFlushTask = nil
             autosaveTask?.cancel()
             wordCountTask?.cancel()
             // Synchronously enqueue the newest draft on the shared owner, then
             // retain a flush task so close/quit can await durability.
             enqueueCloseSaveIfNeeded()
-            if appendSessionState.activeEditorID == editorID {
-                NoteAppendListeningCoordinator.shared.requestStop(editorID: editorID)
+            if let noteID = requestedNoteID
+                ?? (isThisEditorListening ? currentNote?.id : nil) {
+                NoteAppendListeningCoordinator.shared.requestStop(
+                    editorID: editorID,
+                    noteID: noteID
+                )
             }
         }
-        .onChange(of: title) { _, _ in
+        .onChange(of: title) { _, newValue in
+            invalidateCitationValidation(title: newValue)
             noteDidChange()
         }
         .onChange(of: content) { _, newValue in
+            invalidateCitationValidation(body: newValue)
             scheduleWordCountUpdate(for: newValue)
             noteDidChange()
         }
@@ -351,11 +397,56 @@ struct NoteEditorView: View {
         .onChange(of: tags) { _, _ in
             noteDidChange()
         }
+        .onChange(of: appendSessionState.isListening) { _, _ in
+            clearAppendRequestAfterSessionFinish()
+        }
+        .onChange(of: appendSessionState.isProcessing) { _, _ in
+            clearAppendRequestAfterSessionFinish()
+        }
+        .onChange(of: appendSessionState.activeEditorID) { _, _ in
+            clearAppendRequestAfterSessionFinish()
+        }
+        .onChange(of: appendSessionState.activeNoteID) { _, _ in
+            clearAppendRequestAfterSessionFinish()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .noteSpeakToAppendTranscript)) { notification in
-            guard let targetID = notification.userInfo?["editorID"] as? UUID,
-                  targetID == editorID,
-                  let text = notification.userInfo?["text"] as? String else { return }
-            content = NoteContentAppend.append(transcript: text, to: content)
+            guard let payload = NoteAppendCommittedPayload(notification: notification),
+                  let currentNote
+            else {
+                return
+            }
+
+            let isAlreadyCommitted = content == payload.content
+                && currentNote.sourceTranscriptionID == payload.sourceTranscriptionID
+            guard payload.apply(to: currentNote, for: editorID) else { return }
+
+            appendRequestState.clearAfterCommittedDelivery(noteID: payload.noteID)
+            guard !isAlreadyCommitted else { return }
+
+            // Record the committed durable body before changing the binding so the
+            // binding observer cannot queue an autosave over the coordinator write.
+            lastSavedSnapshot = NoteSnapshot(
+                title: title.isEmpty ? "Untitled Note" : title,
+                content: payload.content,
+                isPinned: isPinned,
+                tags: tags
+            )
+            content = payload.content
+            onSave(currentNote)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .noteSpeakToAppendRejected)) { notification in
+            guard let payload = NoteAppendRejectedPayload(notification: notification),
+                  let requestedNoteID = appendRequestState.requestedNoteID,
+                  payload.matches(editorID: editorID, noteID: requestedNoteID)
+            else {
+                return
+            }
+
+            appendRequestState.clearAfterStartRejected(noteID: payload.noteID)
+            appendStartPreflightTask?.cancel()
+            appendStartPreflightTask = nil
+            appendStopFlushTask?.cancel()
+            appendStopFlushTask = nil
         }
     }
 
@@ -392,6 +483,7 @@ struct NoteEditorView: View {
                     ? localized("Unpin from screen", locale: locale)
                     : localized("Pin to screen (always on top)", locale: locale)
             )
+            .disabled(isAppendLocked)
         }
         .padding(.horizontal, 24)
         .frame(height: 46)
@@ -406,47 +498,61 @@ struct NoteEditorView: View {
     private var speakToAppendButton: some View {
         Button(action: toggleSpeakToAppend) {
             HStack(spacing: 4) {
-                Image(systemName: isThisEditorListening ? "stop.circle.fill" : "mic.fill")
+                Image(systemName: shouldStopSpeakToAppend ? "stop.circle.fill" : "mic.fill")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(isThisEditorListening ? AppColors.recording : AppColors.textSecondary)
+                    .foregroundStyle(
+                        shouldStopSpeakToAppend ? AppColors.recording : AppColors.textSecondary
+                    )
             }
         }
         .buttonStyle(.plain)
         .help(
-            isThisEditorListening
+            shouldStopSpeakToAppend
                 ? localized("Stop listening", locale: locale)
                 : localized("Speak to append", locale: locale)
         )
         .accessibilityLabel(
-            isThisEditorListening
+            shouldStopSpeakToAppend
                 ? localized("Stop listening", locale: locale)
                 : localized("Speak to append", locale: locale)
         )
-        .disabled(appendSessionState.isProcessing && isThisEditorListening)
     }
 
     // MARK: - Editor content
 
+    /// The editor's text column starts after the heading-marker margin so the
+    /// title, tags, and body text share one left edge (Granola-style gutter).
+    private let textColumnInset: CGFloat = MarkdownTextView.headingMarginWidth
+
     private var editorContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             TextField(localized("Note Title", locale: locale), text: $title)
-                .font(FontLoader.font(family: .newsreader, size: 22, weight: .medium))
+                .font(FontLoader.font(family: .newsreader, size: 28, weight: .medium))
                 .foregroundStyle(AppColors.textPrimary)
                 .textFieldStyle(.plain)
                 .focused($titleFieldFocused)
+                .padding(.leading, textColumnInset)
                 .onSubmit {
                     contentFieldFocused = true
                 }
 
             tagsRow
+                .padding(.leading, textColumnInset)
 
             MarkdownEditor(text: $content)
+                .accessibilityIdentifier("note-editor-body")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if !generatedCitations.isEmpty {
+                citationPanel
+                    .padding(.leading, textColumnInset)
+            }
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 16)
+
+        .disabled(isAppendLocked)
+        .padding(.horizontal, 40)
+        .padding(.top, 20)
         .padding(.bottom, 8)
-        .frame(maxWidth: 432 + 48) // content ~432 + horizontal padding
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
@@ -478,6 +584,68 @@ struct NoteEditorView: View {
         }
     }
 
+    private var citationPanel: some View {
+        GroupBox {
+            ScrollView(.vertical, showsIndicators: true) {
+                LazyVStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(localized("Note", locale: locale))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppColors.textTertiary)
+
+                        Text(humanAnchorPresentationText)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(AppColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+
+                    ForEach(Array(generatedCitations.enumerated()), id: \.offset) { _, citation in
+                        Text(MeetingNoteDerivation.citationPresentationLine(citation))
+                            .font(.caption.monospaced())
+                            .foregroundStyle(AppColors.textSecondary)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 104)
+        } label: {
+            Label(
+                localized("Sources", locale: locale),
+                systemImage: "checkmark.shield.fill"
+            )
+            .font(.headline)
+            .foregroundStyle(AppColors.accent)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(AppColors.accentBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(AppColors.accent.opacity(0.45), lineWidth: 1)
+        }
+        .accessibilityIdentifier("note-editor-citation-panel")
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(citationAccessibilityLabel)
+    }
+
+    private var humanAnchorPresentationText: String {
+        MeetingNoteDerivation.sourcePresentationText(generatedHumanAnchorContent)
+    }
+
+    private var citationAccessibilityLabel: String {
+        let sourceLines = generatedCitations
+            .map(MeetingNoteDerivation.citationPresentationLine)
+            .joined(separator: " ")
+        return "\(localized("Sources", locale: locale)). \(localized("Note", locale: locale)): \(humanAnchorPresentationText). \(sourceLines)"
+    }
+
     // MARK: - Footer (spec §10)
 
     private var footerView: some View {
@@ -502,7 +670,7 @@ struct NoteEditorView: View {
                 .onTapGesture { saveNow() }
                 .help(localized("Save now (⌘S)", locale: locale))
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 40)
         .frame(height: 39)
         .background(AppColors.contentBackground)
         .overlay(alignment: .top) {
@@ -523,11 +691,205 @@ struct NoteEditorView: View {
     // MARK: - Actions
 
     private func toggleSpeakToAppend() {
-        if isThisEditorListening {
-            NoteAppendListeningCoordinator.shared.requestStop(editorID: editorID)
+        if shouldStopSpeakToAppend {
+            requestSpeakToAppendStop()
         } else {
-            NoteAppendListeningCoordinator.shared.requestStart(editorID: editorID)
+            requestSpeakToAppendStart()
         }
+    }
+
+    /// Synchronously claims local ownership before its asynchronous preflight,
+    /// preventing any post-Start draft mutation from racing the append commit.
+    private func requestSpeakToAppendStart() {
+        guard appendRequestState.requestedNoteID == nil,
+              let noteToSave = currentNote
+        else {
+            return
+        }
+
+        let modelID = noteToSave.persistentModelID
+        let noteID = noteToSave.id
+        let container = modelContext.container
+        appendRequestState.requestStart(noteID: noteID)
+        autosaveTask?.cancel()
+        autosaveTask = nil
+
+        appendStartPreflightTask = Task { @MainActor in
+            defer {
+                appendStartPreflightTask = nil
+            }
+
+            while !Task.isCancelled {
+                guard let currentNote,
+                      currentNote.persistentModelID == modelID,
+                      currentNote.id == noteID,
+                      appendRequestState.isLocked(for: noteID)
+                else {
+                    return
+                }
+
+                let snapshot = currentSnapshot()
+                let editedAt = lastEditedAt
+                lastSavedSnapshot = snapshot
+
+                let result = await NoteEditorPersistenceController.shared.saveAndWait(
+                    container: container,
+                    modelID: modelID,
+                    snapshot: snapshot,
+                    editedAt: editedAt
+                )
+
+                guard !Task.isCancelled else { return }
+                guard appendRequestState.isLocked(for: noteID),
+                      currentSnapshot() == snapshot
+                else {
+                    continue
+                }
+                guard let result,
+                      result.applied,
+                      result.generation == NoteEditorPersistenceController.shared.currentGeneration(for: modelID)
+                else {
+                    if lastSavedSnapshot == snapshot {
+                        lastSavedSnapshot = nil
+                    }
+                    appendRequestState.clearAfterCommittedDelivery(noteID: noteID)
+                    return
+                }
+
+                await handlePersistenceResult(
+                    result,
+                    modelID: modelID,
+                    noteToSave: currentNote,
+                    snapshot: snapshot,
+                    editedAt: editedAt
+                )
+
+                guard appendRequestState.isLocked(for: noteID),
+                      currentSnapshot() == snapshot,
+                      currentNote.id == noteID
+                else {
+                    continue
+                }
+
+                NoteAppendListeningCoordinator.shared.requestStart(
+                    editorID: editorID,
+                    noteID: noteID
+                )
+                return
+            }
+        }
+    }
+
+    /// Cancels deferred work and posts Stop only after the exact current
+    /// snapshot has been durably saved.
+    private func requestSpeakToAppendStop() {
+        guard let noteToSave = currentNote,
+              let noteID = appendRequestState.requestedNoteID
+                ?? (isThisEditorListening ? currentNote?.id : nil)
+        else {
+            return
+        }
+
+        appendStartPreflightTask?.cancel()
+        appendStartPreflightTask = nil
+        autosaveTask?.cancel()
+        autosaveTask = nil
+
+        let modelID = noteToSave.persistentModelID
+        let container = modelContext.container
+        appendStopFlushTask?.cancel()
+        appendStopFlushTask = Task { @MainActor in
+            defer {
+                appendStopFlushTask = nil
+            }
+
+            while !Task.isCancelled {
+                guard let currentNote,
+                      currentNote.persistentModelID == modelID,
+                      currentNote.id == noteID,
+                      appendRequestState.isLocked(for: noteID) || isThisEditorListening
+                else {
+                    return
+                }
+
+                let snapshot = currentSnapshot()
+                let editedAt = lastEditedAt
+                lastSavedSnapshot = snapshot
+                let result = await NoteEditorPersistenceController.shared.saveAndWait(
+                    container: container,
+                    modelID: modelID,
+                    snapshot: snapshot,
+                    editedAt: editedAt
+                )
+
+                guard !Task.isCancelled else { return }
+                guard currentSnapshot() == snapshot else { continue }
+                guard let result,
+                      result.applied,
+                      result.generation == NoteEditorPersistenceController.shared.currentGeneration(for: modelID)
+                else {
+                    if lastSavedSnapshot == snapshot {
+                        lastSavedSnapshot = nil
+                    }
+                    return
+                }
+
+                await handlePersistenceResult(
+                    result,
+                    modelID: modelID,
+                    noteToSave: currentNote,
+                    snapshot: snapshot,
+                    editedAt: editedAt
+                )
+
+                guard currentSnapshot() == snapshot,
+                      currentNote.id == noteID
+                else {
+                    continue
+                }
+
+                NoteAppendListeningCoordinator.shared.requestStop(
+                    editorID: editorID,
+                    noteID: noteID
+                )
+                return
+            }
+        }
+    }
+
+    /// Reads citations only after validating the durable generated-note provenance.
+    ///
+    /// Both guards make a lookup harmless when an editor is replaced or a newer
+    /// draft arrives while a save completion is being handled.
+    private func loadMeetingCitations(
+        for noteID: UUID?,
+        expectedContent: String? = nil
+    ) {
+        guard let noteID,
+              currentNote?.id == noteID,
+              expectedContent.map({ content == $0 }) ?? true
+        else {
+            return
+        }
+
+        let validationGeneration = citationValidationGeneration
+        let generatedNote: MeetingGeneratedNoteSnapshot?
+        do {
+            let store = CaptureSessionStore(modelContext: modelContext)
+            generatedNote = try store.generatedMeetingNote(noteID: noteID)
+        } catch {
+            Log.app.error("Generated note citation metadata is invalid.")
+            generatedNote = nil
+        }
+
+        guard citationValidationGeneration == validationGeneration,
+              currentNote?.id == noteID,
+              expectedContent.map({ content == $0 }) ?? true
+        else {
+            return
+        }
+        generatedCitations = generatedNote?.citations ?? []
+        generatedHumanAnchorContent = generatedNote?.humanAnchorContent ?? ""
     }
 
     private func loadNoteData() {
@@ -537,12 +899,12 @@ struct NoteEditorView: View {
             isPinned = note.isPinned
             tags = note.tags
             lastEditedAt = note.updatedAt
-            if !isNewNote {
-                currentNote = note
-            }
+            currentNote = note
             lastSavedSnapshot = NoteSnapshot(note: note)
             displayedWordCount = note.content.wordCount
+            loadMeetingCitations(for: note.id, expectedContent: note.content)
         } else {
+            invalidateCitationValidation(clearingCitations: true)
             displayedWordCount = 0
         }
     }
@@ -653,6 +1015,15 @@ struct NoteEditorView: View {
         )
     }
 
+    private func clearAppendRequestAfterSessionFinish() {
+        appendRequestState.clearAfterSessionFinishes(
+            isListening: appendSessionState.isListening,
+            isProcessing: appendSessionState.isProcessing,
+            activeEditorID: appendSessionState.activeEditorID,
+            activeNoteID: appendSessionState.activeNoteID
+        )
+    }
+
     private func handlePersistenceResult(
         _ result: NotePersistenceResult?,
         modelID: PersistentIdentifier,
@@ -670,8 +1041,13 @@ struct NoteEditorView: View {
 
         // Drop stale completions — a newer edit already supersedes this save.
         guard result.applied,
-              result.generation == NoteEditorPersistenceController.shared.currentGeneration(for: modelID)
-        else { return }
+              result.generation == NoteEditorPersistenceController.shared.currentGeneration(for: modelID),
+              currentNote?.persistentModelID == modelID,
+              currentNote?.id == noteToSave.id,
+              currentSnapshot() == snapshot
+        else {
+            return
+        }
 
         // Refresh the managed model from the main context for the onSave callback.
         if let refreshed = modelContext.model(for: modelID) as? NoteSchema.Note {
@@ -684,15 +1060,28 @@ struct NoteEditorView: View {
             noteToSave.updatedAt = result.updatedAt ?? editedAt
             onSave(noteToSave)
         }
+
+        // Citations are trusted only when a fresh store validation confirms the
+        // exact persisted note still has valid generated-note provenance.
+        loadMeetingCitations(for: noteToSave.id, expectedContent: snapshot.content)
     }
 
     private func saveNow() {
+        // The preflight/stop paths own durable snapshots while appending; a
+        // concurrent manual save could otherwise overwrite the committed append.
+        guard !isAppendLocked else { return }
+
         autosaveTask?.cancel()
         saveNote(immediate: true)
         showSavedFlash()
     }
 
     private func noteDidChange() {
+        let snapshot = currentSnapshot()
+        // A committed append sets this first, so its binding update cannot queue
+        // an autosave that races the coordinator's direct store commit.
+        guard snapshot != lastSavedSnapshot else { return }
+
         lastEditedAt = Date()
         // Capture the latest draft synchronously before the 500ms debounce so quit
         // can persist mid-debounce edits without relying on onDisappear timing.
@@ -700,7 +1089,7 @@ struct NoteEditorView: View {
             NoteEditorPersistenceController.shared.trackDraft(
                 container: modelContext.container,
                 modelID: noteToSave.persistentModelID,
-                snapshot: currentSnapshot(),
+                snapshot: snapshot,
                 editedAt: lastEditedAt
             )
         }
@@ -714,6 +1103,29 @@ struct NoteEditorView: View {
             guard !Task.isCancelled else { return }
             saveNote(immediate: false)
         }
+    }
+
+    /// Clears trusted citation metadata synchronously when an edited title or
+    /// body contains a reserved citation form or another value the generated-note
+    /// sanitizer would change. Sanitized edits remain eligible for store revalidation.
+    private func invalidateCitationValidation(
+        body: String? = nil,
+        title: String? = nil,
+        clearingCitations: Bool = false
+    ) {
+        citationValidationGeneration &+= 1
+        let body = body ?? content
+        let title = title ?? self.title
+        if clearingCitations
+            || !Self.permitsTrustedCitations(in: body)
+            || title != MeetingNoteDerivation.sanitizingGeneratedContent(title) {
+            generatedCitations = []
+            generatedHumanAnchorContent = ""
+        }
+    }
+
+    static func permitsTrustedCitations(in body: String) -> Bool {
+        body == MeetingNoteDerivation.sanitizingGeneratedContent(body)
     }
 
     private func scheduleWordCountUpdate(for text: String) {
@@ -1147,11 +1559,18 @@ final class NoteAppendSessionState: ObservableObject {
     @Published private(set) var isListening = false
     @Published private(set) var isProcessing = false
     @Published private(set) var activeEditorID: UUID?
+    @Published private(set) var activeNoteID: UUID?
 
-    fileprivate func apply(isListening: Bool, isProcessing: Bool, activeEditorID: UUID?) {
+    fileprivate func apply(
+        isListening: Bool,
+        isProcessing: Bool,
+        activeEditorID: UUID?,
+        activeNoteID: UUID?
+    ) {
         if self.isListening != isListening { self.isListening = isListening }
         if self.isProcessing != isProcessing { self.isProcessing = isProcessing }
         if self.activeEditorID != activeEditorID { self.activeEditorID = activeEditorID }
+        if self.activeNoteID != activeNoteID { self.activeNoteID = activeNoteID }
     }
 }
 
@@ -1162,19 +1581,22 @@ final class NoteAppendListeningCoordinatorBox {
     let sessionState = NoteAppendSessionState()
 
     private var sessionStateCancellable: AnyCancellable?
+    private let notificationCenter: NotificationCenter
 
-    init() {
+    init(notificationCenter: NotificationCenter = .default) {
+        self.notificationCenter = notificationCenter
         // All source mutations are main-actor isolated, so mirror synchronously.
         // Scheduling onto RunLoop.main introduced a stale-state window between a
         // session transition and the editor deciding whether Start or Stop applies.
         sessionStateCancellable = state.$isListening
-            .combineLatest(state.$isProcessing, state.$activeEditorID)
-            .sink { [weak self] isListening, isProcessing, activeEditorID in
+            .combineLatest(state.$isProcessing, state.$activeEditorID, state.$activeNoteID)
+            .sink { [weak self] isListening, isProcessing, activeEditorID, activeNoteID in
                 guard let self else { return }
                 self.sessionState.apply(
                     isListening: isListening,
                     isProcessing: isProcessing,
-                    activeEditorID: activeEditorID
+                    activeEditorID: activeEditorID,
+                    activeNoteID: activeNoteID
                 )
             }
     }
@@ -1183,19 +1605,27 @@ final class NoteAppendListeningCoordinatorBox {
         sessionStateCancellable?.cancel()
     }
 
-    func requestStart(editorID: UUID) {
-        NotificationCenter.default.post(
+    func requestStart(editorID: UUID, noteID: UUID) {
+        notificationCenter.post(
             name: .noteSpeakToAppendRequest,
             object: nil,
-            userInfo: ["editorID": editorID, "action": "start"]
+            userInfo: [
+                "editorID": editorID,
+                "noteID": noteID,
+                "action": "start"
+            ]
         )
     }
 
-    func requestStop(editorID: UUID) {
-        NotificationCenter.default.post(
+    func requestStop(editorID: UUID, noteID: UUID) {
+        notificationCenter.post(
             name: .noteSpeakToAppendRequest,
             object: nil,
-            userInfo: ["editorID": editorID, "action": "stop"]
+            userInfo: [
+                "editorID": editorID,
+                "noteID": noteID,
+                "action": "stop"
+            ]
         )
     }
 }
@@ -1238,7 +1668,7 @@ struct TagChip: View {
         onClose: {},
         onSave: { _ in }
     )
-    .frame(width: 480, height: 560)
+    .frame(width: 680, height: 760)
     .modelContainer(container)
 }
 
@@ -1258,6 +1688,6 @@ struct TagChip: View {
         onClose: {},
         onSave: { _ in }
     )
-    .frame(width: 480, height: 560)
+    .frame(width: 680, height: 760)
     .modelContainer(container)
 }

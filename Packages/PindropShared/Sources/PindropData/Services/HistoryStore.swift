@@ -52,6 +52,7 @@ public final class HistoryStore {
     
     public enum HistoryStoreError: Error, LocalizedError {
         case saveFailed(String)
+        case conflictingRecordID(UUID)
         case fetchFailed(String)
         case deleteFailed(String)
         case searchFailed(String)
@@ -67,10 +68,12 @@ public final class HistoryStore {
                 return "Failed to delete transcription: \(message)"
             case .searchFailed(let message):
                 return "Failed to search transcriptions: \(message)"
+            case .conflictingRecordID(let id):
+                return "A transcription with ID \(id) already exists with different content."
             case .exportFailed(let message):
                 return "Failed to export transcriptions: \(message)"
-            }
         }
+    }
     }
     
     private let modelContext: ModelContext
@@ -110,12 +113,14 @@ public final class HistoryStore {
         destinationAppBundleID: String? = nil,
         wordCount: Int? = nil,
         speakerTrainingSegments: [DiarizedTranscriptSegment]? = nil,
-        pipelineMetricsJSON: String? = nil
+        pipelineMetricsJSON: String? = nil,
+        id: UUID = UUID()
     ) throws -> TranscriptionRecord {
         // Always persist a word count for the final text; callers may pass an
         // explicit value (e.g. pre-computed) but we default to String.wordCount.
         let resolvedWordCount = wordCount ?? text.wordCount
         let record = TranscriptionRecord(
+            id: id,
             text: text,
             originalText: originalText,
             duration: duration,
@@ -139,6 +144,13 @@ public final class HistoryStore {
         if let folderID,
            let folder = try fetchFolder(id: folderID) {
             record.folder = folder
+        }
+
+        if let existingRecord = try fetchPersistedRecord(with: id) {
+            guard callerOwnedFieldsMatch(existingRecord, requested: record) else {
+                throw HistoryStoreError.conflictingRecordID(id)
+            }
+            return try fetchRecord(with: id) ?? existingRecord
         }
         
         modelContext.insert(record)
@@ -423,6 +435,45 @@ public final class HistoryStore {
         } catch {
             throw HistoryStoreError.fetchFailed(error.localizedDescription)
         }
+    }
+
+    private func fetchPersistedRecord(with id: UUID) throws -> TranscriptionRecord? {
+        let freshContext = ModelContext(modelContext.container)
+        var descriptor = FetchDescriptor<TranscriptionRecord>(
+            predicate: #Predicate<TranscriptionRecord> { $0.id == id }
+        )
+        descriptor.fetchLimit = 1
+
+        do {
+            return try freshContext.fetch(descriptor).first
+        } catch {
+            throw HistoryStoreError.fetchFailed(error.localizedDescription)
+        }
+    }
+
+    private func callerOwnedFieldsMatch(
+        _ persisted: TranscriptionRecord,
+        requested: TranscriptionRecord
+    ) -> Bool {
+        persisted.text == requested.text &&
+        persisted.originalText == requested.originalText &&
+        persisted.duration == requested.duration &&
+        persisted.modelUsed == requested.modelUsed &&
+        persisted.enhancedWith == requested.enhancedWith &&
+        persisted.diarizationSegmentsJSON == requested.diarizationSegmentsJSON &&
+        persisted.sourceKindRawValue == requested.sourceKindRawValue &&
+        persisted.sourceDisplayName == requested.sourceDisplayName &&
+        persisted.generatedTitle == requested.generatedTitle &&
+        persisted.aiSummary == requested.aiSummary &&
+        persisted.sourceTitleOriginRawValue == requested.sourceTitleOriginRawValue &&
+        persisted.originalSourceURL == requested.originalSourceURL &&
+        persisted.managedMediaPath == requested.managedMediaPath &&
+        persisted.thumbnailPath == requested.thumbnailPath &&
+        persisted.folder?.id == requested.folder?.id &&
+        persisted.destinationAppName == requested.destinationAppName &&
+        persisted.destinationAppBundleID == requested.destinationAppBundleID &&
+        persisted.wordCount == requested.wordCount &&
+        persisted.pipelineMetricsJSON == requested.pipelineMetricsJSON
     }
 
     /// Attaches (or clears) the managed media path on an existing record after async encode.

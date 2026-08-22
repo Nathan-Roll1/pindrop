@@ -6,10 +6,81 @@
 //
 
 import AVFoundation
+import CryptoKit
 import Foundation
 import FluidAudio
 import PindropCore
 import os.log
+/// The provider and model that the service has actually prepared for streaming.
+///
+/// This is deliberately the effective engine identity, rather than the requested
+/// settings: Apple SpeechTranscriber can fall back to Parakeet at runtime.
+public struct StreamingEngineIdentity: Sendable, Equatable {
+    public let providerIdentifier: String
+    public let modelIdentifier: String
+
+    public init(providerIdentifier: String, modelIdentifier: String) {
+        self.providerIdentifier = providerIdentifier
+        self.modelIdentifier = modelIdentifier
+    }
+}
+
+
+public struct TranscriptionChunkInput: Sendable, Equatable {
+    public let chunkID: UUID
+    public let sequence: Int
+    public let startOffset: TimeInterval
+    public let duration: TimeInterval
+    public let fileURL: URL
+    public let byteCount: Int
+    public let sha256: String
+
+    public init(
+        chunkID: UUID,
+        sequence: Int,
+        startOffset: TimeInterval,
+        duration: TimeInterval,
+        fileURL: URL,
+        byteCount: Int,
+        sha256: String
+    ) {
+        self.chunkID = chunkID
+        self.sequence = sequence
+        self.startOffset = startOffset
+        self.duration = duration
+        self.fileURL = fileURL
+        self.byteCount = byteCount
+        self.sha256 = sha256
+    }
+}
+
+public struct TranscriptionChunkOutput: Sendable, Equatable {
+    public let chunkID: UUID
+    public let sequence: Int
+    public let startOffset: TimeInterval
+    public let duration: TimeInterval
+    public let plainText: String
+    public let diarizedSegments: [DiarizedTranscriptSegment]?
+    public let diarizationWarning: String?
+
+    public init(
+        chunkID: UUID,
+        sequence: Int,
+        startOffset: TimeInterval,
+        duration: TimeInterval,
+        plainText: String,
+        diarizedSegments: [DiarizedTranscriptSegment]? = nil,
+        diarizationWarning: String? = nil
+    ) {
+        self.chunkID = chunkID
+        self.sequence = sequence
+        self.startOffset = startOffset
+        self.duration = duration
+        self.plainText = plainText
+        self.diarizedSegments = diarizedSegments
+        self.diarizationWarning = diarizationWarning
+    }
+}
 
 public enum DiarizationFailurePolicy: Sendable, Equatable {
     case bestEffort
@@ -31,6 +102,11 @@ public final class TranscriptionService {
     public enum TranscriptionError: Error, LocalizedError {
         case modelNotLoaded
         case invalidAudioData
+        case invalidMeetingChunk(String)
+        case duplicateMeetingChunkSequence(Int)
+        case overlappingMeetingChunk(sequence: Int)
+        case nonContiguousMeetingChunk(expected: TimeInterval, actual: TimeInterval, sequence: Int)
+        case invalidMeetingChunkSegmentBounds(sequence: Int)
         case transcriptionFailed(String)
         case modelLoadFailed(String)
         case diarizationFailed(String)
@@ -47,6 +123,16 @@ public final class TranscriptionService {
                 return "Model not loaded. Call loadModel() first."
             case .invalidAudioData:
                 return "Invalid audio data. Expected 16kHz mono PCM format."
+            case .invalidMeetingChunk(let message):
+                return "Invalid meeting audio chunk: \(message)"
+            case .duplicateMeetingChunkSequence(let sequence):
+                return "Meeting transcript contains duplicate chunk sequence \(sequence)."
+            case .overlappingMeetingChunk(let sequence):
+                return "Meeting transcript chunk \(sequence) overlaps the preceding chunk."
+            case .nonContiguousMeetingChunk(let expected, let actual, let sequence):
+                return "Meeting transcript chunk \(sequence) starts at \(actual), expected \(expected)."
+            case .invalidMeetingChunkSegmentBounds(let sequence):
+                return "Meeting transcript chunk \(sequence) contains an out-of-bounds diarized segment."
             case .transcriptionFailed(let message):
                 return "Transcription failed: \(message)"
             case .modelLoadFailed(let message):
@@ -70,6 +156,10 @@ public final class TranscriptionService {
     }
 
     private static let sampleRate = 16_000
+    private static let bytesPerFloatSample = MemoryLayout<Float>.size
+    private static let maximumMeetingChunkByteCount = 19_200_000
+    private static let meetingChunkOffsetTolerance = 1.0 / 16_000.0
+    private static let meetingChunkReadSize = 64 * 1024
     private static let diarizationMergeGapSeconds: TimeInterval = 0.30
     private static let segmentContextPaddingSeconds: TimeInterval = 0.150
     private static let identityEligibleSegmentDurationSeconds: TimeInterval = 1.0
@@ -81,6 +171,7 @@ public final class TranscriptionService {
     private static let maximumTranscriptChunkWordCount = 28
     private static let targetTranscriptChunkWordCount = 20
     public nonisolated static let defaultDiarizationTimeoutSeconds: TimeInterval = 300
+    public nonisolated static let defaultModelLoadTimeoutSeconds: TimeInterval? = nil
 
     public private(set) var state: State = .unloaded
     public private(set) var error: Error?
@@ -92,6 +183,10 @@ public final class TranscriptionService {
     /// detached task and calls the engine directly — routing each buffer through
     /// this @MainActor service would re-serialize decode behind UI work.
     public var activeStreamingEngine: (any StreamingTranscriptionEngine)? { streamingEngine }
+    /// The provider/model pair of `activeStreamingEngine`, after backend fallback
+    /// and Parakeet profile selection have been resolved.
+    public private(set) var activeStreamingEngineIdentity: StreamingEngineIdentity?
+
     /// In-flight streaming-engine preparation, shared by concurrent callers so a
     /// session starting during the launch prewarm awaits the same load instead of
     /// hitting the engine's `.loading` state and falling back to batch. Class
@@ -214,10 +309,13 @@ public final class TranscriptionService {
     private let storageLocations: ModelStorageLocations
     private let audioPreprocessor: any AudioPreprocessing
     private let diarizationTimeoutSeconds: TimeInterval?
+    /// Production loads can legitimately take several minutes while Core ML
+    /// specializes a model. A deadline is therefore test-only and opt-in.
+    private let modelLoadTimeoutSeconds: TimeInterval?
 
-    /// True once this service substituted Parakeet for a user-requested Apple backend
-    /// that couldn't be provisioned this run. AppCoordinator reads it to surface a
-    /// one-time toast. Consumed and reset by `consumeAppleBackendFallbackFlag()`.
+    /// True once this service substituted Parakeet for a requested Apple backend.
+    /// `StreamingSessionController` surfaces one generic-session toast and consumes
+    /// artifact-session fallback silently.
     public private(set) var appleBackendFellBackToParakeet: Bool = false
 
     public init(
@@ -233,7 +331,8 @@ public final class TranscriptionService {
         streamingBackendProvider: @escaping @MainActor () -> TranscriptionBackend = { .parakeet },
         speakerIdentityService: (any SpeakerIdentityMatching)? = nil,
         diarizationTimeoutSeconds: TimeInterval? = TranscriptionService.defaultDiarizationTimeoutSeconds,
-        audioPreprocessor: any AudioPreprocessing = AppleSoundIsolationPreprocessor()
+        audioPreprocessor: any AudioPreprocessing = AppleSoundIsolationPreprocessor(),
+        modelLoadTimeoutSeconds: TimeInterval? = TranscriptionService.defaultModelLoadTimeoutSeconds
     ) {
         self.storageLocations = storageLocations
         self.engineFactory = engineFactory ?? { provider in
@@ -260,6 +359,7 @@ public final class TranscriptionService {
         self.speakerIdentityService = speakerIdentityService
         self.diarizationTimeoutSeconds = diarizationTimeoutSeconds
         self.audioPreprocessor = audioPreprocessor
+        self.modelLoadTimeoutSeconds = modelLoadTimeoutSeconds
     }
 
     /// Replace the provider that resolves which streaming chunk profile to use. Safe to
@@ -311,13 +411,16 @@ public final class TranscriptionService {
                 newEngine = try engineFactory(provider)
             }
             Log.boot.info("TranscriptionService.loadModel engine instance created provider=\(provider.rawValue) elapsed=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - loadStarted))")
-            Log.boot.info("TranscriptionService.loadModel engine.loadModel task started name=\(modelName)")
-            let engineLoadStart = CFAbsoluteTimeGetCurrent()
-            try await newEngine.loadModel(
-                name: modelName,
-                downloadBase: self.downloadBase(for: provider, modelName: modelName)
-            )
-            Log.boot.info("TranscriptionService.loadModel engine.loadModel task finished elapsed=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - engineLoadStart))")
+
+            try await loadModelWithOptionalWatchdog {
+                Log.boot.info("TranscriptionService.loadModel engine.loadModel task started name=\(modelName)")
+                let engineLoadStart = CFAbsoluteTimeGetCurrent()
+                try await newEngine.loadModel(
+                    name: modelName,
+                    downloadBase: self.downloadBase(for: provider, modelName: modelName)
+                )
+                Log.boot.info("TranscriptionService.loadModel engine.loadModel task finished elapsed=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - engineLoadStart))")
+            }
 
             engine = newEngine
             currentProvider = provider
@@ -364,9 +467,12 @@ public final class TranscriptionService {
         do {
             let newEngine = WhisperKitEngine()
             Log.boot.info("TranscriptionService.loadModel(path) WhisperKitEngine created elapsed=\(String(format: "%.2fs", CFAbsoluteTimeGetCurrent() - loadStarted))")
-            Log.boot.info("TranscriptionService.loadModel(path) engine.loadModel(path) task started")
-            try await newEngine.loadModel(path: modelPath)
-            Log.boot.info("TranscriptionService.loadModel(path) engine.loadModel(path) task finished")
+
+            try await loadModelWithOptionalWatchdog {
+                Log.boot.info("TranscriptionService.loadModel(path) engine.loadModel(path) task started")
+                try await newEngine.loadModel(path: modelPath)
+                Log.boot.info("TranscriptionService.loadModel(path) engine.loadModel(path) task finished")
+            }
 
             engine = newEngine
             currentProvider = .whisperKit
@@ -554,6 +660,281 @@ public final class TranscriptionService {
         }
     }
 
+    /// Transcribes one durable meeting chunk. The file is validated and read in
+    /// bounded blocks before ASR; optional diarization can never replace a
+    /// successfully produced plain transcript.
+    public func transcribeMeetingChunk(
+        _ input: TranscriptionChunkInput,
+        options: TranscriptionOptions = .init(),
+        diarizationOptions: PindropCore.DiarizationOptions = .init(),
+        diarizationEnabled: Bool = true
+    ) async throws -> TranscriptionChunkOutput {
+        try Task.checkCancellation()
+        if diarizationEnabled {
+            try validateExpectedSpeakerCount(diarizationOptions.expectedSpeakerCount)
+        }
+        let audioData = try materializeMeetingChunk(input)
+        try Task.checkCancellation()
+
+        try await ensureBatchEngineLoaded()
+        try Task.checkCancellation()
+        guard let engine else { throw TranscriptionError.modelNotLoaded }
+        guard state != .transcribing else {
+            throw TranscriptionError.transcriptionFailed("Transcription already in progress")
+        }
+
+        let generation = nextTranscriptionGeneration
+        nextTranscriptionGeneration &+= 1
+        activeTranscriptionGeneration = generation
+        state = .transcribing
+
+        do {
+            try Task.checkCancellation()
+            let plainText = try await engine.transcribe(audioData: audioData, options: options)
+            try Task.checkCancellation()
+
+            let diarization: (segments: [DiarizedTranscriptSegment]?, warning: String?)
+            if diarizationEnabled {
+                diarization = try await diarizeMeetingChunk(
+                    engine: engine,
+                    audioData: audioData,
+                    options: options,
+                    diarizationOptions: diarizationOptions
+                )
+            } else {
+                diarization = (nil, nil)
+            }
+            try Task.checkCancellation()
+
+            let output = TranscriptionChunkOutput(
+                chunkID: input.chunkID,
+                sequence: input.sequence,
+                startOffset: input.startOffset,
+                duration: input.duration,
+                plainText: plainText,
+                diarizedSegments: diarization.segments,
+                diarizationWarning: diarization.warning
+            )
+            finishTranscription(generation)
+            return output
+        } catch let error as TranscriptionError {
+            finishTranscription(generation)
+            throw error
+        } catch is CancellationError {
+            finishTranscription(generation)
+            throw CancellationError()
+        } catch {
+            finishTranscription(generation)
+            throw TranscriptionError.transcriptionFailed(error.localizedDescription)
+        }
+    }
+
+    /// Combines persisted chunk results without assuming that diarizer-local
+    /// speaker identifiers or segment times remain meaningful across chunks.
+    public func mergeMeetingChunks(
+        _ chunks: [TranscriptionChunkOutput]
+    ) throws -> TranscriptionOutput {
+        let sorted = chunks.sorted {
+            if $0.sequence != $1.sequence { return $0.sequence < $1.sequence }
+            if $0.startOffset != $1.startOffset { return $0.startOffset < $1.startOffset }
+            return $0.chunkID.uuidString < $1.chunkID.uuidString
+        }
+
+        var seenSequences = Set<Int>()
+        var previous: TranscriptionChunkOutput?
+        var textParts: [String] = []
+        var absoluteSegments: [(segment: DiarizedTranscriptSegment, sequence: Int, localIndex: Int)] = []
+
+        for chunk in sorted {
+            guard chunk.sequence >= 0,
+                  chunk.startOffset.isFinite,
+                  chunk.startOffset >= 0,
+                  chunk.duration.isFinite,
+                  chunk.duration >= 0 else {
+                throw TranscriptionError.invalidMeetingChunk("Invalid sequence or timing for sequence \(chunk.sequence).")
+            }
+            guard seenSequences.insert(chunk.sequence).inserted else {
+                throw TranscriptionError.duplicateMeetingChunkSequence(chunk.sequence)
+            }
+
+            if let previous {
+                let expectedOffset = previous.startOffset + previous.duration
+                let offsetDelta = chunk.startOffset - expectedOffset
+                if offsetDelta < -Self.meetingChunkOffsetTolerance {
+                    throw TranscriptionError.overlappingMeetingChunk(sequence: chunk.sequence)
+                }
+                if abs(offsetDelta) > Self.meetingChunkOffsetTolerance {
+                    throw TranscriptionError.nonContiguousMeetingChunk(
+                        expected: expectedOffset,
+                        actual: chunk.startOffset,
+                        sequence: chunk.sequence
+                    )
+                }
+            }
+
+            let normalizedText = normalizedMeetingText(chunk.plainText)
+            if !normalizedText.isEmpty {
+                textParts.append(normalizedText)
+            }
+
+            for (localIndex, segment) in (chunk.diarizedSegments ?? []).enumerated() {
+                guard segment.startTime.isFinite,
+                      segment.endTime.isFinite,
+                      segment.startTime >= -Self.meetingChunkOffsetTolerance,
+                      segment.endTime >= segment.startTime,
+                      segment.endTime <= chunk.duration + Self.meetingChunkOffsetTolerance else {
+                    throw TranscriptionError.invalidMeetingChunkSegmentBounds(sequence: chunk.sequence)
+                }
+
+                let localStart = max(segment.startTime, 0)
+                let localEnd = min(segment.endTime, chunk.duration)
+                absoluteSegments.append((
+                    segment: DiarizedTranscriptSegment(
+                        speakerId: "chunk-\(String(format: "%05d", chunk.sequence))/\(segment.speakerId)",
+                        speakerLabel: segment.speakerLabel,
+                        speakerProfileID: segment.speakerProfileID,
+                        speakerEmbedding: segment.speakerEmbedding,
+                        startTime: chunk.startOffset + localStart,
+                        endTime: chunk.startOffset + localEnd,
+                        confidence: segment.confidence,
+                        text: segment.text
+                    ),
+                    sequence: chunk.sequence,
+                    localIndex: localIndex
+                ))
+            }
+            previous = chunk
+        }
+
+        absoluteSegments.sort {
+            if $0.segment.startTime != $1.segment.startTime {
+                return $0.segment.startTime < $1.segment.startTime
+            }
+            if $0.segment.endTime != $1.segment.endTime {
+                return $0.segment.endTime < $1.segment.endTime
+            }
+            if $0.sequence != $1.sequence { return $0.sequence < $1.sequence }
+            return $0.localIndex < $1.localIndex
+        }
+
+        return TranscriptionOutput(
+            text: textParts.joined(separator: "\n"),
+            diarizedSegments: absoluteSegments.isEmpty ? nil : absoluteSegments.map(\.segment)
+        )
+    }
+
+    private func diarizeMeetingChunk(
+        engine: any TranscriptionEngine,
+        audioData: Data,
+        options: TranscriptionOptions,
+        diarizationOptions: PindropCore.DiarizationOptions
+    ) async throws -> (segments: [DiarizedTranscriptSegment]?, warning: String?) {
+        do {
+            try Task.checkCancellation()
+            let samples = await Self.floatSamples(from: audioData)
+            try Task.checkCancellation()
+            let diarizer = getOrCreateSpeakerDiarizer()
+            try Task.checkCancellation()
+            try await diarizer.loadModels()
+            try Task.checkCancellation()
+            let result = try await diarizeWithWatchdog(
+                diarizer: diarizer,
+                samples: samples,
+                sampleRate: Self.sampleRate,
+                options: diarizationOptions
+            )
+            try Task.checkCancellation()
+
+            let segments = normalizedDiarizationSegments(
+                result.segments,
+                audioDuration: result.audioDuration
+            )
+            guard !segments.isEmpty else {
+                return (nil, "Speaker diarization returned no usable segments.")
+            }
+
+            let diarizedOutput = try await transcribeBySpeakerSegments(
+                engine: engine,
+                samples: samples,
+                sampleRate: Self.sampleRate,
+                segments: segments,
+                options: options
+            )
+            try Task.checkCancellation()
+            guard let diarizedSegments = diarizedOutput.diarizedSegments, !diarizedSegments.isEmpty else {
+                return (nil, "Speaker diarization produced no transcript text.")
+            }
+            return (diarizedSegments, nil)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            return (nil, "Speaker diarization unavailable: \(error.localizedDescription)")
+        }
+    }
+
+    private func materializeMeetingChunk(_ input: TranscriptionChunkInput) throws -> Data {
+        guard input.sequence >= 0,
+              input.startOffset.isFinite,
+              input.startOffset >= 0,
+              input.duration.isFinite,
+              input.duration > 0,
+              input.byteCount > 0,
+              input.byteCount <= Self.maximumMeetingChunkByteCount,
+              input.byteCount.isMultiple(of: Self.bytesPerFloatSample),
+              input.fileURL.isFileURL else {
+            throw TranscriptionError.invalidMeetingChunk("Chunk metadata is not canonical.")
+        }
+
+        let sampleCount = input.byteCount / Self.bytesPerFloatSample
+        let expectedDuration = Double(sampleCount) / Double(Self.sampleRate)
+        guard abs(input.duration - expectedDuration) <= Self.meetingChunkOffsetTolerance else {
+            throw TranscriptionError.invalidMeetingChunk("Declared duration does not match the PCM byte count.")
+        }
+
+        do {
+            let values = try input.fileURL.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey])
+            guard values.isRegularFile == true,
+                  values.fileSize == input.byteCount else {
+                throw TranscriptionError.invalidMeetingChunk("File size does not match the sealed chunk metadata.")
+            }
+
+            let handle = try FileHandle(forReadingFrom: input.fileURL)
+            defer { try? handle.close() }
+            var bytesRead = 0
+            var audioData = Data()
+            audioData.reserveCapacity(input.byteCount)
+            var hasher = SHA256()
+
+            while let block = try handle.read(upToCount: Self.meetingChunkReadSize), !block.isEmpty {
+                try Task.checkCancellation()
+                bytesRead += block.count
+                guard bytesRead <= input.byteCount else {
+                    throw TranscriptionError.invalidMeetingChunk("File grew while it was being read.")
+                }
+                hasher.update(data: block)
+                audioData.append(block)
+            }
+
+            let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
+            guard bytesRead == input.byteCount,
+                  audioData.count == input.byteCount,
+                  digest == input.sha256 else {
+                throw TranscriptionError.invalidMeetingChunk("File content does not match the sealed chunk metadata.")
+            }
+            return audioData
+        } catch let error as TranscriptionError {
+            throw error
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw TranscriptionError.invalidMeetingChunk(error.localizedDescription)
+        }
+    }
+
+    private func normalizedMeetingText(_ text: String) -> String {
+        text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
     /// Called by a hard deadline after it has cancelled a batch operation. The
     /// previous engine may still be executing and is never touched concurrently;
     /// dropping it forces the next batch operation to load a distinct engine.
@@ -617,6 +998,7 @@ public final class TranscriptionService {
         // are cooperative, so their epoch/lease checks — not task cancellation —
         // prevent late completions from committing or being re-adopted.
         streamingLifecycleEpoch &+= 1
+        appleBackendFellBackToParakeet = false
         streamingPrepareHandle?.task.cancel()
         streamingPrepareHandle = nil
         streamingResetHandle?.finish()
@@ -632,6 +1014,8 @@ public final class TranscriptionService {
         engine = nil
         speakerDiarizer = nil
         self.streamingEngine = nil
+        activeStreamingEngineIdentity = nil
+
         currentProvider = nil
         batchModelIdentity = nil
         state = .unloaded
@@ -750,6 +1134,8 @@ public final class TranscriptionService {
                 if recreate {
                     invalidateAndDiscardStreamingCallbackSource()
                     streamingEngine = nil
+                    activeStreamingEngineIdentity = nil
+
                     beginStreamingEngineRetirement(existing)
                     await existing.unloadModel()
                     completeStreamingEngineRetirement(existing)
@@ -800,11 +1186,18 @@ public final class TranscriptionService {
             }
             try requireCurrentStreamingLifecycle(epoch, owning: preparedEngine)
             streamingCallbackSource = source
+            let preparedIdentity = Self.streamingEngineIdentity(
+                backend: effectiveBackend,
+                profile: profile
+            )
+
 
             let engineState = await preparedEngine.state
             try requireCurrentStreamingLifecycle(epoch, owning: preparedEngine)
             switch engineState {
             case .ready, .streaming, .paused:
+                activeStreamingEngineIdentity = preparedIdentity
+
                 releaseStreamingEngineLease(lease)
                 if state == .unloaded || state == .error {
                     state = .ready
@@ -829,6 +1222,8 @@ public final class TranscriptionService {
             do {
                 try await preparedEngine.loadModel(name: modelPath)
                 try requireCurrentStreamingLifecycle(epoch, owning: preparedEngine)
+                activeStreamingEngineIdentity = preparedIdentity
+
                 releaseStreamingEngineLease(lease)
                 if state == .unloaded || state == .error {
                     state = .ready
@@ -1023,6 +1418,24 @@ public final class TranscriptionService {
         return .parakeet
     }
 
+    private static func streamingEngineIdentity(
+        backend: TranscriptionBackend,
+        profile: StreamingChunkProfile
+    ) -> StreamingEngineIdentity {
+        switch backend {
+        case .parakeet:
+            StreamingEngineIdentity(
+                providerIdentifier: TranscriptionBackend.parakeet.rawValue,
+                modelIdentifier: profile.repoFolderName
+            )
+        case .appleSpeechTranscriber:
+            StreamingEngineIdentity(
+                providerIdentifier: TranscriptionBackend.appleSpeechTranscriber.rawValue,
+                modelIdentifier: "apple-speech-transcriber/progressive"
+            )
+        }
+    }
+
     public func startStreaming() async throws {
         guard state != .transcribing else {
             throw TranscriptionError.transcriptionFailed("Transcription already in progress")
@@ -1164,6 +1577,7 @@ public final class TranscriptionService {
         // Cancellation is a new lifecycle/session epoch. Publish it and deactivate
         // delivery before awaiting any potentially non-cooperative engine work.
         streamingLifecycleEpoch &+= 1
+        appleBackendFellBackToParakeet = false
         let resetEpoch = streamingLifecycleEpoch
         streamingPrepareHandle?.task.cancel()
         streamingPrepareHandle = nil
@@ -2057,6 +2471,26 @@ public final class TranscriptionService {
         }
     }
 
+    private func loadModelWithOptionalWatchdog(
+        operation: @escaping @MainActor () async throws -> Void
+    ) async throws {
+        guard let modelLoadTimeoutSeconds else {
+            try await operation()
+            return
+        }
+
+        try await withAsyncWatchdog(
+            timeoutSeconds: modelLoadTimeoutSeconds,
+            timeoutError: { Self.modelLoadTimeoutError(after: modelLoadTimeoutSeconds) },
+            operation: operation
+        )
+    }
+
+    private nonisolated static func modelLoadTimeoutError(after timeoutSeconds: TimeInterval) -> TranscriptionError {
+        .modelLoadFailed(
+            "Model loading timed out after \(Int(timeoutSeconds))s. This can happen on first launch after an update. Try restarting the app, or delete and re-download the model from Settings."
+        )
+    }
 
     /// Installs the stable engine→delivery bridge once per engine instance.
     /// Must complete before `loadModel` / `startStreaming` so emissions cannot

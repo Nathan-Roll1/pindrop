@@ -67,6 +67,18 @@ struct StreamingRefinementCoordinatorTests {
       var lastUpdate: String? { updates.last }
    }
 
+   @MainActor
+   final class FakeCommitObserver: StreamingRefinementCommitObserver {
+      private(set) var committedTexts: [String] = []
+
+      func streamingRefinementCoordinator(
+         _ coordinator: StreamingRefinementCoordinator,
+         didCommitText committedText: String
+      ) {
+         committedTexts.append(committedText)
+      }
+   }
+
    // MARK: - Helpers
 
    /// Convenience: idle commit disabled (-1 → 0 nanoseconds via max), stop wait short.
@@ -98,6 +110,97 @@ struct StreamingRefinementCoordinatorTests {
 
       coord.endSession()
       coord.endSession()  // should not crash or re-log
+   }
+
+   @Test func artifactOnlySessionReportsCommittedTextWithoutOutputSink() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(commitObserver: observer)
+
+      await coord.ingestPartial("hello")
+      #expect(observer.committedTexts.isEmpty)
+
+      await coord.ingestFinal("hello world")
+      let finalText = try await coord.finishSession(appendTrailingSpace: false)
+
+      #expect(finalText == "Hello world")
+      #expect(observer.committedTexts == ["Hello world"])
+   }
+
+   @Test func commitObserverNeverReceivesTentativeText() async {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(commitObserver: observer)
+
+      await coord.ingestPartial("tentative text")
+      await coord.ingestPartial("tentative text that is still changing")
+
+      #expect(observer.committedTexts.isEmpty)
+   }
+
+   @Test func commitObserverReceivesOrderedCumulativeText() async {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(commitObserver: observer)
+
+      // LocalAgreement-2 commits "one".
+      await coord.ingestPartial("one")
+      await coord.ingestPartial("one two")
+      await coord.ingestPartial("one two three")
+      await coord.ingestPartial("one two three four")
+
+      // EOU commits the extension, and the final drain commits its later tentative tail.
+      await coord.ingestFinal("one two three four five")
+      await coord.ingestPartial("one two three four five six")
+      _ = await coord.awaitFinalTextAndDrain()
+
+      #expect(observer.committedTexts == [
+         "One",
+         "One two three four five",
+         "One two three four five six",
+      ])
+   }
+
+   @Test func idleCommitReportsCumulativeCommittedText() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator(idleCommitNs: 80_000_000)
+      coord.beginSession(commitObserver: observer)
+
+      await coord.ingestPartial("thinking about something")
+      #expect(observer.committedTexts.isEmpty)
+
+      try await Task.sleep(nanoseconds: 200_000_000)
+
+      #expect(observer.committedTexts == ["Thinking about something"])
+   }
+
+   @Test func commitObserverSuppressesDuplicateCommittedText() async {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(commitObserver: observer)
+
+      await coord.ingestFinal("hello")
+      await coord.ingestFinal("hello")
+      _ = await coord.awaitFinalTextAndDrain()
+
+      #expect(observer.committedTexts == ["Hello"])
+   }
+
+   @Test func commitObserverDoesNotChangeOutputSinkBehavior() async throws {
+      let sink = FakeSink()
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(outputSink: sink, commitObserver: observer)
+
+      await coord.ingestPartial("hello")
+      #expect(sink.lastUpdate == "Hello")
+      #expect(observer.committedTexts.isEmpty)
+
+      _ = try await coord.finishSession(appendTrailingSpace: true)
+
+      #expect(sink.finished?.text == "Hello")
+      #expect(sink.finished?.trailingSpace == true)
+      #expect(observer.committedTexts == ["Hello"])
    }
 
    // MARK: - Cumulative partials drive tentative display

@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import Combine
 import PindropCore
 import PindropData
 import SwiftData
@@ -546,5 +547,302 @@ struct NoteAppendPersistenceTests {
         #expect(persisted.isPinned == true)
         #expect(persisted.tags == ["direct"])
         #expect(persisted.updatedAt == directEditedAt)
+    }
+}
+
+@MainActor
+@Suite("NoteAppendOwnership", .serialized)
+struct NoteAppendOwnershipTests {
+    @Test func listeningStateOwnsAndClearsDurableNoteID() {
+        let state = NoteAppendListeningState()
+        let editorID = UUID()
+        let noteID = UUID()
+
+        state.startListening(editorID: editorID, noteID: noteID)
+
+        #expect(state.activeEditorID == editorID)
+        #expect(state.activeNoteID == noteID)
+
+        state.transitionToProcessing()
+        #expect(state.activeNoteID == noteID)
+
+        state.finishSession()
+        #expect(state.activeEditorID == nil)
+        #expect(state.activeNoteID == nil)
+    }
+
+    @Test func startAndStopRequestsCarryDurableNoteID() {
+        let notificationCenter = NotificationCenter()
+        let coordinator = NoteAppendListeningCoordinatorBox(notificationCenter: notificationCenter)
+        let editorID = UUID()
+        let noteID = UUID()
+        var requests: [[AnyHashable: Any]] = []
+        let cancellable = notificationCenter.publisher(for: .noteSpeakToAppendRequest)
+            .sink { notification in
+                requests.append(notification.userInfo ?? [:])
+            }
+        defer { cancellable.cancel() }
+
+        coordinator.requestStart(editorID: editorID, noteID: noteID)
+        coordinator.requestStop(editorID: editorID, noteID: noteID)
+
+        #expect(requests.count == 2)
+        for request in requests {
+            #expect((request["editorID"] as? UUID) == editorID)
+            #expect((request["noteID"] as? UUID) == noteID)
+        }
+        #expect((requests[0]["action"] as? String) == "start")
+        #expect((requests[1]["action"] as? String) == "stop")
+    }
+
+    @Test func requestedAppendLocksEditorUntilDeliveryOrSessionFinish() {
+        let editorID = UUID()
+        let noteID = UUID()
+        let listeningState = NoteAppendListeningState()
+        var requestState = NoteAppendEditorRequestState()
+
+        requestState.requestStart(noteID: noteID)
+        #expect(requestState.isLocked(for: noteID))
+
+        listeningState.startListening(editorID: editorID, noteID: noteID)
+        requestState.clearAfterSessionFinishes(
+            isListening: listeningState.isListening,
+            isProcessing: listeningState.isProcessing,
+            activeEditorID: listeningState.activeEditorID,
+            activeNoteID: listeningState.activeNoteID
+        )
+        #expect(requestState.isLocked(for: noteID))
+
+        requestState.clearAfterCommittedDelivery(noteID: noteID)
+        #expect(!requestState.isLocked(for: noteID))
+
+        requestState.requestStart(noteID: noteID)
+        listeningState.finishSession()
+        requestState.clearAfterSessionFinishes(
+            isListening: listeningState.isListening,
+            isProcessing: listeningState.isProcessing,
+            activeEditorID: listeningState.activeEditorID,
+            activeNoteID: listeningState.activeNoteID
+        )
+        #expect(!requestState.isLocked(for: noteID))
+    }
+
+    @Test func rejectedStartPayloadClearsOnlyMatchingEditorRequest() throws {
+        let editorID = UUID()
+        let noteID = UUID()
+        let quickCaptureEditorID = UUID()
+        let quickCaptureNoteID = UUID()
+        let listeningState = NoteAppendListeningState()
+        listeningState.startListening(
+            editorID: quickCaptureEditorID,
+            noteID: quickCaptureNoteID
+        )
+
+        let otherEditorID = UUID()
+        let otherNoteID = UUID()
+        var otherRequestState = NoteAppendEditorRequestState()
+        otherRequestState.requestStart(noteID: otherNoteID)
+
+        var requestState = NoteAppendEditorRequestState()
+        requestState.requestStart(noteID: noteID)
+
+        let staleEditorNotification = Notification(
+            name: .noteSpeakToAppendRejected,
+            object: nil,
+            userInfo: [
+                "editorID": otherEditorID,
+                "noteID": otherNoteID
+            ]
+        )
+        let staleEditorPayload = try #require(
+            NoteAppendRejectedPayload(notification: staleEditorNotification)
+        )
+        #expect(!staleEditorPayload.matches(editorID: editorID, noteID: noteID))
+        if staleEditorPayload.matches(editorID: editorID, noteID: noteID) {
+            requestState.clearAfterStartRejected(noteID: staleEditorPayload.noteID)
+        }
+        #expect(requestState.isLocked(for: noteID))
+
+        let staleNoteNotification = Notification(
+            name: .noteSpeakToAppendRejected,
+            object: nil,
+            userInfo: [
+                "editorID": editorID,
+                "noteID": UUID()
+            ]
+        )
+        let staleNotePayload = try #require(
+            NoteAppendRejectedPayload(notification: staleNoteNotification)
+        )
+        #expect(!staleNotePayload.matches(editorID: editorID, noteID: noteID))
+        if staleNotePayload.matches(editorID: editorID, noteID: noteID) {
+            requestState.clearAfterStartRejected(noteID: staleNotePayload.noteID)
+        }
+        #expect(requestState.isLocked(for: noteID))
+
+        let matchingNotification = Notification(
+            name: .noteSpeakToAppendRejected,
+            object: nil,
+            userInfo: [
+                "editorID": editorID,
+                "noteID": noteID
+            ]
+        )
+        let matchingPayload = try #require(
+            NoteAppendRejectedPayload(notification: matchingNotification)
+        )
+        #expect(matchingPayload.matches(editorID: editorID, noteID: noteID))
+        requestState.clearAfterStartRejected(noteID: matchingPayload.noteID)
+        #expect(!requestState.isLocked(for: noteID))
+        #expect(listeningState.activeEditorID == quickCaptureEditorID)
+        #expect(listeningState.activeNoteID == quickCaptureNoteID)
+        #expect(listeningState.isListening)
+        #expect(otherRequestState.isLocked(for: otherNoteID))
+    }
+
+    @Test func teardownBeforeStartPostsDurableStopWithoutStart() {
+        let notificationCenter = NotificationCenter()
+        let coordinator = NoteAppendListeningCoordinatorBox(notificationCenter: notificationCenter)
+        let editorID = UUID()
+        let noteID = UUID()
+        var requests: [[AnyHashable: Any]] = []
+        let cancellable = notificationCenter.publisher(for: .noteSpeakToAppendRequest)
+            .sink { notification in
+                requests.append(notification.userInfo ?? [:])
+            }
+        defer { cancellable.cancel() }
+
+        var requestState = NoteAppendEditorRequestState()
+        requestState.requestStart(noteID: noteID)
+        coordinator.requestStop(editorID: editorID, noteID: noteID)
+
+        #expect(requestState.isLocked(for: noteID))
+        #expect(requests.count == 1)
+        #expect((requests[0]["editorID"] as? UUID) == editorID)
+        #expect((requests[0]["noteID"] as? UUID) == noteID)
+        #expect((requests[0]["action"] as? String) == "stop")
+    }
+
+    @Test func currentSnapshotIsDurableBeforeStartRequest() async throws {
+        NoteEditorPersistenceController.shared.resetForTesting()
+        defer { NoteEditorPersistenceController.shared.resetForTesting() }
+
+        let container = PreviewContainer.empty
+        let context = ModelContext(container)
+        let note = NoteSchema.Note(title: "Quick Capture", content: "Draft", tags: [], isPinned: false)
+        context.insert(note)
+        try context.save()
+
+        let snapshot = NoteSnapshot(
+            title: "Quick Capture",
+            content: "Draft saved before recording",
+            isPinned: false,
+            tags: []
+        )
+        let result = await NoteEditorPersistenceController.shared.saveAndWait(
+            container: container,
+            modelID: note.persistentModelID,
+            snapshot: snapshot,
+            editedAt: Date()
+        )
+
+        #expect(result?.applied == true)
+
+        let freshContext = ModelContext(container)
+        let persisted = try #require(
+            freshContext.model(for: note.persistentModelID) as? NoteSchema.Note
+        )
+        #expect(persisted.content == snapshot.content)
+    }
+
+    @Test func stableStopFlushPrecedesDurableStopRequest() async throws {
+        NoteEditorPersistenceController.shared.resetForTesting()
+        defer { NoteEditorPersistenceController.shared.resetForTesting() }
+
+        let container = PreviewContainer.empty
+        let context = ModelContext(container)
+        let note = NoteSchema.Note(title: "Stop", content: "initial", tags: [], isPinned: false)
+        context.insert(note)
+        try context.save()
+
+        let editorID = UUID()
+        let noteID = note.id
+        let snapshot = NoteSnapshot(
+            title: "Stop",
+            content: "final body before stop",
+            isPinned: false,
+            tags: []
+        )
+        let result = await NoteEditorPersistenceController.shared.saveAndWait(
+            container: container,
+            modelID: note.persistentModelID,
+            snapshot: snapshot,
+            editedAt: Date()
+        )
+        #expect(result?.applied == true)
+
+        let freshContext = ModelContext(container)
+        let persisted = try #require(
+            freshContext.model(for: note.persistentModelID) as? NoteSchema.Note
+        )
+        #expect(persisted.content == snapshot.content)
+
+        let notificationCenter = NotificationCenter()
+        let coordinator = NoteAppendListeningCoordinatorBox(notificationCenter: notificationCenter)
+        var stopRequest: [AnyHashable: Any]?
+        let cancellable = notificationCenter.publisher(for: .noteSpeakToAppendRequest)
+            .sink { notification in
+                stopRequest = notification.userInfo
+            }
+        defer { cancellable.cancel() }
+
+        coordinator.requestStop(editorID: editorID, noteID: noteID)
+
+        #expect((stopRequest?["editorID"] as? UUID) == editorID)
+        #expect((stopRequest?["noteID"] as? UUID) == noteID)
+        #expect((stopRequest?["action"] as? String) == "stop")
+    }
+
+    @Test func committedPayloadReplacesContentAndRejectsStaleOwnership() throws {
+        let editorID = UUID()
+        let noteID = UUID()
+        let transcriptionID = UUID()
+        let note = NoteSchema.Note(
+            id: noteID,
+            title: "Append",
+            content: "Existing draft",
+            tags: [],
+            isPinned: false
+        )
+        let notification = Notification(
+            name: .noteSpeakToAppendTranscript,
+            object: nil,
+            userInfo: [
+                "editorID": editorID,
+                "noteID": noteID,
+                "content": "Existing draft committed append",
+                "sourceTranscriptionID": transcriptionID
+            ]
+        )
+        let payload = try #require(NoteAppendCommittedPayload(notification: notification))
+
+        #expect(payload.apply(to: note, for: editorID))
+        #expect(note.content == "Existing draft committed append")
+        #expect(note.sourceTranscriptionID == transcriptionID)
+        #expect(payload.apply(to: note, for: editorID))
+        #expect(note.content == "Existing draft committed append")
+
+        #expect(!payload.apply(to: note, for: UUID()))
+        #expect(note.content == "Existing draft committed append")
+
+        let staleNote = NoteSchema.Note(
+            title: "Other",
+            content: "Unchanged",
+            tags: [],
+            isPinned: false
+        )
+        #expect(!payload.apply(to: staleNote, for: editorID))
+        #expect(staleNote.content == "Unchanged")
+        #expect(staleNote.sourceTranscriptionID == nil)
     }
 }

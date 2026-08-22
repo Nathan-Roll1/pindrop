@@ -16,6 +16,7 @@ struct SidebarItem: View {
     let systemImage: String
     var count: Int? = nil
     var isCollapsed: Bool = false
+    var accessibilityIdentifier = ""
     let isSelected: Bool
     let action: () -> Void
 
@@ -68,6 +69,7 @@ struct SidebarItem: View {
         .keyboardFocusRing(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .help(isCollapsed ? title : "")
         .accessibilityLabel(count.map { "\(title), \($0)" } ?? title)
+        .accessibilityIdentifier(accessibilityIdentifier)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }

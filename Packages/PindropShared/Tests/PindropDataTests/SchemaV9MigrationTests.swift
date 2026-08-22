@@ -12,7 +12,7 @@ import PindropCore
 @MainActor
 @Suite(.serialized)
 struct SchemaV9MigrationTests {
-    @Test func currentSchemaIsV10AndEmbeddingIdentifiersStartNil() throws {
+    @Test func schemaV10AddsEmbeddingIdentifiers() throws {
         #expect(TranscriptionRecordSchemaV10.versionIdentifier == .init(1, 0, 9))
 
         let container = try PindropModelContainerFactory.makeInMemoryContainer()
@@ -23,14 +23,15 @@ struct SchemaV9MigrationTests {
 
         let fetched = try context.fetch(FetchDescriptor<ParticipantProfile>())
         #expect(fetched.first?.embeddingSpaceIdentifier == nil)
-        #expect(TranscriptionRecordSchemaV12.models.contains { $0 == ParticipantProfile.self })
+        #expect(TranscriptionRecordSchemaV10.models.contains { $0 == TranscriptionRecordSchemaV10.ParticipantProfile.self })
     }
 
-    @Test func migrationPlanIncludesV9ToV10LightweightStage() {
-        #expect(TranscriptionRecordMigrationPlan.schemas.contains { $0 == TranscriptionRecordSchemaV9.self })
-        #expect(TranscriptionRecordMigrationPlan.schemas.contains { $0 == TranscriptionRecordSchemaV10.self })
-        #expect(TranscriptionRecordMigrationPlan.schemas.count == 12)
-        #expect(TranscriptionRecordMigrationPlan.stages.count == 11)
+    @Test func migrationPlanOrdersV9BeforeV10() throws {
+        let schemas = TranscriptionRecordMigrationPlan.schemas
+        let v9Index = try #require(schemas.firstIndex { $0 == TranscriptionRecordSchemaV9.self })
+        let v10Index = try #require(schemas.firstIndex { $0 == TranscriptionRecordSchemaV10.self })
+
+        #expect(v10Index == v9Index + 1)
     }
 
     @Test func v9IdentityDataTypesRemainRepresentableInV10() throws {

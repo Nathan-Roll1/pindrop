@@ -4,8 +4,9 @@
 //
 //  Created on 2026-07-14.
 //
-//  App repair/path/factory integration cases. Portable V12 schema/migration
-//  coverage lives in Packages/PindropShared/Tests/PindropDataTests.
+// App repair/path/factory integration cases. V12 is used only as a historical
+// store fixture below; portable V12 schema/migration coverage lives in
+// Packages/PindropShared/Tests/PindropDataTests.
 //
 
 import Foundation
@@ -18,7 +19,7 @@ import PindropCore
 @MainActor
 @Suite(.serialized)
 struct SchemaV12MigrationTests {
-    @Test func productionConfigurationReopensExistingStoreForHistoryFetch() throws {
+    @Test func productionConfigurationReopensHistoricalV12StoreForHistoryFetch() throws {
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
@@ -26,23 +27,23 @@ struct SchemaV12MigrationTests {
         let storeURL = directoryURL.appendingPathComponent("history.store")
         let schema = Schema(versionedSchema: TranscriptionRecordSchemaV12.self)
 
-        // Seed a store with the pre-fix URL-only configuration. SwiftData creates
-        // persistent-history tables as records are saved.
+        // Seed a historical V12 store with the pre-fix URL-only configuration.
+        // SwiftData creates persistent-history tables as records are saved.
         do {
-            let legacyContainer = try ModelContainer(
+            let v12FixtureContainer = try ModelContainer(
                 for: schema,
                 migrationPlan: TranscriptionRecordMigrationPlan.self,
                 configurations: ModelConfiguration(url: storeURL)
             )
-            let legacyContext = ModelContext(legacyContainer)
-            legacyContext.insert(
+            let v12FixtureContext = ModelContext(v12FixtureContainer)
+            v12FixtureContext.insert(
                 TranscriptionRecord(
                     text: "Existing transcript",
                     duration: 1.0,
                     modelUsed: "test"
                 )
             )
-            try legacyContext.save()
+            try v12FixtureContext.save()
         }
 
         let reopenedContainer = try AppDelegate.makeModelContainer(at: storeURL)

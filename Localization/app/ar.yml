@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "غيّر اختيارك في أي وقت من الإعدادات → الخصوصية."
 changes:
   the_language_used_by_pindrop_s_interface: "Changes the language used by Pindrop's interface."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "تنطبق التغييرات التي تطرأ على بيانات اعتماد هذا الموفّر ونقطة النهاية على عمليات الالتقاط الجارية والمستعادة. يظل النموذج المحدد والمطالبة المحددة ثابتين."
 check:
   for_updates: "التحقق من وجود تحديثات..."
   for_updates_736b9062: "التحقق من وجود تحديثات"
@@ -215,7 +216,7 @@ cloud:
   model: "نموذج السحابة"
   transcription_sends_recorded_audio_to_open: "يرسل النسخ السحابي الصوت المسجّل إلى OpenAI. تُطبَّق رسوم استخدام OpenAI."
 collapse:
-  _self: "ينهار"
+  _self: "طيّ"
 coming:
   soon: "%@ قريبًا"
   soon_04d2fd85: "قريباً"
@@ -831,6 +832,36 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "حبة"
+pillars:
+  capture: "التقاط"
+  workspace: "مساحة العمل"
+  tools: "الأدوات"
+  dictate: "إملاء"
+  voice_note: "ملاحظة صوتية"
+  meeting: "اجتماع"
+  dictate_description: "تحدث، ثم يُدخل Pindrop النص في التطبيق الذي تستخدمه."
+  voice_note_description: "التقط فكرة واحتفظ بها في الملاحظات."
+  meeting_description: "سجّل صوت الميكروفون وصوت النظام، ثم احتفظ بالاجتماع في المكتبة."
+  start_dictating: "بدء الإملاء"
+  start_voice_note: "بدء ملاحظة صوتية"
+  open_notes: "فتح الملاحظات"
+  change_shortcut: "تغيير الاختصار"
+  capture_in_progress: "الالتقاط قيد التقدم"
+  finish_current_capture: "أكمل الالتقاط الحالي قبل بدء التقاط آخر."
+  voice_note_hold: "ملاحظة صوتية — اضغط مع الاستمرار"
+  voice_note_toggle: "ملاحظة صوتية — تبديل"
+  you_captured_this_week: "التقطت %@ هذا الأسبوع."
+  you_recorded_this_week: "سجلت %@ هذا الأسبوع."
+  one_voice_note: "ملاحظة صوتية واحدة"
+  n_voice_notes: "%@ ملاحظات صوتية"
+  one_meeting: "اجتماع واحد"
+  n_meetings: "%@ اجتماعات"
+  of_meeting_audio: "%@ من صوت الاجتماعات."
+  voice_note_shortcut_hint: "اضغط مع الاستمرار على %1$@ أو اضغط على %2$@ في أي مكان."
+  hold_anywhere: "اضغط مع الاستمرار على %@ في أي مكان."
+  press_anywhere: "اضغط على %@ في أي مكان."
+  voice_notes_empty: "ستظهر ملاحظاتك الصوتية هنا."
+  meetings_empty: "ستظهر اجتماعاتك المسجلة هنا."
 pin:
   to_screen_always_on_top: "تثبيت على الشاشة (دائما في الأعلى)"
 pindrop:
@@ -1128,7 +1159,7 @@ start:
   using_pindrop: "البدء في استخدام Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "ابدأ في شريط القوائم دون فتح النافذة الرئيسية. ما زال بإمكانك فتحها من أيقونة شريط القوائم."
 stats:
-  _self: "Stats"
+  _self: "إحصائيات"
 status:
   _self: "حالة"
 stop:

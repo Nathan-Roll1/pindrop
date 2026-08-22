@@ -13,6 +13,7 @@ import Testing
 
 final class MockClipboard: ClipboardProtocol {
     var copiedText: String?
+    var copyHistory: [String] = []
     var clipboardContent: String?
     var restoreCount = 0
     var lastRestoredSnapshot: ClipboardSnapshot?
@@ -20,6 +21,7 @@ final class MockClipboard: ClipboardProtocol {
 
     func copyToClipboard(_ text: String) -> Bool {
         copiedText = text
+        copyHistory.append(text)
         clipboardContent = text
         changeCount += 1
         return true
@@ -72,6 +74,56 @@ final class MockKeySimulation: KeySimulationProtocol {
         }
         pasteSimulated = true
         simulatePasteCallCount += 1
+    }
+}
+
+private actor PasteFailureGate {
+    private var hasBegun = false
+    private var startedWaiter: CheckedContinuation<Void, Never>?
+    private var failureWaiter: CheckedContinuation<Void, Never>?
+    private var failureReleased = false
+
+    func beginPaste() async {
+        hasBegun = true
+        startedWaiter?.resume()
+        startedWaiter = nil
+        guard !failureReleased else { return }
+        await withCheckedContinuation { failureWaiter = $0 }
+    }
+
+    func waitUntilPasteBegins() async {
+        guard !hasBegun else { return }
+        await withCheckedContinuation { startedWaiter = $0 }
+    }
+
+    func releaseFailure() {
+        failureReleased = true
+        failureWaiter?.resume()
+        failureWaiter = nil
+    }
+}
+
+private struct SimulatedPasteFailure: Error {}
+
+private final class GatedFailingKeySimulation: KeySimulationProtocol {
+    let gate = PasteFailureGate()
+
+    func simulatePaste(allowSystemEventsFallback: Bool) async throws {
+        await gate.beginPaste()
+        throw SimulatedPasteFailure()
+    }
+}
+
+@MainActor
+private final class OutputOwner {
+    private var isValid = true
+
+    func invalidate() {
+        isValid = false
+    }
+
+    func validate() throws {
+        guard isValid else { throw CancellationError() }
     }
 }
 
@@ -252,6 +304,37 @@ struct OutputManagerTests {
         #expect(result.previousClipboardSnapshot == nil)
     }
 
+    @Test func staleOwnerAfterPasteFailureRestoresClipboardWithoutFallbackCopy() async throws {
+        let clipboard = MockClipboard()
+        let keySimulation = GatedFailingKeySimulation()
+        let outputManager = OutputManager(
+            outputMode: .directInsert,
+            clipboard: clipboard,
+            keySimulation: keySimulation,
+            accessibilityPermissionChecker: { true },
+            frontmostApplicationProvider: { nil },
+            virtualMachineHostChecker: { _ in false }
+        )
+        let owner = OutputOwner()
+        clipboard.clipboardContent = "previous"
+
+        let task = Task { @MainActor in
+            try await outputManager.output(
+                "A transcript",
+                validatingOwnership: { try owner.validate() }
+            )
+        }
+        await keySimulation.gate.waitUntilPasteBegins()
+        owner.invalidate()
+        await keySimulation.gate.releaseFailure()
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await task.value
+        }
+        #expect(clipboard.clipboardContent == "previous")
+        #expect(clipboard.restoreCount == 1)
+        #expect(clipboard.copyHistory == ["A transcript"])
+    }
 
     // Once the paste keystroke lands the insertion is committed: cancelling the
     // surrounding operation during the deferred restore window must neither fail

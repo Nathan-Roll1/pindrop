@@ -27,6 +27,7 @@ final class MockAudioCaptureBackend: AudioCaptureBackend {
     var resetCallCount: Int = 0
     var setPreferredInputDeviceUIDCallCount: Int = 0
     var lastPreferredInputDeviceUID: String?
+    private(set) var producedFileURL: URL?
 
     var capturedOnBuffer: ((AVAudioPCMBuffer) -> Void)?
     var capturedOnAudioLevel: ((Float) -> Void)?
@@ -78,6 +79,7 @@ final class MockAudioCaptureBackend: AudioCaptureBackend {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("pindrop-test-audio-\(UUID().uuidString).pcm")
         try data.write(to: fileURL)
+        producedFileURL = fileURL
         return AudioPCMFile(
             fileURL: fileURL,
             byteCount: data.count,

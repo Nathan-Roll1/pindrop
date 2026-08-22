@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "Ubah pilihan Anda kapan saja di Pengaturan → Privasi."
 changes:
   the_language_used_by_pindrop_s_interface: "Changes the language used by Pindrop's interface."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "Perubahan pada kredensial dan titik akhir penyedia ini berlaku untuk tangkapan yang sedang berlangsung dan yang dipulihkan. Model dan prompt yang dipilih tetap tidak berubah."
 check:
   for_updates: "Periksa Pembaruan..."
   for_updates_736b9062: "Periksa pembaruan"
@@ -831,6 +832,36 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "Pil"
+pillars:
+  capture: "Tangkap"
+  workspace: "Ruang kerja"
+  tools: "Alat"
+  dictate: "Dikte"
+  voice_note: "Catatan suara"
+  meeting: "Rapat"
+  dictate_description: "Bicara, lalu Pindrop mengetik di aplikasi yang sedang Anda gunakan."
+  voice_note_description: "Abadikan sebuah gagasan dan simpan di Catatan."
+  meeting_description: "Rekam audio mikrofon dan sistem, lalu simpan rapat di Pustaka."
+  start_dictating: "Mulai mendikte"
+  start_voice_note: "Mulai catatan suara"
+  open_notes: "Buka Catatan"
+  change_shortcut: "Ubah pintasan"
+  capture_in_progress: "Pengambilan sedang berlangsung"
+  finish_current_capture: "Selesaikan pengambilan saat ini sebelum memulai yang lain."
+  voice_note_hold: "Catatan suara — Tahan"
+  voice_note_toggle: "Catatan suara — Alihkan"
+  you_captured_this_week: "Anda merekam %@ minggu ini."
+  you_recorded_this_week: "Anda merekam %@ minggu ini."
+  one_voice_note: "1 catatan suara"
+  n_voice_notes: "%@ catatan suara"
+  one_meeting: "1 rapat"
+  n_meetings: "%@ rapat"
+  of_meeting_audio: "%@ audio rapat."
+  voice_note_shortcut_hint: "Tahan %1$@ atau tekan %2$@ di mana saja."
+  hold_anywhere: "Tahan %@ di mana saja."
+  press_anywhere: "Tekan %@ di mana saja."
+  voice_notes_empty: "Catatan suara Anda akan muncul di sini."
+  meetings_empty: "Rapat yang Anda rekam akan muncul di sini."
 pin:
   to_screen_always_on_top: "Sematkan ke layar (selalu di atas)"
 pindrop:
@@ -1128,7 +1159,7 @@ start:
   using_pindrop: "Mulai Menggunakan Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "Mulai di bilah menu tanpa membuka jendela utama. Anda masih dapat membukanya dari ikon bilah menu."
 stats:
-  _self: "Stats"
+  _self: "Statistik"
 status:
   _self: "Status"
 stop:

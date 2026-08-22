@@ -1901,6 +1901,121 @@ public enum TranscriptionRecordSchemaV12: VersionedSchema {
     }
 }
 
+// V13: Adds flat capture session lifecycle records.
+public enum TranscriptionRecordSchemaV13: VersionedSchema {
+    public static var versionIdentifier = Schema.Version(1, 0, 12)
+
+    public static var models: [any PersistentModel.Type] {
+        [
+            TranscriptionRecord.self,
+            MediaFolder.self,
+            ParticipantProfile.self,
+            ParticipantTrainingEvidence.self,
+            WordReplacement.self,
+            VocabularyWord.self,
+            Note.self,
+            PromptPreset.self,
+            TrainingContribution.self,
+            CaptureSessionModel.self,
+            CaptureSourceModel.self,
+            CaptureChunkModel.self,
+            CaptureTranscriptRevisionModel.self,
+            CaptureStageProviderSnapshotModel.self,
+            CaptureNoteReferenceModel.self,
+            CaptureFailureRecordModel.self
+        ]
+    }
+}
+// V14: Adds immutable prompt snapshots for capture-stage provider assignments.
+public enum TranscriptionRecordSchemaV14: VersionedSchema {
+    public static var versionIdentifier = Schema.Version(1, 0, 13)
+
+    public static var models: [any PersistentModel.Type] {
+        [
+            TranscriptionRecord.self,
+            MediaFolder.self,
+            ParticipantProfile.self,
+            ParticipantTrainingEvidence.self,
+            WordReplacement.self,
+            VocabularyWord.self,
+            Note.self,
+            PromptPreset.self,
+            TrainingContribution.self,
+            CaptureSessionModel.self,
+            CaptureSourceModel.self,
+            CaptureChunkModel.self,
+            CaptureTranscriptRevisionModel.self,
+            CaptureStageProviderSnapshotModel.self,
+            CaptureNoteReferenceModel.self,
+            CaptureFailureRecordModel.self,
+            CaptureStagePromptSnapshotModel.self
+        ]
+    }
+}
+
+private enum PromptSnapshotMigrationError: Error {
+    case duplicatePromptPreset(UUID)
+    case duplicatePromptSnapshot(UUID)
+}
+
+enum CapturePromptSnapshotBackfill {
+    static func apply(in context: ModelContext) throws {
+        let providerSnapshots = try context.fetch(
+            FetchDescriptor<CaptureStageProviderSnapshotModel>()
+        )
+
+        for providerSnapshot in providerSnapshots {
+            let providerSnapshotID = providerSnapshot.id
+            guard let promptPresetID = providerSnapshot.promptPresetID else {
+                continue
+            }
+
+            let promptSnapshotDescriptor = FetchDescriptor<CaptureStagePromptSnapshotModel>(
+                predicate: #Predicate<CaptureStagePromptSnapshotModel> {
+                    $0.providerSnapshotID == providerSnapshotID
+                }
+            )
+            let promptSnapshots = try context.fetch(promptSnapshotDescriptor)
+            guard promptSnapshots.count <= 1 else {
+                throw PromptSnapshotMigrationError.duplicatePromptSnapshot(providerSnapshot.id)
+            }
+            guard promptSnapshots.isEmpty else {
+                continue
+            }
+
+            let presetDescriptor = FetchDescriptor<PromptPreset>(
+                predicate: #Predicate<PromptPreset> { $0.id == promptPresetID }
+            )
+            let presets = try context.fetch(presetDescriptor)
+            guard presets.count <= 1 else {
+                throw PromptSnapshotMigrationError.duplicatePromptPreset(promptPresetID)
+            }
+
+            let prompt: CapturePromptSnapshot
+            if let preset = presets.first {
+                prompt = CapturePromptSnapshot(
+                    presetIdentifier: preset.builtInIdentifier ?? promptPresetID.uuidString,
+                    resolvedPrompt: preset.prompt
+                )
+            } else {
+                prompt = CapturePromptSnapshot(
+                    presetIdentifier: promptPresetID.uuidString,
+                    resolvedPrompt: nil
+                )
+            }
+            context.insert(
+                CaptureStagePromptSnapshotModel(
+                    sessionID: providerSnapshot.sessionID,
+                    providerSnapshotID: providerSnapshot.id,
+                    prompt: prompt
+                )
+            )
+        }
+
+        try context.save()
+    }
+}
+
 // Migration Plan
 enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
@@ -1916,7 +2031,9 @@ enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
             TranscriptionRecordSchemaV9.self,
             TranscriptionRecordSchemaV10.self,
             TranscriptionRecordSchemaV11.self,
-            TranscriptionRecordSchemaV12.self
+            TranscriptionRecordSchemaV12.self,
+            TranscriptionRecordSchemaV13.self,
+            TranscriptionRecordSchemaV14.self
         ]
     }
 
@@ -1932,7 +2049,9 @@ enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
             migrateV8toV9,
             migrateV9toV10,
             migrateV10toV11,
-            migrateV11toV12
+            migrateV11toV12,
+            migrateV12toV13,
+            migrateV13toV14
         ]
     }
 
@@ -2014,5 +2133,24 @@ enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
     static let migrateV11toV12 = MigrationStage.lightweight(
         fromVersion: TranscriptionRecordSchemaV11.self,
         toVersion: TranscriptionRecordSchemaV12.self
+    )
+
+    // Lightweight migration from V12 to V13.
+    // Adds flat capture session lifecycle tables without changing existing models.
+    static let migrateV12toV13 = MigrationStage.lightweight(
+        fromVersion: TranscriptionRecordSchemaV12.self,
+        toVersion: TranscriptionRecordSchemaV13.self
+    )
+
+    // Custom migration from V13 to V14.
+    // Snapshots the prompt content while it is still available, so later reads do
+    // not depend on mutable prompt presets.
+    static let migrateV13toV14 = MigrationStage.custom(
+        fromVersion: TranscriptionRecordSchemaV13.self,
+        toVersion: TranscriptionRecordSchemaV14.self,
+        willMigrate: nil,
+        didMigrate: { context in
+            try CapturePromptSnapshotBackfill.apply(in: context)
+        }
     )
 }

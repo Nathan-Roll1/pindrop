@@ -942,6 +942,12 @@ final class SettingsStore: ObservableObject, AppSettingsProviding {
 
    func resetAllSettings() {
       selectedModel = Defaults.selectedModel
+      // Capture-stage defaults: batch uses the standard selected model; optional
+      // live transcription and diarization are off until the user enables them.
+      transcriptionBackend = TranscriptionBackend.parakeet.rawValue
+      streamingFeatureEnabled = false
+      streamingLowLatencyMode = false
+      diarizationFeatureEnabled = false
       themeMode = Defaults.themeMode
       lightThemePresetID = Defaults.lightThemePresetID
       darkThemePresetID = Defaults.darkThemePresetID

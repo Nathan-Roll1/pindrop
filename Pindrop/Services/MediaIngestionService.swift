@@ -60,7 +60,9 @@ enum MediaIngestionError: Error, LocalizedError {
     case localFileImportFailed(String)
     case downloadedMediaMissing
     case metadataLookupFailed(String)
-
+    case captureSourceStorageFailed(String)
+    case captureSourceStorageUnsupported
+    case captureSourceStorageContentConflict(String)
     var errorDescription: String? {
         switch self {
         case .unsupportedInput(let message):
@@ -75,8 +77,15 @@ enum MediaIngestionError: Error, LocalizedError {
             return "Download finished but no playable media file was found."
         case .metadataLookupFailed(let message):
             return "Failed to inspect media link: \(message)"
-        }
+        case .captureSourceStorageFailed(let message):
+            return "Capture source storage failed: \(message)"
+        case .captureSourceStorageUnsupported:
+            return "Capture source storage is not supported by this media library."
+        case .captureSourceStorageContentConflict(let relativePath):
+            return "Capture source storage content conflicts with the existing artifact at \(relativePath)."
     }
+    }
+
 
     /// Maps package storage/download errors into the app-facing ingestion surface.
     static func fromMediaLibraryError(_ error: MediaLibraryError) -> MediaIngestionError {
@@ -87,6 +96,12 @@ enum MediaIngestionError: Error, LocalizedError {
             return .downloadedMediaMissing
         case .downloadFailed(let message):
             return .downloadFailed(message)
+        case .captureSourceStorageUnsupported:
+            return .captureSourceStorageUnsupported
+        case .captureSourceStorageContentConflict(let relativePath):
+            return .captureSourceStorageContentConflict(relativePath)
+        case .captureSourceStorageFailed(let message):
+            return .captureSourceStorageFailed(message)
         }
     }
 }
@@ -302,6 +317,28 @@ final class MediaIngestionService {
         jobID: UUID,
         displayName: String,
         sourceKind: MediaSourceKind
+    ) async throws -> ManagedMediaAsset {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.storeRecordedAudio(
+                    audioData,
+                    jobID: jobID,
+                    displayName: displayName,
+                    sourceKind: sourceKind
+                )
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func storeRecordedAudio(
+        _ audioData: Data,
+        jobID: UUID,
+        displayName: String,
+        sourceKind: MediaSourceKind
     ) throws -> ManagedMediaAsset {
         do {
             return try mediaLibrary.storeRecordedAudio(
@@ -309,6 +346,152 @@ final class MediaIngestionService {
                 jobID: jobID,
                 displayName: displayName,
                 sourceKind: sourceKind
+            )
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func storeCapturePCMFile(
+        at sourceURL: URL,
+        sessionID: UUID,
+        sourceID: UUID,
+        chunkSequence: Int
+    ) async throws -> ManagedCaptureSourceArtifact {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.storeCapturePCMFile(
+                    at: sourceURL,
+                    sessionID: sessionID,
+                    sourceID: sourceID,
+                    chunkSequence: chunkSequence
+                )
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func makeMeetingCaptureSpoolPlan(
+        sessionID: UUID,
+        microphoneSourceID: UUID,
+        systemAudioSourceID: UUID
+    ) async throws -> MeetingCaptureSpoolPlan {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.makeMeetingCaptureSpoolPlan(
+                    sessionID: sessionID,
+                    microphoneSourceID: microphoneSourceID,
+                    systemAudioSourceID: systemAudioSourceID
+                )
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func recoverMeetingArtifacts(
+        for plan: MeetingCaptureSpoolPlan
+    ) async throws -> MeetingArtifactRecoveryResult {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.recoverMeetingArtifacts(for: plan)
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func resolveArtifactURL(for chunk: SealedAudioSourceChunk) async throws -> URL {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.resolveArtifactURL(for: chunk)
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func makeMixedMeetingChunk(
+        sessionID: UUID,
+        sequence: Int,
+        microphone: SealedAudioSourceChunk?,
+        systemAudio: SealedAudioSourceChunk?
+    ) async throws -> ManagedMixedMeetingChunkArtifact {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.makeMixedMeetingChunk(
+                    sessionID: sessionID,
+                    sequence: sequence,
+                    microphone: microphone,
+                    systemAudio: systemAudio
+                )
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func removeMeetingCaptureArtifacts(for sessionID: UUID) async throws {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            try await Task.detached {
+                try mediaLibrary.removeMeetingCaptureArtifacts(for: sessionID)
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func removeMixedMeetingChunk(
+        _ artifact: ManagedMixedMeetingChunkArtifact
+    ) async throws {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            try await Task.detached {
+                try mediaLibrary.removeMixedMeetingChunk(artifact)
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func removeMixedMeetingChunks(for sessionID: UUID) async throws {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            try await Task.detached {
+                try mediaLibrary.removeMixedMeetingChunks(for: sessionID)
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func storeCapturePCMFile(
+        at sourceURL: URL,
+        sessionID: UUID,
+        sourceID: UUID,
+        chunkSequence: Int
+    ) throws -> ManagedCaptureSourceArtifact {
+        do {
+            return try mediaLibrary.storeCapturePCMFile(
+                at: sourceURL,
+                sessionID: sessionID,
+                sourceID: sourceID,
+                chunkSequence: chunkSequence
             )
         } catch let error as MediaLibraryError {
             throw MediaIngestionError.fromMediaLibraryError(error)

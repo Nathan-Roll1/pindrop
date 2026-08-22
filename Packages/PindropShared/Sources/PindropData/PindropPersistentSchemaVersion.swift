@@ -9,7 +9,7 @@ import Foundation
 import SwiftData
 
 /// Catalog of historical and current SwiftData schema versions for repair/reference tooling.
-/// Concrete V1 through V12 schema types remain package-internal; this exposes the version map only.
+/// Schema type visibility is defined by each snapshot; this exposes the version map only.
 public enum PindropPersistentSchemaVersion: String, CaseIterable, Sendable {
     case v1 = "1.0.0"
     case v2 = "1.0.1"
@@ -23,6 +23,8 @@ public enum PindropPersistentSchemaVersion: String, CaseIterable, Sendable {
     case v10 = "1.0.9"
     case v11 = "1.0.10"
     case v12 = "1.0.11"
+    case v13 = "1.0.12"
+    case v14 = "1.0.13"
 
     public var versionedSchema: any VersionedSchema.Type {
         switch self {
@@ -38,6 +40,8 @@ public enum PindropPersistentSchemaVersion: String, CaseIterable, Sendable {
         case .v10: return TranscriptionRecordSchemaV10.self
         case .v11: return TranscriptionRecordSchemaV11.self
         case .v12: return TranscriptionRecordSchemaV12.self
+        case .v13: return TranscriptionRecordSchemaV13.self
+        case .v14: return TranscriptionRecordSchemaV14.self
         }
     }
 }

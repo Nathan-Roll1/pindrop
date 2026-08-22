@@ -20,11 +20,12 @@ struct SchemaV11MigrationTests {
         #expect(TranscriptionRecordSchemaV11.models.contains { $0 == TranscriptionRecordSchemaV11.TranscriptionRecord.self })
     }
 
-    @Test func migrationPlanContainsV10ToV11Stage() {
-        #expect(TranscriptionRecordMigrationPlan.schemas.contains { $0 == TranscriptionRecordSchemaV10.self })
-        #expect(TranscriptionRecordMigrationPlan.schemas.contains { $0 == TranscriptionRecordSchemaV11.self })
-        #expect(TranscriptionRecordMigrationPlan.schemas.count == 12)
-        #expect(TranscriptionRecordMigrationPlan.stages.count == 11)
+    @Test func migrationPlanOrdersV10BeforeV11() throws {
+        let schemas = TranscriptionRecordMigrationPlan.schemas
+        let v10Index = try #require(schemas.firstIndex { $0 == TranscriptionRecordSchemaV10.self })
+        let v11Index = try #require(schemas.firstIndex { $0 == TranscriptionRecordSchemaV11.self })
+
+        #expect(v11Index == v10Index + 1)
     }
 
     @Test func userEditedAtStartsNilAndTrainingContributionRoundTrips() throws {

@@ -31,7 +31,8 @@ struct OverlayStreamingSinkTests {
         func makeSink(transcriptState: LiveTranscriptState) -> OverlayStreamingSink {
             OverlayStreamingSink(
                 transcriptState: transcriptState,
-                finalOutput: { [weak self] text in
+                finalOutput: { [weak self] text, ownerValidation in
+                    try ownerValidation()
                     guard let self else { return .pasted() }
                     self.outputs.append(text)
                     if let error = self.error { throw error }
@@ -42,6 +43,42 @@ struct OverlayStreamingSinkTests {
                     self?.fallbackResults.append(result)
                 }
             )
+        }
+    }
+
+    private actor OutputGate {
+        private var isOpen = false
+        private var hasArrived = false
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+        private var arrivalWaiters: [CheckedContinuation<Void, Never>] = []
+
+        func arriveThenWait() async {
+            hasArrived = true
+            let pendingArrivalWaiters = arrivalWaiters
+            arrivalWaiters.removeAll()
+            for waiter in pendingArrivalWaiters {
+                waiter.resume()
+            }
+            guard !isOpen else { return }
+            await withCheckedContinuation { continuation in
+                waiters.append(continuation)
+            }
+        }
+
+        func waitUntilArrived() async {
+            guard !hasArrived else { return }
+            await withCheckedContinuation { continuation in
+                arrivalWaiters.append(continuation)
+            }
+        }
+
+        func open() {
+            isOpen = true
+            let pendingWaiters = waiters
+            waiters.removeAll()
+            for waiter in pendingWaiters {
+                waiter.resume()
+            }
         }
     }
 
@@ -151,6 +188,77 @@ struct OverlayStreamingSinkTests {
         try await sink.finishStreamingInsertion(finalText: "Hello", appendTrailingSpace: false)
 
         #expect(recorder.fallbackCount == 0)
+    }
+
+    @Test func successfulPriorGenerationFinishReturnsItsResultWithoutEndingSuccessor() async throws {
+        let state = LiveTranscriptState()
+        let gate = OutputGate()
+        let expectedResult = OutputManager.OutputResult.pasted(
+            destinationAppName: "TextEdit",
+            destinationAppBundleID: "com.apple.TextEdit"
+        )
+        let sink = OverlayStreamingSink(
+            transcriptState: state,
+            finalOutput: { _, ownerValidation in
+                try ownerValidation()
+                await gate.arriveThenWait()
+                return expectedResult
+            }
+        )
+
+        sink.beginStreamingInsertion()
+        let finishA = Task { @MainActor in
+            try await sink.finishStreamingInsertionReturningResult(
+                finalText: "A output",
+                appendTrailingSpace: false,
+                ownerValidation: {}
+            )
+        }
+        await gate.waitUntilArrived()
+
+        sink.beginStreamingInsertion()
+        try await sink.updateStreamingInsertion(committed: "B", tentative: " text")
+        await gate.open()
+
+        let result = try await finishA.value
+        #expect(result?.destinationAppName == "TextEdit")
+        #expect(state.phase == .streaming)
+        #expect(state.committedText == "B")
+        #expect(state.tentativeText == " text")
+    }
+
+    @Test func failingPriorGenerationFinishDoesNotEndSuccessor() async throws {
+        let state = LiveTranscriptState()
+        let gate = OutputGate()
+        let sink = OverlayStreamingSink(
+            transcriptState: state,
+            finalOutput: { _, ownerValidation in
+                try ownerValidation()
+                await gate.arriveThenWait()
+                throw OutputFailure()
+            }
+        )
+
+        sink.beginStreamingInsertion()
+        let finishA = Task { @MainActor in
+            try await sink.finishStreamingInsertionReturningResult(
+                finalText: "A output",
+                appendTrailingSpace: false,
+                ownerValidation: {}
+            )
+        }
+        await gate.waitUntilArrived()
+
+        sink.beginStreamingInsertion()
+        try await sink.updateStreamingInsertion(committed: "B", tentative: " text")
+        await gate.open()
+
+        await #expect(throws: OutputFailure.self) {
+            _ = try await finishA.value
+        }
+        #expect(state.phase == .streaming)
+        #expect(state.committedText == "B")
+        #expect(state.tentativeText == " text")
     }
 
     // MARK: - Cancel

@@ -239,6 +239,15 @@ enum RecordingStopRoute: Equatable {
         return .dictation
     }
 }
+/// IDs that cross persistence boundaries during voice-note linkage.
+///
+/// History owns the transcription record ID used by notes and editor notifications;
+/// capture owns the final revision ID used only to complete the capture session.
+struct VoiceNoteLinkageIDs: Equatable, Sendable {
+    let historyRecordID: UUID
+    let finalTranscriptRevisionID: UUID
+}
+
 
 enum CoordinatorTranscriptionRoute: Equatable {
     case dictation
@@ -299,6 +308,44 @@ final class RecordingStopAdmission {
         guard isClaimed else { return }
         isClaimed = false
         currentClaimID &+= 1
+    }
+}
+
+/// A synchronous admission gate for a pending meeting-capture start.
+/// A claim is acquired before the start task is created, so a second trigger
+/// cannot enter while the first one is suspended in recorder preparation.
+struct MeetingCaptureStartClaim: Equatable, Sendable {
+    let id: UInt64
+}
+
+final class MeetingCaptureStartAdmission {
+    private let lock = NSLock()
+    private var isClaimed = false
+    private var currentClaimID: UInt64 = 0
+    private var nextClaimID: UInt64 = 0
+
+    func claim() -> MeetingCaptureStartClaim? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !isClaimed else { return nil }
+        nextClaimID &+= 1
+        currentClaimID = nextClaimID
+        isClaimed = true
+        return MeetingCaptureStartClaim(id: currentClaimID)
+    }
+
+    func isCurrent(_ claim: MeetingCaptureStartClaim) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isClaimed && currentClaimID == claim.id
+    }
+
+    /// Releases only the exact pending start that owns the admission.
+    func release(_ claim: MeetingCaptureStartClaim) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard isClaimed, currentClaimID == claim.id else { return }
+        isClaimed = false
     }
 }
 
@@ -439,6 +486,212 @@ final class AppCoordinator {
         case noteAppend = "note-append"
     }
 
+    private struct VoiceNoteCaptureContext {
+        let handle: PindropData.VoiceNoteCaptureHandle
+        let noteID: UUID?
+        let liveAssignment: CaptureStageAssignment
+    }
+
+    private struct VoiceNoteCaptureResult {
+        let context: VoiceNoteCaptureContext
+        let rawText: String
+        let finalText: String
+        let duration: TimeInterval
+        let languageCode: String
+        let finalModelIdentifier: String
+        let enhancedWithModel: String?
+        let title: String?
+        let tags: [String]
+    }
+    private struct MeetingCaptureContext {
+        let handle: PindropData.MeetingCaptureHandle
+        let humanAnchorNoteID: UUID
+        let spoolPlan: MeetingCaptureSpoolPlan
+        let generation: UInt64
+    }
+
+    struct MeetingChunkWorkItem: Equatable {
+        let sequence: Int
+        let chunkID: UUID
+        let startOffset: TimeInterval
+        let duration: TimeInterval
+        let microphone: PindropData.MeetingChunkCheckpoint?
+        let systemAudio: PindropData.MeetingChunkCheckpoint?
+    }
+    enum MeetingChunkWorkItemError: Error, Equatable {
+        case duplicateSourceSequence(sourceID: UUID, sequence: Int)
+        case mismatchedStartOffset(sequence: Int)
+    }
+    private struct MeetingSourceSequence: Hashable {
+        let sourceID: UUID
+        let sequence: Int
+    }
+
+    private enum MeetingCaptureAdmissionError: LocalizedError {
+        case captureAlreadyActive
+        case recorderDidNotStart
+        case noRetainedSources
+        case missingMixedAudio
+
+        var errorDescription: String? {
+            switch self {
+            case .captureAlreadyActive:
+                "A meeting capture is already active."
+            case .recorderDidNotStart:
+                "The recorder did not begin meeting capture."
+            case .noRetainedSources:
+                "Neither meeting audio source could be retained."
+            case .missingMixedAudio:
+                "Meeting audio could not be prepared for transcription."
+            }
+        }
+    }
+
+
+    private enum MeetingCaptureTerminalPersistenceError: Error {
+        case cancellation(Error)
+    }
+
+    enum CaptureAssignmentExecutionDecision: Equatable {
+        case execute
+        case skip
+    }
+
+    enum LiveArtifactCaptureAdmission: Equatable {
+        case capture
+        case deactivate
+    }
+
+    enum CaptureAssignmentExecutionStep: Equatable {
+        case assignmentSnapshot
+        case stageCall
+    }
+
+    enum NoteGenerationExecutionStep: Equatable {
+        case assignmentSnapshot
+        case runtimeResolution
+        case stageFailureRecorded
+        case stageCall
+        case rawFallback
+    }
+
+    enum MeetingNoteGenerationExecutionDecision: Equatable {
+        case skipDisabled
+        case skipUnavailable
+        case rejectInvalidAssignment
+        case resolveRuntime
+    }
+
+    enum MeetingNoteGenerationFailure: String, Error, Equatable, Sendable, LocalizedError {
+        case assignmentUnavailable = "assignment-unavailable"
+        case disabled = "assignment-disabled"
+        case unavailable = "assignment-best-effort-unavailable"
+        case runtimeUnavailable = "runtime-unavailable"
+        case promptUnavailable = "prompt-unavailable"
+        case derivationFailed = "source-derivation-failed"
+        case generationFailed = "generation-failed"
+        case emptyOutput = "empty-output"
+        case sourceChanged = "source-changed"
+        case saveFailed = "save-failed"
+        case generatedNoteDiscoveryFailed = "generated-note-discovery-failed"
+
+        var retryable: Bool {
+            switch self {
+            case .disabled, .unavailable:
+                false
+            case .assignmentUnavailable,
+                    .runtimeUnavailable,
+                    .promptUnavailable,
+                    .derivationFailed,
+                    .generationFailed,
+                    .emptyOutput,
+                    .sourceChanged,
+                    .saveFailed,
+                    .generatedNoteDiscoveryFailed:
+                true
+            }
+        }
+
+        var message: String {
+            switch self {
+            case .assignmentUnavailable:
+                "Meeting note generation assignment was unavailable."
+            case .disabled:
+                "Meeting note generation was disabled when capture started."
+            case .unavailable:
+                "Meeting note generation was unavailable when capture started."
+            case .runtimeUnavailable:
+                "Meeting note generation runtime was unavailable."
+            case .promptUnavailable:
+                "Meeting note generation prompt was unavailable."
+            case .derivationFailed:
+                "Meeting note sources could not be derived."
+            case .generationFailed:
+                "Meeting note generation failed."
+            case .emptyOutput:
+                "Meeting note generation returned empty content."
+            case .sourceChanged:
+                "Meeting note sources changed before the generated note could be saved."
+            case .saveFailed:
+                "Generated meeting note could not be saved."
+            case .generatedNoteDiscoveryFailed:
+                "Existing generated meeting note could not be verified."
+            }
+        }
+        var errorDescription: String? {
+            message
+        }
+
+        var category: MeetingNoteGenerationFailureCategory {
+            switch self {
+            case .assignmentUnavailable, .disabled, .unavailable:
+                .assignment
+            case .runtimeUnavailable, .promptUnavailable:
+                .configuration
+            case .derivationFailed, .sourceChanged:
+                .sourceDerivation
+            case .generationFailed, .emptyOutput:
+                .providerOutput
+            case .saveFailed, .generatedNoteDiscoveryFailed:
+                .persistence
+            }
+        }
+    }
+
+    enum MeetingNoteGenerationFailureCategory: String, Equatable {
+        case assignment
+        case configuration
+        case sourceDerivation = "source-derivation"
+        case providerOutput = "provider-output"
+        case persistence
+    }
+
+
+    private struct PendingNoteAppendStart: Equatable {
+        let generation: UInt64
+        let editorID: UUID
+        let noteID: UUID
+    }
+
+    private struct PendingNoteAppendCapture {
+        let request: PendingNoteAppendStart
+        let context: VoiceNoteCaptureContext
+    }
+
+    private enum VoiceNoteCaptureAdmissionError: LocalizedError {
+        case captureAlreadyActive
+        case recorderDidNotStart
+
+        var errorDescription: String? {
+            switch self {
+            case .captureAlreadyActive:
+                "A voice-note capture is already active."
+            case .recorderDidNotStart:
+                "The recorder did not begin recording."
+            }
+        }
+    }
+
     enum EventTapRecoveryAction: Equatable {
         case reenable
         case recreate
@@ -523,6 +776,8 @@ final class AppCoordinator {
     let dictionaryStore: PindropData.DictionaryStore
     let settingsStore: SettingsStore
     let notesStore: PindropData.NotesStore
+    let captureSessionStore: PindropData.CaptureSessionStore
+    let captureAssignmentResolver: CaptureStageAssignmentResolver
     let contextCaptureService: ContextCaptureService
     let contextEngineService: ContextEngineService
     let toastService: ToastService
@@ -552,6 +807,7 @@ final class AppCoordinator {
     /// Owns the streaming session lifecycle: engine callbacks, audio forwarding,
     /// refinement coordinator + overlay sink, and the post-stop finalize pipeline.
     let streamingSession: StreamingSessionController
+    private var activeStreamingSessionToken: StreamingSessionController.SessionToken?
     let floatingIndicatorController: FloatingIndicatorController
     let pillFloatingIndicatorController: PillFloatingIndicatorController
     let caretBubbleFloatingIndicatorController: CaretBubbleFloatingIndicatorController
@@ -564,8 +820,20 @@ final class AppCoordinator {
     let splashController: SplashWindowController
     let settingsWindowController: SettingsWindowController
     let mainWindowController: MainWindowController
+    private var mainWindowCaptureStartTask: Task<Void, Never>?
     let noteEditorWindowController: NoteEditorWindowController
     let toastWindowController: ToastWindowController
+    private var meetingCaptureContext: MeetingCaptureContext?
+    private var meetingCaptureGeneration: UInt64 = 0
+    private let meetingCaptureStartAdmission = MeetingCaptureStartAdmission()
+    private var pendingMeetingCaptureStart: MeetingCaptureStartClaim?
+    private var pendingMeetingCaptureStartTask: Task<Void, Never>?
+    private var pendingMeetingCaptureStartHandle: PindropData.MeetingCaptureHandle?
+    private var pendingMeetingCaptureCancellationHandle: PindropData.MeetingCaptureHandle?
+    private var meetingCancellationTasks: [UUID: Task<Void, Never>] = [:]
+    private var meetingRecoveryTask: Task<Void, Never>?
+    private var meetingRecoveryGeneration: UInt64 = 0
+    private var meetingRecoveryHandle: PindropData.MeetingCaptureHandle?
     
     // MARK: - Quick Capture State
     
@@ -576,6 +844,18 @@ final class AppCoordinator {
     private var manualExpectedSpeakerCount: Int?
     private var quickCaptureTranscription: String?
     private var noteAppendEditorID: UUID?
+    private var voiceNoteCaptureContext: VoiceNoteCaptureContext?
+    /// The exact capture allocated for a pending editor request. Stop must only
+    /// cancel this handle, never whichever capture happens to be active later.
+    private var pendingNoteAppendStartCapture: PendingNoteAppendCapture?
+    /// Retained until the cancelled start task unwinds so its stale catch can
+    /// clean recorder startup without clobbering a newer start.
+    private var pendingNoteAppendAudioStartupRequest: PendingNoteAppendStart?
+    /// A start request is installed before its task can run so Stop/teardown can
+    /// synchronously invalidate it while the editor is still closing.
+    private var pendingNoteAppendStartTask: Task<Void, Never>?
+    private var pendingNoteAppendStart: PendingNoteAppendStart?
+    private var nextNoteAppendStartGeneration: UInt64 = 0
     private var mediaTranscriptionTask: Task<Void, Never>? {
         didSet {
             refreshEscapeSuppression()
@@ -602,12 +882,20 @@ final class AppCoordinator {
         didSet {
             refreshEscapeSuppression()
             resumeDeferredMediaQueueIfIdle()
+            recordingState.setCaptureActivity(
+                isRecording: isRecording,
+                isProcessing: isProcessing
+            )
         }
     }
     private(set) var isProcessing = false {
         didSet {
             refreshEscapeSuppression()
             resumeDeferredMediaQueueIfIdle()
+            recordingState.setCaptureActivity(
+                isRecording: isRecording,
+                isProcessing: isProcessing
+            )
         }
     }
 
@@ -657,6 +945,7 @@ final class AppCoordinator {
     private let promptRoutingResolver: any PromptRoutingResolver = NoOpPromptRoutingResolver()
     private let enableSystemHooks: Bool
     private var isShutdown = false
+    private var isPreparingForTermination = false
     private var lastObservedSettingsSnapshot: SettingsObservationSnapshot?
     private var hasRequestedAccessibilityPermissionThisLaunch = false
     private var hasShownAccessibilityFallbackAlertThisLaunch = false
@@ -799,6 +1088,7 @@ final class AppCoordinator {
                 return NoteMetadata(title: metadata.title, tags: metadata.tags)
             }
         )
+        self.captureSessionStore = PindropData.CaptureSessionStore(modelContext: modelContext)
         self.contextCaptureService = ContextCaptureService()
         self.contextEngineService = ContextEngineService()
         self.floatingIndicatorFocusTracker = FloatingIndicatorFocusTracker(
@@ -812,6 +1102,11 @@ final class AppCoordinator {
             toastService: toastService
         )
         self.promptPresetStore = PindropData.PromptPresetStore(modelContext: modelContext)
+        self.captureAssignmentResolver = CaptureStageAssignmentResolver(
+            settings: settingsStore,
+            modelManager: modelManager,
+            promptPresetStore: promptPresetStore
+        )
         self.mentionRewriteService = MentionRewriteService()
         self.mediaPauseService = MediaPauseService()
         self.mediaIngestionService = MediaIngestionService()
@@ -842,6 +1137,7 @@ final class AppCoordinator {
             toastService: toastService,
             liveTranscriptState: liveTranscriptState,
             audioRecorder: audioRecorder,
+            captureSessionStore: captureSessionStore,
             normalizeText: { AppCoordinator.normalizedTranscriptionText($0) },
             isEffectivelyEmptyText: { AppCoordinator.isTranscriptionEffectivelyEmpty($0) }
         )
@@ -892,21 +1188,17 @@ final class AppCoordinator {
         self.mainWindowController.setModelContainer(modelContainer)
         self.noteEditorWindowController = NoteEditorWindowController()
         self.noteEditorWindowController.setModelContainer(modelContainer)
-        self.mainWindowController.configureMeetingCapture(
+        self.mainWindowController.configureCapture(
             floatingIndicatorState: floatingIndicatorState,
             recordingState: recordingState,
-            onNewTranscription: { [weak self] in
-                Task { @MainActor in
-                    await self?.handleToggleRecording(source: .statusBarMenu)
-                }
+            onStartDictation: { [weak self] in
+                self?.handleMainWindowDictationStart()
             },
-            onStartMeetingCapture: { [weak self] expectedSpeakerCount in
-                self?.handleStartMeetingCapture(expectedSpeakerCount: expectedSpeakerCount)
+            onStartVoiceNote: { [weak self] in
+                self?.handleMainWindowVoiceNoteStart()
             },
-            onStartNoteCapture: { [weak self] in
-                Task { @MainActor in
-                    await self?.handleQuickCaptureToggle()
-                }
+            onStartMeeting: { [weak self] expectedSpeakerCount in
+                self?.handleStartMeetingCapture(expectedSpeakerCount: expectedSpeakerCount) ?? false
             }
         )
         self.mainWindowController.configureTranscribeFeature(
@@ -918,9 +1210,6 @@ final class AppCoordinator {
             },
             onSubmitMediaLink: { [weak self] link, options in
                 self?.handleSubmitMediaLink(link, options: options)
-            },
-            onClearMediaQueue: { [weak self] in
-                self?.clearTranscriptionQueue()
             },
             onDownloadDiarizationModel: { [weak self] in
                 self?.handleDownloadDiarizationModel()
@@ -955,8 +1244,8 @@ final class AppCoordinator {
             self?.handleSelectPromptPreset(option)
         }
 
-        self.statusBarController.onOpenHistory = { [weak self] in
-            self?.handleOpenHistory()
+        self.statusBarController.onOpenLibrary = { [weak self] in
+            self?.handleOpenLibrary()
         }
 
         self.statusBarController.onShowApp = { [weak self] in
@@ -1016,8 +1305,8 @@ final class AppCoordinator {
             onGoToSettings: { [weak self] in
                 self?.statusBarController.showSettings(tab: .general)
             },
-            onViewTranscriptHistory: { [weak self] in
-                self?.handleOpenHistory()
+            onOpenLibrary: { [weak self] in
+                self?.handleOpenLibrary()
             },
             onPasteLastTranscript: { [weak self] in
                 await self?.handlePasteLastTranscript()
@@ -1143,15 +1432,10 @@ final class AppCoordinator {
                 object: nil,
                 queue: .main
             ) { [weak self] notification in
-                Task { @MainActor [weak self] in
-                    guard let self, !self.isShutdown,
-                          let editorID = notification.userInfo?["editorID"] as? UUID,
-                          let action = notification.userInfo?["action"] as? String else { return }
-                    if action == "start" {
-                        await self.handleNoteAppendStart(editorID: editorID)
-                    } else if action == "stop" {
-                        await self.handleNoteAppendStop(editorID: editorID)
-                    }
+                // `queue: .main` delivers on MainActor. Install/cancel the task
+                // before returning so a Stop cannot race a deferred Start task.
+                MainActor.assumeIsolated {
+                    self?.handleNoteAppendRequestNotification(notification)
                 }
             }
         )
@@ -1611,7 +1895,286 @@ final class AppCoordinator {
         updateVibeRuntimeStateFromSettings()
         applyMCPServerSettings()
         prewarmStreamingEngineIfEnabled()
+        scheduleMeetingRecovery()
         Log.boot.info("startNormalOperation complete")
+    }
+    private func scheduleMeetingRecovery() {
+        guard Self.canBeginMeetingRecovery(
+            activeHandle: meetingCaptureContext?.handle,
+            recoveryTaskActive: meetingRecoveryTask != nil,
+            isShutdown: isShutdown || isPreparingForTermination
+        ) else { return }
+
+        meetingRecoveryGeneration &+= 1
+        let generation = meetingRecoveryGeneration
+        meetingRecoveryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.meetingRecoveryGeneration == generation {
+                    self.meetingRecoveryHandle = nil
+                    self.meetingRecoveryTask = nil
+                }
+            }
+
+            let cancelledSessionIDs: [UUID]
+            do {
+                cancelledSessionIDs = try self.captureSessionStore.cancelledMeetingCaptureSessionIDs()
+            } catch {
+                cancelledSessionIDs = []
+                Log.app.warning("Cancelled meeting cleanup candidates unavailable: \(error.localizedDescription)")
+            }
+
+            for sessionID in cancelledSessionIDs {
+                do {
+                    try Task.checkCancellation()
+                    guard
+                        !self.isShutdown,
+                        !self.isPreparingForTermination,
+                        self.meetingRecoveryGeneration == generation
+                    else {
+                        throw CancellationError()
+                    }
+                    try await self.mediaIngestionService.removeMeetingCaptureArtifacts(for: sessionID)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    Log.app.warning(
+                        "Cancelled meeting cleanup deferred for \(sessionID.uuidString): \(error.localizedDescription)"
+                    )
+                }
+            }
+
+            let candidates: [PindropData.MeetingRecoverySnapshot]
+            do {
+                candidates = try self.captureSessionStore.meetingRecoveryCandidates()
+            } catch {
+                Log.app.warning("Meeting recovery candidates unavailable: \(error.localizedDescription)")
+                return
+            }
+
+            for candidate in candidates {
+                do {
+                    try Task.checkCancellation()
+                    guard
+                        !self.isShutdown,
+                        !self.isPreparingForTermination,
+                        self.meetingRecoveryGeneration == generation
+                    else {
+                        throw CancellationError()
+                    }
+                    self.meetingRecoveryHandle = candidate.handle
+
+                    try self.ensureMeetingRecoveryCurrent(
+                        generation: generation,
+                        handle: candidate.handle
+                    )
+                    _ = try self.captureSessionStore.ensureMeetingHumanAnchor(
+                        candidate.handle,
+                        title: localized(
+                            "Untitled Note",
+                            locale: self.settingsStore.selectedAppLocale.locale
+                        ),
+                        at: .now
+                    )
+                    try self.ensureMeetingRecoveryCurrent(
+                        generation: generation,
+                        handle: candidate.handle
+                    )
+                    try self.captureSessionStore.interruptMeetingCapture(
+                        candidate.handle,
+                        errorDomain: "Pindrop",
+                        errorCode: "startup-recovery",
+                        message: "Recovered after application interruption.",
+                        at: .now
+                    )
+
+                    try self.ensureMeetingRecoveryCurrent(
+                        generation: generation,
+                        handle: candidate.handle
+                    )
+                    try self.captureSessionStore.recoverMeetingForFinalization(candidate.handle, at: .now)
+
+                    let spoolPlan = try await self.mediaIngestionService.makeMeetingCaptureSpoolPlan(
+                        sessionID: candidate.handle.sessionID,
+                        microphoneSourceID: candidate.handle.microphoneSourceID,
+                        systemAudioSourceID: candidate.handle.systemAudioSourceID
+                    )
+                    try self.ensureMeetingRecoveryCurrent(
+                        generation: generation,
+                        handle: candidate.handle
+                    )
+
+                    let recovery = try await self.reconcileMeetingArtifacts(
+                        handle: candidate.handle,
+                        spoolPlan: spoolPlan,
+                        operationGuard: {
+                            try self.ensureMeetingRecoveryCurrent(
+                                generation: generation,
+                                handle: candidate.handle
+                            )
+                        }
+                    )
+
+                    try self.ensureMeetingRecoveryCurrent(
+                        generation: generation,
+                        handle: candidate.handle
+                    )
+                    try self.finishMeetingSources(
+                        handle: candidate.handle,
+                        artifacts: recovery.sealedChunks,
+                        recoveryFailures: recovery.failures,
+                        stopResult: nil
+                    )
+
+                    try self.ensureMeetingRecoveryCurrent(
+                        generation: generation,
+                        handle: candidate.handle
+                    )
+                    try await self.finalizeMeetingCapture(
+                        candidate.handle,
+                        spoolPlan: spoolPlan,
+                        operationGuard: {
+                            try self.ensureMeetingRecoveryCurrent(
+                                generation: generation,
+                                handle: candidate.handle
+                            )
+                        }
+                    )
+                } catch let failure as MeetingNoteGenerationFailure {
+                    guard Self.shouldContinueMeetingRecovery(after: failure) else {
+                        return
+                    }
+                    guard self.isMeetingRecoveryCurrent(
+                        generation: generation,
+                        handle: candidate.handle
+                    ) else {
+                        return
+                    }
+                    Log.app.warning(
+                        "Meeting recovery deferred note generation for \(candidate.handle.sessionID.uuidString): \(failure.message)"
+                    )
+                } catch {
+                    guard Self.shouldContinueMeetingRecovery(after: error) else {
+                        return
+                    }
+                    guard self.isMeetingRecoveryCurrent(
+                        generation: generation,
+                        handle: candidate.handle
+                    ) else {
+                        return
+                    }
+                    let nsError = error as NSError
+                    try? self.captureSessionStore.recordMeetingFinalizationFailure(
+                        candidate.handle,
+                        stage: .finalTranscription,
+                        domain: nsError.domain,
+                        code: String(nsError.code),
+                        message: error.localizedDescription,
+                        retryable: true,
+                        at: .now
+                    )
+                    Log.app.warning(
+                        "Meeting recovery deferred for \(candidate.handle.sessionID.uuidString): \(error.localizedDescription)"
+                    )
+                }
+            }
+        }
+    }
+
+    /// Seals and inventories an active meeting before AppKit is allowed to terminate.
+    ///
+    /// This is deliberately awaited by the AppKit terminate-later bridge. `shutdown()`
+    /// remains synchronous and only provides a best-effort persistence fallback for
+    /// callers that cannot await this preparation.
+    func prepareForTermination() async {
+        guard !isShutdown, !isPreparingForTermination else { return }
+        isPreparingForTermination = true
+        defer { isPreparingForTermination = false }
+
+        let noteAppendStartTask = pendingNoteAppendStartTask
+        let meetingStartTask = pendingMeetingCaptureStartTask
+        let windowStartTask = mainWindowCaptureStartTask
+        let cancellationTasks = Array(meetingCancellationTasks.values)
+        cancelPendingNoteAppendStart()
+        cancelPendingMeetingCaptureStart()
+        recordingState.invalidateCaptureStart()
+        windowStartTask?.cancel()
+        if let noteAppendStartTask {
+            await noteAppendStartTask.value
+        }
+        if let meetingStartTask {
+            await meetingStartTask.value
+        }
+        if let windowStartTask {
+            await windowStartTask.value
+        }
+        for cancellationTask in cancellationTasks {
+            await cancellationTask.value
+        }
+        meetingCancellationTasks.removeAll()
+        mainWindowCaptureStartTask = nil
+        do {
+            try await cancelPendingMeetingCaptureStartHandle()
+        } catch {
+            reportMeetingCaptureTerminalPersistenceFailure(error)
+        }
+
+        meetingRecoveryGeneration &+= 1
+        meetingRecoveryTask?.cancel()
+        if let meetingRecoveryTask {
+            await meetingRecoveryTask.value
+        }
+        meetingRecoveryTask = nil
+        meetingRecoveryHandle = nil
+
+        guard let context = meetingCaptureContext else { return }
+        await checkpointMeetingInterruptionForTermination(context)
+        clearMeetingCaptureContext(ifCurrent: context)
+    }
+
+    private func checkpointMeetingInterruptionForTermination(_ context: MeetingCaptureContext) async {
+        do {
+            try ensureMeetingCaptureCurrent(context)
+            try captureSessionStore.beginMeetingFinalization(context.handle, at: .now)
+
+            let stopResult = try await audioRecorder.stopMeetingRecording()
+            try ensureMeetingCaptureCurrent(context)
+            for chunk in stopResult.sealedChunks {
+                try ensureMeetingCaptureCurrent(context)
+                try captureSessionStore.recordSealedMeetingChunk(context.handle, chunk: chunk, at: .now)
+            }
+            let recovery = try await reconcileMeetingArtifacts(
+                handle: context.handle,
+                spoolPlan: context.spoolPlan,
+                operationGuard: { try self.ensureMeetingCaptureCurrent(context) }
+            )
+            try ensureMeetingCaptureCurrent(context)
+            try finishMeetingSources(
+                handle: context.handle,
+                artifacts: recovery.sealedChunks,
+                recoveryFailures: recovery.failures,
+                stopResult: stopResult
+            )
+            try ensureMeetingCaptureCurrent(context)
+            try captureSessionStore.interruptMeetingCapture(
+                context.handle,
+                errorDomain: "Pindrop",
+                errorCode: "lifecycle-shutdown",
+                message: "Meeting capture was interrupted by application shutdown and can be resumed.",
+                at: .now
+            )
+        } catch {
+            let nsError = error as NSError
+            if isMeetingCaptureContextCurrent(context) {
+                try? captureSessionStore.interruptMeetingCapture(
+                    context.handle,
+                    errorDomain: nsError.domain,
+                    errorCode: String(nsError.code),
+                    message: "Meeting capture was interrupted during shutdown: \(error.localizedDescription)",
+                    at: .now
+                )
+            }
+        }
     }
 
     /// Loads the streaming (Nemotron) engine and runs its CoreML warm-up inference
@@ -1839,7 +2402,7 @@ final class AppCoordinator {
 
         if !settingsStore.quickCapturePTTHotkey.isEmpty,
            let binding = validatedHotkeyBinding(
-               displayName: "Note Capture (Push-to-Talk)",
+               displayName: "Voice Note — Hold",
                hotkeyString: settingsStore.quickCapturePTTHotkey,
                keyCodeValue: settingsStore.quickCapturePTTHotkeyCode,
                modifiersValue: settingsStore.quickCapturePTTHotkeyModifiers
@@ -1848,7 +2411,7 @@ final class AppCoordinator {
 
             if canRegisterHotkey(
                 identifier: "quick-capture-ptt",
-                displayName: "Note Capture (Push-to-Talk)",
+                displayName: "Voice Note — Hold",
                 hotkeyString: settingsStore.quickCapturePTTHotkey,
                 keyCode: binding.keyCode,
                 modifiers: binding.modifiers,
@@ -1872,14 +2435,14 @@ final class AppCoordinator {
                 )
 
                 if !didRegister {
-                    handleHotkeyRegistrationFailure(displayName: "Note Capture (Push-to-Talk)", hotkeyString: settingsStore.quickCapturePTTHotkey)
+                    handleHotkeyRegistrationFailure(displayName: "Voice Note — Hold", hotkeyString: settingsStore.quickCapturePTTHotkey)
                 }
             }
         }
 
         if !settingsStore.quickCaptureToggleHotkey.isEmpty,
            let binding = validatedHotkeyBinding(
-               displayName: "Note Capture (Toggle)",
+               displayName: "Voice Note — Toggle",
                hotkeyString: settingsStore.quickCaptureToggleHotkey,
                keyCodeValue: settingsStore.quickCaptureToggleHotkeyCode,
                modifiersValue: settingsStore.quickCaptureToggleHotkeyModifiers
@@ -1887,7 +2450,7 @@ final class AppCoordinator {
             Log.hotkey.info("Registering quick-capture-toggle: keyCode=\(binding.keyCode), modifiers=0x\(String(binding.modifiers.rawValue, radix: 16)), string=\(self.settingsStore.quickCaptureToggleHotkey)")
             if canRegisterHotkey(
                 identifier: "quick-capture-toggle",
-                displayName: "Note Capture (Toggle)",
+                displayName: "Voice Note — Toggle",
                 hotkeyString: settingsStore.quickCaptureToggleHotkey,
                 keyCode: binding.keyCode,
                 modifiers: binding.modifiers,
@@ -1906,7 +2469,7 @@ final class AppCoordinator {
                     onKeyUp: nil
                 )
                 if !didRegister {
-                    handleHotkeyRegistrationFailure(displayName: "Note Capture (Toggle)", hotkeyString: settingsStore.quickCaptureToggleHotkey)
+                    handleHotkeyRegistrationFailure(displayName: "Voice Note — Toggle", hotkeyString: settingsStore.quickCaptureToggleHotkey)
                 }
             }
         }
@@ -1934,7 +2497,7 @@ final class AppCoordinator {
                     mode: .toggle,
                     onKeyDown: { [weak self] in
                         Task { @MainActor in
-                            self?.handleOpenHistory()
+                            self?.handleOpenLibrary()
                         }
                     },
                     onKeyUp: nil
@@ -1986,22 +2549,24 @@ final class AppCoordinator {
         keyCodeValue: Int,
         modifiersValue: Int
     ) -> (keyCode: UInt32, modifiers: HotkeyManager.ModifierFlags)? {
+        let localizedDisplayName = localized(displayName, locale: settingsStore.selectedAppLocale.locale)
         guard let keyCode = UInt32(exactly: keyCodeValue),
               let modifiersRawValue = UInt32(exactly: modifiersValue) else {
             Log.hotkey.error("Invalid hotkey values for \(displayName): string=\(hotkeyString), keyCode=\(keyCodeValue), modifiers=\(modifiersValue)")
             AlertManager.shared.showGenericErrorAlert(
                 title: "Invalid Hotkey Configuration",
-                message: "The saved hotkey for \(displayName) is invalid. Re-record this hotkey in Settings."
+                message: "The saved hotkey for \(localizedDisplayName) is invalid. Re-record this hotkey in Settings."
             )
             return nil
         }
         return (keyCode: keyCode, modifiers: HotkeyManager.ModifierFlags(rawValue: modifiersRawValue))
     }
     private func handleHotkeyRegistrationFailure(displayName: String, hotkeyString: String) {
+        let localizedDisplayName = localized(displayName, locale: settingsStore.selectedAppLocale.locale)
         Log.hotkey.error("Failed to register hotkey for \(displayName): \(hotkeyString)")
         AlertManager.shared.showGenericErrorAlert(
             title: "Hotkey Registration Failed",
-            message: "Could not register '\(hotkeyString)' for \(displayName). Choose a different shortcut in Settings."
+            message: "Could not register '\(hotkeyString)' for \(localizedDisplayName). Choose a different shortcut in Settings."
         )
     }
 
@@ -2041,9 +2606,9 @@ final class AppCoordinator {
         case "copy-last-transcript":
             return "Copy Last Transcript"
         case "quick-capture-ptt":
-            return "Note Capture (Push-to-Talk)"
+            return "Voice Note — Hold"
         case "quick-capture-toggle":
-            return "Note Capture (Toggle)"
+            return "Voice Note — Toggle"
         case "open-library":
             return "Open Library"
         case "cancel-operation":
@@ -2824,19 +3389,15 @@ final class AppCoordinator {
         case .dictation:
             try await stopRecordingAndTranscribe(token: token)
         case .quickCapture:
-            if let enhancedNote = try await stopRecordingAndTranscribeForQuickCapture(token: token) {
+            if let result = try await stopRecordingAndTranscribeForQuickCapture(token: token) {
+                let note = try await persistQuickCapture(result, token: token)
                 try ensureOperationCurrent(token)
-                openNoteEditorWithEnhancedNote(enhancedNote)
+                openNoteEditor(note)
             }
             isQuickCaptureMode = false
         case .noteAppend(let editorID):
-            if let text = try await stopRecordingAndTranscribeForNoteAppend(token: token) {
-                try ensureOperationCurrent(token)
-                NotificationCenter.default.post(
-                    name: .noteSpeakToAppendTranscript,
-                    object: nil,
-                    userInfo: ["editorID": editorID, "text": text]
-                )
+            if let result = try await stopRecordingAndTranscribeForNoteAppend(token: token) {
+                try await persistNoteAppend(result, editorID: editorID, token: token)
             }
             clearNoteAppendMode()
         case .manualTranscription:
@@ -2845,8 +3406,12 @@ final class AppCoordinator {
     }
     
     private func handlePushToTalkStart() async {
-        guard !isRecording && !isProcessing else { return }
-        guard NoteAppendGate.canStartGlobalDictation(isNoteAppendListening: isNoteAppendMode) else {
+        guard !isRecording,
+              !isProcessing,
+              !recordingState.isCaptureStartPending else { return }
+        guard NoteAppendGate.canStartGlobalDictation(
+            isNoteAppendListening: isNoteAppendMode || pendingNoteAppendStart != nil
+        ) else {
             Log.app.info("Refuse global dictation: note-append listening is active")
             return
         }
@@ -2854,6 +3419,7 @@ final class AppCoordinator {
         do {
             try await startRecording(source: .hotkeyPushToTalk)
         } catch {
+            guard !Self.isTaskCancellation(error) else { return }
             self.error = error
             audioRecorder.resetAudioEngine()
             Log.app.error("Failed to start recording: \(error)")
@@ -2882,8 +3448,12 @@ final class AppCoordinator {
     // MARK: - Quick Capture Handlers (Push-to-Talk)
 
     private func handleQuickCapturePTTStart() async {
-        guard !isRecording && !isProcessing else { return }
-        guard NoteAppendGate.canStartGlobalDictation(isNoteAppendListening: isNoteAppendMode) else {
+        guard !isRecording,
+              !isProcessing,
+              !recordingState.isCaptureStartPending else { return }
+        guard NoteAppendGate.canStartGlobalDictation(
+            isNoteAppendListening: isNoteAppendMode || pendingNoteAppendStart != nil
+        ) else {
             Log.app.info("Refuse quick-capture: note-append listening is active")
             return
         }
@@ -2891,10 +3461,35 @@ final class AppCoordinator {
         isQuickCaptureMode = true
         quickCaptureTranscription = nil
 
+        var context: VoiceNoteCaptureContext?
         do {
-            try await startRecording(source: .hotkeyQuickCapturePTT)
+            try beginVoiceNoteCapture(noteID: nil)
+            guard let activeContext = voiceNoteCaptureContext else {
+                throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
+            }
+            context = activeContext
+            try await startRecording(
+                source: .hotkeyQuickCapturePTT,
+                voiceNoteContext: activeContext
+            )
+            guard isVoiceNoteCaptureContextCurrent(activeContext) else {
+                throw CancellationError()
+            }
         } catch {
+            if Self.isTaskCancellation(error) {
+                isQuickCaptureMode = false
+                if let context, isVoiceNoteCaptureContextCurrent(context) {
+                    cancelActiveVoiceNoteCapture()
+                }
+                return
+            }
+            guard let context, isVoiceNoteCaptureContextCurrent(context) else {
+                guard voiceNoteCaptureContext == nil else { return }
+                isQuickCaptureMode = false
+                return
+            }
             self.error = error
+            failVoiceNoteCapture(context, stage: "recording-start", error: error)
             isQuickCaptureMode = false
             audioRecorder.resetAudioEngine()
             Log.app.error("Failed to start quick capture recording: \(error)")
@@ -2918,7 +3513,9 @@ final class AppCoordinator {
 
     // MARK: - Quick Capture Handlers (Toggle)
 
-    private func handleQuickCaptureToggle() async {
+    private func handleQuickCaptureToggle(
+        captureStartClaim: CaptureStartClaim? = nil
+    ) async {
         if isRecording && isQuickCaptureMode {
             do {
                 try await dispatchRecordingStop()
@@ -2928,18 +3525,48 @@ final class AppCoordinator {
                 Log.app.error("Failed to stop quick capture recording: \(error)")
             }
             isQuickCaptureMode = false
-        } else if !isRecording && !isProcessing {
-            guard NoteAppendGate.canStartGlobalDictation(isNoteAppendListening: isNoteAppendMode) else {
+        } else if !isRecording,
+                  !isProcessing,
+                  captureStartClaim != nil || !recordingState.isCaptureStartPending {
+            guard NoteAppendGate.canStartGlobalDictation(
+                isNoteAppendListening: isNoteAppendMode || pendingNoteAppendStart != nil
+            ) else {
                 Log.app.info("Refuse quick-capture toggle: note-append listening is active")
                 return
             }
             isQuickCaptureMode = true
             quickCaptureTranscription = nil
 
+            var context: VoiceNoteCaptureContext?
             do {
-                try await startRecording(source: .hotkeyQuickCaptureToggle)
+                try beginVoiceNoteCapture(noteID: nil)
+                guard let activeContext = voiceNoteCaptureContext else {
+                    throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
+                }
+                context = activeContext
+                try await startRecording(
+                    source: .hotkeyQuickCaptureToggle,
+                    voiceNoteContext: activeContext,
+                    captureStartClaim: captureStartClaim
+                )
+                guard isVoiceNoteCaptureContextCurrent(activeContext) else {
+                    throw CancellationError()
+                }
             } catch {
+                if Self.isTaskCancellation(error) {
+                    isQuickCaptureMode = false
+                    if let context, isVoiceNoteCaptureContextCurrent(context) {
+                        cancelActiveVoiceNoteCapture()
+                    }
+                    return
+                }
+                guard let context, isVoiceNoteCaptureContextCurrent(context) else {
+                    guard voiceNoteCaptureContext == nil else { return }
+                    isQuickCaptureMode = false
+                    return
+                }
                 self.error = error
+                failVoiceNoteCapture(context, stage: "recording-start", error: error)
                 isQuickCaptureMode = false
                 audioRecorder.resetAudioEngine()
                 Log.app.error("Failed to start quick capture recording: \(error)")
@@ -2950,37 +3577,298 @@ final class AppCoordinator {
 
     // MARK: - Speak-to-Append (open note editor)
 
-    private func handleNoteAppendStart(editorID: UUID) async {
-        guard NoteAppendGate.canStartNoteAppend(isRecording: isRecording, isProcessing: isProcessing) else {
-            Log.app.info("Refuse note-append listening: global dictation or processing is active")
+    private func handleNoteAppendRequestNotification(_ notification: Notification) {
+        guard !isShutdown,
+              let editorID = notification.userInfo?["editorID"] as? UUID,
+              let noteID = notification.userInfo?["noteID"] as? UUID,
+              let action = notification.userInfo?["action"] as? String else {
             return
         }
 
-        isNoteAppendMode = true
-        noteAppendEditorID = editorID
-        NoteAppendListeningCoordinator.shared.state.startListening(editorID: editorID)
-
-        do {
-            try await startRecording(source: .noteAppend)
-        } catch {
-            self.error = error
-            clearNoteAppendMode()
-            audioRecorder.resetAudioEngine()
-            Log.app.error("Failed to start note-append recording: \(error)")
-            handleRecordingStartFailure(error, source: .noteAppend)
+        switch action {
+        case "start":
+            installPendingNoteAppendStart(editorID: editorID, noteID: noteID)
+        case "stop":
+            // This happens before creating the stop task. A closed editor can
+            // therefore cancel an installed Start before its async body runs.
+            cancelPendingNoteAppendStart(editorID: editorID, noteID: noteID)
+            Task { @MainActor [weak self] in
+                await self?.handleNoteAppendStop(editorID: editorID, noteID: noteID)
+            }
+        default:
+            return
         }
     }
 
-    private func handleNoteAppendStop(editorID: UUID) async {
-        guard isRecording && isNoteAppendMode else {
-            // Allow stop when only processing state is stuck, or ignore stale stop.
-            if noteAppendEditorID == editorID, !isProcessing {
-                clearNoteAppendMode()
-            }
+    private func installPendingNoteAppendStart(editorID: UUID, noteID: UUID) {
+        guard Self.canBeginVoiceNoteCapture(activeHandle: voiceNoteCaptureContext?.handle),
+              pendingNoteAppendStart == nil else {
+            Log.app.info("Refuse note-append listening: a voice-note capture start is already active")
+            postNoteAppendStartRejected(editorID: editorID, noteID: noteID)
             return
         }
-        guard noteAppendEditorID == editorID else {
-            Log.app.info("Ignore note-append stop for non-active editor")
+
+        nextNoteAppendStartGeneration &+= 1
+        let request = PendingNoteAppendStart(
+            generation: nextNoteAppendStartGeneration,
+            editorID: editorID,
+            noteID: noteID
+        )
+        pendingNoteAppendStart = request
+        pendingNoteAppendStartTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.handleNoteAppendStart(request)
+        }
+    }
+
+    private func postNoteAppendStartRejected(editorID: UUID, noteID: UUID) {
+        NotificationCenter.default.post(
+            name: .noteSpeakToAppendRejected,
+            object: nil,
+            userInfo: [
+                "editorID": editorID,
+                "noteID": noteID
+            ]
+        )
+    }
+
+    private func cancelPendingNoteAppendStart(editorID: UUID, noteID: UUID) {
+        guard let request = pendingNoteAppendStart,
+              request.editorID == editorID,
+              request.noteID == noteID else {
+            return
+        }
+
+        let capture = pendingNoteAppendStartCapture
+        pendingNoteAppendStartTask?.cancel()
+        pendingNoteAppendStartTask = nil
+        pendingNoteAppendStart = nil
+        clearPendingNoteAppendStartCapture(ifCurrent: capture, request: request)
+        nextNoteAppendStartGeneration &+= 1
+
+        if let capture {
+            cancelPendingNoteAppendCapture(
+                capture.context,
+                request: request,
+                preservingAudioStartupOwnership: true
+            )
+        }
+    }
+
+    private func isPendingNoteAppendStartCurrent(_ request: PendingNoteAppendStart) -> Bool {
+        pendingNoteAppendStart == request && !Task.isCancelled
+    }
+
+    private func cancelPendingNoteAppendStart() {
+        guard let request = pendingNoteAppendStart else { return }
+        let capture = pendingNoteAppendStartCapture
+        pendingNoteAppendStartTask?.cancel()
+        pendingNoteAppendStartTask = nil
+        if let capture, capture.request == request {
+            cancelPendingNoteAppendCapture(capture.context, request: request)
+        }
+        pendingNoteAppendStart = nil
+        clearPendingNoteAppendStartCapture(ifCurrent: capture, request: request)
+        if pendingNoteAppendAudioStartupRequest == request {
+            pendingNoteAppendAudioStartupRequest = nil
+        }
+        nextNoteAppendStartGeneration &+= 1
+    }
+
+    private func clearPendingNoteAppendStart(ifCurrent request: PendingNoteAppendStart) {
+        guard pendingNoteAppendStart == request else { return }
+        pendingNoteAppendStartTask = nil
+        pendingNoteAppendStart = nil
+        clearPendingNoteAppendStartCapture(
+            ifCurrent: pendingNoteAppendStartCapture,
+            request: request
+        )
+        if pendingNoteAppendAudioStartupRequest == request {
+            pendingNoteAppendAudioStartupRequest = nil
+        }
+    }
+
+    private func trackPendingNoteAppendStartCapture(
+        _ context: VoiceNoteCaptureContext,
+        for request: PendingNoteAppendStart
+    ) throws {
+        try ensurePendingNoteAppendStartCurrent(request, context: context)
+        pendingNoteAppendStartCapture = PendingNoteAppendCapture(
+            request: request,
+            context: context
+        )
+        pendingNoteAppendAudioStartupRequest = request
+    }
+
+    private func clearPendingNoteAppendStartCapture(
+        ifCurrent capture: PendingNoteAppendCapture?,
+        request: PendingNoteAppendStart
+    ) {
+        guard let capture,
+              capture.request == request,
+              Self.isPendingNoteAppendCaptureCurrent(
+                pendingEditorID: pendingNoteAppendStartCapture?.request.editorID,
+                pendingNoteID: pendingNoteAppendStartCapture?.request.noteID,
+                pendingHandle: pendingNoteAppendStartCapture?.context.handle,
+                candidateEditorID: request.editorID,
+                candidateNoteID: request.noteID,
+                candidateHandle: capture.context.handle
+              ) else {
+            return
+        }
+        pendingNoteAppendStartCapture = nil
+    }
+
+    @discardableResult
+    private func resetPendingNoteAppendAudioStartup(
+        ifOwnedBy request: PendingNoteAppendStart,
+        preservingOwnership: Bool = false
+    ) -> Bool {
+        let capture = pendingNoteAppendStartCapture
+        guard pendingNoteAppendAudioStartupRequest == request else { return false }
+        audioRecorder.cancelRecording()
+        audioRecorder.resetAudioEngine()
+        if let capture, capture.request == request {
+            streamingSession.cancelArtifactCaptureDetached(for: capture.context.handle)
+        }
+        if !preservingOwnership {
+            pendingNoteAppendAudioStartupRequest = nil
+        }
+        return true
+    }
+
+    private func cancelPendingNoteAppendCapture(
+        _ context: VoiceNoteCaptureContext,
+        request: PendingNoteAppendStart,
+        preservingAudioStartupOwnership: Bool = false
+    ) {
+        do {
+            try captureSessionStore.cancel(context.handle, at: .now)
+        } catch {
+            Log.app.error("Failed to cancel pending voice-note capture: \(error)")
+        }
+
+        let ownsActiveCapture = isVoiceNoteCaptureContextCurrent(context)
+        _ = resetPendingNoteAppendAudioStartup(
+            ifOwnedBy: request,
+            preservingOwnership: preservingAudioStartupOwnership
+        )
+        guard ownsActiveCapture else { return }
+
+        clearNoteAppendMode(
+            ifCurrent: context,
+            editorID: request.editorID,
+            noteID: request.noteID
+        )
+        clearVoiceNoteCaptureContext(ifCurrent: context)
+        mediaPauseService.endRecordingSession()
+        recordingState.endRecording(
+            message: localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale)
+        )
+        recordingState.clearCurrentJob()
+        isRecording = false
+        isProcessing = false
+        recordingStartTime = nil
+        statusBarController.setIdleState()
+        statusBarController.updateMenuState()
+    }
+
+    private func ensurePendingNoteAppendStartCurrent(
+        _ request: PendingNoteAppendStart,
+        context: VoiceNoteCaptureContext? = nil
+    ) throws {
+        guard isPendingNoteAppendStartCurrent(request) else {
+            throw CancellationError()
+        }
+        if let context {
+            guard isVoiceNoteCaptureContextCurrent(context) else {
+                throw CancellationError()
+            }
+        }
+    }
+    private func handleNoteAppendStart(_ request: PendingNoteAppendStart) async {
+        guard isPendingNoteAppendStartCurrent(request) else { return }
+        guard !recordingState.isCaptureStartPending,
+              NoteAppendGate.canStartNoteAppend(
+                  isRecording: isRecording,
+                  isProcessing: isProcessing
+              ) else {
+            clearPendingNoteAppendStart(ifCurrent: request)
+            postNoteAppendStartRejected(editorID: request.editorID, noteID: request.noteID)
+            return
+        }
+
+        var context: VoiceNoteCaptureContext?
+        do {
+            let noteExists = try notesStore.contains(id: request.noteID)
+            try ensurePendingNoteAppendStartCurrent(request)
+            guard noteExists else {
+                Log.app.info("Refuse note-append listening: note is no longer durable")
+                clearPendingNoteAppendStart(ifCurrent: request)
+                postNoteAppendStartRejected(editorID: request.editorID, noteID: request.noteID)
+                return
+            }
+
+            isNoteAppendMode = true
+            noteAppendEditorID = request.editorID
+            NoteAppendListeningCoordinator.shared.state.startListening(
+                editorID: request.editorID,
+                noteID: request.noteID
+            )
+
+            try beginVoiceNoteCapture(noteID: request.noteID)
+            guard let activeContext = voiceNoteCaptureContext else {
+                throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
+            }
+            context = activeContext
+            try trackPendingNoteAppendStartCapture(activeContext, for: request)
+            try await startRecording(
+                source: .noteAppend,
+                voiceNoteContext: activeContext,
+                pendingNoteAppendStart: request
+            )
+            try ensurePendingNoteAppendStartCurrent(request, context: activeContext)
+            guard isRecording else {
+                throw VoiceNoteCaptureAdmissionError.recorderDidNotStart
+            }
+            clearPendingNoteAppendStart(ifCurrent: request)
+        } catch {
+            if Self.isTaskCancellation(error) {
+                if let context {
+                    cancelPendingNoteAppendCapture(context, request: request)
+                }
+                clearPendingNoteAppendStart(ifCurrent: request)
+                return
+            }
+            guard isPendingNoteAppendStartCurrent(request) else {
+                if let context {
+                    cancelPendingNoteAppendCapture(context, request: request)
+                }
+                return
+            }
+
+            self.error = error
+            _ = resetPendingNoteAppendAudioStartup(ifOwnedBy: request)
+            if let context, isVoiceNoteCaptureContextCurrent(context) {
+                clearNoteAppendMode(
+                    ifCurrent: context,
+                    editorID: request.editorID,
+                    noteID: request.noteID
+                )
+                failVoiceNoteCapture(context, stage: "recording-start", error: error)
+            } else if noteAppendEditorID == request.editorID {
+                clearNoteAppendMode()
+            }
+            clearPendingNoteAppendStart(ifCurrent: request)
+            Log.app.error("Failed to start note-append recording: \(error)")
+            handleRecordingStartFailure(error, source: .noteAppend)
+            postNoteAppendStartRejected(editorID: request.editorID, noteID: request.noteID)
+        }
+    }
+
+    private func handleNoteAppendStop(editorID: UUID, noteID: UUID) async {
+        guard isNoteAppendRequestCurrent(editorID: editorID, noteID: noteID) else {
+            Log.app.info("Ignore note-append stop for non-active editor or note")
             return
         }
 
@@ -2995,15 +3883,1487 @@ final class AppCoordinator {
         if !isRecording { clearNoteAppendMode() }
     }
 
+    private func isNoteAppendRequestCurrent(editorID: UUID, noteID: UUID) -> Bool {
+        noteAppendEditorID == editorID && voiceNoteCaptureContext?.noteID == noteID
+    }
+
+    private func clearNoteAppendMode(
+        ifCurrent context: VoiceNoteCaptureContext,
+        editorID: UUID,
+        noteID: UUID
+    ) {
+        guard isVoiceNoteCaptureContextCurrent(context),
+              isNoteAppendRequestCurrent(editorID: editorID, noteID: noteID) else {
+            return
+        }
+        clearNoteAppendMode()
+    }
+
     private func clearNoteAppendMode() {
+
         isNoteAppendMode = false
         noteAppendEditorID = nil
         NoteAppendListeningCoordinator.shared.state.finishSession()
     }
 
-    private func stopRecordingAndTranscribeForNoteAppend(token: DictationOperationToken) async throws -> String? {
-        guard recordingStartTime != nil else {
-            Log.app.warning("stopRecordingAndTranscribeForNoteAppend called but recordingStartTime is nil")
+    static let meetingStartAssignmentStages: [CapturePipelineStage] = [
+        .liveTranscription,
+        .finalTranscription,
+        .diarization,
+        .noteGeneration
+    ]
+
+    static func captureAssignmentAttempt(for stage: CapturePipelineStage) -> Int {
+        // Capture retries are represented by new attempts. Initial execution, recovery,
+        // and every meeting chunk share the durable first attempt.
+        1
+    }
+
+    static func captureAssignmentExecutionDecision(
+        for assignment: CaptureStageAssignment
+    ) -> CaptureAssignmentExecutionDecision {
+        switch assignment.providerKind {
+        case .disabled, .bestEffortUnavailable:
+            .skip
+        case .streamingSpeech, .batchSpeech, .localDiarization, .generativeAI:
+            .execute
+        }
+    }
+
+    static func liveArtifactCaptureAdmission(
+        for assignment: CaptureStageAssignment
+    ) -> LiveArtifactCaptureAdmission {
+        guard case .liveTranscription = assignment.stage,
+              assignment.providerKind == .streamingSpeech else {
+            return .deactivate
+        }
+        return .capture
+    }
+
+    static func captureAssignmentExecutionOrder(
+        for assignment: CaptureStageAssignment
+    ) -> [CaptureAssignmentExecutionStep] {
+        switch captureAssignmentExecutionDecision(for: assignment) {
+        case .execute:
+            [.assignmentSnapshot, .stageCall]
+        case .skip:
+            [.assignmentSnapshot]
+        }
+    }
+
+    static func assignedFinalModelNeedsActivation(
+        _ assignment: CaptureStageAssignment,
+        activeModelName: String?
+    ) -> Bool {
+        guard case .finalTranscription = assignment.stage else { return false }
+        return assignment.modelIdentifier != nil
+            && assignment.modelIdentifier != activeModelName
+    }
+
+    static func noteGenerationRuntimeAssignment(
+        from persistedAssignment: CaptureStageAssignment
+    ) -> CaptureStageAssignment? {
+        guard case .noteGeneration = persistedAssignment.stage,
+              persistedAssignment.providerKind == .generativeAI else {
+            return nil
+        }
+        return persistedAssignment
+    }
+    static func canExecutePersistedNoteGeneration(resolvedPrompt: String?) -> Bool {
+        guard let resolvedPrompt else { return false }
+        return !normalizedTranscriptionText(resolvedPrompt).isEmpty
+    }
+
+    static func shouldGenerateMeetingNote(existingGeneratedNote: Bool) -> Bool {
+        !existingGeneratedNote
+    }
+
+    static func generatedMeetingNoteTitle(_ title: String, fallback: String) -> String {
+        let sanitizedTitle = MeetingNoteDerivation.sanitizingGeneratedContent(
+            normalizedTranscriptionText(title)
+        )
+        return sanitizedTitle.isEmpty ? fallback : sanitizedTitle
+    }
+
+    static func meetingNoteGenerationExecutionDecision(
+        for assignment: CaptureStageAssignment
+    ) -> MeetingNoteGenerationExecutionDecision {
+        switch assignment.providerKind {
+        case .disabled:
+            .skipDisabled
+        case .bestEffortUnavailable:
+            .skipUnavailable
+        case .generativeAI:
+            .resolveRuntime
+        case .streamingSpeech, .batchSpeech, .localDiarization:
+            .rejectInvalidAssignment
+        }
+    }
+    static func meetingNoteGenerationSaveFailure(
+        for error: Error
+    ) -> MeetingNoteGenerationFailure {
+        guard let storeError = error as? CaptureSessionStoreError,
+              case .meetingGeneratedNoteSourceChanged = storeError else {
+            return .saveFailed
+        }
+        return .sourceChanged
+    }
+
+    static func noteGenerationExecutionOrder(
+        for persistedAssignment: CaptureStageAssignment,
+        runtimeAvailable: Bool,
+        resolvedPrompt: String?
+    ) -> [NoteGenerationExecutionStep] {
+        guard noteGenerationRuntimeAssignment(from: persistedAssignment) != nil else {
+            return [.assignmentSnapshot, .rawFallback]
+        }
+        guard runtimeAvailable,
+              canExecutePersistedNoteGeneration(resolvedPrompt: resolvedPrompt) else {
+            return [.assignmentSnapshot, .runtimeResolution, .stageFailureRecorded, .rawFallback]
+        }
+        return [.assignmentSnapshot, .runtimeResolution, .stageCall]
+    }
+
+    static func expectedMeetingFinalASRSequences(
+        workItems: [MeetingChunkWorkItem]
+    ) -> Set<Int> {
+        Set(workItems.lazy.filter(shouldCreateMeetingTranscriptionInput(for:)).map(\.sequence))
+    }
+
+    static func missingMeetingFinalASRSequences(
+        workItems: [MeetingChunkWorkItem],
+        completedASRSequences: Set<Int>
+    ) -> [Int] {
+        expectedMeetingFinalASRSequences(workItems: workItems)
+            .subtracting(completedASRSequences)
+            .sorted()
+    }
+
+    static func meetingFinalizationNeedsFinalModelActivation(
+        workItems: [MeetingChunkWorkItem],
+        completedASRSequences: Set<Int>
+    ) -> Bool {
+        !missingMeetingFinalASRSequences(
+            workItems: workItems,
+            completedASRSequences: completedASRSequences
+        ).isEmpty
+    }
+
+    static func finalHistoryModelIdentifier(
+        from assignment: CaptureStageAssignment
+    ) -> String? {
+        guard case .finalTranscription = assignment.stage else { return nil }
+        return assignment.modelIdentifier
+    }
+
+    static func canBeginVoiceNoteCapture(
+        activeHandle: PindropData.VoiceNoteCaptureHandle?
+    ) -> Bool {
+        activeHandle == nil
+    }
+
+    static func isVoiceNoteCaptureCurrent(
+        activeHandle: PindropData.VoiceNoteCaptureHandle?,
+        candidateHandle: PindropData.VoiceNoteCaptureHandle
+    ) -> Bool {
+        activeHandle == candidateHandle
+    }
+
+    static func canBeginMeetingCapture(
+        activeHandle: PindropData.MeetingCaptureHandle?,
+        recoveryTaskActive: Bool = false,
+        isShutdown: Bool = false
+    ) -> Bool {
+        activeHandle == nil && !recoveryTaskActive && !isShutdown
+    }
+
+    static func canCancelCurrentOperation(
+        isRecording: Bool,
+        isProcessing: Bool,
+        hasActiveOperationTask: Bool,
+        hasMeetingCaptureContext: Bool,
+        hasPendingMeetingCaptureStart: Bool
+    ) -> Bool {
+        isRecording
+            || isProcessing
+            || hasActiveOperationTask
+            || hasMeetingCaptureContext
+            || hasPendingMeetingCaptureStart
+    }
+
+    static func isMeetingCaptureCurrent(
+        activeHandle: PindropData.MeetingCaptureHandle?,
+        candidateHandle: PindropData.MeetingCaptureHandle
+    ) -> Bool {
+        activeHandle == candidateHandle
+    }
+
+    static func canBeginMeetingRecovery(
+        activeHandle: PindropData.MeetingCaptureHandle?,
+        recoveryTaskActive: Bool,
+        isShutdown: Bool
+    ) -> Bool {
+        activeHandle == nil && !recoveryTaskActive && !isShutdown
+    }
+
+    static func isMeetingRecoveryCurrent(
+        activeGeneration: UInt64,
+        candidateGeneration: UInt64,
+        activeHandle: PindropData.MeetingCaptureHandle?,
+        candidateHandle: PindropData.MeetingCaptureHandle
+    ) -> Bool {
+        activeGeneration == candidateGeneration && activeHandle == candidateHandle
+    }
+
+    static func shouldApplyMeetingRecoveryMutation(
+        isCancelled: Bool,
+        isShutdown: Bool,
+        isPreparingForTermination: Bool,
+        activeGeneration: UInt64,
+        candidateGeneration: UInt64,
+        activeHandle: PindropData.MeetingCaptureHandle?,
+        candidateHandle: PindropData.MeetingCaptureHandle
+    ) -> Bool {
+        !isCancelled
+            && !isShutdown
+            && !isPreparingForTermination
+            && isMeetingRecoveryCurrent(
+                activeGeneration: activeGeneration,
+                candidateGeneration: candidateGeneration,
+                activeHandle: activeHandle,
+                candidateHandle: candidateHandle
+            )
+    }
+
+    static func shouldContinueMeetingRecovery(after error: Error) -> Bool {
+        !isTaskCancellation(error)
+    }
+
+    private func isMeetingRecoveryCurrent(
+        generation: UInt64,
+        handle: PindropData.MeetingCaptureHandle
+    ) -> Bool {
+        Self.shouldApplyMeetingRecoveryMutation(
+            isCancelled: Task.isCancelled,
+            isShutdown: isShutdown,
+            isPreparingForTermination: isPreparingForTermination,
+            activeGeneration: meetingRecoveryGeneration,
+            candidateGeneration: generation,
+            activeHandle: meetingRecoveryHandle,
+            candidateHandle: handle
+        )
+    }
+
+    private func ensureMeetingRecoveryCurrent(
+        generation: UInt64,
+        handle: PindropData.MeetingCaptureHandle
+    ) throws {
+        try Task.checkCancellation()
+        guard isMeetingRecoveryCurrent(generation: generation, handle: handle) else {
+            throw CancellationError()
+        }
+    }
+
+    static func meetingChunkWorkItems(
+        sourceChunks: [PindropData.MeetingChunkCheckpoint],
+        failedSequences: Set<Int>,
+        handle: PindropData.MeetingCaptureHandle
+    ) throws -> [MeetingChunkWorkItem] {
+        func indexedChunks(
+            sourceID: UUID
+        ) throws -> [Int: PindropData.MeetingChunkCheckpoint] {
+            try sourceChunks
+                .filter { $0.sourceID == sourceID }
+                .reduce(into: [Int: PindropData.MeetingChunkCheckpoint]()) { result, chunk in
+                    guard result[chunk.sequence] == nil else {
+                        throw MeetingChunkWorkItemError.duplicateSourceSequence(
+                            sourceID: sourceID,
+                            sequence: chunk.sequence
+                        )
+                    }
+                    result[chunk.sequence] = chunk
+                }
+        }
+
+        let microphoneChunks = try indexedChunks(sourceID: handle.microphoneSourceID)
+        let systemAudioChunks = try indexedChunks(sourceID: handle.systemAudioSourceID)
+        let sequences = Set(microphoneChunks.keys)
+            .union(systemAudioChunks.keys)
+            .union(failedSequences)
+            .sorted()
+
+        return try sequences.map { sequence in
+            let microphone = microphoneChunks[sequence]
+            let systemAudio = systemAudioChunks[sequence]
+            if let primary = microphone ?? systemAudio {
+                if let microphone, let systemAudio,
+                   abs(microphone.startOffset - systemAudio.startOffset) > (1.0 / Double(MeetingCaptureSpoolPlan.sampleRate)) {
+                    throw MeetingChunkWorkItemError.mismatchedStartOffset(sequence: sequence)
+                }
+                return MeetingChunkWorkItem(
+                    sequence: sequence,
+                    chunkID: primary.chunkID,
+                    startOffset: primary.startOffset,
+                    duration: max(microphone?.duration ?? 0, systemAudio?.duration ?? 0),
+                    microphone: microphone,
+                    systemAudio: systemAudio
+                )
+            }
+
+            return MeetingChunkWorkItem(
+                sequence: sequence,
+                chunkID: UUID(),
+                startOffset: Double(sequence) * MeetingCaptureSpoolPlan.chunkDuration,
+                duration: MeetingCaptureSpoolPlan.chunkDuration,
+                microphone: nil,
+                systemAudio: nil
+            )
+        }
+    }
+
+    static func shouldCreateMeetingTranscriptionInput(
+        for workItem: MeetingChunkWorkItem
+    ) -> Bool {
+        workItem.microphone != nil || workItem.systemAudio != nil
+    }
+
+    static func meetingOutputPlaceholder(
+        for workItem: MeetingChunkWorkItem
+    ) -> TranscriptionChunkOutput {
+        TranscriptionChunkOutput(
+            chunkID: workItem.chunkID,
+            sequence: workItem.sequence,
+            startOffset: workItem.startOffset,
+            duration: workItem.duration,
+            plainText: ""
+        )
+    }
+
+    static func meetingOutputPlaceholders(
+        workItems: [MeetingChunkWorkItem],
+        outputs: [TranscriptionChunkOutput]
+    ) -> [TranscriptionChunkOutput] {
+        let outputsBySequence = outputs.reduce(into: [Int: TranscriptionChunkOutput]()) { result, output in
+            result[output.sequence] = result[output.sequence] ?? output
+        }
+        return workItems.map { item in
+            outputsBySequence[item.sequence] ?? meetingOutputPlaceholder(for: item)
+        }
+    }
+
+    static func meetingChunkProgress(completed: Int, total: Int) -> Double {
+        guard total > 0 else { return 1 }
+        return min(1, max(0, Double(completed) / Double(total)))
+    }
+
+    static func isPendingNoteAppendCaptureCurrent(
+        pendingEditorID: UUID?,
+        pendingNoteID: UUID?,
+        pendingHandle: PindropData.VoiceNoteCaptureHandle?,
+        candidateEditorID: UUID,
+        candidateNoteID: UUID,
+        candidateHandle: PindropData.VoiceNoteCaptureHandle
+    ) -> Bool {
+        pendingEditorID == candidateEditorID
+            && pendingNoteID == candidateNoteID
+            && pendingHandle == candidateHandle
+    }
+
+    static func noteAppendNotificationSourceTranscriptionID(
+        _ append: PindropData.NoteAppendResult
+    ) -> UUID {
+        append.sourceTranscriptionID
+    }
+
+    private func isVoiceNoteCaptureContextCurrent(_ context: VoiceNoteCaptureContext) -> Bool {
+        Self.isVoiceNoteCaptureCurrent(
+            activeHandle: voiceNoteCaptureContext?.handle,
+            candidateHandle: context.handle
+        )
+    }
+
+    static func revalidateVoiceCaptureAfterArtifactAdmission(
+        ensureCurrent: @MainActor () throws -> Void,
+        tearDownStreaming: @MainActor () async -> Void
+    ) async throws {
+        do {
+            try ensureCurrent()
+        } catch {
+            await tearDownStreaming()
+            throw error
+        }
+    }
+
+    private func ensureVoiceNoteCaptureCurrentAfterArtifactAdmission(
+        _ context: VoiceNoteCaptureContext,
+        pendingNoteAppendStart: PendingNoteAppendStart?
+    ) async throws {
+        try await Self.revalidateVoiceCaptureAfterArtifactAdmission(
+            ensureCurrent: { [self] in
+                if let pendingNoteAppendStart {
+                    try ensurePendingNoteAppendStartCurrent(
+                        pendingNoteAppendStart,
+                        context: context
+                    )
+                } else {
+                    guard isVoiceNoteCaptureContextCurrent(context) else {
+                        throw CancellationError()
+                    }
+                }
+            },
+            tearDownStreaming: { [streamingSession] in
+                await streamingSession.cancelArtifactCapture(for: context.handle)
+            }
+        )
+    }
+
+    private func ensureVoiceNoteCaptureCurrent(
+        _ context: VoiceNoteCaptureContext,
+        token: DictationOperationToken
+    ) throws {
+        try ensureOperationCurrent(token)
+        guard isVoiceNoteCaptureContextCurrent(context) else {
+            throw CancellationError()
+        }
+    }
+
+    static func finishArtifactCaptureThenBeginFinalization(
+        finishArtifactCapture: @MainActor () async -> Void,
+        ensureCurrent: @MainActor () throws -> Void,
+        beginFinalization: @MainActor () throws -> Void
+    ) async throws {
+        try ensureCurrent()
+        await finishArtifactCapture()
+        try ensureCurrent()
+        try beginFinalization()
+    }
+
+    private func clearVoiceNoteCaptureContext(ifCurrent context: VoiceNoteCaptureContext) {
+        guard isVoiceNoteCaptureContextCurrent(context) else { return }
+        voiceNoteCaptureContext = nil
+    }
+
+    private func isPendingMeetingCaptureStartCurrent(_ claim: MeetingCaptureStartClaim) -> Bool {
+        pendingMeetingCaptureStart == claim
+            && meetingCaptureStartAdmission.isCurrent(claim)
+            && !isShutdown
+            && !isPreparingForTermination
+            && !Task.isCancelled
+    }
+
+    private func ensurePendingMeetingCaptureStartCurrent(
+        _ claim: MeetingCaptureStartClaim
+    ) throws {
+        try Task.checkCancellation()
+        guard isPendingMeetingCaptureStartCurrent(claim) else {
+            throw CancellationError()
+        }
+    }
+
+    private func clearPendingMeetingCaptureStart(
+        ifCurrent claim: MeetingCaptureStartClaim
+    ) {
+        guard pendingMeetingCaptureStart == claim else { return }
+        pendingMeetingCaptureStartTask = nil
+        pendingMeetingCaptureStart = nil
+        pendingMeetingCaptureStartHandle = nil
+        meetingCaptureStartAdmission.release(claim)
+    }
+
+    private func cancelPendingMeetingCaptureStart() {
+        guard let claim = pendingMeetingCaptureStart else { return }
+        pendingMeetingCaptureStartTask?.cancel()
+        pendingMeetingCaptureStartTask = nil
+        pendingMeetingCaptureStart = nil
+        meetingCaptureStartAdmission.release(claim)
+    }
+
+    private func cancelPendingMeetingCaptureStartHandle() async throws {
+        guard let handle = pendingMeetingCaptureCancellationHandle
+            ?? pendingMeetingCaptureStartHandle else {
+            return
+        }
+        try await cancelMeetingCaptureStartHandle(handle)
+    }
+
+    private func cancelMeetingCaptureStartHandle(
+        _ handle: PindropData.MeetingCaptureHandle
+    ) async throws {
+        guard !Self.isMeetingCaptureCurrent(
+            activeHandle: meetingCaptureContext?.handle,
+            candidateHandle: handle
+        ) else { return }
+        try await cancelMeetingCapture(handle, activeContext: nil)
+    }
+
+    private func isMeetingCaptureContextCurrent(_ context: MeetingCaptureContext) -> Bool {
+        meetingCaptureGeneration == context.generation
+            && Self.isMeetingCaptureCurrent(
+                activeHandle: meetingCaptureContext?.handle,
+                candidateHandle: context.handle
+            )
+    }
+
+    private func ensureMeetingCaptureCurrent(_ context: MeetingCaptureContext) throws {
+        try Task.checkCancellation()
+        guard !isShutdown, isMeetingCaptureContextCurrent(context) else {
+            throw CancellationError()
+        }
+    }
+
+    private func ensureMeetingCaptureCurrent(
+        _ context: MeetingCaptureContext,
+        token: DictationOperationToken
+    ) throws {
+        try ensureOperationCurrent(token)
+        try ensureMeetingCaptureCurrent(context)
+    }
+
+    private func clearMeetingCaptureContext(ifCurrent context: MeetingCaptureContext) {
+        guard isMeetingCaptureContextCurrent(context) else { return }
+        meetingCaptureContext = nil
+    }
+
+    private func cancelActiveMeetingCapture() async throws {
+        guard let context = meetingCaptureContext else { return }
+        try await cancelMeetingCapture(context.handle, activeContext: context)
+    }
+
+    /// Terminal cancellation is exact-handle scoped: a delayed duplicate must not
+    /// clear or delete a successor.
+    /// Active-capture callers must tear down the recorder first.
+    private func cancelMeetingCapture(
+        _ handle: PindropData.MeetingCaptureHandle,
+        activeContext: MeetingCaptureContext?
+    ) async throws {
+        do {
+            try captureSessionStore.cancelMeetingCapture(handle, at: .now)
+        } catch {
+            if pendingMeetingCaptureCancellationHandle == nil
+                || pendingMeetingCaptureCancellationHandle == handle {
+                pendingMeetingCaptureCancellationHandle = handle
+            }
+            throw MeetingCaptureTerminalPersistenceError.cancellation(error)
+        }
+
+        if let activeContext {
+            clearMeetingCaptureContext(ifCurrent: activeContext)
+        }
+        if pendingMeetingCaptureStartHandle == handle {
+            pendingMeetingCaptureStartHandle = nil
+        }
+
+        do {
+            try await mediaIngestionService.removeMeetingCaptureArtifacts(for: handle.sessionID)
+        } catch {
+            if pendingMeetingCaptureCancellationHandle == nil
+                || pendingMeetingCaptureCancellationHandle == handle {
+                pendingMeetingCaptureCancellationHandle = handle
+            }
+            throw MeetingCaptureTerminalPersistenceError.cancellation(error)
+        }
+
+        if pendingMeetingCaptureCancellationHandle == handle {
+            pendingMeetingCaptureCancellationHandle = nil
+        }
+    }
+
+    private func reportMeetingCaptureTerminalPersistenceFailure(_ error: Error) {
+        self.error = error
+        Log.app.error("Meeting capture terminal cancellation cleanup deferred: \(error)")
+    }
+
+    private func resetStoppedMeetingCaptureState() {
+        isRecording = false
+        isRecordingFeatureCaptureActive = false
+        manualExpectedSpeakerCount = nil
+        resetProcessingState()
+    }
+
+    private func recordSealedMeetingChunk(
+        _ chunk: SealedAudioSourceChunk,
+        for context: MeetingCaptureContext
+    ) {
+        guard isMeetingCaptureContextCurrent(context), !isShutdown else { return }
+        do {
+            try captureSessionStore.recordSealedMeetingChunk(context.handle, chunk: chunk, at: .now)
+        } catch {
+            // The writer has already durably sealed the artifact. Stop/recovery inventory
+            // reconciles this advisory callback if its database checkpoint was interrupted.
+            Log.app.warning("Deferred meeting chunk checkpoint \(chunk.sequence): \(error.localizedDescription)")
+        }
+    }
+
+    private func meetingSourceFailure(
+        sourceID: UUID,
+        recoveryFailure: MeetingArtifactRecoveryFailure? = nil,
+        failure: AudioCaptureSourceFailure?
+    ) -> PindropData.FailedMeetingSource {
+        if let recoveryFailure {
+            return PindropData.FailedMeetingSource(
+                sourceID: sourceID,
+                errorDomain: "PindropMedia",
+                errorCode: String(describing: recoveryFailure.kind),
+                message: recoveryFailure.message,
+                occurredAt: .now
+            )
+        }
+        if let failure {
+            return PindropData.FailedMeetingSource(
+                sourceID: sourceID,
+                errorDomain: failure.errorDomain,
+                errorCode: failure.errorCode,
+                message: failure.message,
+                occurredAt: .now
+            )
+        }
+        return PindropData.FailedMeetingSource(
+            sourceID: sourceID,
+            errorDomain: "PindropSpeech.AudioCapture",
+            errorCode: "no-durable-chunks",
+            message: "The capture source stopped without sealing any durable audio chunks.",
+            occurredAt: .now
+        )
+    }
+
+    private func reconcileMeetingArtifacts(
+        handle: PindropData.MeetingCaptureHandle,
+        spoolPlan: MeetingCaptureSpoolPlan,
+        operationGuard: () throws -> Void
+    ) async throws -> MeetingArtifactRecoveryResult {
+        let recovery = try await mediaIngestionService.recoverMeetingArtifacts(for: spoolPlan)
+        try operationGuard()
+        let failures = recovery.failures.map(meetingChunkFailure(from:))
+        try operationGuard()
+        try captureSessionStore.reconcileMeetingInventory(
+            handle,
+            sealedChunks: recovery.sealedChunks,
+            failures: failures,
+            at: .now
+        )
+        return recovery
+    }
+
+    private func meetingChunkFailure(
+        from failure: MeetingArtifactRecoveryFailure
+    ) -> PindropData.MeetingChunkFailure {
+        PindropData.MeetingChunkFailure(
+            sourceID: failure.sourceID,
+            sequence: failure.sequence,
+            stage: .finalTranscription,
+            invalidatesSource: failure.kind == .sourceUnavailable,
+            errorDomain: "PindropMedia",
+            errorCode: String(describing: failure.kind),
+            message: failure.message,
+            isRetryable: failure.isRetryable,
+            occurredAt: .now
+        )
+    }
+
+    private func finishMeetingSources(
+        handle: PindropData.MeetingCaptureHandle,
+        artifacts: [SealedAudioSourceChunk],
+        recoveryFailures: [MeetingArtifactRecoveryFailure] = [],
+        stopResult: MeetingRecordingStopResult?
+    ) throws {
+        let microphoneHasChunks = artifacts.contains { $0.sourceID == handle.microphoneSourceID }
+        let systemAudioHasChunks = artifacts.contains { $0.sourceID == handle.systemAudioSourceID }
+        func sourceUnavailable(for sourceID: UUID) -> MeetingArtifactRecoveryFailure? {
+            recoveryFailures.first {
+                $0.sourceID == sourceID && $0.kind == .sourceUnavailable
+            }
+        }
+        var failures: [PindropData.FailedMeetingSource] = []
+        if !microphoneHasChunks {
+            failures.append(meetingSourceFailure(
+                sourceID: handle.microphoneSourceID,
+                recoveryFailure: sourceUnavailable(for: handle.microphoneSourceID),
+                failure: stopResult?.microphoneFailure
+            ))
+        }
+        if !systemAudioHasChunks {
+            failures.append(meetingSourceFailure(
+                sourceID: handle.systemAudioSourceID,
+                recoveryFailure: sourceUnavailable(for: handle.systemAudioSourceID),
+                failure: stopResult?.systemAudioFailure
+            ))
+        }
+        try captureSessionStore.finishMeetingSources(handle, sourceFailures: failures, at: .now)
+    }
+    private func resolvedMeetingArtifacts(
+        _ artifacts: [SealedAudioSourceChunk],
+        operationGuard: () throws -> Void
+    ) async throws -> [SealedAudioSourceChunk] {
+        var resolved: [SealedAudioSourceChunk] = []
+        resolved.reserveCapacity(artifacts.count)
+        for artifact in artifacts {
+            let fileURL = try await mediaIngestionService.resolveArtifactURL(for: artifact)
+            try operationGuard()
+            resolved.append(SealedAudioSourceChunk(
+                sessionID: artifact.sessionID,
+                sourceID: artifact.sourceID,
+                sequence: artifact.sequence,
+                startOffset: artifact.startOffset,
+                duration: artifact.duration,
+                fileURL: fileURL,
+                relativePath: artifact.relativePath,
+                byteCount: artifact.byteCount,
+                sha256: artifact.sha256
+            ))
+        }
+        return resolved
+    }
+    private func transcriptionOutput(
+        checkpoint: PindropData.MeetingTranscriptionCheckpoint,
+        workItem: MeetingChunkWorkItem
+    ) -> TranscriptionChunkOutput {
+        let segments: [DiarizedTranscriptSegment]? = checkpoint.segmentsJSON.flatMap {
+            (encoded: String) -> [DiarizedTranscriptSegment]? in
+            guard let data = encoded.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode([DiarizedTranscriptSegment].self, from: data)
+        }
+        return TranscriptionChunkOutput(
+            chunkID: workItem.chunkID,
+            sequence: checkpoint.sequence,
+            startOffset: checkpoint.startOffset,
+            duration: checkpoint.duration,
+            plainText: checkpoint.text,
+            diarizedSegments: segments
+        )
+    }
+
+    private func finalizeMeetingCapture(
+        _ handle: PindropData.MeetingCaptureHandle,
+        spoolPlan: MeetingCaptureSpoolPlan,
+        operationGuard: () throws -> Void
+    ) async throws {
+        try operationGuard()
+        let meetingStartAssignments = try captureMeetingStartAssignments(sessionID: handle.sessionID)
+        guard let finalAssignment = meetingStartAssignments.first(where: {
+            $0.stage == .finalTranscription
+        }) else {
+            throw CaptureStageAssignmentError.missingModelIdentifier(providerKind: .disabled)
+        }
+        guard let diarizationAssignment = meetingStartAssignments.first(where: {
+            $0.stage == .diarization
+        }) else {
+            throw CaptureStageAssignmentError.missingModelIdentifier(providerKind: .disabled)
+        }
+        let plan = try captureSessionStore.makeMeetingFinalizationPlan(handle)
+        let workItems = try Self.meetingChunkWorkItems(
+            sourceChunks: plan.sourceChunks,
+            failedSequences: plan.failedSequences,
+            handle: handle
+        )
+        let needsFinalModelActivation = Self.meetingFinalizationNeedsFinalModelActivation(
+            workItems: workItems,
+            completedASRSequences: plan.completedASRSequences
+        )
+        guard let finalModelIdentifier = Self.finalHistoryModelIdentifier(from: finalAssignment) else {
+            throw CaptureStageAssignmentError.missingModelIdentifier(
+                providerKind: finalAssignment.providerKind
+            )
+        }
+        if needsFinalModelActivation {
+            try await activateAssignedFinalModel(finalAssignment)
+            try operationGuard()
+        }
+
+        let diarizationDecision = Self.captureAssignmentExecutionDecision(
+            for: diarizationAssignment
+        )
+        if case .bestEffortUnavailable = diarizationAssignment.providerKind {
+            try captureSessionStore.recordMeetingFinalizationFailure(
+                handle,
+                stage: .diarization,
+                domain: "PindropSpeech",
+                code: "assignment-unavailable",
+                message: "Diarization was unavailable at capture assignment and was skipped.",
+                retryable: false,
+                at: .now
+            )
+        }
+        let recovery = try await mediaIngestionService.recoverMeetingArtifacts(for: spoolPlan)
+        try operationGuard()
+        let artifacts = try await resolvedMeetingArtifacts(
+            recovery.sealedChunks,
+            operationGuard: operationGuard
+        )
+        try operationGuard()
+        let artifactsBySourceAndSequence = Dictionary(
+            uniqueKeysWithValues: artifacts.map {
+                (MeetingSourceSequence(sourceID: $0.sourceID, sequence: $0.sequence), $0)
+            }
+        )
+        var outputs: [TranscriptionChunkOutput] = plan.completedASRCheckpoints.compactMap { checkpoint -> TranscriptionChunkOutput? in
+            guard let workItem = workItems.first(where: { $0.sequence == checkpoint.sequence }) else {
+                return nil
+            }
+            return transcriptionOutput(checkpoint: checkpoint, workItem: workItem)
+        }
+        var warningCount = 0
+
+        for workItem in workItems where !plan.completedASRSequences.contains(workItem.sequence) {
+            try operationGuard()
+            guard Self.shouldCreateMeetingTranscriptionInput(for: workItem) else {
+                // `failedSequences` retains the persisted scoped failure as an empty timed window.
+                warningCount += 1
+                outputs.append(Self.meetingOutputPlaceholder(for: workItem))
+                recordingState.updateJob(
+                    stage: .transcribing,
+                    progress: Self.meetingChunkProgress(completed: outputs.count, total: workItems.count),
+                    detail: "Chunk \(workItem.sequence + 1) unavailable; preserving its timed gap.",
+                    errorMessage: nil
+                )
+                continue
+            }
+
+            let microphone = workItem.microphone.flatMap {
+                artifactsBySourceAndSequence[MeetingSourceSequence(sourceID: $0.sourceID, sequence: $0.sequence)]
+            }
+            let systemAudio = workItem.systemAudio.flatMap {
+                artifactsBySourceAndSequence[MeetingSourceSequence(sourceID: $0.sourceID, sequence: $0.sequence)]
+            }
+            guard microphone != nil || systemAudio != nil else {
+                try captureSessionStore.recordMeetingFinalizationFailure(
+                    handle,
+                    sequence: workItem.sequence,
+                    stage: .finalTranscription,
+                    domain: "PindropMedia",
+                    code: "missing-meeting-chunk",
+                    message: "No deterministic source artifact was found for this meeting chunk.",
+                    retryable: true,
+                    at: .now
+                )
+                warningCount += 1
+                outputs.append(Self.meetingOutputPlaceholder(for: workItem))
+                recordingState.updateJob(
+                    stage: .transcribing,
+                    progress: Self.meetingChunkProgress(completed: outputs.count, total: workItems.count),
+                    detail: "Chunk \(workItem.sequence + 1) failed; preserving its timed gap.",
+                    errorMessage: nil
+                )
+                continue
+            }
+
+            try await transcribeMeetingWorkItem(
+                workItem,
+                microphone: microphone,
+                systemAudio: systemAudio,
+                handle: handle,
+                spoolPlan: spoolPlan,
+                finalAssignmentAttempt: finalAssignment.attempt,
+                diarizationEnabled: diarizationDecision == .execute,
+                outputs: &outputs,
+                warningCount: &warningCount,
+                totalChunks: workItems.count,
+                operationGuard: operationGuard
+            )
+        }
+
+        try operationGuard()
+        let refreshedPlan = try captureSessionStore.makeMeetingFinalizationPlan(handle)
+        let missingFinalASRSequences = Self.missingMeetingFinalASRSequences(
+            workItems: workItems,
+            completedASRSequences: refreshedPlan.completedASRSequences
+        )
+        guard missingFinalASRSequences.isEmpty else {
+            throw CaptureSessionStoreError.meetingCaptureHasIncompleteFinalTranscript(
+                sessionID: handle.sessionID,
+                sequences: missingFinalASRSequences
+            )
+        }
+        let refreshedOutputs: [TranscriptionChunkOutput] = refreshedPlan.completedASRCheckpoints.compactMap { checkpoint -> TranscriptionChunkOutput? in
+            guard let workItem = workItems.first(where: { $0.sequence == checkpoint.sequence }) else {
+                return nil
+            }
+            return transcriptionOutput(checkpoint: checkpoint, workItem: workItem)
+        }
+        let merged = try transcriptionService.mergeMeetingChunks(
+            Self.meetingOutputPlaceholders(workItems: workItems, outputs: refreshedOutputs)
+        )
+        let finalText = normalizedTranscriptionText(merged.text)
+        guard !isTranscriptionEffectivelyEmpty(finalText) else {
+            let failure = MeetingCaptureAdmissionError.noRetainedSources
+            try captureSessionStore.failMeetingCapture(
+                handle,
+                stage: .finalTranscription,
+                errorDomain: "PindropSpeech",
+                errorCode: "no-transcribed-output",
+                message: failure.localizedDescription,
+                at: .now
+            )
+            throw failure
+        }
+
+        let recordID: UUID
+        if let reservedRecordID = refreshedPlan.reservedTranscriptionRecordID {
+            recordID = reservedRecordID
+        } else {
+            recordID = try captureSessionStore.reserveMeetingTranscriptionRecordID(handle)
+        }
+        do {
+            let record = try historyStore.save(
+                text: finalText,
+                originalText: nil,
+                duration: workItems.map { $0.startOffset + $0.duration }.max() ?? 0,
+                modelUsed: finalModelIdentifier,
+                enhancedWith: nil,
+                diarizationSegmentsJSON: encodeDiarizationSegmentsJSON(merged.diarizedSegments),
+                sourceKind: .manualCapture,
+                sourceDisplayName: "Meeting recording",
+                id: recordID
+            )
+            try await Self.completeMeetingAfterHistory(
+                recordID: record.id,
+                operationGuard: operationGuard,
+                generateNote: {
+                    try await self.generateMeetingNoteIfNeeded(
+                        handle,
+                        operationGuard: operationGuard
+                    )
+                },
+                onGenerationFailure: { failure in
+                    self.recordMeetingNoteGenerationFailure(
+                        failure,
+                        handle: handle,
+                        attempt: Self.captureAssignmentAttempt(for: .noteGeneration)
+                    )
+                },
+                complete: { transcriptionRecordID in
+                    try self.captureSessionStore.completeMeetingCapture(
+                        handle,
+                        transcriptionRecordID: transcriptionRecordID,
+                        at: .now
+                    )
+                }
+            )
+            updateRecentTranscriptsMenu()
+
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let failure as MeetingNoteGenerationFailure {
+            throw failure
+        } catch {
+            let nsError = error as NSError
+            try? captureSessionStore.recordMeetingHistoryFailure(
+                handle,
+                errorDomain: nsError.domain,
+                errorCode: String(nsError.code),
+                message: error.localizedDescription,
+                at: .now
+            )
+            throw error
+        }
+    }
+
+    private func transcribeMeetingWorkItem(
+        _ workItem: MeetingChunkWorkItem,
+        microphone: SealedAudioSourceChunk?,
+        systemAudio: SealedAudioSourceChunk?,
+        handle: PindropData.MeetingCaptureHandle,
+        spoolPlan: MeetingCaptureSpoolPlan,
+        finalAssignmentAttempt: Int,
+        diarizationEnabled: Bool,
+        outputs: inout [TranscriptionChunkOutput],
+        warningCount: inout Int,
+        totalChunks: Int,
+        operationGuard: () throws -> Void
+    ) async throws {
+        let mixed = try await mediaIngestionService.makeMixedMeetingChunk(
+            sessionID: handle.sessionID,
+            sequence: workItem.sequence,
+            microphone: microphone,
+            systemAudio: systemAudio
+        )
+        try operationGuard()
+        guard let byteCount = Int(exactly: mixed.byteCount) else {
+            await removeMixedMeetingChunk(
+                mixed,
+                handle: handle,
+                sequence: workItem.sequence,
+                operationGuard: operationGuard
+            )
+            throw MeetingCaptureAdmissionError.missingMixedAudio
+        }
+        let input = TranscriptionChunkInput(
+            chunkID: workItem.chunkID,
+            sequence: workItem.sequence,
+            startOffset: workItem.startOffset,
+            duration: workItem.duration,
+            fileURL: spoolPlan.libraryRootURL.appendingPathComponent(mixed.relativePath),
+            byteCount: byteCount,
+            sha256: mixed.sha256
+        )
+        do {
+            let output = try await transcriptionService.transcribeMeetingChunk(
+                input,
+                options: makeTranscriptionOptions(route: .manualCapture(.microphoneAndSystemAudio)),
+                diarizationOptions: .init(expectedSpeakerCount: manualExpectedSpeakerCount),
+                diarizationEnabled: diarizationEnabled
+            )
+            try operationGuard()
+            let segmentsJSON = encodeDiarizationSegmentsJSON(output.diarizedSegments)
+            try captureSessionStore.recordMeetingTranscriptionChunk(
+                handle,
+                sourceChunkSequence: output.sequence,
+                startOffset: output.startOffset,
+                duration: output.duration,
+                text: output.plainText,
+                segmentsJSON: segmentsJSON,
+                languageCode: settingsStore.selectedAppLanguage.rawValue,
+                assignmentAttempt: finalAssignmentAttempt,
+                at: .now
+            )
+            outputs.append(output)
+            if let warning = output.diarizationWarning {
+                warningCount += 1
+                try captureSessionStore.recordMeetingFinalizationFailure(
+                    handle,
+                    sequence: output.sequence,
+                    stage: .diarization,
+                    domain: "PindropSpeech",
+                    code: "best-effort-warning",
+                    message: warning,
+                    retryable: false,
+                    at: .now
+                )
+            }
+            await removeMixedMeetingChunk(
+                mixed,
+                handle: handle,
+                sequence: workItem.sequence,
+                operationGuard: operationGuard
+            )
+            recordingState.updateJob(
+                stage: .transcribing,
+                progress: Self.meetingChunkProgress(completed: outputs.count, total: totalChunks),
+                detail: "Transcribed \(outputs.count) chunk\(outputs.count == 1 ? "" : "s")\(warningCount == 0 ? "" : "; \(warningCount) warning\(warningCount == 1 ? "" : "s")")",
+                errorMessage: nil
+            )
+        } catch is CancellationError {
+            await removeMixedMeetingChunk(
+                mixed,
+                handle: handle,
+                sequence: workItem.sequence,
+                operationGuard: operationGuard
+            )
+            throw CancellationError()
+        } catch {
+            try operationGuard()
+            let nsError = error as NSError
+            try captureSessionStore.recordMeetingFinalizationFailure(
+                handle,
+                sequence: workItem.sequence,
+                stage: .finalTranscription,
+                domain: nsError.domain,
+                code: String(nsError.code),
+                message: error.localizedDescription,
+                retryable: true,
+                at: .now
+            )
+            await removeMixedMeetingChunk(
+                mixed,
+                handle: handle,
+                sequence: workItem.sequence,
+                operationGuard: operationGuard
+            )
+            outputs.append(Self.meetingOutputPlaceholder(for: workItem))
+            recordingState.updateJob(
+                stage: .transcribing,
+                progress: Self.meetingChunkProgress(completed: outputs.count, total: totalChunks),
+                detail: "Chunk \(workItem.sequence + 1) failed; continuing with durable siblings.",
+                errorMessage: error.localizedDescription
+            )
+        }
+    }
+    private func removeMixedMeetingChunk(
+        _ mixed: ManagedMixedMeetingChunkArtifact,
+        handle: PindropData.MeetingCaptureHandle,
+        sequence: Int,
+        operationGuard: () throws -> Void
+    ) async {
+        do {
+            try await mediaIngestionService.removeMixedMeetingChunk(mixed)
+        } catch {
+            guard (try? operationGuard()) != nil else { return }
+            let nsError = error as NSError
+            try? captureSessionStore.recordMeetingFinalizationFailure(
+                handle,
+                sequence: sequence,
+                stage: .finalTranscription,
+                domain: nsError.domain,
+                code: String(nsError.code),
+                message: "Could not remove derived meeting chunk: \(error.localizedDescription)",
+                retryable: true,
+                at: .now
+            )
+        }
+    }
+
+    private func captureMeetingStartAssignments(
+        sessionID: UUID
+    ) throws -> [CaptureStageAssignment] {
+        try Self.meetingStartAssignmentStages.map { stage in
+            try captureAssignment(
+                sessionID: sessionID,
+                stage: stage,
+                attempt: Self.captureAssignmentAttempt(for: stage)
+            )
+        }
+    }
+
+    private func recordMeetingNoteGenerationFailure(
+        _ failure: MeetingNoteGenerationFailure,
+        handle: PindropData.MeetingCaptureHandle,
+        attempt: Int
+    ) {
+        do {
+            try captureSessionStore.recordStageFailure(
+                sessionID: handle.sessionID,
+                stage: .noteGeneration,
+                attempt: attempt,
+                domain: "PindropMeetingNotes",
+                code: failure.rawValue,
+                message: failure.message,
+                retryable: failure.retryable,
+                at: .now
+            )
+        } catch {
+            Log.app.error(
+                "Meeting note generation failure persistence failed code=\(failure.rawValue) category=\(failure.category.rawValue)"
+            )
+        }
+        Log.app.warning(
+            "Meeting note generation failure code=\(failure.rawValue) category=\(failure.category.rawValue) message=\(failure.message)"
+        )
+    }
+
+    @MainActor
+    static func completeMeetingAfterHistory(
+        recordID: UUID,
+        operationGuard: () throws -> Void,
+        generateNote: () async throws -> Void,
+        onGenerationFailure: (MeetingNoteGenerationFailure) -> Void,
+        complete: (UUID) throws -> Void
+    ) async throws {
+        try operationGuard()
+        do {
+            try await generateNote()
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let failure as MeetingNoteGenerationFailure {
+            onGenerationFailure(failure)
+            throw failure
+        }
+        try operationGuard()
+        try complete(recordID)
+    }
+
+    private func generateMeetingNoteIfNeeded(
+        _ handle: PindropData.MeetingCaptureHandle,
+        operationGuard: () throws -> Void
+    ) async throws {
+        let attempt = Self.captureAssignmentAttempt(for: .noteGeneration)
+
+        do {
+            let existing = try captureSessionStore.generatedMeetingNote(
+                handle,
+                assignmentAttempt: attempt
+            )
+            guard Self.shouldGenerateMeetingNote(existingGeneratedNote: existing != nil) else {
+                return
+            }
+        } catch {
+            if Self.isTaskCancellation(error) { throw CancellationError() }
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.generatedNoteDiscoveryFailed
+        }
+
+        let assignment: CaptureStageAssignment
+        do {
+            assignment = try captureAssignment(
+                sessionID: handle.sessionID,
+                stage: .noteGeneration,
+                attempt: attempt
+            )
+        } catch {
+            if Self.isTaskCancellation(error) { throw CancellationError() }
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.assignmentUnavailable
+        }
+
+        switch Self.meetingNoteGenerationExecutionDecision(for: assignment) {
+        case .skipDisabled:
+            try operationGuard()
+            recordMeetingNoteGenerationFailure(
+                .disabled,
+                handle: handle,
+                attempt: attempt,
+            )
+            return
+        case .skipUnavailable:
+            try operationGuard()
+            recordMeetingNoteGenerationFailure(
+                .unavailable,
+                handle: handle,
+                attempt: attempt,
+            )
+            return
+        case .rejectInvalidAssignment:
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.assignmentUnavailable
+        case .resolveRuntime:
+            break
+        }
+
+        guard let persistedAssignment = Self.noteGenerationRuntimeAssignment(from: assignment) else {
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.runtimeUnavailable
+        }
+
+        let runtime: ResolvedAssignment
+        do {
+            runtime = try captureAssignmentResolver.resolveNoteGenerationRuntime(
+                for: persistedAssignment
+            )
+        } catch {
+            if Self.isTaskCancellation(error) { throw CancellationError() }
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.runtimeUnavailable
+        }
+
+        guard let prompt = runtime.prompt,
+              Self.canExecutePersistedNoteGeneration(resolvedPrompt: prompt) else {
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.promptUnavailable
+        }
+
+        let source: MeetingNoteSourceBundle
+        do {
+            let preflight = try captureSessionStore.meetingGeneratedNotePreflight(
+                handle,
+                assignmentAttempt: attempt
+            )
+            guard let anchor = try captureSessionStore.meetingHumanAnchor(handle),
+                  anchor.noteID == preflight.humanAnchor.noteID else {
+                throw CaptureSessionStoreError.meetingHumanAnchorUnavailable(handle.sessionID)
+            }
+            let currentAnchor = try notesStore.fetch(id: anchor.noteID)
+            let refreshedPlan = try captureSessionStore.makeMeetingFinalizationPlan(handle)
+            source = try MeetingNoteDerivation.make(
+                humanNoteContent: currentAnchor.content,
+                checkpoints: refreshedPlan.completedASRCheckpoints
+            )
+        } catch {
+            if Self.isTaskCancellation(error) { throw CancellationError() }
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.derivationFailed
+        }
+
+        let enhancedNote: AIEnhancementService.EnhancedNote
+        do {
+            enhancedNote = try await aiEnhancementService.generateMeetingNote(
+                evidence: source.evidenceInput,
+                assignment: runtime,
+                formatPrompt: prompt
+            )
+            try operationGuard()
+        } catch {
+            if Self.isTaskCancellation(error) { throw CancellationError() }
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.generationFailed
+        }
+
+        let content = MeetingNoteDerivation.sanitizingGeneratedContent(
+            normalizedTranscriptionText(enhancedNote.content)
+        )
+        guard !content.isEmpty else {
+            try operationGuard()
+            throw MeetingNoteGenerationFailure.emptyOutput
+        }
+
+        do {
+            let title = Self.generatedMeetingNoteTitle(
+                enhancedNote.title,
+                fallback: localized(
+                    "Untitled Note",
+                    locale: settingsStore.selectedAppLocale.locale
+                )
+            )
+            _ = try captureSessionStore.saveGeneratedMeetingNote(
+                handle,
+                title: title,
+                content: content,
+                source: source,
+                assignmentAttempt: attempt,
+                at: .now
+            )
+        } catch {
+            if Self.isTaskCancellation(error) { throw CancellationError() }
+            try operationGuard()
+            throw Self.meetingNoteGenerationSaveFailure(for: error)
+        }
+    }
+
+    private func recordUnavailablePersistedNoteGenerationRuntime(
+        sessionID: UUID,
+        assignment: CaptureStageAssignment,
+        error: CaptureStageAssignmentResolverError
+    ) throws {
+        let failureCode: String
+        switch error {
+        case .persistedNoteProviderUnavailable:
+            failureCode = "persisted-provider-unavailable"
+        case .persistedNotePromptUnavailable:
+            failureCode = "persisted-prompt-unavailable"
+        case .missingPersistedNoteProviderCredential:
+            failureCode = "persisted-provider-credential-unavailable"
+        default:
+            throw error
+        }
+
+        let warning = "Warning: Note enhancement could not use the provider assigned when capture started: \(error.localizedDescription). Saving the raw transcription instead."
+        try captureSessionStore.recordStageFailure(
+            sessionID: sessionID,
+            stage: .noteGeneration,
+            attempt: assignment.attempt,
+            domain: "PindropAssignment",
+            code: failureCode,
+            message: warning,
+            retryable: false,
+            at: .now
+        )
+        Log.app.warning("\(warning)")
+        toastService.show(ToastPayload(message: warning, style: .standard))
+    }
+
+    private func captureAssignment(
+        sessionID: UUID,
+        stage: CapturePipelineStage,
+        attempt: Int
+    ) throws -> CaptureStageAssignment {
+        let activeBatchModelName = activeModelName
+        return try captureSessionStore.resolveAssignment(
+            sessionID: sessionID,
+            stage: stage,
+            attempt: attempt
+        ) { [captureAssignmentResolver] in
+            try captureAssignmentResolver.select(
+                stage: stage,
+                attempt: attempt,
+                activeBatchModelName: activeBatchModelName
+            )
+        }
+    }
+
+    private func activateAssignedFinalModel(
+        _ assignment: CaptureStageAssignment
+    ) async throws {
+        guard Self.assignedFinalModelNeedsActivation(
+            assignment,
+            activeModelName: activeModelName
+        ) else {
+            return
+        }
+        guard let modelName = assignment.modelIdentifier,
+              let model = modelManager.availableModels.first(where: {
+                  $0.name == modelName && $0.provider.rawValue == assignment.providerIdentifier
+              })
+        else {
+            throw CaptureStageAssignmentResolverError.unknownBatchModel(
+                assignment.modelIdentifier ?? "missing-final-model"
+            )
+        }
+        try await loadAndActivateModel(named: model.name, provider: model.provider)
+    }
+
+    private func beginVoiceNoteCapture(noteID: UUID?) throws {
+        guard Self.canBeginVoiceNoteCapture(activeHandle: voiceNoteCaptureContext?.handle) else {
+            throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
+        }
+        let preferredInputUID = audioRecorder.currentPreferredInputDeviceUID
+            ?? settingsStore.selectedInputDeviceUID
+        let microphoneDisplayName = AudioDeviceManager.inputDevices()
+            .first(where: { $0.uid == preferredInputUID })?
+            .displayName ?? "Microphone"
+        let handle = try captureSessionStore.startVoiceNoteCapture(
+            startedAt: .now,
+            microphoneDisplayName: microphoneDisplayName
+        )
+        do {
+            let liveAssignment = try captureAssignment(
+                sessionID: handle.sessionID,
+                stage: .liveTranscription,
+                attempt: Self.captureAssignmentAttempt(for: .liveTranscription)
+            )
+            voiceNoteCaptureContext = VoiceNoteCaptureContext(
+                handle: handle,
+                noteID: noteID,
+                liveAssignment: liveAssignment
+            )
+        } catch {
+            failVoiceNoteCapture(handle, stage: "recording-start", error: error)
+            throw error
+        }
+    }
+
+    private func failVoiceNoteCapture(
+        _ context: VoiceNoteCaptureContext,
+        stage: String,
+        error: Error
+    ) {
+        guard isVoiceNoteCaptureContextCurrent(context) else { return }
+        failVoiceNoteCapture(context.handle, stage: stage, error: error)
+        clearVoiceNoteCaptureContext(ifCurrent: context)
+    }
+
+    private func failVoiceNoteCapture(
+        _ handle: PindropData.VoiceNoteCaptureHandle,
+        stage: String,
+        error: Error
+    ) {
+        let nsError = error as NSError
+        let captureStage: CapturePipelineStage? = switch stage {
+        case "transcribe", "no-speech":
+            .finalTranscription
+        case "persist":
+            .noteGeneration
+        default:
+            nil
+        }
+        do {
+            try captureSessionStore.fail(
+                handle,
+                stage: captureStage,
+                errorDomain: nsError.domain,
+                errorCode: String(nsError.code),
+                message: error.localizedDescription,
+                at: .now
+            )
+        } catch {
+            Log.app.error("Failed to mark voice-note capture as failed: \(error)")
+        }
+    }
+
+    private func failActiveVoiceNoteCapture(stage: String, error: Error) {
+        guard let context = voiceNoteCaptureContext else { return }
+        failVoiceNoteCapture(context, stage: stage, error: error)
+    }
+
+    private func cancelActiveVoiceNoteCapture() {
+        guard let context = voiceNoteCaptureContext else { return }
+        do {
+            try captureSessionStore.cancel(context.handle, at: .now)
+        } catch {
+            Log.app.error("Failed to cancel voice-note capture: \(error)")
+        }
+        clearVoiceNoteCaptureContext(ifCurrent: context)
+    }
+
+    private func stopRecordingAndTranscribeForNoteAppend(token: DictationOperationToken) async throws -> VoiceNoteCaptureResult? {
+        guard let recordingStartTime, let context = voiceNoteCaptureContext, context.noteID != nil else {
+            Log.app.warning("stopRecordingAndTranscribeForNoteAppend called without an active voice-note capture")
             return nil
         }
 
@@ -3015,7 +5375,6 @@ final class AppCoordinator {
 
         statusBarController.setProcessingState()
         NoteAppendListeningCoordinator.shared.state.transitionToProcessing()
-        // No global indicator session was started for note-append.
 
         defer {
             if Self.shouldResetProcessingStateOnExit(
@@ -3029,36 +5388,69 @@ final class AppCoordinator {
         let audioData: Data
         do {
             audioData = try await audioRecorder.stopRecording()
-            try ensureOperationCurrent(token)
+            try await Self.finishArtifactCaptureThenBeginFinalization(
+                finishArtifactCapture: { [streamingSession] in
+                    await streamingSession.finishArtifactCapture(for: context.handle)
+                },
+                ensureCurrent: { [self] in
+                    try ensureVoiceNoteCaptureCurrent(context, token: token)
+                },
+                beginFinalization: { [captureSessionStore] in
+                    try captureSessionStore.beginFinalization(context.handle, at: .now)
+                }
+            )
         } catch {
+            await streamingSession.cancelArtifactCapture(for: context.handle)
             if Self.isTaskCancellation(error) { throw CancellationError() }
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
+            failVoiceNoteCapture(context, stage: "recording-stop", error: error)
             Log.app.error("Failed to stop note-append recording: \(error)")
             throw error
         }
 
         guard !audioData.isEmpty else {
+            let noSpeechError = NSError(
+                domain: "tech.watzon.pindrop.capture",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "No audio data recorded"]
+            )
+            failVoiceNoteCapture(context, stage: "no-speech", error: noSpeechError)
             Log.app.warning("No audio data recorded for note-append")
             handleNoSpeechDetected(context: "note-append")
             return nil
         }
-
-        let diarizationEnabled = Self.dictationUsesSpeakerDiarization
+        let duration = Date.now.timeIntervalSince(recordingStartTime)
 
         let transcriptionOutput: TranscriptionOutput
+        let finalModelIdentifier: String
         do {
+            let finalAssignment = try captureAssignment(
+                sessionID: context.handle.sessionID,
+                stage: .finalTranscription,
+                attempt: Self.captureAssignmentAttempt(for: .finalTranscription)
+            )
+            guard let modelIdentifier = Self.finalHistoryModelIdentifier(from: finalAssignment) else {
+                throw CaptureStageAssignmentError.missingModelIdentifier(
+                    providerKind: finalAssignment.providerKind
+                )
+            }
+            finalModelIdentifier = modelIdentifier
+            try await activateAssignedFinalModel(finalAssignment)
             transcriptionOutput = try await transcriptionService.transcribe(
                 audioData: audioData,
-                diarizationEnabled: diarizationEnabled,
+                diarizationEnabled: Self.dictationUsesSpeakerDiarization,
                 options: makeTranscriptionOptions(route: .noteAppend),
                 diarizationOptions: .init(),
                 diarizationFailurePolicy: .bestEffort
             )
-            try ensureOperationCurrent(token)
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
         } catch let error as PindropSpeech.TranscriptionService.TranscriptionError {
-            // Stale/cancelled operations must not toast or mutate UI after a newer session started.
-            guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else {
+            guard operationController.isCurrent(token),
+                  isVoiceNoteCaptureContextCurrent(context),
+                  !Self.isTaskCancellation(error) else {
                 throw CancellationError()
             }
+            failVoiceNoteCapture(context, stage: "transcribe", error: error)
             Log.app.error("Note-append transcription failed: \(error)")
             reportTranscriptionFailureSignal(error, stage: "transcribe")
             resetProcessingState()
@@ -3071,9 +5463,12 @@ final class AppCoordinator {
             toastService.show(ToastPayload(message: message, style: .error))
             throw error
         } catch {
-            guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else {
+            guard operationController.isCurrent(token),
+                  isVoiceNoteCaptureContextCurrent(context),
+                  !Self.isTaskCancellation(error) else {
                 throw CancellationError()
             }
+            failVoiceNoteCapture(context, stage: "transcribe", error: error)
             Log.app.error("Note-append transcription failed: \(error)")
             reportTranscriptionFailureSignal(error, stage: "transcribe")
             resetProcessingState()
@@ -3088,29 +5483,55 @@ final class AppCoordinator {
             throw error
         }
 
-        try ensureOperationCurrent(token)
-        let transcribedText = transcriptionOutput.text
-        var (textAfterReplacements, appliedReplacements) = try dictionaryStore.applyReplacements(to: transcribedText)
-        textAfterReplacements = normalizedTranscriptionText(textAfterReplacements)
+        do {
+            let rawText = transcriptionOutput.text
+            var (finalText, appliedReplacements) = try dictionaryStore.applyReplacements(to: rawText)
+            finalText = normalizedTranscriptionText(finalText)
 
-        guard !isTranscriptionEffectivelyEmpty(textAfterReplacements) else {
-            handleNoSpeechDetected(context: "note-append")
-            return nil
+            guard !isTranscriptionEffectivelyEmpty(finalText) else {
+                let noSpeechError = NSError(
+                    domain: "tech.watzon.pindrop.capture",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "No speech detected"]
+                )
+                failVoiceNoteCapture(context, stage: "no-speech", error: noSpeechError)
+                handleNoSpeechDetected(context: "note-append")
+                return nil
+            }
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
+            self.lastAppliedReplacements = appliedReplacements
+            try dictionaryStore.recordVocabularyHits(in: finalText)
+
+            if !appliedReplacements.isEmpty {
+                Log.app.info("Applied \(appliedReplacements.count) dictionary replacements (note-append)")
+            }
+
+            return VoiceNoteCaptureResult(
+                context: context,
+                rawText: rawText,
+                finalText: finalText,
+                duration: duration,
+                languageCode: settingsStore.selectedAppLanguage.rawValue,
+                finalModelIdentifier: finalModelIdentifier,
+                enhancedWithModel: nil,
+                title: nil,
+                tags: []
+            )
+        } catch {
+            guard Self.shouldEmitOperationFailureSideEffects(
+                isOperationCurrent: operationController.isCurrent(token),
+                error: error
+            ), isVoiceNoteCaptureContextCurrent(context) else {
+                throw CancellationError()
+            }
+            failVoiceNoteCapture(context, stage: "transcribe", error: error)
+            throw error
         }
-        self.lastAppliedReplacements = appliedReplacements
-        try? dictionaryStore.recordVocabularyHits(in: textAfterReplacements)
-
-        if !appliedReplacements.isEmpty {
-            Log.app.info("Applied \(appliedReplacements.count) dictionary replacements (note-append)")
-        }
-
-        Log.app.info("Note-append transcript ready (\(textAfterReplacements.count) chars)")
-        return textAfterReplacements
     }
 
-    private func stopRecordingAndTranscribeForQuickCapture(token: DictationOperationToken) async throws -> PindropAI.AIEnhancementService.EnhancedNote? {
-        guard recordingStartTime != nil else {
-            Log.app.warning("stopRecordingAndTranscribeForQuickCapture called but recordingStartTime is nil")
+    private func stopRecordingAndTranscribeForQuickCapture(token: DictationOperationToken) async throws -> VoiceNoteCaptureResult? {
+        guard let recordingStartTime, let context = voiceNoteCaptureContext, context.noteID == nil else {
+            Log.app.warning("stopRecordingAndTranscribeForQuickCapture called without an active quick-capture session")
             return nil
         }
 
@@ -3121,7 +5542,6 @@ final class AppCoordinator {
         var didResetProcessingState = false
 
         statusBarController.setProcessingState()
-
         transitionRecordingIndicatorToProcessing()
 
         defer {
@@ -3136,36 +5556,70 @@ final class AppCoordinator {
         let audioData: Data
         do {
             audioData = try await audioRecorder.stopRecording()
-            try ensureOperationCurrent(token)
+            try await Self.finishArtifactCaptureThenBeginFinalization(
+                finishArtifactCapture: { [streamingSession] in
+                    await streamingSession.finishArtifactCapture(for: context.handle)
+                },
+                ensureCurrent: { [self] in
+                    try ensureVoiceNoteCaptureCurrent(context, token: token)
+                },
+                beginFinalization: { [captureSessionStore] in
+                    try captureSessionStore.beginFinalization(context.handle, at: .now)
+                }
+            )
         } catch {
+            await streamingSession.cancelArtifactCapture(for: context.handle)
             if Self.isTaskCancellation(error) { throw CancellationError() }
-            Log.app.error("Failed to stop recording: \(error)")
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
+            failVoiceNoteCapture(context, stage: "recording-stop", error: error)
+            Log.app.error("Failed to stop quick-capture recording: \(error)")
             throw error
         }
 
         guard !audioData.isEmpty else {
+            let noSpeechError = NSError(
+                domain: "tech.watzon.pindrop.capture",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "No audio data recorded"]
+            )
+            failVoiceNoteCapture(context, stage: "no-speech", error: noSpeechError)
             Log.app.warning("No audio data recorded")
             handleNoSpeechDetected(context: "quick-capture")
             return nil
         }
-
-        let diarizationEnabled = Self.dictationUsesSpeakerDiarization
+        let duration = Date.now.timeIntervalSince(recordingStartTime)
 
         let transcriptionOutput: TranscriptionOutput
+        let finalModelIdentifier: String
         do {
+            let finalAssignment = try captureAssignment(
+                sessionID: context.handle.sessionID,
+                stage: .finalTranscription,
+                attempt: Self.captureAssignmentAttempt(for: .finalTranscription)
+            )
+            guard let modelIdentifier = Self.finalHistoryModelIdentifier(from: finalAssignment) else {
+                throw CaptureStageAssignmentError.missingModelIdentifier(
+                    providerKind: finalAssignment.providerKind
+                )
+            }
+            finalModelIdentifier = modelIdentifier
+            try await activateAssignedFinalModel(finalAssignment)
             transcriptionOutput = try await transcriptionService.transcribe(
                 audioData: audioData,
-                diarizationEnabled: diarizationEnabled,
+                diarizationEnabled: Self.dictationUsesSpeakerDiarization,
                 options: makeTranscriptionOptions(route: .quickCapture),
                 diarizationOptions: .init(),
                 diarizationFailurePolicy: .bestEffort
             )
-            try ensureOperationCurrent(token)
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
         } catch let error as PindropSpeech.TranscriptionService.TranscriptionError {
-            guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else {
+            guard operationController.isCurrent(token),
+                  isVoiceNoteCaptureContextCurrent(context),
+                  !Self.isTaskCancellation(error) else {
                 throw CancellationError()
             }
-            Log.app.error("Transcription failed: \(error)")
+            failVoiceNoteCapture(context, stage: "transcribe", error: error)
+            Log.app.error("Quick-capture transcription failed: \(error)")
             reportTranscriptionFailureSignal(error, stage: "transcribe")
             resetProcessingState()
             didResetProcessingState = true
@@ -3175,15 +5629,16 @@ final class AppCoordinator {
             } else {
                 String(format: localized("Transcription failed: %@", locale: locale), locale: locale, error.localizedDescription)
             }
-            toastService.show(
-                ToastPayload(message: message, style: .error)
-            )
+            toastService.show(ToastPayload(message: message, style: .error))
             throw error
         } catch {
-            guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else {
+            guard operationController.isCurrent(token),
+                  isVoiceNoteCaptureContextCurrent(context),
+                  !Self.isTaskCancellation(error) else {
                 throw CancellationError()
             }
-            Log.app.error("Transcription failed: \(error)")
+            failVoiceNoteCapture(context, stage: "transcribe", error: error)
+            Log.app.error("Quick-capture transcription failed: \(error)")
             reportTranscriptionFailureSignal(error, stage: "transcribe")
             resetProcessingState()
             didResetProcessingState = true
@@ -3197,108 +5652,317 @@ final class AppCoordinator {
             throw error
         }
 
-        if diarizationEnabled {
-            let segmentCount = transcriptionOutput.diarizedSegments?.count ?? 0
-            if segmentCount > 0 {
-                Log.app.info("Quick capture diarization produced \(segmentCount) segments")
-            } else {
-                Log.app.info("Quick capture diarization produced no attributed segments")
-            }
-        }
+        do {
+            let rawText = transcriptionOutput.text
+            var (fallbackText, appliedReplacements) = try dictionaryStore.applyReplacements(to: rawText)
+            fallbackText = normalizedTranscriptionText(fallbackText)
 
-        let transcribedText = transcriptionOutput.text
-
-        var (textAfterReplacements, appliedReplacements) = try dictionaryStore.applyReplacements(to: transcribedText)
-        textAfterReplacements = normalizedTranscriptionText(textAfterReplacements)
-
-        guard !isTranscriptionEffectivelyEmpty(textAfterReplacements) else {
-            handleNoSpeechDetected(context: "quick-capture")
-            return nil
-        }
-        self.lastAppliedReplacements = appliedReplacements
-        try? dictionaryStore.recordVocabularyHits(in: textAfterReplacements)
-
-        if !appliedReplacements.isEmpty {
-            Log.app.info("Applied \(appliedReplacements.count) dictionary replacements")
-        }
-
-        if let noteAssignment = settingsStore.resolveAssignment(for: .noteEnhancement) {
-            do {
-                let notePrompt = resolvedPrompt(
-                    for: noteAssignment,
-                    fallback: SettingsStore.Defaults.noteEnhancementPrompt
+            guard !isTranscriptionEffectivelyEmpty(fallbackText) else {
+                let noSpeechError = NSError(
+                    domain: "tech.watzon.pindrop.capture",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "No speech detected"]
                 )
-                let vocabularyWords = try dictionaryStore.fetchAllVocabularyWords().map(\.word)
-                let replacementCorrections = appliedReplacements.map {
-                    PindropAI.AIEnhancementService.ContextMetadata.ReplacementCorrection(
-                        original: $0.original,
-                        replacement: $0.replacement
+                failVoiceNoteCapture(context, stage: "no-speech", error: noSpeechError)
+                handleNoSpeechDetected(context: "quick-capture")
+                return nil
+            }
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
+            self.lastAppliedReplacements = appliedReplacements
+            try dictionaryStore.recordVocabularyHits(in: fallbackText)
+
+            if !appliedReplacements.isEmpty {
+                Log.app.info("Applied \(appliedReplacements.count) dictionary replacements")
+            }
+
+            let noteGenerationAssignment = try captureAssignment(
+                sessionID: context.handle.sessionID,
+                stage: .noteGeneration,
+                attempt: Self.captureAssignmentAttempt(for: .noteGeneration)
+            )
+            if let persistedNoteGenerationAssignment = Self.noteGenerationRuntimeAssignment(
+                from: noteGenerationAssignment
+            ) {
+                let noteRuntime: ResolvedAssignment?
+                do {
+                    noteRuntime = try captureAssignmentResolver.resolveNoteGenerationRuntime(
+                        for: persistedNoteGenerationAssignment
+                    )
+                } catch let error as CaptureStageAssignmentResolverError {
+                    try recordUnavailablePersistedNoteGenerationRuntime(
+                        sessionID: context.handle.sessionID,
+                        assignment: persistedNoteGenerationAssignment,
+                        error: error
+                    )
+                    noteRuntime = nil
+                }
+
+
+                if let noteRuntime,
+                   Self.canExecutePersistedNoteGeneration(resolvedPrompt: noteRuntime.prompt),
+                   let notePrompt = noteRuntime.prompt {
+                    let vocabularyWords = try dictionaryStore.fetchAllVocabularyWords().map(\.word)
+                    do {
+                        let replacementCorrections = appliedReplacements.map {
+                            PindropAI.AIEnhancementService.ContextMetadata.ReplacementCorrection(
+                                original: $0.original,
+                                replacement: $0.replacement
+                            )
+                        }
+                        let enhancementContext = PindropAI.AIEnhancementService.ContextMetadata(
+                            hasClipboardText: false,
+                            clipboardText: nil,
+                            hasClipboardImage: false,
+                            appContext: nil,
+                            vocabularyWords: vocabularyWords,
+                            replacementCorrections: replacementCorrections
+                        )
+
+                        let existingTags = (try? notesStore.getAllUniqueTags()) ?? []
+                        let enhancedNote = try await aiEnhancementService.enhanceNote(
+                            content: fallbackText,
+                            apiEndpoint: noteRuntime.endpoint ?? "",
+                            apiKey: noteRuntime.apiKey,
+                            model: noteRuntime.modelID,
+                            contentPrompt: notePrompt,
+                            generateMetadata: true,
+                            existingTags: existingTags,
+                            context: enhancementContext,
+                            provider: noteRuntime.kind
+                        )
+                        try ensureVoiceNoteCaptureCurrent(context, token: token)
+                        let finalText = normalizedTranscriptionText(enhancedNote.content)
+                        if !isTranscriptionEffectivelyEmpty(finalText) {
+                            Log.app.info("Note enhancement completed: title='\(enhancedNote.title)', tags=\(enhancedNote.tags.count)")
+                            return VoiceNoteCaptureResult(
+                                context: context,
+                                rawText: rawText,
+                                finalText: finalText,
+                                duration: duration,
+                                languageCode: settingsStore.selectedAppLanguage.rawValue,
+                                finalModelIdentifier: finalModelIdentifier,
+                                enhancedWithModel: noteRuntime.modelID,
+                                title: enhancedNote.title,
+                                tags: enhancedNote.tags
+                            )
+                        }
+                        Log.app.error("Note enhancement returned empty content; using raw transcription")
+                    } catch {
+                        if Self.isTaskCancellation(error)
+                            || !operationController.isCurrent(token)
+                            || !isVoiceNoteCaptureContextCurrent(context) {
+                            throw CancellationError()
+                        }
+                        Log.app.error("Note enhancement failed: \(error)")
+                    }
+                } else if let noteRuntime {
+                    try recordUnavailablePersistedNoteGenerationRuntime(
+                        sessionID: context.handle.sessionID,
+                        assignment: persistedNoteGenerationAssignment,
+                        error: .persistedNotePromptUnavailable(
+                            noteRuntime.promptPresetID ?? "missing-persisted-prompt"
+                        )
                     )
                 }
-                let enhancementContext = PindropAI.AIEnhancementService.ContextMetadata(
-                    hasClipboardText: false,
-                    clipboardText: nil,
-                    hasClipboardImage: false,
-                    appContext: nil,
-                    vocabularyWords: vocabularyWords,
-                    replacementCorrections: replacementCorrections
-                )
-
-                let existingTags = (try? notesStore.getAllUniqueTags()) ?? []
-                let enhancedNote = try await aiEnhancementService.enhanceNote(
-                    content: textAfterReplacements,
-                    apiEndpoint: noteAssignment.endpoint ?? "",
-                    apiKey: noteAssignment.apiKey,
-                    model: noteAssignment.modelID,
-                    contentPrompt: notePrompt,
-                    generateMetadata: true,
-                    existingTags: existingTags,
-                    context: enhancementContext,
-                    provider: noteAssignment.kind
-                )
-                try ensureOperationCurrent(token)
-                Log.app.info("Note enhancement completed: title='\(enhancedNote.title)', tags=\(enhancedNote.tags.count)")
-                let normalizedEnhancedContent = normalizedTranscriptionText(enhancedNote.content)
-                guard !isTranscriptionEffectivelyEmpty(normalizedEnhancedContent) else {
-                    handleNoSpeechDetected(context: "quick-capture")
-                    return nil
-                }
-                return PindropAI.AIEnhancementService.EnhancedNote(
-                    content: normalizedEnhancedContent,
-                    title: enhancedNote.title,
-                    tags: enhancedNote.tags
-                )
-            } catch {
-                if Self.isTaskCancellation(error) || !operationController.isCurrent(token) {
-                    throw CancellationError()
-                }
-                Log.app.error("Note enhancement failed: \(error)")
             }
+
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
+            return VoiceNoteCaptureResult(
+                context: context,
+                rawText: rawText,
+                finalText: fallbackText,
+                duration: duration,
+                languageCode: settingsStore.selectedAppLanguage.rawValue,
+                finalModelIdentifier: finalModelIdentifier,
+                enhancedWithModel: nil,
+                title: aiEnhancementService.generateFallbackTitle(from: fallbackText),
+                tags: []
+            )
+        } catch {
+            guard Self.shouldEmitOperationFailureSideEffects(
+                isOperationCurrent: operationController.isCurrent(token),
+                error: error
+            ), isVoiceNoteCaptureContextCurrent(context) else {
+                throw CancellationError()
+            }
+            failVoiceNoteCapture(context, stage: "transcribe", error: error)
+            throw error
+        }
+    }
+
+    private func persistQuickCapture(
+        _ result: VoiceNoteCaptureResult,
+        token: DictationOperationToken
+    ) async throws -> PindropData.NoteSchema.Note {
+        do {
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            let revisions = try captureSessionStore.saveTranscriptRevisions(
+                for: result.context.handle,
+                rawText: result.rawText,
+                finalText: result.finalText,
+                duration: result.duration,
+                languageCode: result.languageCode,
+                createdAt: .now
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            let record = try historyStore.save(
+                text: result.finalText,
+                originalText: result.rawText,
+                duration: result.duration,
+                modelUsed: result.finalModelIdentifier,
+                enhancedWith: result.enhancedWithModel,
+                sourceKind: .voiceRecording
+            )
+            let linkageIDs = VoiceNoteLinkageIDs(
+                historyRecordID: record.id,
+                finalTranscriptRevisionID: revisions.finalRevisionID
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            try captureSessionStore.linkTranscriptionRecord(
+                linkageIDs.historyRecordID,
+                to: result.context.handle,
+                at: .now
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            let note = try await notesStore.create(
+                title: result.title,
+                content: result.finalText,
+                tags: result.tags,
+                sourceTranscriptionID: linkageIDs.historyRecordID
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            try captureSessionStore.complete(
+                result.context.handle,
+                noteID: note.id,
+                finalTranscriptRevisionID: linkageIDs.finalTranscriptRevisionID,
+                at: .now
+            )
+            clearVoiceNoteCaptureContext(ifCurrent: result.context)
+            return note
+        } catch {
+            guard operationController.isCurrent(token),
+                  isVoiceNoteCaptureContextCurrent(result.context) else {
+                throw CancellationError()
+            }
+            failVoiceNoteCapture(result.context, stage: "persist", error: error)
+            throw error
+        }
+    }
+
+    private func persistNoteAppend(
+        _ result: VoiceNoteCaptureResult,
+        editorID: UUID,
+        token: DictationOperationToken
+    ) async throws {
+        guard let noteID = result.context.noteID else {
+            throw CancellationError()
         }
 
-        try ensureOperationCurrent(token)
-        let fallbackTitle = aiEnhancementService.generateFallbackTitle(from: textAfterReplacements)
-        return PindropAI.AIEnhancementService.EnhancedNote(
-            content: textAfterReplacements,
-            title: fallbackTitle,
-            tags: []
-        )
+        do {
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            let revisions = try captureSessionStore.saveTranscriptRevisions(
+                for: result.context.handle,
+                rawText: result.rawText,
+                finalText: result.finalText,
+                duration: result.duration,
+                languageCode: result.languageCode,
+                createdAt: .now
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            let record = try historyStore.save(
+                text: result.finalText,
+                originalText: result.rawText,
+                duration: result.duration,
+                modelUsed: result.finalModelIdentifier,
+                enhancedWith: nil,
+                sourceKind: .voiceRecording
+            )
+            let linkageIDs = VoiceNoteLinkageIDs(
+                historyRecordID: record.id,
+                finalTranscriptRevisionID: revisions.finalRevisionID
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            try captureSessionStore.linkTranscriptionRecord(
+                linkageIDs.historyRecordID,
+                to: result.context.handle,
+                at: .now
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            let append = try notesStore.appendTranscript(
+                to: noteID,
+                content: result.finalText,
+                sourceTranscriptionID: linkageIDs.historyRecordID
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            try captureSessionStore.complete(
+                result.context.handle,
+                noteID: append.noteID,
+                finalTranscriptRevisionID: linkageIDs.finalTranscriptRevisionID,
+                at: .now
+            )
+            clearVoiceNoteCaptureContext(ifCurrent: result.context)
+            NotificationCenter.default.post(
+                name: .noteSpeakToAppendTranscript,
+                object: nil,
+                userInfo: [
+                    "editorID": editorID,
+                    "noteID": append.noteID,
+                    "content": append.content,
+                    "sourceTranscriptionID": Self.noteAppendNotificationSourceTranscriptionID(append)
+                ]
+            )
+        } catch {
+            guard operationController.isCurrent(token),
+                  isVoiceNoteCaptureContextCurrent(result.context) else {
+                throw CancellationError()
+            }
+            failVoiceNoteCapture(result.context, stage: "persist", error: error)
+            throw error
+        }
     }
 
-    private func openNoteEditorWithEnhancedNote(_ enhancedNote: PindropAI.AIEnhancementService.EnhancedNote) {
-        let newNote = PindropData.NoteSchema.Note(
-            title: enhancedNote.title,
-            content: enhancedNote.content,
-            tags: enhancedNote.tags,
-            sourceTranscriptionID: nil
-        )
-
-        noteEditorWindowController.show(note: newNote, isNewNote: true)
-
-        Log.app.info("Opened note editor with enhanced note")
+    private func openNoteEditor(_ note: PindropData.NoteSchema.Note) {
+        noteEditorWindowController.show(note: note, isNewNote: true)
+        Log.app.info("Opened note editor with durable quick-capture note")
     }
 
-    private func handleToggleRecording(source: RecordingTriggerSource) async {
+    private func handleMainWindowDictationStart() {
+        guard !isRecording,
+              !isProcessing,
+              let claim = recordingState.claimCaptureStart() else { return }
+
+        mainWindowCaptureStartTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.recordingState.releaseCaptureStart(claim)
+                self.mainWindowCaptureStartTask = nil
+            }
+            await self.handleToggleRecording(
+                source: .statusBarMenu,
+                captureStartClaim: claim
+            )
+        }
+    }
+
+    private func handleMainWindowVoiceNoteStart() {
+        guard !isRecording,
+              !isProcessing,
+              let claim = recordingState.claimCaptureStart() else { return }
+
+        mainWindowCaptureStartTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.recordingState.releaseCaptureStart(claim)
+                self.mainWindowCaptureStartTask = nil
+            }
+            await self.handleQuickCaptureToggle(captureStartClaim: claim)
+        }
+    }
+
+    private func handleToggleRecording(
+        source: RecordingTriggerSource,
+        captureStartClaim: CaptureStartClaim? = nil
+    ) async {
         if isRecording {
             do {
                 if isNoteAppendMode {
@@ -3312,14 +5976,21 @@ final class AppCoordinator {
                 audioRecorder.resetAudioEngine()
                 Log.app.error("Failed to stop recording: \(error)")
             }
-        } else if !isProcessing {
-            guard NoteAppendGate.canStartGlobalDictation(isNoteAppendListening: isNoteAppendMode) else {
+        } else if !isProcessing,
+                  captureStartClaim != nil || !recordingState.isCaptureStartPending {
+            guard NoteAppendGate.canStartGlobalDictation(
+                isNoteAppendListening: isNoteAppendMode || pendingNoteAppendStart != nil
+            ) else {
                 Log.app.info("Refuse global dictation toggle: note-append listening is active")
                 return
             }
             do {
-                try await startRecording(source: source)
+                try await startRecording(
+                    source: source,
+                    captureStartClaim: captureStartClaim
+                )
             } catch {
+                guard !Self.isTaskCancellation(error) else { return }
                 self.error = error
                 audioRecorder.resetAudioEngine()
                 Log.app.error("Failed to start recording: \(error)")
@@ -3328,7 +5999,23 @@ final class AppCoordinator {
         }
     }
     
-    private func startRecording(source: RecordingTriggerSource) async throws {
+    private func startRecording(
+        source: RecordingTriggerSource,
+        voiceNoteContext: VoiceNoteCaptureContext? = nil,
+        pendingNoteAppendStart: PendingNoteAppendStart? = nil,
+        captureStartClaim: CaptureStartClaim? = nil
+    ) async throws {
+        let claim: CaptureStartClaim
+        if let captureStartClaim {
+            claim = captureStartClaim
+        } else {
+            guard let claimedStart = recordingState.claimCaptureStart() else {
+                throw CancellationError()
+            }
+            claim = claimedStart
+        }
+        defer { recordingState.releaseCaptureStart(claim) }
+        try ensureCaptureStartCurrent(claim)
         automaticDictionaryLearningService.cancelObservation()
         logRecordingStartAttempt(source: source)
 
@@ -3336,29 +6023,85 @@ final class AppCoordinator {
         // so escape-to-cancel and modifier tracking become available mid-session.
         ensureGlobalKeyMonitorsIfPossible()
 
-        await beginStreamingSessionIfAvailable()
+        if let voiceNoteContext {
+            if let pendingNoteAppendStart {
+                try ensurePendingNoteAppendStartCurrent(
+                    pendingNoteAppendStart,
+                    context: voiceNoteContext
+                )
+            } else {
+                guard isVoiceNoteCaptureContextCurrent(voiceNoteContext) else {
+                    throw CancellationError()
+                }
+            }
+        }
+        let startedStreamingSession = await beginStreamingSessionIfAvailable(for: voiceNoteContext)
+        do {
+            try ensureCaptureStartCurrent(claim)
+            if let voiceNoteContext {
+                try await ensureVoiceNoteCaptureCurrentAfterArtifactAdmission(
+                    voiceNoteContext,
+                    pendingNoteAppendStart: pendingNoteAppendStart
+                )
+                try ensureCaptureStartCurrent(claim)
+            }
+        } catch {
+            await cancelCaptureStartStreaming(
+                voiceNoteContext: voiceNoteContext,
+                session: startedStreamingSession
+            )
+            throw error
+        }
 
         // Retention encodes a native-rate copy so kept audio isn't the 16 kHz ASR feed.
         audioRecorder.retainNativeAudioForSession =
             settingsStore.dictationAudioRetention != .off
 
+        var recorderStarted = false
         let didStartRecording: Bool
         do {
             didStartRecording = try await audioRecorder.startRecording()
-        } catch {
-            if streamingSession.isSessionActive {
-                await streamingSession.cancel()
+            recorderStarted = didStartRecording
+            try ensureCaptureStartCurrent(claim)
+            if let voiceNoteContext, let pendingNoteAppendStart {
+                try ensurePendingNoteAppendStartCurrent(
+                    pendingNoteAppendStart,
+                    context: voiceNoteContext
+                )
+                try ensureCaptureStartCurrent(claim)
             }
-            Log.app.error("Audio engine failed to start: \(error)")
-            throw error
+        } catch {
+            if recorderStarted || Self.isTaskCancellation(error) {
+                audioRecorder.resetAudioEngine()
+            }
+            await cancelCaptureStartStreaming(
+                voiceNoteContext: voiceNoteContext,
+                session: startedStreamingSession
+            )
+            if !Self.isTaskCancellation(error) {
+                Log.app.error("Audio engine failed to start: \(error)")
+                throw error
+            }
+            throw CancellationError()
+        }
+
+        if didStartRecording {
+            switch source {
+            case .noteAppend:
+                break
+            default:
+                // A newer capture owns the recorder now, so a cancelled
+                // note-append start must not reset it when its task unwinds.
+                pendingNoteAppendAudioStartupRequest = nil
+            }
         }
 
         guard didStartRecording else {
-            if streamingSession.isSessionActive {
-                await streamingSession.cancel()
-            }
-            Log.app.debug("Recording start already in progress; ignoring duplicate start request")
-            return
+            await cancelCaptureStartStreaming(
+                voiceNoteContext: voiceNoteContext,
+                session: startedStreamingSession
+            )
+            throw VoiceNoteCaptureAdmissionError.recorderDidNotStart
         }
 
         if settingsStore.pauseMediaOnRecording || settingsStore.muteAudioDuringRecording {
@@ -3430,6 +6173,29 @@ final class AppCoordinator {
         // Speak-to-append uses the in-editor listening chip only — no global orb/pill.
         if source != .noteAppend {
             startRecordingIndicatorSession()
+        }
+    }
+
+    private func ensureCaptureStartCurrent(_ claim: CaptureStartClaim) throws {
+        try Task.checkCancellation()
+        guard !isShutdown,
+              !isPreparingForTermination,
+              recordingState.isCaptureStartClaimCurrent(claim) else {
+            throw CancellationError()
+        }
+    }
+
+    private func cancelCaptureStartStreaming(
+        voiceNoteContext: VoiceNoteCaptureContext?,
+        session: StreamingSessionController.SessionToken?
+    ) async {
+        if let voiceNoteContext {
+            await streamingSession.cancelArtifactCapture(for: voiceNoteContext.handle)
+        } else if let session {
+            await streamingSession.cancel(session: session)
+            if activeStreamingSessionToken == session {
+                activeStreamingSessionToken = nil
+            }
         }
     }
 
@@ -3665,22 +6431,40 @@ final class AppCoordinator {
         )
     }
 
-    private func beginStreamingSessionIfAvailable() async {
-        let shouldUseStreaming = shouldUseStreamingTranscriptionForCurrentSession()
-        guard shouldUseStreaming else {
-            let indicatorAvailable = isFloatingIndicatorAvailable()
-            let reasons = [
-                settingsStore.streamingFeatureEnabled ? nil : "feature-disabled",
-                indicatorAvailable ? nil : "indicator-unavailable",
-                isQuickCaptureMode ? "quick-capture-mode" : nil
-            ].compactMap { $0 }
-            Log.transcription.info("Streaming transcription disabled for session: \(reasons.joined(separator: ","))")
-            streamingSession.deactivate()
-            return
+    private func beginStreamingSessionIfAvailable(
+        for voiceNoteContext: VoiceNoteCaptureContext? = nil
+    ) async -> StreamingSessionController.SessionToken? {
+        if let voiceNoteContext {
+            switch Self.liveArtifactCaptureAdmission(for: voiceNoteContext.liveAssignment) {
+            case .capture:
+                _ = await streamingSession.beginArtifactCapture(
+                    for: voiceNoteContext.handle,
+                    assignment: voiceNoteContext.liveAssignment
+                )
+            case .deactivate:
+                streamingSession.deactivate()
+            }
+            return nil
         }
 
-        await streamingSession.begin()
+        guard shouldUseStreamingTranscriptionForCurrentSession() else {
+            streamingSession.deactivate()
+            return nil
+        }
+        let session = await streamingSession.begin()
+        // A canceled older begin can resume after its successor has installed a token.
+        // Its nil admission result must not erase that successor's global reference.
+        if let session {
+            activeStreamingSessionToken = session
+        }
+        return session
     }
+    private func cancelActiveStreamingSession() async {
+        guard let session = activeStreamingSessionToken else { return }
+        activeStreamingSessionToken = nil
+        await streamingSession.cancel(session: session)
+    }
+
 
     /// Resolves prompt overrides, stable built-in identifiers, and persisted preset
     /// UUIDs through one path so every enhancement entry point sends the same text.
@@ -3759,7 +6543,7 @@ final class AppCoordinator {
                 return nil
             }
             Log.aiEnhancement.warning(
-                "Streaming post-stop enhance failed: \(error.localizedDescription)")
+                "Streaming post-stop enhance failed provider=\(assignment.kind.rawValue)")
             toastService.show(
                 ToastPayload(
                     message: localized(
@@ -3773,7 +6557,10 @@ final class AppCoordinator {
         }
     }
 
-    private func stopRecordingAndFinalizeStreaming(token: DictationOperationToken) async throws {
+    private func stopRecordingAndFinalizeStreaming(
+        token: DictationOperationToken,
+        session: StreamingSessionController.SessionToken
+    ) async throws {
         guard let startTime = recordingStartTime else {
             Log.app.warning("stopRecordingAndFinalizeStreaming called but recordingStartTime is nil")
             return
@@ -3810,16 +6597,27 @@ final class AppCoordinator {
             audioStopSeconds = audioStopStart.duration(to: pipelineClock.now).pipelineSeconds
             try ensureOperationCurrent(token)
         } catch {
+            if Self.shouldCancelStreamingAfterStopFailure(
+                isOperationCurrent: operationController.isCurrent(token)
+            ) {
+                await streamingSession.cancel(session: session)
+                if activeStreamingSessionToken == session {
+                    activeStreamingSessionToken = nil
+                }
+            }
             if Self.isTaskCancellation(error) { throw CancellationError() }
             Log.app.error("Failed to stop recording for streaming session: \(error)")
-            await streamingSession.cancel()
             throw error
         }
 
         var outcome = try await streamingSession.finalize(
             recordedAudioData: recordedAudioData,
-            recordingDuration: Date().timeIntervalSince(startTime)
+            recordingDuration: Date().timeIntervalSince(startTime),
+            session: session
         )
+        if activeStreamingSessionToken == session {
+            activeStreamingSessionToken = nil
+        }
         outcome.pipelineMetrics.audioStopSeconds = audioStopSeconds
         outcome.pipelineMetrics.totalSeconds = pipelineStart.duration(to: pipelineClock.now).pipelineSeconds
         Log.app.info("Pipeline timing: \(outcome.pipelineMetrics.logSummary)")
@@ -3891,8 +6689,8 @@ final class AppCoordinator {
             return
         }
 
-        if streamingSession.isSessionActive {
-            try await stopRecordingAndFinalizeStreaming(token: token)
+        if let session = activeStreamingSessionToken {
+            try await stopRecordingAndFinalizeStreaming(token: token, session: session)
             return
         }
 
@@ -4777,6 +7575,12 @@ final class AppCoordinator {
         isOperationCurrent && !isTaskCancellation(error)
     }
 
+    /// A failed generic stop may cancel the shared streaming engine only while its
+    /// operation still owns the coordinator; a stale stop must leave its successor alone.
+    static func shouldCancelStreamingAfterStopFailure(isOperationCurrent: Bool) -> Bool {
+        isOperationCurrent
+    }
+
     private func resetProcessingStateIfCurrent(_ token: DictationOperationToken) {
         guard Self.shouldResetProcessingStateOnExit(
             didResetProcessingState: false,
@@ -4903,7 +7707,16 @@ final class AppCoordinator {
     }
 
     private func cancelCurrentOperation(source: String = "cancel") {
-        guard isRecording || isProcessing || activeOperationTask != nil else {
+        guard !isShutdown, !isPreparingForTermination else { return }
+        guard Self.canCancelCurrentOperation(
+            isRecording: isRecording,
+            isProcessing: isProcessing,
+            hasActiveOperationTask: activeOperationTask != nil,
+            hasMeetingCaptureContext: meetingCaptureContext != nil,
+            hasPendingMeetingCaptureStart: pendingMeetingCaptureStart != nil
+                || pendingMeetingCaptureStartHandle != nil
+                || pendingMeetingCaptureCancellationHandle != nil
+        ) else {
             Log.app.debug("Cancel requested (\(source)) but no operation in progress")
             return
         }
@@ -4918,22 +7731,71 @@ final class AppCoordinator {
         }
 
         Log.app.info("Cancelling current operation via \(source)")
+        let capturedStreamingSessionToken = activeStreamingSessionToken
+        let capturedVoiceNoteHandle = voiceNoteCaptureContext?.handle
+        let capturedMeetingContext = meetingCaptureContext
+        let capturedPendingMeetingHandle = pendingMeetingCaptureCancellationHandle
+            ?? pendingMeetingCaptureStartHandle
+        let capturedPendingMeetingStartTask = pendingMeetingCaptureStartTask
+        let capturedActiveOperationTask = activeOperationTask
 
         escapeCancelArmedAt = nil
         // Invalidate any in-flight stop/transcribe/enhance pipeline first so post-await
         // stages discard results even if cooperative cancellation is delayed.
         operationController.cancel()
+        cancelPendingNoteAppendStart()
+        cancelPendingMeetingCaptureStart()
         activeOperationTask?.cancel()
         activeOperationTask = nil
         // Free stop admission immediately so a new recording can stop even while the
         // cancelled finalize task is still unwinding its defer.
         recordingStopAdmission.invalidateCurrentClaim()
+        cancelActiveVoiceNoteCapture()
+        audioRecorder.resetAudioEngine()
+        let meetingCancellationTaskID = UUID()
+        meetingCancellationTasks[meetingCancellationTaskID] = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.meetingCancellationTasks[meetingCancellationTaskID] = nil }
+            if let capturedPendingMeetingStartTask {
+                await capturedPendingMeetingStartTask.value
+            }
+            if let capturedActiveOperationTask {
+                _ = await capturedActiveOperationTask.result
+            }
+            if let capturedPendingMeetingHandle {
+                do {
+                    try await self.cancelMeetingCaptureStartHandle(capturedPendingMeetingHandle)
+                } catch {
+                    self.reportMeetingCaptureTerminalPersistenceFailure(error)
+                }
+            }
+            if let capturedMeetingContext {
+                do {
+                    try await self.cancelMeetingCapture(
+                        capturedMeetingContext.handle,
+                        activeContext: capturedMeetingContext
+                    )
+                } catch {
+                    self.reportMeetingCaptureTerminalPersistenceFailure(error)
+                }
+            }
+        }
 
-        streamingSession.cancelDetached()
+        if let capturedStreamingSessionToken {
+            if activeStreamingSessionToken == capturedStreamingSessionToken {
+                activeStreamingSessionToken = nil
+            }
+            streamingSession.cancelDetached(session: capturedStreamingSessionToken)
+        }
+        if let capturedVoiceNoteHandle {
+            streamingSession.cancelArtifactCaptureDetached(for: capturedVoiceNoteHandle)
+        }
+        if capturedStreamingSessionToken == nil, capturedVoiceNoteHandle == nil {
+            streamingSession.deactivate()
+        }
         recordingState.endRecording(message: localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale))
         recordingState.clearCurrentJob()
 
-        audioRecorder.resetAudioEngine()
         mediaPauseService.endRecordingSession()
         isRecording = false
         isProcessing = false
@@ -4948,7 +7810,6 @@ final class AppCoordinator {
         capturedRoutingSignal = nil
         stopLiveContextSession()
         updateVibeRuntimeStateFromSettings()
-        error = nil
 
         statusBarController.setIdleState()
         statusBarController.updateMenuState()
@@ -4961,11 +7822,22 @@ final class AppCoordinator {
             handleRecordingLimitReached(failure)
             return
         }
+        let capturedStreamingSessionToken = activeStreamingSessionToken
+        let capturedVoiceNoteHandle = voiceNoteCaptureContext?.handle
         error = failure
         Log.app.error("Audio capture failed: \(failure.localizedDescription)")
-
-        let hadStreamingSession = streamingSession.isSessionActive
-        streamingSession.cancelDetached()
+        if let capturedStreamingSessionToken,
+           activeStreamingSessionToken == capturedStreamingSessionToken {
+            activeStreamingSessionToken = nil
+        }
+        let hadCapturedStreamingOwner =
+            capturedStreamingSessionToken != nil || capturedVoiceNoteHandle != nil
+        if let capturedStreamingSessionToken {
+            streamingSession.cancelDetached(session: capturedStreamingSessionToken)
+        }
+        if let capturedVoiceNoteHandle {
+            streamingSession.cancelArtifactCaptureDetached(for: capturedVoiceNoteHandle)
+        }
         let captureFailureLocale = settingsStore.selectedAppLocale.locale
         let captureFailureMessage = String(
             format: localized("Recording stopped: %@", locale: captureFailureLocale),
@@ -4973,8 +7845,26 @@ final class AppCoordinator {
             failure.localizedDescription
         )
         recordingState.endRecording(message: captureFailureMessage)
+        if let context = voiceNoteCaptureContext {
+            failVoiceNoteCapture(context, stage: "audio-capture", error: failure)
+        }
+        if let context = meetingCaptureContext {
+            let nsError = failure as NSError
+            do {
+                try captureSessionStore.interruptMeetingCapture(
+                    context.handle,
+                    errorDomain: nsError.domain,
+                    errorCode: String(nsError.code),
+                    message: failure.localizedDescription,
+                    at: .now
+                )
+                clearMeetingCaptureContext(ifCurrent: context)
+            } catch {
+                reportMeetingCaptureTerminalPersistenceFailure(error)
+            }
+        }
         recordingState.clearCurrentJob()
-        if hadStreamingSession {
+        if hadCapturedStreamingOwner {
             Log.transcription.info("Cancelled streaming transcription after audio capture failure")
         }
 
@@ -4984,7 +7874,6 @@ final class AppCoordinator {
         isRecordingFeatureCaptureActive = false
         isQuickCaptureMode = false
         clearNoteAppendMode()
-        recordingStartTime = nil
         manualExpectedSpeakerCount = nil
         capturedContext = nil
         capturedSnapshot = nil
@@ -5341,15 +8230,42 @@ final class AppCoordinator {
         }
     }
 
-    private func handleStartMeetingCapture(expectedSpeakerCount: Int?) {
-        Task { @MainActor [weak self] in
+    private func handleStartMeetingCapture(expectedSpeakerCount: Int?) -> Bool {
+        guard !isRecording,
+              !isProcessing,
+              Self.canBeginMeetingCapture(
+                  activeHandle: meetingCaptureContext?.handle,
+                  recoveryTaskActive: meetingRecoveryTask != nil,
+                  isShutdown: isShutdown || isPreparingForTermination
+              ),
+              let captureStartClaim = recordingState.claimCaptureStart() else {
+            recordingState.message = "Finish the active transcription before starting another one."
+            return false
+        }
+        guard let meetingClaim = meetingCaptureStartAdmission.claim() else {
+            recordingState.releaseCaptureStart(captureStartClaim)
+            recordingState.message = "Finish the active transcription before starting another one."
+            return false
+        }
+
+        pendingMeetingCaptureStart = meetingClaim
+        pendingMeetingCaptureStartTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            defer {
+                self.recordingState.releaseCaptureStart(captureStartClaim)
+                self.clearPendingMeetingCaptureStart(ifCurrent: meetingClaim)
+            }
+
             do {
                 try await self.startManualTranscriptionRecording(
                     mode: .microphoneAndSystemAudio,
-                    expectedSpeakerCount: expectedSpeakerCount
+                    expectedSpeakerCount: expectedSpeakerCount,
+                    pendingStart: meetingClaim
                 )
             } catch {
+                guard !self.isShutdown,
+                      !self.isPreparingForTermination,
+                      self.isPendingMeetingCaptureStartCurrent(meetingClaim) else { return }
                 self.error = error
                 self.audioRecorder.resetAudioEngine()
                 self.isRecordingFeatureCaptureActive = false
@@ -5357,185 +8273,235 @@ final class AppCoordinator {
                 Log.app.error("Failed to start meeting capture: \(error)")
             }
         }
+        return true
     }
 
     private func startManualTranscriptionRecording(
         mode: AudioRecordingMode,
-        expectedSpeakerCount: Int? = nil
+        expectedSpeakerCount: Int? = nil,
+        pendingStart: MeetingCaptureStartClaim
     ) async throws {
+        try ensurePendingMeetingCaptureStartCurrent(pendingStart)
         guard !isRecording && !isProcessing else {
             recordingState.message = "Finish the active transcription before starting another one."
             return
         }
-
-        await modelManager.refreshDownloadedFeatureModels()
-        guard modelManager.isFeatureModelDownloaded(.diarization) else {
-            recordingState.setSetupIssue(
-                localized(
-                    "Download the speaker diarization model before starting recording.",
-                    locale: settingsStore.selectedAppLocale.locale
-                )
-            )
-            return
+        guard Self.canBeginMeetingCapture(
+            activeHandle: meetingCaptureContext?.handle,
+            recoveryTaskActive: meetingRecoveryTask != nil,
+            isShutdown: isShutdown || isPreparingForTermination
+        ) else {
+            throw MeetingCaptureAdmissionError.captureAlreadyActive
         }
 
-        let didStartRecording = try await audioRecorder.startRecording(
-            configuration: AudioRecordingConfiguration(mode: mode)
+        try ensurePendingMeetingCaptureStartCurrent(pendingStart)
+        let startedAt = Date.now
+        let preferredInputUID = audioRecorder.currentPreferredInputDeviceUID
+            ?? settingsStore.selectedInputDeviceUID
+        let microphoneDisplayName = AudioDeviceManager.inputDevices()
+            .first(where: { $0.uid == preferredInputUID })?
+            .displayName ?? "Microphone"
+        let handle = try captureSessionStore.startMeetingCapture(
+            startedAt: startedAt,
+            microphoneDisplayName: microphoneDisplayName,
+            systemAudioDisplayName: "System Audio"
         )
-        guard didStartRecording else { return }
-        manualExpectedSpeakerCount = expectedSpeakerCount
-
-        isRecording = true
-        isRecordingFeatureCaptureActive = true
-        recordingStartTime = Date()
-        recordingState.beginRecording(mode: mode, startedAt: recordingStartTime ?? Date())
-        statusBarController.setRecordingState()
-        statusBarController.updateMenuState()
-        startRecordingIndicatorSession()
-    }
-
-
-    private func stopManualTranscriptionRecording(token: DictationOperationToken) async throws {
-        guard isRecordingFeatureCaptureActive else {
-            throw AudioRecorderError.notRecording
-        }
-
-        let mode = recordingState.selectedCaptureMode
-        let duration = recordingStartTime.map { Date().timeIntervalSince($0) } ?? 0
-        let audioData = try await audioRecorder.stopRecording()
-        // Ownership check immediately after the first await — before any global
-        // mutation/store that would clobber a newer session started after cancel.
-        try ensureOperationCurrent(token)
-
-        isRecording = false
-        isRecordingFeatureCaptureActive = false
-        recordingState.endRecording()
-        statusBarController.setProcessingState()
-        statusBarController.updateMenuState()
-        transitionRecordingIndicatorToProcessing()
-        isProcessing = true
-        let expectedSpeakerCount = manualExpectedSpeakerCount
-        manualExpectedSpeakerCount = nil
-
-        let job = MediaTranscriptionJobState(
-            request: .manualCapture(mode.rawValue),
-            options: TranscriptionJobOptions(
-                modelName: settingsStore.selectedModel,
-                language: settingsStore.selectedAppLanguage,
-                outputFormat: .plainText,
-                diarizationEnabled: true,
-                expectedSpeakerCount: expectedSpeakerCount
-            ),
-            destinationFolderID: nil,
-            stage: .preparingAudio,
-            progress: nil,
-            detail: "Preparing captured audio"
-        )
-
-        recordingState.beginJob(job)
-
-        var didResetProcessingState = false
-        defer {
-            if Self.shouldResetProcessingStateOnExit(
-                didResetProcessingState: didResetProcessingState,
-                isOperationCurrent: operationController.isCurrent(token)
-            ) {
-                resetProcessingState()
-            }
-        }
+        pendingMeetingCaptureStartHandle = handle
 
         do {
-            let managedAsset = try mediaIngestionService.storeRecordedAudio(
-                audioData,
-                jobID: job.id,
-                displayName: mode.libraryDisplayName,
-                sourceKind: .manualCapture
+            try ensurePendingMeetingCaptureStartCurrent(pendingStart)
+            let humanAnchor = try captureSessionStore.ensureMeetingHumanAnchor(
+                handle,
+                title: localized(
+                    "Untitled Note",
+                    locale: settingsStore.selectedAppLocale.locale
+                ),
+                at: startedAt
             )
-            try ensureOperationCurrent(token)
-
-            recordingState.updateJob(
-                stage: .transcribing,
-                progress: nil,
-                detail: job.options.diarizationEnabled ? "Running diarization and transcription" : "Running transcription",
-                errorMessage: nil
+            _ = try captureMeetingStartAssignments(sessionID: handle.sessionID)
+            try ensurePendingMeetingCaptureStartCurrent(pendingStart)
+            let spoolPlan = try await mediaIngestionService.makeMeetingCaptureSpoolPlan(
+                sessionID: handle.sessionID,
+                microphoneSourceID: handle.microphoneSourceID,
+                systemAudioSourceID: handle.systemAudioSourceID
             )
+            try ensurePendingMeetingCaptureStartCurrent(pendingStart)
 
-            let transcriptionOutput = try await transcriptionService.transcribe(
-                audioData: audioData,
-                diarizationEnabled: job.options.diarizationEnabled,
-                options: makeTranscriptionOptions(route: .manualCapture(mode)),
-                diarizationOptions: .init(expectedSpeakerCount: job.options.expectedSpeakerCount),
-                diarizationFailurePolicy: .required
+            meetingCaptureGeneration &+= 1
+            let context = MeetingCaptureContext(
+                handle: handle,
+                humanAnchorNoteID: humanAnchor.noteID,
+                spoolPlan: spoolPlan,
+                generation: meetingCaptureGeneration
             )
-            try ensureOperationCurrent(token)
-            let diarizationSegmentsJSON = encodeDiarizationSegmentsJSON(transcriptionOutput.diarizedSegments)
+            try ensurePendingMeetingCaptureStartCurrent(pendingStart)
+            meetingCaptureContext = context
 
-            recordingState.updateJob(
-                stage: .saving,
-                progress: nil,
-                detail: "Saving transcript to history",
-                errorMessage: nil
+            try ensurePendingMeetingCaptureStartCurrent(pendingStart)
+            let didStartRecording = try await audioRecorder.startMeetingRecording(
+                spoolPlan: spoolPlan,
+                onChunkSealed: { [weak self] chunk in
+                    Task { @MainActor [weak self] in
+                        self?.recordSealedMeetingChunk(chunk, for: context)
+                    }
+                }
             )
-
-            let finalText = normalizedTranscriptionText(transcriptionOutput.text)
-            guard !isTranscriptionEffectivelyEmpty(finalText) else {
-                throw PindropMedia.MediaPreparationError.readFailed("No speech could be transcribed from this recording.")
+            try ensurePendingMeetingCaptureStartCurrent(pendingStart)
+            guard didStartRecording else {
+                throw MeetingCaptureAdmissionError.recorderDidNotStart
             }
+            try ensureMeetingCaptureCurrent(context)
 
-            let transcriptionMetadata = await generateTranscriptionMetadataIfNeeded(
-                from: finalText,
-                managedAsset: managedAsset
-            )
-            try ensureOperationCurrent(token)
+            try ensurePendingMeetingCaptureStartCurrent(pendingStart)
+            manualExpectedSpeakerCount = expectedSpeakerCount
+            isRecording = true
+            isRecordingFeatureCaptureActive = true
+            recordingStartTime = startedAt
+            recordingState.beginRecording(mode: mode, startedAt: startedAt)
+            statusBarController.setRecordingState()
+            statusBarController.updateMenuState()
+            startRecordingIndicatorSession()
 
-            let record = try historyStore.save(
-                text: finalText,
-                originalText: nil,
-                duration: duration,
-                modelUsed: settingsStore.selectedModel,
-                enhancedWith: nil,
-                diarizationSegmentsJSON: diarizationSegmentsJSON,
-                sourceKind: managedAsset.sourceKind,
-                sourceDisplayName: managedAsset.displayName,
-                generatedTitle: transcriptionMetadata.generatedTitle,
-                aiSummary: transcriptionMetadata.summary,
-                sourceTitleOrigin: managedAsset.hasSourceMetadataTitle ? .sourceMetadata : .fallback,
-                originalSourceURL: managedAsset.originalSourceURL,
-                managedMediaPath: managedAsset.mediaURL.path,
-                thumbnailPath: managedAsset.thumbnailURL?.path,
-                folderID: job.destinationFolderID
-            )
-            updateRecentTranscriptsMenu()
-
-            if operationController.isCurrent(token) {
-                resetProcessingState()
-                didResetProcessingState = true
-            }
-            let meetingRecordID = record.id
-            mainWindowController.showHistory()
-            // Post after nav so HistoryView is mounted and listening.
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 150_000_000)
-                NotificationCenter.default.post(
-                    name: .openHistoryRecord,
-                    object: nil,
-                    userInfo: ["recordID": meetingRecordID.uuidString]
+            try ensurePendingMeetingCaptureStartCurrent(pendingStart)
+            do {
+                let note = try notesStore.fetch(id: context.humanAnchorNoteID)
+                noteEditorWindowController.show(note: note, isNewNote: false)
+            } catch {
+                Log.app.warning(
+                    "Meeting capture started, but its human anchor could not be opened: \(error.localizedDescription)"
                 )
             }
-        } catch is CancellationError {
-            // Only the current operation may mutate shared RecordingState after cancel.
-            guard operationController.isCurrent(token) else { return }
-            resetProcessingState()
-            didResetProcessingState = true
-            recordingState.clearCurrentJob()
-            recordingState.message = localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale)
         } catch {
-            // Stale cancelled work completing after a newer session started: no state mutation.
-            guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else { return }
-            Log.app.error("Manual media transcription failed: \(error)")
+            guard isPendingMeetingCaptureStartCurrent(pendingStart) else {
+                if meetingCaptureContext?.handle == handle {
+                    audioRecorder.resetAudioEngine()
+                }
+                do {
+                    try await cancelMeetingCaptureStartHandle(handle)
+                } catch {
+                    reportMeetingCaptureTerminalPersistenceFailure(error)
+                }
+                throw CancellationError()
+            }
+
+            let nsError = error as NSError
+            if let context = meetingCaptureContext, context.handle == handle {
+                if Self.isTaskCancellation(error) {
+                    try await cancelMeetingCapture(handle, activeContext: context)
+                } else {
+                    try captureSessionStore.failMeetingCapture(
+                        handle,
+                        stage: nil,
+                        errorDomain: nsError.domain,
+                        errorCode: String(nsError.code),
+                        message: error.localizedDescription,
+                        at: .now
+                    )
+                }
+                clearMeetingCaptureContext(ifCurrent: context)
+            } else {
+                try captureSessionStore.failMeetingCapture(
+                    handle,
+                    stage: nil,
+                    errorDomain: nsError.domain,
+                    errorCode: String(nsError.code),
+                    message: error.localizedDescription,
+                    at: .now
+                )
+            }
+            throw error
+        }
+    }
+
+    private func stopManualTranscriptionRecording(token: DictationOperationToken) async throws {
+        guard isRecordingFeatureCaptureActive, let context = meetingCaptureContext else {
+            throw AudioRecorderError.notRecording
+        }
+        let mode = recordingState.selectedCaptureMode
+
+        do {
+            try captureSessionStore.beginMeetingFinalization(context.handle, at: .now)
+            let stopResult = try await audioRecorder.stopMeetingRecording()
+            try ensureMeetingCaptureCurrent(context, token: token)
+            for chunk in stopResult.sealedChunks {
+                recordSealedMeetingChunk(chunk, for: context)
+            }
+            let recovery = try await reconcileMeetingArtifacts(
+                handle: context.handle,
+                spoolPlan: context.spoolPlan,
+                operationGuard: { try self.ensureMeetingCaptureCurrent(context, token: token) }
+            )
+            try ensureMeetingCaptureCurrent(context, token: token)
+            try finishMeetingSources(
+                handle: context.handle,
+                artifacts: recovery.sealedChunks,
+                recoveryFailures: recovery.failures,
+                stopResult: stopResult
+            )
+
+            isRecording = false
+            isRecordingFeatureCaptureActive = false
+            recordingState.endRecording()
+            statusBarController.setProcessingState()
+            statusBarController.updateMenuState()
+            transitionRecordingIndicatorToProcessing()
+            isProcessing = true
+            let job = MediaTranscriptionJobState(
+                request: .manualCapture(mode.rawValue),
+                options: TranscriptionJobOptions(
+                    modelName: settingsStore.selectedModel,
+                    language: settingsStore.selectedAppLanguage,
+                    outputFormat: .plainText,
+                    diarizationEnabled: settingsStore.diarizationFeatureEnabled,
+                    expectedSpeakerCount: manualExpectedSpeakerCount
+                ),
+                destinationFolderID: nil,
+                stage: .transcribing,
+                progress: 0,
+                detail: "Preparing durable meeting chunks"
+            )
+            recordingState.beginJob(job)
+            let recordID = try captureSessionStore.reserveMeetingTranscriptionRecordID(context.handle)
+            try await finalizeMeetingCapture(
+                context.handle,
+                spoolPlan: context.spoolPlan,
+                operationGuard: { [weak self] in
+                    guard let self else { throw CancellationError() }
+                    try self.ensureMeetingCaptureCurrent(context, token: token)
+                }
+            )
+            guard isMeetingCaptureContextCurrent(context), operationController.isCurrent(token) else {
+                throw CancellationError()
+            }
+            clearMeetingCaptureContext(ifCurrent: context)
+            manualExpectedSpeakerCount = nil
             resetProcessingState()
-            didResetProcessingState = true
+            recordingState.completeCurrentJob(
+                with: recordID,
+                message: "Meeting recording transcribed successfully."
+            )
+            mainWindowController.openLibrary(recordID: recordID)
+        } catch is CancellationError {
+            // Explicit cancellation already terminally cancelled the durable session.
+            // Lifecycle interruption retains it for startup recovery instead.
+            if isMeetingCaptureContextCurrent(context), operationController.isCurrent(token) {
+                do {
+                    try await cancelActiveMeetingCapture()
+                } catch {
+                    reportMeetingCaptureTerminalPersistenceFailure(error)
+                    throw error
+                }
+                resetStoppedMeetingCaptureState()
+                recordingState.clearCurrentJob()
+                recordingState.message = localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale)
+            }
+            throw CancellationError()
+        } catch {
+            // Chunk and History failures are durable/retryable. Retain the exact
+            // capture context so cancel can retry terminal persistence.
+            resetStoppedMeetingCaptureState()
             recordingState.failCurrentJob(error.localizedDescription)
+            throw error
         }
     }
 
@@ -5738,7 +8704,7 @@ final class AppCoordinator {
         )
 
         mediaTranscriptionState.beginJob(job)
-        mainWindowController.showTranscribe()
+        mainWindowController.navigate(to: .library)
 
         isProcessing = true
         statusBarController.setProcessingState()
@@ -5952,7 +8918,8 @@ final class AppCoordinator {
                 trimmedSummary.isEmpty ? nil : trimmedSummary
             )
         } catch {
-            Log.aiEnhancement.warning("Transcription metadata generation failed: \(error.localizedDescription)")
+            Log.aiEnhancement.warning(
+                "Transcription metadata generation failed provider=\(assignment.kind.rawValue)")
             return (nil, nil)
         }
     }
@@ -5964,7 +8931,10 @@ final class AppCoordinator {
             finishIndicatorSession()
             return
         }
+        let capturedStreamingSessionToken = activeStreamingSessionToken
+        let capturedVoiceNoteHandle = voiceNoteCaptureContext?.handle
 
+        cancelPendingNoteAppendStart()
         Log.app.info("Clearing audio buffer")
         // Mirror cancel's teardown: invalidate any in-flight operation and stop
         // admission so a half-dispatched stop can't run against the cleared audio.
@@ -5972,11 +8942,24 @@ final class AppCoordinator {
         activeOperationTask?.cancel()
         activeOperationTask = nil
         recordingStopAdmission.invalidateCurrentClaim()
-
+        cancelActiveVoiceNoteCapture()
         audioRecorder.cancelRecording()
-        if streamingSession.isSessionActive {
-            await streamingSession.cancel()
-        } else {
+        do {
+            try await cancelActiveMeetingCapture()
+        } catch {
+            reportMeetingCaptureTerminalPersistenceFailure(error)
+        }
+
+        if let capturedStreamingSessionToken {
+            if activeStreamingSessionToken == capturedStreamingSessionToken {
+                activeStreamingSessionToken = nil
+            }
+            streamingSession.cancelDetached(session: capturedStreamingSessionToken)
+        }
+        if let capturedVoiceNoteHandle {
+            streamingSession.cancelArtifactCaptureDetached(for: capturedVoiceNoteHandle)
+        }
+        if capturedStreamingSessionToken == nil, capturedVoiceNoteHandle == nil {
             streamingSession.deactivate()
         }
         recordingState.endRecording(message: localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale))
@@ -6147,10 +9130,10 @@ final class AppCoordinator {
         updateService.checkForUpdates()
     }
 
-    // MARK: - Open History
+    // MARK: - Open Library
 
-    private func handleOpenHistory() {
-        mainWindowController.showHistory()
+    private func handleOpenLibrary() {
+        mainWindowController.navigate(to: .library)
     }
 
     // MARK: - Show App
@@ -6242,7 +9225,16 @@ final class AppCoordinator {
 
     func shutdown() {
         guard !isShutdown else { return }
+        let shutdownStreamingSessionToken = activeStreamingSessionToken
+        let shutdownVoiceNoteHandle = voiceNoteCaptureContext?.handle
+        if let shutdownStreamingSessionToken,
+           activeStreamingSessionToken == shutdownStreamingSessionToken {
+            activeStreamingSessionToken = nil
+        }
         isShutdown = true
+        recordingState.invalidateCaptureStart()
+        mainWindowCaptureStartTask?.cancel()
+        mainWindowCaptureStartTask = nil
 
         // Stop Carbon callbacks first. The sources must be disabled and detached on
         // their owning run loop before the pass-unretained coordinator refcon can die.
@@ -6256,10 +9248,45 @@ final class AppCoordinator {
 
         notificationResources.tearDown()
         cancellables.removeAll()
-
-        floatingIndicatorHiddenTask?.cancel()
-        floatingIndicatorHiddenTask = nil
-        escapeEventTapRecoveryTask?.cancel()
+        cancelPendingNoteAppendStart()
+        cancelPendingMeetingCaptureStart()
+        if let handle = pendingMeetingCaptureStartHandle {
+            do {
+                try captureSessionStore.interruptMeetingCapture(
+                    handle,
+                    errorDomain: "Pindrop",
+                    errorCode: "lifecycle-sync-shutdown",
+                    message: "Meeting capture was interrupted before startup completed.",
+                    at: .now
+                )
+            } catch {
+                reportMeetingCaptureTerminalPersistenceFailure(error)
+            }
+        }
+        cancelActiveVoiceNoteCapture()
+        meetingRecoveryGeneration &+= 1
+        meetingRecoveryTask?.cancel()
+        meetingRecoveryTask = nil
+        meetingRecoveryHandle = nil
+        let interruptedMeeting = meetingCaptureContext
+        if let interruptedMeeting {
+            // `prepareForTermination()` normally owns and awaits tail sealing. This
+            // synchronous fallback must not launch background work during teardown;
+            // it can only persist an interruption against the exact active handle.
+            do {
+                try captureSessionStore.beginMeetingFinalization(interruptedMeeting.handle, at: .now)
+                try captureSessionStore.interruptMeetingCapture(
+                    interruptedMeeting.handle,
+                    errorDomain: "Pindrop",
+                    errorCode: "lifecycle-sync-shutdown",
+                    message: "Meeting capture was interrupted before its tail could be sealed.",
+                    at: .now
+                )
+            } catch {
+                Log.app.warning("Could not persist synchronous meeting interruption: \(error.localizedDescription)")
+            }
+            meetingCaptureContext = nil
+        }
         escapeEventTapRecoveryTask = nil
         modifierEventTapRecoveryTask?.cancel()
         modifierEventTapRecoveryTask = nil
@@ -6277,8 +9304,19 @@ final class AppCoordinator {
         mediaQueueDeferredUntilIdle = false
         mediaTranscriptionState.clearAllJobs()
 
-        streamingSession.cancelDetached()
-        audioRecorder.resetAudioEngine()
+        if let shutdownStreamingSessionToken {
+            streamingSession.cancelDetached(session: shutdownStreamingSessionToken)
+        }
+        if let shutdownVoiceNoteHandle {
+            streamingSession.cancelArtifactCaptureDetached(for: shutdownVoiceNoteHandle)
+        } else {
+            // Application shutdown has no successor, so terminal cleanup may safely
+            // abort any unowned artifact lifecycle left by a failed admission.
+            streamingSession.cancelDetached()
+        }
+        if interruptedMeeting == nil {
+            audioRecorder.resetAudioEngine()
+        }
         mediaPauseService.endRecordingSession()
         isRecording = false
         isProcessing = false

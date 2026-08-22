@@ -38,7 +38,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private var pasteLastTranscriptItem: NSMenuItem?
     private var exportLastTranscriptItem: NSMenuItem?
 
-    private var openHistoryItem: NSMenuItem?
+    private var openLibraryItem: NSMenuItem?
 
     private var promptPresetMenuItem: NSMenuItem?
     private var promptPresetMenu: NSMenu?
@@ -55,7 +55,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     var onExportLastTranscript: (() async -> Void)?
     var onClearAudioBuffer: (() async -> Void)?
     var onCancelOperation: (() async -> Void)?
-    var onOpenHistory: (() -> Void)?
+    var onOpenLibrary: (() -> Void)?
     var onOpenSettings: ((SettingsTab) -> Void)?
     var onSelectPromptPreset: ((PromptPresetOption) -> Void)?
     var onMenuWillOpen: (() -> Void)?
@@ -266,15 +266,15 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        // === OPEN HISTORY / SHOW APP ===
-        openHistoryItem = NSMenuItem(
+        // === OPEN LIBRARY / SHOW APP ===
+        openLibraryItem = NSMenuItem(
             title: localized("Open Library", locale: locale),
-            action: #selector(openHistory),
+            action: #selector(openLibrary),
             keyEquivalent: ""
         )
-        openHistoryItem?.target = self
-        openHistoryItem?.image = NSImage(systemSymbolName: "clock.arrow.circlepath", accessibilityDescription: nil)
-        menu.addItem(openHistoryItem!)
+        openLibraryItem?.target = self
+        openLibraryItem?.image = NSImage(systemSymbolName: "books.vertical", accessibilityDescription: nil)
+        menu.addItem(openLibraryItem!)
 
         let showAppItem = NSMenuItem(
             title: localized("Show App", locale: locale),
@@ -570,8 +570,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         updatePromptPresetItems()
     }
 
-    @objc private func openHistory() {
-        onOpenHistory?()
+    @objc private func openLibrary() {
+        onOpenLibrary?()
     }
 
     @objc private func showApp() {

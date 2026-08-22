@@ -86,7 +86,7 @@ struct HotkeysSettingsView: View {
         [
             (
                 .quickCapturePTT,
-                localized("Note Capture — Hold", locale: locale),
+                localized("Voice Note — Hold", locale: locale),
                 localized("Hold to record, then release to open the note editor with the transcription.", locale: locale),
                 settings.quickCapturePTTHotkey,
                 {
@@ -96,7 +96,7 @@ struct HotkeysSettingsView: View {
             ),
             (
                 .quickCaptureToggle,
-                localized("Note Capture — Toggle", locale: locale),
+                localized("Voice Note — Toggle", locale: locale),
                 localized("Press once to start recording, then again to open the note editor.", locale: locale),
                 settings.quickCaptureToggleHotkey,
                 {

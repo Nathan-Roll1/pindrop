@@ -158,6 +158,7 @@ change:
   your_choice_anytime_in_settings_privacy: "Muuta valintasi milloin tahansa kohdassa Asetukset → Tietosuoja."
 changes:
   the_language_used_by_pindrop_s_interface: "Changes the language used by Pindrop's interface."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "Tämän palveluntarjoajan tunnistetietojen ja päätepisteen muutokset koskevat käynnissä olevia ja palautettuja tallenteita. Valittu malli ja kehote pysyvät samoina."
 check:
   for_updates: "Tarkista päivitykset..."
   for_updates_736b9062: "Tarkista päivitykset"
@@ -831,6 +832,36 @@ pick:
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "Pilleri"
+pillars:
+  capture: "Tallennus"
+  workspace: "Työtila"
+  tools: "Työkalut"
+  dictate: "Sanele"
+  voice_note: "Äänimuistio"
+  meeting: "Kokous"
+  dictate_description: "Puhu, niin Pindrop kirjoittaa käyttämääsi sovellukseen."
+  voice_note_description: "Tallenna ajatus ja säilytä se muistiinpanoissa."
+  meeting_description: "Tallenna mikrofonin ja järjestelmän ääni ja säilytä sitten kokous kirjastossa."
+  start_dictating: "Aloita sanelu"
+  start_voice_note: "Aloita äänimuistio"
+  open_notes: "Avaa muistiinpanot"
+  change_shortcut: "Vaihda oikotie"
+  capture_in_progress: "Tallennus käynnissä"
+  finish_current_capture: "Viimeistele nykyinen tallennus ennen uuden aloittamista."
+  voice_note_hold: "Äänimuistio — pidä painettuna"
+  voice_note_toggle: "Äänimuistio — vaihda"
+  you_captured_this_week: "Tallensit %@ tällä viikolla."
+  you_recorded_this_week: "Nauhoitit %@ tällä viikolla."
+  one_voice_note: "1 äänimuistiinpano"
+  n_voice_notes: "%@ äänimuistiinpanoa"
+  one_meeting: "1 kokous"
+  n_meetings: "%@ kokousta"
+  of_meeting_audio: "%@ kokousääntä."
+  voice_note_shortcut_hint: "Pidä %1$@ painettuna tai paina %2$@ missä tahansa."
+  hold_anywhere: "Pidä %@ painettuna missä tahansa."
+  press_anywhere: "Paina %@ missä tahansa."
+  voice_notes_empty: "Äänimuistiinpanosi näkyvät tässä."
+  meetings_empty: "Nauhoitetut kokouksesi näkyvät tässä."
 pin:
   to_screen_always_on_top: "Kiinnitä näyttöön (aina päällä)"
 pindrop:
@@ -1128,7 +1159,7 @@ start:
   using_pindrop: "Aloita Pindropin käyttö"
   in_the_menu_bar_without_opening_the_main_w: "Käynnistä valikkoriville avaamatta pääikkunaa. Voit silti avata sen valikkorivin kuvakkeesta."
 stats:
-  _self: "Stats"
+  _self: "Tilastot"
 status:
   _self: "Status"
 stop:
