@@ -162,13 +162,10 @@ private struct MainShellFixtureRootView: View {
             onStartDictation: {
                 callbackMarker = "dictate"
             },
-            onStartVoiceNote: {
-                callbackMarker = "voice-note"
-            },
-            onStartMeeting: { expectedSpeakerCount in
-                callbackMarker = expectedSpeakerCount
-                    .map { "meeting:\($0)" }
-                    ?? "meeting:nil"
+            onStartNoteCapture: { request in
+                let sources = request.includeSystemAudio ? "mic+system" : "mic"
+                let speakers = request.expectedSpeakerCount.map(String.init) ?? "auto"
+                callbackMarker = "note-capture:\(sources):\(speakers)"
                 return true
             },
             onOpenSettings: { tab in

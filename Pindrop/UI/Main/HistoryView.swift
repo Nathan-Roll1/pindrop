@@ -268,10 +268,11 @@ struct HistoryView: View {
                 .background(AppColors.contentBackground)
 
             if let setupIssue = activeSetupIssue {
-                diarizationSetupIssueBanner(
+                DiarizationSetupIssueBanner(
                     message: setupIssue,
                     isDownloading: isDiarizationModelDownloading,
-                    progress: diarizationModelDownloadProgress
+                    progress: diarizationModelDownloadProgress,
+                    onDownload: onDownloadDiarizationModel
                 )
                     .padding(.horizontal, 40)
                     .padding(.bottom, 8)
@@ -317,55 +318,6 @@ struct HistoryView: View {
         mediaTranscriptionState?.diarizationModelDownloadProgress
             ?? recordingState?.diarizationModelDownloadProgress
             ?? 0.0
-    }
-
-    private func diarizationSetupIssueBanner(
-        message: String,
-        isDownloading: Bool,
-        progress: Double
-    ) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: isDownloading ? "arrow.down.circle" : "exclamationmark.triangle")
-                .font(.system(size: 14))
-                .foregroundStyle(isDownloading ? AppColors.accent : AppColors.warning)
-
-            if isDownloading {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(message)
-                        .font(AppTypography.caption)
-                        .foregroundStyle(AppColors.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    ProgressView(value: min(max(progress, 0), 1))
-                        .progressViewStyle(.linear)
-                        .tint(AppColors.accent)
-                        .frame(maxWidth: 180)
-                        .accessibilityValue("\(Int(progress * 100))%")
-                }
-            } else {
-                Text(message)
-                    .font(AppTypography.caption)
-                    .foregroundStyle(AppColors.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 8)
-
-            if !isDownloading, onDownloadDiarizationModel != nil {
-                Button(localized("Download model", locale: locale)) {
-                    onDownloadDiarizationModel?()
-                }
-                .buttonStyle(.plain)
-                .font(AppTypography.caption.weight(.semibold))
-                .foregroundStyle(AppColors.accent)
-                .accessibilityIdentifier("diarizationSetupIssueDownloadButton")
-            }
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(AppColors.warningBackground)
-        )
     }
 
     // MARK: - Header

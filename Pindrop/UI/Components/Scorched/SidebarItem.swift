@@ -20,23 +20,21 @@ struct SidebarItem: View {
     let isSelected: Bool
     let action: () -> Void
 
+    private var iconTint: Color {
+        isSelected ? AppColors.accent : AppColors.textSecondary
+    }
+
     var body: some View {
         Button(action: action) {
             Group {
                 if isCollapsed {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(isSelected ? AppColors.accent : AppColors.textSecondary)
-                        .frame(width: 18, height: 18)
+                    IconSlot(systemImage: systemImage, slot: .nav, tint: iconTint)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 7)
                         .padding(.horizontal, 10)
                 } else {
                     HStack(spacing: 10) {
-                        Image(systemName: systemImage)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(isSelected ? AppColors.accent : AppColors.textSecondary)
-                            .frame(width: 18, height: 18)
+                        IconSlot(systemImage: systemImage, slot: .nav, tint: iconTint)
 
                         Text(title)
                             .font(isSelected ? AppTypography.labelStrongSelected : AppTypography.labelStrong)
@@ -66,7 +64,7 @@ struct SidebarItem: View {
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
-        .keyboardFocusRing(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .focusRing(.rounded(.sm))
         .help(isCollapsed ? title : "")
         .accessibilityLabel(count.map { "\(title), \($0)" } ?? title)
         .accessibilityIdentifier(accessibilityIdentifier)

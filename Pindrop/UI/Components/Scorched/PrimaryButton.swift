@@ -21,7 +21,7 @@ struct PrimaryButton: View {
             HStack(spacing: 6) {
                 if let systemImage {
                     Image(systemName: systemImage)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(AppIcon.chip(weight: .semibold))
                 }
                 Text(title)
                     .font(AppTypography.label)
@@ -40,6 +40,7 @@ struct PrimaryButton: View {
             )
         }
         .buttonStyle(.plain)
+        .focusRing(.rounded(.sm))
         .disabled(!isEnabled)
     }
 }

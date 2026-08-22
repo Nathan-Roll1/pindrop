@@ -36,18 +36,30 @@ enum MainNavGroup: String, CaseIterable, Identifiable, Sendable {
 
 enum MainNavItem: String, CaseIterable, Identifiable, Sendable {
     case dictate = "dictate"
-    case voiceNote = "voice-note"
-    case meeting = "meeting"
-    case library = "library"
     case notes = "notes"
+    case library = "library"
     case stats = "stats"
     case dictionary = "dictionary"
     case models = "models"
 
+    /// Raw values retired when Voice Note and Meeting merged into Notes. Older
+    /// persisted selections, View-menu round-trips, MCP calls, and deep links can
+    /// still carry them, so every entry point resolves through `resolve(rawValue:)`.
+    static let legacyRawValueAliases: [String: MainNavItem] = [
+        "voice-note": .notes,
+        "meeting": .notes
+    ]
+
+    /// The single resolution point for externally supplied raw values.
+    /// Use this instead of `MainNavItem(rawValue:)` everywhere.
+    static func resolve(rawValue: String) -> MainNavItem? {
+        MainNavItem(rawValue: rawValue) ?? legacyRawValueAliases[rawValue]
+    }
+
     static let sidebarGroups: [(group: MainNavGroup, items: [MainNavItem])] = [
-        (.capture, [.dictate, .voiceNote, .meeting]),
-        (.workspace, [.library, .notes]),
-        (.tools, [.stats, .dictionary, .models])
+        (.capture, [.dictate, .notes]),
+        (.workspace, [.library, .stats]),
+        (.tools, [.dictionary, .models])
     ]
     static let allSidebarItems = sidebarGroups.flatMap { $0.items }
 
@@ -59,22 +71,16 @@ enum MainNavItem: String, CaseIterable, Identifiable, Sendable {
     }
 
     var id: String { rawValue }
-    var accessibilityIdentifierComponent: String {
-        self == .voiceNote ? "voiceNote" : rawValue
-    }
+    var accessibilityIdentifierComponent: String { rawValue }
 
     func title(locale: Locale) -> String {
         switch self {
         case .dictate:
             localized("Dictate", locale: locale)
-        case .voiceNote:
-            localized("Voice Note", locale: locale)
-        case .meeting:
-            localized("Meeting", locale: locale)
-        case .library:
-            localized("Library", locale: locale)
         case .notes:
             localized("Notes", locale: locale)
+        case .library:
+            localized("Library", locale: locale)
         case .stats:
             localized("Stats", locale: locale)
         case .dictionary:
@@ -87,14 +93,38 @@ enum MainNavItem: String, CaseIterable, Identifiable, Sendable {
     var icon: String {
         switch self {
         case .dictate: "waveform"
-        case .voiceNote: "note.text.badge.plus"
-        case .meeting: "person.2.wave.2"
-        case .library: "books.vertical"
         case .notes: "note.text"
+        case .library: "books.vertical"
         case .stats: "chart.xyaxis.line"
         case .dictionary: "text.book.closed"
         case .models: "cpu"
         }
+    }
+}
+
+/// Sub-route inside the Notes destination. The sidebar stays on `.notes`
+/// whichever leg is showing.
+enum NotesRoute: Equatable, Sendable {
+    case list
+    case note(UUID)
+
+    var openNoteID: UUID? {
+        if case .note(let id) = self { return id }
+        return nil
+    }
+}
+
+/// One start request for a note that records. `noteID` is `nil` when the capture
+/// should create its own note; `includeSystemAudio` selects the second source.
+struct NoteCaptureRequest: Equatable, Sendable {
+    var noteID: UUID?
+    var includeSystemAudio: Bool
+    var expectedSpeakerCount: Int?
+
+    init(noteID: UUID? = nil, includeSystemAudio: Bool = false, expectedSpeakerCount: Int? = nil) {
+        self.noteID = noteID
+        self.includeSystemAudio = includeSystemAudio
+        self.expectedSpeakerCount = expectedSpeakerCount
     }
 }
 
@@ -107,6 +137,7 @@ struct LibraryOpenRequest: Equatable, Sendable {
 @Observable
 final class MainWindowRouteState {
     private(set) var selectedItem: MainNavItem = .dictate
+    private(set) var notesRoute: NotesRoute = .list
     private(set) var libraryOpenRequest: LibraryOpenRequest?
     private(set) var librarySearchRequest: UInt?
 
@@ -114,7 +145,30 @@ final class MainWindowRouteState {
     private var nextLibrarySearchGeneration: UInt = 0
 
     func navigate(to item: MainNavItem) {
+        // Picking Notes in the sidebar always lands on the list; `openNote`
+        // is the only way into a note page.
+        if item == .notes {
+            notesRoute = .list
+        }
         selectedItem = item
+    }
+
+    /// Resolves a raw value (persisted selection, menu round-trip, deep link)
+    /// through the legacy alias map, then navigates. Unknown values are ignored.
+    func navigate(toRawValue rawValue: String) {
+        guard let item = MainNavItem.resolve(rawValue: rawValue) else { return }
+        navigate(to: item)
+    }
+
+    /// Opens a note in the main window and keeps the sidebar on Notes.
+    func openNote(id: UUID) {
+        notesRoute = .note(id)
+        selectedItem = .notes
+    }
+
+    /// Returns the Notes destination to its list, leaving the selection alone.
+    func closeNote() {
+        notesRoute = .list
     }
 
     func openLibrary(recordID: UUID) {
@@ -165,8 +219,7 @@ struct MainWindow: View {
     let onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?
     let onDownloadDiarizationModel: (() -> Void)?
     let onStartDictation: (() -> Void)?
-    let onStartVoiceNote: (() -> Void)?
-    let onStartMeeting: ((Int?) -> Bool)?
+    let onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
     let onOpenSettings: (SettingsTab) -> Void
 
     private var isCaptureBusy: Bool {
@@ -260,22 +313,6 @@ struct MainWindow: View {
                 onOpenLibraryRecord: routeState.openLibrary,
                 onDownloadDiarizationModel: onDownloadDiarizationModel
             )
-        case .voiceNote:
-            VoiceNoteView(
-                settingsStore: settingsStore,
-                isCaptureBusy: isCaptureBusy,
-                onStartVoiceNote: onStartVoiceNote,
-                onOpenNotes: { routeState.navigate(to: .notes) }
-            )
-        case .meeting:
-            MeetingView(
-                recordingState: recordingState,
-                isCaptureBusy: isCaptureBusy,
-                onStartMeeting: onStartMeeting,
-                onOpenLibrary: { routeState.navigate(to: .library) },
-                onOpenLibraryRecord: routeState.openLibrary,
-                onDownloadDiarizationModel: onDownloadDiarizationModel
-            )
         case .library:
             HistoryView(
                 libraryOpenRequest: routeState.libraryOpenRequest,
@@ -291,8 +328,14 @@ struct MainWindow: View {
             )
             .accessibilityIdentifier("main.destination.library")
         case .notes:
-            NotesView()
-                .accessibilityIdentifier("main.destination.notes")
+            switch routeState.notesRoute {
+            case .list:
+                NotesView(onOpenNote: { routeState.openNote(id: $0) })
+                    .accessibilityIdentifier("main.destination.notes")
+            case .note(let noteID):
+                NotePageView(noteID: noteID, onBack: routeState.closeNote)
+                    .accessibilityIdentifier("main.destination.note")
+            }
         case .stats:
             StatsView()
                 .accessibilityIdentifier("main.destination.stats")
@@ -652,8 +695,7 @@ final class MainWindowController {
     var onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?
     var onDownloadDiarizationModel: (() -> Void)?
     var onStartDictation: (() -> Void)?
-    var onStartVoiceNote: (() -> Void)?
-    var onStartMeeting: ((Int?) -> Bool)?
+    var onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
     var onOpenSettings: ((SettingsTab) -> Void)?
 
     /// The main app window, if created. Used by list keyboard monitors for identity checks.
@@ -677,14 +719,12 @@ final class MainWindowController {
         floatingIndicatorState: FloatingIndicatorState,
         recordingState: RecordingFeatureState? = nil,
         onStartDictation: @escaping () -> Void,
-        onStartVoiceNote: @escaping () -> Void,
-        onStartMeeting: @escaping (Int?) -> Bool
+        onStartNoteCapture: @escaping (NoteCaptureRequest) -> Bool
     ) {
         self.floatingIndicatorState = floatingIndicatorState
         self.recordingState = recordingState
         self.onStartDictation = onStartDictation
-        self.onStartVoiceNote = onStartVoiceNote
-        self.onStartMeeting = onStartMeeting
+        self.onStartNoteCapture = onStartNoteCapture
     }
 
     func configureTranscribeFeature(
@@ -709,6 +749,22 @@ final class MainWindowController {
 
     func navigate(to item: MainNavItem) {
         routeState.navigate(to: item)
+        presentWindow()
+    }
+
+    /// Resolves a raw value through the legacy alias map before navigating.
+    func navigate(toRawValue rawValue: String) {
+        guard let item = MainNavItem.resolve(rawValue: rawValue) else {
+            Log.ui.warning("Ignored navigation to unknown destination \(rawValue)")
+            return
+        }
+        navigate(to: item)
+    }
+
+    /// Opens a note in the main window. Replaces the separate editor window as
+    /// the default presenter; `NoteEditorWindowController` survives as a pop-out.
+    func openNote(id: UUID) {
+        routeState.openNote(id: id)
         presentWindow()
     }
 
@@ -753,8 +809,7 @@ final class MainWindowController {
                 onSubmitMediaLink: onSubmitMediaLink,
                 onDownloadDiarizationModel: onDownloadDiarizationModel,
                 onStartDictation: onStartDictation,
-                onStartVoiceNote: onStartVoiceNote,
-                onStartMeeting: onStartMeeting,
+                onStartNoteCapture: onStartNoteCapture,
                 onOpenSettings: onOpenSettings ?? { _ in
                     Log.ui.error("Settings presenter not set - cannot show settings")
                 }
@@ -872,8 +927,7 @@ final class MainWindowController {
         onSubmitMediaLink: nil,
         onDownloadDiarizationModel: nil,
         onStartDictation: nil,
-        onStartVoiceNote: nil,
-        onStartMeeting: nil,
+        onStartNoteCapture: nil,
         onOpenSettings: { _ in }
     )
         .modelContainer(PreviewContainer.empty)
@@ -893,8 +947,7 @@ final class MainWindowController {
         onSubmitMediaLink: nil,
         onDownloadDiarizationModel: nil,
         onStartDictation: nil,
-        onStartVoiceNote: nil,
-        onStartMeeting: nil,
+        onStartNoteCapture: nil,
         onOpenSettings: { _ in }
     )
         .modelContainer(PreviewContainer.empty)

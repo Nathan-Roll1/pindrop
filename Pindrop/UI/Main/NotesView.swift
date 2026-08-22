@@ -18,6 +18,13 @@ struct NotesView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.locale) private var locale
 
+    /// Opens a note in the main window. `nil` in previews and fixtures.
+    let onOpenNote: ((UUID) -> Void)?
+
+    init(onOpenNote: ((UUID) -> Void)? = nil) {
+        self.onOpenNote = onOpenNote
+    }
+
     @Query(sort: \NoteSchema.Note.updatedAt, order: .reverse) private var allNotes: [NoteSchema.Note]
 
     /// Applied search query driving the derived list snapshot.
@@ -390,21 +397,23 @@ struct NotesView: View {
 
     // MARK: - Actions
 
+    /// A new note is created durably first, then opened in the main window, so
+    /// the note page always has an identity to bind capture and panels to.
     private func createNewNote() {
-        presentNoteEditor(note: nil, isNewNote: true)
+        let store = notesStore
+        Task { @MainActor in
+            do {
+                let note = try await store.create(content: "")
+                onOpenNote?(note.id)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
     }
 
     private func openNote(_ note: NoteSchema.Note) {
         selectedNoteID = note.persistentModelID
-        presentNoteEditor(note: note, isNewNote: false)
-    }
-
-    private func presentNoteEditor(note: NoteSchema.Note?, isNewNote: Bool) {
-        NoteEditorWindowControllerRegistry.shared.presentEditor(
-            note: note,
-            isNewNote: isNewNote,
-            modelContainer: modelContext.container
-        )
+        onOpenNote?(note.id)
     }
 
     private func togglePin(_ note: NoteSchema.Note) {

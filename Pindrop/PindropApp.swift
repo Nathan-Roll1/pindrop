@@ -526,9 +526,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func menuNavigate(_ sender: NSMenuItem) {
-        guard let rawValue = sender.representedObject as? String,
-              let item = MainNavItem(rawValue: rawValue) else { return }
-        coordinator?.mainWindowController.navigate(to: item)
+        guard let rawValue = sender.representedObject as? String else { return }
+        coordinator?.mainWindowController.navigate(toRawValue: rawValue)
     }
 
     @objc func menuFind(_ sender: Any?) {
@@ -699,12 +698,14 @@ final class SwiftDataStoreRepairService {
 
         let metadataVersion = try readMetadataVersionIdentifier(at: targetStoreURL)
         let metadataMatchesInferredVersion = metadataVersion == inferredVersion.rawValue
-        // Keep a V14 reference when V14 metadata identifies a store that has
-        // lost its V14-only prompt snapshot table. Otherwise, a matching
-        // metadata/inferred version must repair strictly from that version.
-        let referenceVersion = metadataVersion == StoreSchemaVersion.v14.rawValue
-            ? .v14
-            : inferredVersion
+        // Keep the metadata's own reference when that version's newest tables
+        // are the ones the store has lost: inference would otherwise read the
+        // damaged store as the older version and repair it downward. Any other
+        // metadata/inferred pair must repair strictly from the inferred version.
+        let referenceVersion = Self.referenceVersionForMetadata(
+            metadataVersion,
+            inferredVersion: inferredVersion
+        )
         let referenceArtifacts = try makeReferenceArtifacts(for: referenceVersion)
         guard let referenceModelVersionHashes = modelVersionHashes(
             from: referenceArtifacts.metadataBlob
@@ -841,6 +842,12 @@ final class SwiftDataStoreRepairService {
 
             // Newest first: every check below is a feature the next-older
             // version lacks, so the first hit is the store's actual version.
+            // CaptureEnhancedPanelModel was added in V15. Its table
+            // distinguishes V15 from otherwise-complete V14 stores.
+            if try tableExists(named: "ZCAPTUREENHANCEDPANELMODEL", on: database) {
+                return .v15
+            }
+
             // CaptureStagePromptSnapshotModel was added in V14. Its table
             // distinguishes V14 from otherwise-complete V13 stores.
             if try tableExists(named: "ZCAPTURESTAGEPROMPTSNAPSHOTMODEL", on: database) {
@@ -963,6 +970,56 @@ final class SwiftDataStoreRepairService {
         return backupDirectoryURL
     }
 
+    /// Tables each schema version introduced, newest entries last.
+    ///
+    /// A reference store built for an older version must not offer these to a
+    /// repair, and inference must not read a store that still has them as the
+    /// older version. Every new schema version that adds a model belongs here,
+    /// or a healthy store gets "repaired" down to the previous version.
+    private static let tablesByIntroducingVersion: [(
+        version: StoreSchemaVersion,
+        tableName: String,
+        entityName: String
+    )] = [
+        (.v14, "ZCAPTURESTAGEPROMPTSNAPSHOTMODEL", "CaptureStagePromptSnapshotModel"),
+        (.v15, "ZCAPTUREENHANCEDPANELMODEL", "CaptureEnhancedPanelModel"),
+        (.v15, "ZNOTEVIEWSTATEMODEL", "NoteViewStateModel"),
+        (.v15, "ZCAPTUREINTENTMODEL", "CaptureIntentModel")
+    ]
+
+    private static func schemaVersionOrder(_ version: StoreSchemaVersion) -> Int {
+        StoreSchemaVersion.allCases.firstIndex(of: version) ?? 0
+    }
+
+    /// Trusts the store's own metadata version only when it is newer than what
+    /// the tables imply and that version introduced tables. That is the shape
+    /// of a store which lost its newest tables: repairing from the inferred
+    /// version would strip them for good instead of restoring them.
+    private static func referenceVersionForMetadata(
+        _ metadataVersion: String?,
+        inferredVersion: StoreSchemaVersion
+    ) -> StoreSchemaVersion {
+        guard
+            let metadataVersion,
+            let metadataSchemaVersion = StoreSchemaVersion(rawValue: metadataVersion),
+            schemaVersionOrder(metadataSchemaVersion) > schemaVersionOrder(inferredVersion),
+            tablesByIntroducingVersion.contains(where: { $0.version == metadataSchemaVersion })
+        else {
+            return inferredVersion
+        }
+        return metadataSchemaVersion
+    }
+
+    /// Tables and entities that belong to versions newer than `version`.
+    private static func tablesIntroducedAfter(
+        _ version: StoreSchemaVersion
+    ) -> (tableNames: Set<String>, entityNames: Set<String>) {
+        let newer = tablesByIntroducingVersion.filter {
+            schemaVersionOrder($0.version) > schemaVersionOrder(version)
+        }
+        return (Set(newer.map(\.tableName)), Set(newer.map(\.entityName)))
+    }
+
     private func makeReferenceArtifacts(for version: StoreSchemaVersion) throws -> ReferenceArtifacts {
         let directoryURL = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let storeURL = directoryURL.appendingPathComponent("reference.store")
@@ -998,12 +1055,15 @@ final class SwiftDataStoreRepairService {
                 throw StoreRepairError.missingModelCache
             }
 
+            let excluded = Self.tablesIntroducedAfter(version)
             let schemaDefinitions = try fetchSchemaDefinitions(on: database)
-                .filter { version == .v14 || !$0.name.contains("ZCAPTURESTAGEPROMPTSNAPSHOTMODEL") }
+                .filter { definition in
+                    !excluded.tableNames.contains { definition.name.contains($0) }
+                }
             let columnDefinitions = try fetchSchemaColumnDefinitions(on: database)
-                .filter { version == .v14 || $0.tableName != "ZCAPTURESTAGEPROMPTSNAPSHOTMODEL" }
+                .filter { !excluded.tableNames.contains($0.tableName) }
             let primaryKeyDefinitions = try fetchPrimaryKeyDefinitions(on: database)
-                .filter { version == .v14 || $0.name != "CaptureStagePromptSnapshotModel" }
+                .filter { !excluded.entityNames.contains($0.name) }
             return ReferenceArtifacts(
                 metadataBlob: metadataBlob,
                 modelCacheBlob: modelCacheBlob,

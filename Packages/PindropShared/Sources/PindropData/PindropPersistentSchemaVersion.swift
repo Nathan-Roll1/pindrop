@@ -25,6 +25,7 @@ public enum PindropPersistentSchemaVersion: String, CaseIterable, Sendable {
     case v12 = "1.0.11"
     case v13 = "1.0.12"
     case v14 = "1.0.13"
+    case v15 = "1.0.14"
 
     public var versionedSchema: any VersionedSchema.Type {
         switch self {
@@ -42,6 +43,7 @@ public enum PindropPersistentSchemaVersion: String, CaseIterable, Sendable {
         case .v12: return TranscriptionRecordSchemaV12.self
         case .v13: return TranscriptionRecordSchemaV13.self
         case .v14: return TranscriptionRecordSchemaV14.self
+        case .v15: return TranscriptionRecordSchemaV15.self
         }
     }
 }

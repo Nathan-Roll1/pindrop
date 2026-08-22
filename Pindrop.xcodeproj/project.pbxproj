@@ -16,6 +16,10 @@
 		SCORCHPAGEHDRBUILDPAGEHEADERSW /* PageHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCORCHPAGEHDRFILEPAGEHEADERSW /* PageHeader.swift */; };
 		SCORCHSEARCHBUILDSEARCHFIELDC /* SearchFieldChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCORCHSEARCHFILESEARCHFIELDC /* SearchFieldChrome.swift */; };
 		SCORCHFILTERBUILDFILTERCHIPSW /* FilterChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCORCHFILTERFILEFILTERCHIPSW /* FilterChip.swift */; };
+		WP0ICONSLOTBUILD01A2B3C4 /* IconSlot.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP0ICONSLOTFILE01A2B3C4D /* IconSlot.swift */; };
+		WP0INLINENOTICEBUILD01A2 /* InlineNotice.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP0INLINENOTICEFILE01A2B /* InlineNotice.swift */; };
+		WP0STAGEPROGBUILD01A2B3C /* StageProgressRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP0STAGEPROGFILE01A2B3C4 /* StageProgressRow.swift */; };
+		WP0DIARNOTICEBUILD01A2B3 /* DiarizationSetupNotice.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP0DIARNOTICEFILE01A2B3C /* DiarizationSetupNotice.swift */; };
 		SCORCHSECTHDRBUILDSECTIONHEADE /* SectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCORCHSECTHDRFILESECTIONHEADE /* SectionHeader.swift */; };
 		SCORCHLIBROWBUILDLIBRARYROWCH /* LibraryRowChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCORCHLIBROWFILELIBRARYROWCH /* LibraryRowChrome.swift */; };
 		SCORCHPLAYCHIPBUILDPLAYCHIPSWIF /* PlayChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCORCHPLAYCHIPFILEPLAYCHIPSWIF /* PlayChip.swift */; };
@@ -197,6 +201,7 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		NOTECARD01A2B3C4D5E6F70 /* NoteCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTECARD01A2B3C4D5E6F71 /* NoteCardView.swift */; };
 		NOTEEDIT01A2B3C4D5E6F70 /* NoteEditorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTEEDIT01A2B3C4D5E6F71 /* NoteEditorWindow.swift */; };
 		NOTESVIEW1A2B3C4D5E6F70 /* NotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTESVIEW1A2B3C4D5E6F71 /* NotesView.swift */; };
+		NOTEPAGEVIEW1A2B3C4D5E70 /* NotePageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTEPAGEVIEW1A2B3C4D5E71 /* NotePageView.swift */; };
 		PATHRES02A2B3C4D5E6F /* PathMentionResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = PATHRES01A2B3C4D5E6F /* PathMentionResolver.swift */; };
 		PERMMGRTESTBUILD1A2B3C4D5E6F70 /* PermissionManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PERMMGRTESTFILE1A2B3C4D5E6F71 /* PermissionManagerTests.swift */; };
 		PILLIND001A2B3C4D5E6F70 /* PillFloatingIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = PILLIND001A2B3C4D5E6F71 /* PillFloatingIndicator.swift */; };
@@ -206,6 +211,7 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		SEARCHDROPDOWNBUILD01A2B3C4D5E6F /* SearchableDropdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = SEARCHDROPDOWN01A2B3C4D5E6F /* SearchableDropdown.swift */; };
 		SETTINGSCOMPBUILD01A2B3C4D5E6F /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETTINGSCOMPFILE01A2B3C4D5E6F /* SettingsComponents.swift */; };
 		SETTINGSSTORETESTBUILD1A2B3C4D5E6F70 /* SettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SETTINGSSTORETESTFILE1A2B3C4D5E6F71 /* SettingsStoreTests.swift */; };
+		MAINSHELLNAVTESTBUILD1A2B3C4D5E70 /* MainShellNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = MAINSHELLNAVTESTFILE1A2B3C4D5E71 /* MainShellNavigationTests.swift */; };
 		AICFGV2TESTBUILD1A2B3C4D5E6F /* SettingsStoreAIConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AICFGV2TESTFILE1A2B3C4D5E6F /* SettingsStoreAIConfigTests.swift */; };
 		TRBACKENDTESTBUILD1A2B3C /* TranscriptionBackendTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TRBACKENDTESTFILE1A2B3C /* TranscriptionBackendTests.swift */; };
 		SPARKLEBUILD01A2B3C4D5E6F /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = SPARKLEDEP01A2B3C4D5E6F /* Sparkle */; };
@@ -263,6 +269,10 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		SCORCHPAGEHDRFILEPAGEHEADERSW /* PageHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageHeader.swift; sourceTree = "<group>"; };
 		SCORCHSEARCHFILESEARCHFIELDC /* SearchFieldChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchFieldChrome.swift; sourceTree = "<group>"; };
 		SCORCHFILTERFILEFILTERCHIPSW /* FilterChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterChip.swift; sourceTree = "<group>"; };
+		WP0ICONSLOTFILE01A2B3C4D /* IconSlot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconSlot.swift; sourceTree = "<group>"; };
+		WP0INLINENOTICEFILE01A2B /* InlineNotice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineNotice.swift; sourceTree = "<group>"; };
+		WP0STAGEPROGFILE01A2B3C4 /* StageProgressRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageProgressRow.swift; sourceTree = "<group>"; };
+		WP0DIARNOTICEFILE01A2B3C /* DiarizationSetupNotice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiarizationSetupNotice.swift; sourceTree = "<group>"; };
 		SCORCHSECTHDRFILESECTIONHEADE /* SectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeader.swift; sourceTree = "<group>"; };
 		SCORCHLIBROWFILELIBRARYROWCH /* LibraryRowChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryRowChrome.swift; sourceTree = "<group>"; };
 		SCORCHPLAYCHIPFILEPLAYCHIPSWIF /* PlayChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayChip.swift; sourceTree = "<group>"; };
@@ -432,6 +442,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 		NOTECARD01A2B3C4D5E6F71 /* NoteCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCardView.swift; sourceTree = "<group>"; };
 		NOTEEDIT01A2B3C4D5E6F71 /* NoteEditorWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEditorWindow.swift; sourceTree = "<group>"; };
 		NOTESVIEW1A2B3C4D5E6F71 /* NotesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesView.swift; sourceTree = "<group>"; };
+		NOTEPAGEVIEW1A2B3C4D5E71 /* NotePageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotePageView.swift; sourceTree = "<group>"; };
 		PATHRES01A2B3C4D5E6F /* PathMentionResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathMentionResolver.swift; sourceTree = "<group>"; };
 		PERMMGRTESTFILE1A2B3C4D5E6F71 /* PermissionManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionManagerTests.swift; sourceTree = "<group>"; };
 		PILLIND001A2B3C4D5E6F71 /* PillFloatingIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PillFloatingIndicator.swift; sourceTree = "<group>"; };
@@ -441,6 +452,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 		SEARCHDROPDOWN01A2B3C4D5E6F /* SearchableDropdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchableDropdown.swift; sourceTree = "<group>"; };
 		SETTINGSCOMPFILE01A2B3C4D5E6F /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		SETTINGSSTORETESTFILE1A2B3C4D5E6F71 /* SettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStoreTests.swift; sourceTree = "<group>"; };
+		MAINSHELLNAVTESTFILE1A2B3C4D5E71 /* MainShellNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainShellNavigationTests.swift; sourceTree = "<group>"; };
 		AICFGV2TESTFILE1A2B3C4D5E6F /* SettingsStoreAIConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStoreAIConfigTests.swift; sourceTree = "<group>"; };
 		TRBACKENDTESTFILE1A2B3C /* TranscriptionBackendTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionBackendTests.swift; sourceTree = "<group>"; };
 		SPLASH01A2B3C4D5E6F71 /* SplashScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashScreen.swift; sourceTree = "<group>"; };
@@ -729,6 +741,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				HKCONFLICTTESTFILE01A2B3C4D5 /* HotkeyConflictCheckerTests.swift */,
 				PERMMGRTESTFILE1A2B3C4D5E6F71 /* PermissionManagerTests.swift */,
 				SETTINGSSTORETESTFILE1A2B3C4D5E6F71 /* SettingsStoreTests.swift */,
+				MAINSHELLNAVTESTFILE1A2B3C4D5E71 /* MainShellNavigationTests.swift */,
 				TELEMSVCTESTFILE01A2B3C4D5E6F /* TelemetryServiceTests.swift */,
 				TELEMCONTESTFILE01A2B3C4D5E6F /* TelemetryConsentServiceTests.swift */,
 				SCHEMAV12TESTFILE01A2B3C4D5E6F /* SchemaV12MigrationTests.swift */,
@@ -842,6 +855,9 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				SCORCHPRIMARYBTNFILE01A2B3 /* PrimaryButton.swift */,
 				SCORCHPLAYERROWFILEPLAYERROWSW /* PlayerRow.swift */,
 				SCORCHDESTBTNFILEDESTRUCTIVEG /* DestructiveGhostButton.swift */,
+				WP0ICONSLOTFILE01A2B3C4D /* IconSlot.swift */,
+				WP0INLINENOTICEFILE01A2B /* InlineNotice.swift */,
+				WP0STAGEPROGFILE01A2B3C4 /* StageProgressRow.swift */,
 			);
 			path = Scorched;
 			sourceTree = "<group>";
@@ -854,6 +870,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				SEARCHDROPDOWN01A2B3C4D5E6F /* SearchableDropdown.swift */,
 				NOTECARD01A2B3C4D5E6F71 /* NoteCardView.swift */,
 				MARKDOWN01A2B3C4D5E6F71 /* MarkdownEditor.swift */,
+				WP0DIARNOTICEFILE01A2B3C /* DiarizationSetupNotice.swift */,
 				SCORCHEDGRP01A2B3C4D5E6F /* Scorched */,
 			);
 			path = Components;
@@ -867,6 +884,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				HISTROWFILE01A2B3C4D5E6F /* TranscriptionHistoryRow.swift */,
 				NOTEROWFILE01A2B3C4D5E6F /* NoteHistoryRow.swift */,
 				NOTESVIEW1A2B3C4D5E6F71 /* NotesView.swift */,
+				NOTEPAGEVIEW1A2B3C4D5E71 /* NotePageView.swift */,
 				DASHBRD1A2B3C4D5E6F71 /* CapturePillarViews.swift */,
 				STATSVIEWFILE01A2B3C4D5E6 /* StatsView.swift */,
 				STATSPRESFILE01A2B3C4D5E6 /* StatsPresentation.swift */,
@@ -1129,6 +1147,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				UPDATESVC01A2B3C4D5E6F70 /* UpdateServiceTests.swift in Sources */,
 				PERMMGRTESTBUILD1A2B3C4D5E6F70 /* PermissionManagerTests.swift in Sources */,
 				SETTINGSSTORETESTBUILD1A2B3C4D5E6F70 /* SettingsStoreTests.swift in Sources */,
+				MAINSHELLNAVTESTBUILD1A2B3C4D5E70 /* MainShellNavigationTests.swift in Sources */,
 				TELEMSVCTESTBUILD01A2B3C4D5E6F /* TelemetryServiceTests.swift in Sources */,
 				TELEMCONTESTBUILD01A2B3C4D5E6F /* TelemetryConsentServiceTests.swift in Sources */,
 				SCHEMAV12TESTBUILD01A2B3C4D5E6F /* SchemaV12MigrationTests.swift in Sources */,
@@ -1248,6 +1267,10 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				SCORCHPAGEHDRBUILDPAGEHEADERSW /* PageHeader.swift in Sources */,
 				SCORCHSEARCHBUILDSEARCHFIELDC /* SearchFieldChrome.swift in Sources */,
 				SCORCHFILTERBUILDFILTERCHIPSW /* FilterChip.swift in Sources */,
+				WP0ICONSLOTBUILD01A2B3C4 /* IconSlot.swift in Sources */,
+				WP0INLINENOTICEBUILD01A2 /* InlineNotice.swift in Sources */,
+				WP0STAGEPROGBUILD01A2B3C /* StageProgressRow.swift in Sources */,
+				WP0DIARNOTICEBUILD01A2B3 /* DiarizationSetupNotice.swift in Sources */,
 				SCORCHSECTHDRBUILDSECTIONHEADE /* SectionHeader.swift in Sources */,
 				SCORCHLIBROWBUILDLIBRARYROWCH /* LibraryRowChrome.swift in Sources */,
 				SCORCHPLAYCHIPBUILDPLAYCHIPSWIF /* PlayChip.swift in Sources */,
@@ -1281,6 +1304,7 @@ MODELSPRESENTBUILD01A2B3C4 /* ModelsPresentation.swift in Sources */,
 				FIXEDLAYOUT01A2B3C4D5E6F /* MainContentPageLayout.swift in Sources */,
 				CEACBC45493663E081E4B1FA /* CopyButton.swift in Sources */,
 				NOTESVIEW1A2B3C4D5E6F70 /* NotesView.swift in Sources */,
+				NOTEPAGEVIEW1A2B3C4D5E70 /* NotePageView.swift in Sources */,
 				NOTECARD01A2B3C4D5E6F70 /* NoteCardView.swift in Sources */,
 				NOTEEDIT01A2B3C4D5E6F70 /* NoteEditorWindow.swift in Sources */,
 				MARKDOWN01A2B3C4D5E6F70 /* MarkdownEditor.swift in Sources */,

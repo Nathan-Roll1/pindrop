@@ -123,10 +123,8 @@ final class PindropUITests: XCTestCase {
 
         let sidebarIdentifiers = [
             "sidebar.nav.dictate",
-            "sidebar.nav.voiceNote",
-            "sidebar.nav.meeting",
-            "sidebar.nav.library",
             "sidebar.nav.notes",
+            "sidebar.nav.library",
             "sidebar.nav.stats",
             "sidebar.nav.dictionary",
             "sidebar.nav.models"
@@ -161,43 +159,6 @@ final class PindropUITests: XCTestCase {
         sidebarSettings.click()
         XCTAssertTrue(app.descendants(matching: .any)["mainShell.callback.settings:general"].waitForExistence(timeout: 2))
 
-        selectSidebarItem("sidebar.nav.voiceNote", in: app)
-        XCTAssertTrue(
-            app.descendants(matching: .any)["main.destination.voiceNote"].waitForExistence(timeout: 2)
-        )
-        let voiceNoteStart = app.descendants(matching: .any)["main.capture.voiceNote.start"]
-        XCTAssertTrue(voiceNoteStart.waitForExistence(timeout: 2))
-        voiceNoteStart.click()
-        XCTAssertTrue(app.descendants(matching: .any)["mainShell.callback.voice-note"].waitForExistence(timeout: 2))
-        let voiceNoteOpenNotes = app.descendants(matching: .any)["capture.voiceNote.openNotes"]
-        XCTAssertTrue(voiceNoteOpenNotes.waitForExistence(timeout: 2))
-        voiceNoteOpenNotes.click()
-        XCTAssertTrue(
-            app.descendants(matching: .any)["main.destination.notes"].waitForExistence(timeout: 2)
-        )
-
-        selectSidebarItem("sidebar.nav.meeting", in: app)
-        XCTAssertTrue(
-            app.descendants(matching: .any)["main.destination.meeting"].waitForExistence(timeout: 2)
-        )
-        let meetingStart = app.descendants(matching: .any)["main.capture.meeting.start"]
-        XCTAssertTrue(meetingStart.waitForExistence(timeout: 2))
-        meetingStart.click()
-
-        let meetingSheet = app.descendants(matching: .any)["meetingCaptureOptionsSheet"]
-        XCTAssertTrue(meetingSheet.waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Expected speakers"].waitForExistence(timeout: 2))
-        let meetingSheetStart = app.buttons["Start Recording"].firstMatch
-        XCTAssertTrue(meetingSheetStart.waitForExistence(timeout: 2))
-        meetingSheetStart.click()
-        XCTAssertTrue(app.descendants(matching: .any)["mainShell.callback.meeting:nil"].waitForExistence(timeout: 2))
-        let meetingOpenLibrary = app.descendants(matching: .any)["capture.meeting.openLibrary"]
-        XCTAssertTrue(meetingOpenLibrary.waitForExistence(timeout: 2))
-        meetingOpenLibrary.click()
-        XCTAssertTrue(
-            app.descendants(matching: .any)["main.destination.library"].waitForExistence(timeout: 2)
-        )
-
         assertDestination("library", afterSelecting: "sidebar.nav.library", in: app)
         assertDestination("notes", afterSelecting: "sidebar.nav.notes", in: app)
         assertDestination("stats", afterSelecting: "sidebar.nav.stats", in: app)
@@ -224,16 +185,6 @@ final class PindropUITests: XCTestCase {
                 sidebar: "sidebar.nav.dictate",
                 destination: "main.destination.dictate",
                 start: "main.capture.dictate.start"
-            ),
-            (
-                sidebar: "sidebar.nav.voiceNote",
-                destination: "main.destination.voiceNote",
-                start: "main.capture.voiceNote.start"
-            ),
-            (
-                sidebar: "sidebar.nav.meeting",
-                destination: "main.destination.meeting",
-                start: "main.capture.meeting.start"
             )
         ]
 
@@ -248,9 +199,6 @@ final class PindropUITests: XCTestCase {
             XCTAssertFalse(start.isEnabled, "Expected \(capture.start) to be disabled")
         }
 
-        XCTAssertFalse(
-            app.descendants(matching: .any)["meetingCaptureOptionsSheet"].exists
-        )
     }
 
     @MainActor

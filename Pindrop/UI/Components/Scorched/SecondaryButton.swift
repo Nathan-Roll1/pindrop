@@ -20,7 +20,7 @@ struct SecondaryButton: View {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 if let systemImage {
                     Text(Image(systemName: systemImage))
-                        .font(.system(size: 12, weight: .medium))
+                        .font(AppIcon.chip())
                 }
                 Text(title)
                     .font(AppTypography.label)
@@ -38,6 +38,7 @@ struct SecondaryButton: View {
             )
         }
         .buttonStyle(.plain)
+        .focusRing(.rounded(.sm))
         .accessibilityLabel(title)
     }
 }
@@ -63,7 +64,7 @@ struct ExportMenuButton: View {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 if let systemImage {
                     Text(Image(systemName: systemImage))
-                        .font(.system(size: 12, weight: .medium))
+                        .font(AppIcon.chip())
                 }
                 Text(title)
                     .font(AppTypography.label)

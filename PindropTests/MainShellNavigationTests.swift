@@ -15,17 +15,15 @@ struct MainShellNavigationTests {
     @Test func sidebarGroupsFlattenIntoCanonicalViewMenuOrder() {
         #expect(MainNavItem.sidebarGroups.map { $0.0 } == [.capture, .workspace, .tools])
         #expect(MainNavItem.sidebarGroups.map { $0.1 } == [
-            [.dictate, .voiceNote, .meeting],
-            [.library, .notes],
-            [.stats, .dictionary, .models]
+            [.dictate, .notes],
+            [.library, .stats],
+            [.dictionary, .models]
         ])
 
         let expected: [MainNavItem] = [
             .dictate,
-            .voiceNote,
-            .meeting,
-            .library,
             .notes,
+            .library,
             .stats,
             .dictionary,
             .models
@@ -35,10 +33,8 @@ struct MainShellNavigationTests {
         #expect(Set(MainNavItem.allSidebarItems).count == MainNavItem.allSidebarItems.count)
         #expect(expected.map(\.rawValue) == [
             "dictate",
-            "voice-note",
-            "meeting",
-            "library",
             "notes",
+            "library",
             "stats",
             "dictionary",
             "models"
@@ -48,19 +44,27 @@ struct MainShellNavigationTests {
         })
     }
 
+    @Test func legacyRawValuesResolveToNotes() {
+        #expect(MainNavItem.resolve(rawValue: "voice-note") == .notes)
+        #expect(MainNavItem.resolve(rawValue: "meeting") == .notes)
+        // Survivors keep their raw values, so they resolve to themselves.
+        for item in MainNavItem.allCases {
+            #expect(MainNavItem.resolve(rawValue: item.rawValue) == item)
+        }
+        #expect(MainNavItem.resolve(rawValue: "not-a-destination") == nil)
+        #expect(MainNavItem(rawValue: "voice-note") == nil)
+        #expect(MainNavItem(rawValue: "meeting") == nil)
+    }
+
     @Test func sidebarMetadataUsesCanonicalTitlesAndIcons() {
         let locale = Locale(identifier: "en")
 
         #expect(MainNavItem.dictate.title(locale: locale) == "Dictate")
         #expect(MainNavItem.dictate.icon == "waveform")
-        #expect(MainNavItem.voiceNote.title(locale: locale) == "Voice Note")
-        #expect(MainNavItem.voiceNote.icon == "note.text.badge.plus")
-        #expect(MainNavItem.meeting.title(locale: locale) == "Meeting")
-        #expect(MainNavItem.meeting.icon == "person.2.wave.2")
-        #expect(MainNavItem.library.title(locale: locale) == "Library")
-        #expect(MainNavItem.library.icon == "books.vertical")
         #expect(MainNavItem.notes.title(locale: locale) == "Notes")
         #expect(MainNavItem.notes.icon == "note.text")
+        #expect(MainNavItem.library.title(locale: locale) == "Library")
+        #expect(MainNavItem.library.icon == "books.vertical")
         #expect(MainNavItem.stats.title(locale: locale) == "Stats")
         #expect(MainNavItem.stats.icon == "chart.xyaxis.line")
         #expect(MainNavItem.dictionary.title(locale: locale) == "Dictionary")
@@ -69,14 +73,62 @@ struct MainShellNavigationTests {
         #expect(MainNavItem.models.icon == "cpu")
     }
 
+    @Test func accessibilityIdentifierComponentsMatchRawValues() {
+        for item in MainNavItem.allCases {
+            #expect(item.accessibilityIdentifierComponent == item.rawValue)
+        }
+    }
+
+    @Test @MainActor func openNoteKeepsTheSidebarOnNotes() {
+        let state = MainWindowRouteState()
+        #expect(state.notesRoute == .list)
+
+        let noteID = UUID()
+        state.navigate(to: .library)
+        state.openNote(id: noteID)
+        #expect(state.selectedItem == .notes)
+        #expect(state.notesRoute == .note(noteID))
+        #expect(state.notesRoute.openNoteID == noteID)
+
+        // Leaving Notes for another destination keeps the open note.
+        state.navigate(to: .stats)
+        #expect(state.selectedItem == .stats)
+        #expect(state.notesRoute == .note(noteID))
+
+        // Picking Notes in the sidebar returns to the list.
+        state.navigate(to: .notes)
+        #expect(state.selectedItem == .notes)
+        #expect(state.notesRoute == .list)
+
+        state.openNote(id: noteID)
+        state.closeNote()
+        #expect(state.notesRoute == .list)
+        #expect(state.selectedItem == .notes)
+    }
+
+    @Test @MainActor func legacyRawValueNavigationLandsOnNotes() {
+        let state = MainWindowRouteState()
+
+        state.navigate(toRawValue: "voice-note")
+        #expect(state.selectedItem == .notes)
+
+        state.navigate(to: .library)
+        state.navigate(toRawValue: "meeting")
+        #expect(state.selectedItem == .notes)
+
+        state.navigate(to: .library)
+        state.navigate(toRawValue: "not-a-destination")
+        #expect(state.selectedItem == .library)
+    }
+
     @Test @MainActor func routeStateSelectsAndGeneratesLibraryRequests() throws {
         let state = MainWindowRouteState()
         #expect(state.selectedItem == .dictate)
         #expect(state.libraryOpenRequest == nil)
         #expect(state.librarySearchRequest == nil)
 
-        state.navigate(to: .meeting)
-        #expect(state.selectedItem == .meeting)
+        state.navigate(to: .stats)
+        #expect(state.selectedItem == .stats)
 
         let firstRecordID = UUID()
         state.openLibrary(recordID: firstRecordID)

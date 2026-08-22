@@ -22,7 +22,7 @@ struct HistoryStoreTests {
     private func requireSQLiteSupport() throws {
     }
 
-    @Test func repairServiceRefreshesDriftedV14ModelHashes() throws {
+    @Test func repairServiceRefreshesDriftedCurrentModelHashes() throws {
         try requireSQLiteSupport()
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -78,7 +78,7 @@ struct HistoryStoreTests {
 
         do {
             _ = try AppDelegate.makeModelContainer(at: storeURL)
-            Issue.record("Expected drifted V14 model hashes to fail before repair")
+            Issue.record("Expected drifted model hashes to fail before repair")
         } catch {
             #expect((error as NSError).domain == "SwiftData.SwiftDataError")
         }
@@ -152,7 +152,13 @@ struct HistoryStoreTests {
         )
 
         try autoreleasepool {
-            let seedContainer = try makeCurrentContainer(at: storeURL)
+            // Seeded from the V14 schema on purpose: this regression is about a
+            // store whose metadata names a version newer than its tables imply.
+            let schema = Schema(versionedSchema: TranscriptionRecordSchemaV14.self)
+            let seedContainer = try ModelContainer(
+                for: schema,
+                configurations: ModelConfiguration(schema: schema, url: storeURL)
+            )
             seedContainer.mainContext.insert(
                 TranscriptionRecord(
                     text: "Existing transcription",
@@ -422,12 +428,12 @@ struct HistoryStoreTests {
         try? FileManager.default.removeItem(at: directoryURL)
     }
 
-    @Test func repairServiceLeavesHealthyV14StoreUntouched() throws {
+    @Test func repairServiceLeavesHealthyV15StoreUntouched() throws {
         try requireSQLiteSupport()
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        let storeURL = directoryURL.appendingPathComponent("healthy-v14.store")
+        let storeURL = directoryURL.appendingPathComponent("healthy-v15.store")
         let repairService = SwiftDataStoreRepairService()
 
         try autoreleasepool {
@@ -443,14 +449,114 @@ struct HistoryStoreTests {
             try context.save()
         }
         try flushSQLiteStore(at: storeURL)
-        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v14.rawValue)
+        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v15.rawValue)
         #expect(try tableExists(named: "ZCAPTURESTAGEPROMPTSNAPSHOTMODEL", at: storeURL))
+        #expect(try tableExists(named: "ZCAPTUREENHANCEDPANELMODEL", at: storeURL))
+        #expect(try tableExists(named: "ZNOTEVIEWSTATEMODEL", at: storeURL))
+        #expect(try tableExists(named: "ZCAPTUREINTENTMODEL", at: storeURL))
 
         let outcome = try repairService.repairIfNeeded(storeURL: storeURL)
         #expect(outcome.repaired == false)
         #expect(outcome.backupDirectoryURL == nil)
 
         try? FileManager.default.removeItem(at: directoryURL)
+    }
+
+    // A V15 store that lost its V15-only panel table infers as V14. Repairing
+    // from the inferred version would strip the remaining V15 tables and stamp
+    // V14 metadata, so the store's own metadata has to win here.
+    @Test func repairServiceRestoresMissingV15PanelTableInsteadOfDowngradingToV14() throws {
+        try requireSQLiteSupport()
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+        let storeURL = directoryURL.appendingPathComponent("missing-v15-panel-table.store")
+        let repairService = SwiftDataStoreRepairService(
+            applicationSupportRootURL: directoryURL
+        )
+        let noteID = UUID()
+
+        try autoreleasepool {
+            let seedContainer = try makeCurrentContainer(at: storeURL)
+            let context = seedContainer.mainContext
+            context.insert(
+                TranscriptionRecord(
+                    text: "Existing transcription",
+                    duration: 2.5,
+                    modelUsed: "base"
+                )
+            )
+            context.insert(
+                NoteViewStateModel(
+                    noteID: noteID,
+                    selection: .transcript
+                )
+            )
+            try context.save()
+        }
+        try flushSQLiteStore(at: storeURL)
+        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v15.rawValue)
+
+        try withDatabase(at: storeURL) { database in
+            try execute("BEGIN IMMEDIATE TRANSACTION", on: database)
+            do {
+                try execute("DROP TABLE ZCAPTUREENHANCEDPANELMODEL", on: database)
+                try execute(
+                    "DELETE FROM Z_PRIMARYKEY WHERE Z_NAME = 'CaptureEnhancedPanelModel'",
+                    on: database
+                )
+                try execute("COMMIT TRANSACTION", on: database)
+            } catch {
+                try? execute("ROLLBACK TRANSACTION", on: database)
+                throw error
+            }
+        }
+        #expect(try tableExists(named: "ZCAPTUREENHANCEDPANELMODEL", at: storeURL) == false)
+        #expect(
+            try primaryKeyRegistrationExists(named: "CaptureEnhancedPanelModel", at: storeURL) == false
+        )
+
+        let outcome = try repairService.repairIfNeeded(storeURL: storeURL)
+        #expect(outcome.repaired)
+        #expect(outcome.backupDirectoryURL != nil)
+        #expect(try metadataVersionIdentifier(at: storeURL) == PindropPersistentSchemaVersion.v15.rawValue)
+        #expect(try tableExists(named: "ZCAPTUREENHANCEDPANELMODEL", at: storeURL))
+        #expect(try primaryKeyRegistrationExists(named: "CaptureEnhancedPanelModel", at: storeURL))
+        // The other V15 tables must survive a repair driven by V15 metadata.
+        #expect(try tableExists(named: "ZNOTEVIEWSTATEMODEL", at: storeURL))
+        #expect(try tableExists(named: "ZCAPTUREINTENTMODEL", at: storeURL))
+
+        let panelID = UUID()
+        try autoreleasepool {
+            let repairedContainer = try makeCurrentContainer(at: storeURL)
+            let repairedContext = repairedContainer.mainContext
+            let records = try repairedContext.fetch(FetchDescriptor<TranscriptionRecord>())
+            #expect(records.map(\.text) == ["Existing transcription"])
+            let viewStates = try repairedContext.fetch(FetchDescriptor<NoteViewStateModel>())
+            #expect(viewStates.map(\.noteID) == [noteID])
+            repairedContext.insert(
+                CaptureEnhancedPanelModel(
+                    id: panelID,
+                    sessionID: UUID(),
+                    noteID: noteID,
+                    templatePresetIdentifier: "repair-write-check",
+                    templateDisplayName: "Repair write check",
+                    content: "Write path works.",
+                    generation: 1,
+                    assignmentAttempt: 1
+                )
+            )
+            try repairedContext.save()
+        }
+
+        try autoreleasepool {
+            let reopenedContainer = try makeCurrentContainer(at: storeURL)
+            let panels = try reopenedContainer.mainContext.fetch(
+                FetchDescriptor<CaptureEnhancedPanelModel>()
+            )
+            #expect(panels.map(\.id) == [panelID])
+        }
     }
 
     @Test func repairServiceRepairsV12StoreWithoutCaptureTablesUsingV12Artifacts() throws {

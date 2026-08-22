@@ -13,10 +13,12 @@ import Foundation
 // MARK: - Layout metrics (spec §9 — normative)
 
 enum HomeLayoutMetrics {
-    /// Hero sentence: Newsreader 46/52 · -0.02em
-    static let heroFontSize: CGFloat = 46
-    static let heroLineHeight: CGFloat = 52
-    static let heroTrackingEm: CGFloat = -0.02
+    // Layout only. Type comes from `AppTypography` roles: hero sentence
+    // `heroDisplayMetrics` / `heroDisplayEmphasisMetrics`, stats numbers
+    // `statNumberMetrics`, stats and chart labels `statLabelMetrics`,
+    // date kicker `overlineMetrics`.
+
+    /// Hero sentence
     static let heroBottomPadding: CGFloat = 10
 
     /// Stats strip
@@ -26,14 +28,6 @@ enum HomeLayoutMetrics {
     static let statsDividerWidth: CGFloat = 1
     static let statsGroupPadding: CGFloat = 32
     static let statsInnerGap: CGFloat = 4
-    static let statsNumberSize: CGFloat = 22
-    static let statsNumberLineHeight: CGFloat = 28
-    static let statsLabelSize: CGFloat = 11
-    static let statsLabelTrackingEm: CGFloat = 0.07
-
-    /// Date kicker
-    static let kickerSize: CGFloat = 11
-    static let kickerTrackingEm: CGFloat = 0.08
 
     /// THIS WEEK chart
     static let chartTopPadding: CGFloat = 40

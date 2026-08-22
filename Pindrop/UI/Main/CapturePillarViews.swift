@@ -140,9 +140,9 @@ struct DictateView: View {
     private func heroBlock(now: Date, stats: DashboardStats) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(HomePresentation.dateKicker(date: now, locale: locale, calendar: calendar))
-                .font(FontLoader.font(family: .inter, size: HomeLayoutMetrics.kickerSize, weight: .semibold))
+                .font(AppTypography.overline)
                 .foregroundStyle(AppColors.textTertiary)
-                .tracking(HomeLayoutMetrics.kickerTrackingEm * HomeLayoutMetrics.kickerSize)
+                .tracking(AppTypography.overlineTracking)
 
             if isFirstRun {
                 DashboardFirstRunWelcome()
@@ -224,22 +224,14 @@ struct DictateView: View {
     private func homeStat(value: String, label: String) -> some View {
         VStack(alignment: .leading, spacing: HomeLayoutMetrics.statsInnerGap) {
             Text(value)
-                .font(FontLoader.font(
-                    family: .jetbrainsMono,
-                    size: HomeLayoutMetrics.statsNumberSize,
-                    weight: .medium
-                ))
+                .font(AppTypography.statNumber)
                 .foregroundStyle(AppColors.textPrimary)
                 .monospacedDigit()
 
             Text(label.uppercased(with: locale))
-                .font(FontLoader.font(
-                    family: .inter,
-                    size: HomeLayoutMetrics.statsLabelSize,
-                    weight: .semibold
-                ))
+                .font(AppTypography.statLabel)
                 .foregroundStyle(AppColors.textTertiary)
-                .tracking(HomeLayoutMetrics.statsLabelTrackingEm * HomeLayoutMetrics.statsLabelSize)
+                .tracking(AppTypography.statLabelTracking)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(value), \(label)")
@@ -355,18 +347,21 @@ struct VoiceNoteView: View {
     @Query(sort: \NoteSchema.Note.createdAt, order: .reverse) private var allNotes: [NoteSchema.Note]
     @ObservedObject private var settingsStore: SettingsStore
     let isCaptureBusy: Bool
-    let onStartVoiceNote: (() -> Void)?
+    let onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
+    let onOpenNote: ((UUID) -> Void)?
     let onOpenNotes: (() -> Void)?
 
     init(
         settingsStore: SettingsStore,
         isCaptureBusy: Bool = false,
-        onStartVoiceNote: (() -> Void)? = nil,
+        onStartNoteCapture: ((NoteCaptureRequest) -> Bool)? = nil,
+        onOpenNote: ((UUID) -> Void)? = nil,
         onOpenNotes: (() -> Void)? = nil
     ) {
         _settingsStore = ObservedObject(wrappedValue: settingsStore)
         self.isCaptureBusy = isCaptureBusy
-        self.onStartVoiceNote = onStartVoiceNote
+        self.onStartNoteCapture = onStartNoteCapture
+        self.onOpenNote = onOpenNote
         self.onOpenNotes = onOpenNotes
     }
 
@@ -405,8 +400,8 @@ struct VoiceNoteView: View {
                         startIdentifier: "main.capture.voiceNote.start",
                         shortcut: nil,
                         isBusy: isCaptureBusy,
-                        isStartAvailable: onStartVoiceNote != nil,
-                        onStart: { onStartVoiceNote?() }
+                        isStartAvailable: onStartNoteCapture != nil,
+                        onStart: { _ = onStartNoteCapture?(NoteCaptureRequest()) }
                     )
                     .padding(.top, 24)
                 }
@@ -484,11 +479,7 @@ struct VoiceNoteView: View {
     }
 
     private func openInEditor(_ note: NoteSchema.Note) {
-        NoteEditorWindowControllerRegistry.shared.presentEditor(
-            note: note,
-            isNewNote: false,
-            modelContainer: modelContext.container
-        )
+        onOpenNote?(note.id)
     }
 }
 
@@ -500,7 +491,7 @@ struct MeetingView: View {
     @State private var showMeetingCaptureOptions = false
     let recordingState: RecordingFeatureState?
     let isCaptureBusy: Bool
-    let onStartMeeting: ((Int?) -> Bool)?
+    let onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
     let onOpenLibrary: (() -> Void)?
     let onOpenLibraryRecord: ((UUID) -> Void)?
     let onDownloadDiarizationModel: (() -> Void)?
@@ -508,14 +499,14 @@ struct MeetingView: View {
     init(
         recordingState: RecordingFeatureState? = nil,
         isCaptureBusy: Bool = false,
-        onStartMeeting: ((Int?) -> Bool)? = nil,
+        onStartNoteCapture: ((NoteCaptureRequest) -> Bool)? = nil,
         onOpenLibrary: (() -> Void)? = nil,
         onOpenLibraryRecord: ((UUID) -> Void)? = nil,
         onDownloadDiarizationModel: (() -> Void)? = nil
     ) {
         self.recordingState = recordingState
         self.isCaptureBusy = isCaptureBusy
-        self.onStartMeeting = onStartMeeting
+        self.onStartNoteCapture = onStartNoteCapture
         self.onOpenLibrary = onOpenLibrary
         self.onOpenLibraryRecord = onOpenLibraryRecord
         self.onDownloadDiarizationModel = onDownloadDiarizationModel
@@ -569,7 +560,7 @@ struct MeetingView: View {
                         startIdentifier: "main.capture.meeting.start",
                         shortcut: nil,
                         isBusy: isCaptureBusy,
-                        isStartAvailable: onStartMeeting != nil,
+                        isStartAvailable: onStartNoteCapture != nil,
                         onStart: { showMeetingCaptureOptions = true }
                     )
                     .padding(.top, 24)
@@ -585,8 +576,11 @@ struct MeetingView: View {
         .background(AppColors.contentBackground)
         .sheet(isPresented: $showMeetingCaptureOptions) {
             MeetingCaptureOptionsSheet(isStartAvailable: !isCaptureBusy) { expectedSpeakerCount in
-                guard !isCaptureBusy, let onStartMeeting else { return false }
-                return onStartMeeting(expectedSpeakerCount)
+                guard !isCaptureBusy, let onStartNoteCapture else { return false }
+                return onStartNoteCapture(NoteCaptureRequest(
+                    includeSystemAudio: true,
+                    expectedSpeakerCount: expectedSpeakerCount
+                ))
             }
         }
         .accessibilityIdentifier("main.destination.meeting")
@@ -652,9 +646,9 @@ private struct CaptureEditorialHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(kicker)
-                .font(FontLoader.font(family: .inter, size: HomeLayoutMetrics.kickerSize, weight: .semibold))
+                .font(AppTypography.overline)
                 .foregroundStyle(AppColors.textTertiary)
-                .tracking(HomeLayoutMetrics.kickerTrackingEm * HomeLayoutMetrics.kickerSize)
+                .tracking(AppTypography.overlineTracking)
 
             captureHeroText(parts: heroParts)
                 .padding(.top, 6)
@@ -674,19 +668,10 @@ private struct CaptureEditorialHeader: View {
 /// Hero sentence with the metric in accented italic Newsreader, shared by all
 /// three capture destinations.
 private func captureHeroText(parts: HomePresentation.HeroSentenceParts) -> some View {
-    let heroFont = FontLoader.font(
-        family: .newsreader,
-        size: HomeLayoutMetrics.heroFontSize,
-        weight: .regular
-    )
-    let metricFont = FontLoader.font(
-        family: .newsreader,
-        size: HomeLayoutMetrics.heroFontSize,
-        weight: .medium,
-        italic: true
-    )
-    let tracking = HomeLayoutMetrics.heroTrackingEm * HomeLayoutMetrics.heroFontSize
-    let lineSpacing = HomeLayoutMetrics.heroLineHeight - HomeLayoutMetrics.heroFontSize
+    let heroFont = AppTypography.heroDisplay
+    let metricFont = AppTypography.heroDisplayEmphasis
+    let tracking = AppTypography.heroDisplayTracking
+    let lineSpacing = AppTypography.heroDisplayLineSpacing
 
     return (
         Text(parts.before)
@@ -732,7 +717,6 @@ private struct CaptureStartRow: View {
                     isEnabled: isStartAvailable && !isBusy,
                     action: onStart
                 )
-                .keyboardFocusRing(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .accessibilityIdentifier(startIdentifier)
                 .accessibilityHint(isBusy ? localized("Finish the current capture before starting another.", locale: locale) : "")
             }
@@ -882,9 +866,7 @@ private struct VoiceNoteRow: View {
                     .monospacedDigit()
                     .frame(width: 64, alignment: .leading)
 
-                Image(systemName: "note.text")
-                    .font(.system(size: 13))
-                    .foregroundStyle(AppColors.textTertiary)
+                IconSlot(systemImage: "note.text", slot: .row, tint: AppColors.textTertiary)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(note.title.isEmpty ? localized("Untitled", locale: locale) : note.title)
@@ -916,60 +898,6 @@ private struct VoiceNoteRow: View {
         .onHover { isHovered = $0 }
         // Counteract the outer 40 pt page padding so rows sit flush like Library rows.
         .padding(.horizontal, -24)
-    }
-}
-
-/// Diarization setup warning/download banner shared by Dictate and Meeting.
-private struct DiarizationSetupIssueBanner: View {
-    @Environment(\.locale) private var locale
-    let message: String
-    let isDownloading: Bool
-    let progress: Double
-    let onDownload: (() -> Void)?
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: isDownloading ? "arrow.down.circle" : "exclamationmark.triangle")
-                .font(.system(size: 14))
-                .foregroundStyle(isDownloading ? AppColors.accent : AppColors.warning)
-
-            if isDownloading {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(message)
-                        .font(AppTypography.caption)
-                        .foregroundStyle(AppColors.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    ProgressView(value: min(max(progress, 0), 1))
-                        .progressViewStyle(.linear)
-                        .tint(AppColors.accent)
-                        .frame(maxWidth: 180)
-                        .accessibilityValue("\(Int(progress * 100))%")
-                }
-            } else {
-                Text(message)
-                    .font(AppTypography.caption)
-                    .foregroundStyle(AppColors.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 8)
-
-            if !isDownloading, onDownload != nil {
-                Button(localized("Download model", locale: locale)) {
-                    onDownload?()
-                }
-                .buttonStyle(.plain)
-                .font(AppTypography.caption.weight(.semibold))
-                .foregroundStyle(AppColors.accent)
-                .accessibilityIdentifier("diarizationSetupIssueDownloadButton")
-            }
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(AppColors.warningBackground)
-        )
     }
 }
 
@@ -1144,13 +1072,9 @@ private struct DashboardWeeklyBarsChart: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(activeName.uppercased(with: locale))
-                .font(FontLoader.font(
-                    family: .inter,
-                    size: HomeLayoutMetrics.statsLabelSize,
-                    weight: .semibold
-                ))
+                .font(AppTypography.statLabel)
                 .foregroundStyle(AppColors.textTertiary)
-                .tracking(HomeLayoutMetrics.statsLabelTrackingEm * HomeLayoutMetrics.statsLabelSize)
+                .tracking(AppTypography.statLabelTracking)
                 .appAnimation(.fast, value: activeIndex)
         }
         .onAppear {
@@ -1425,10 +1349,10 @@ private struct DashboardFirstRunWelcome: View {
 
     var body: some View {
         Text(localized("Speak. It's written.", locale: locale))
-            .font(FontLoader.font(family: .newsreader, size: HomeLayoutMetrics.heroFontSize, weight: .regular))
+            .font(AppTypography.heroDisplay)
             .foregroundStyle(AppColors.textPrimary)
-            .tracking(HomeLayoutMetrics.heroTrackingEm * HomeLayoutMetrics.heroFontSize)
-            .lineSpacing(HomeLayoutMetrics.heroLineHeight - HomeLayoutMetrics.heroFontSize)
+            .tracking(AppTypography.heroDisplayTracking)
+            .lineSpacing(AppTypography.heroDisplayLineSpacing)
     }
 }
 

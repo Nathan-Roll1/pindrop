@@ -209,6 +209,59 @@ struct ThemeFoundationTests {
         assertRole(AppTypography.sectionHeaderMetrics, size: 11, weight: .semibold, family: .inter, lineHeight: 14)
         assertRole(AppTypography.statLargeMetrics, size: 34, weight: .medium, family: .newsreader, lineHeight: 38)
         assertRole(AppTypography.statMediumMetrics, size: 24, weight: .semibold, family: .newsreader, lineHeight: 28)
+        assertRole(
+            AppTypography.heroDisplayMetrics,
+            size: 46, weight: .regular, family: .newsreader, lineHeight: 52, trackingEm: -0.02
+        )
+        assertRole(
+            AppTypography.heroDisplayEmphasisMetrics,
+            size: 46, weight: .medium, family: .newsreader, lineHeight: 52, trackingEm: -0.02
+        )
+        assertRole(
+            AppTypography.statNumberMetrics,
+            size: 22, weight: .medium, family: .jetbrainsMono, lineHeight: 28
+        )
+        assertRole(
+            AppTypography.overlineMetrics,
+            size: 11, weight: .semibold, family: .inter, lineHeight: 14, trackingEm: 0.08
+        )
+        assertRole(
+            AppTypography.statLabelMetrics,
+            size: 11, weight: .semibold, family: .inter, lineHeight: 14, trackingEm: 0.07
+        )
+    }
+
+    /// Roles moved out of `HomeLayoutMetrics` must keep the values that page rendered.
+    @Test func heroAndStatRolesMatchTheValuesTheyReplaced() {
+        #expect(AppTypography.heroDisplayEmphasisMetrics.italic)
+        #expect(AppTypography.heroDisplayMetrics.italic == false)
+        #expect(AppTypography.heroDisplayLineSpacing == CGFloat(6))
+        #expect(AppTypography.heroDisplayTracking == CGFloat(-0.02) * 46)
+        #expect(AppTypography.overlineTracking == CGFloat(0.08) * 11)
+        #expect(AppTypography.statLabelTracking == CGFloat(0.07) * 11)
+    }
+
+    /// Every role in the ramp is exhaustively checked, so a new role cannot land
+    /// without a size, a weight, and a line box that can hold its own text.
+    @Test func allRoleMetricsAreWellFormed() {
+        #expect(AppTypography.allRoleMetrics.count == 24)
+        for metrics in AppTypography.allRoleMetrics {
+            #expect(metrics.size > 0)
+            #expect(metrics.lineHeight >= metrics.size)
+            #expect(metrics.lineSpacing == metrics.lineHeight - metrics.size)
+            #expect(metrics.tracking == metrics.trackingEm * metrics.size)
+            #expect(abs(metrics.trackingEm) < 0.2)
+        }
+
+        for role in [
+            AppTypography.heroDisplayMetrics,
+            AppTypography.heroDisplayEmphasisMetrics,
+            AppTypography.statNumberMetrics,
+            AppTypography.overlineMetrics,
+            AppTypography.statLabelMetrics,
+        ] {
+            #expect(AppTypography.allRoleMetrics.contains(role))
+        }
     }
 
     @Test func typographyLineSpacingMatchesSpecLineBoxes() {
@@ -302,6 +355,28 @@ struct ThemeFoundationTests {
         #expect(WaveformGeometry.playheadX(progress: 2, width: 100) == 100 - WaveformGeometry.playheadWidth)
     }
 
+    // MARK: - Focus ring tokens
+
+    @Test func focusRingRadiiComeFromTheThemeScale() {
+        #expect(FocusRingRadius.sm.points == AppTheme.Radius.sm)
+        #expect(FocusRingRadius.md.points == AppTheme.Radius.md)
+        #expect(FocusRingRadius.lg.points == AppTheme.Radius.lg)
+        #expect(FocusRingRadius.xl.points == AppTheme.Radius.xl)
+    }
+
+    /// The ring is drawn outset by 3 pt; its path must grow with the control
+    /// instead of clipping into the corners.
+    @Test func focusRingShapeOutsetsBeyondTheControlBounds() {
+        let bounds = CGRect(x: 0, y: 0, width: 120, height: 32)
+        for style in [FocusRingStyle.rounded(.sm), .capsule, .circle] {
+            let flush = style.shape.path(in: bounds).boundingRect
+            let outset = style.shape.inset(by: -3).path(in: bounds).boundingRect
+            #expect(outset.width > flush.width)
+            #expect(outset.height > flush.height)
+            #expect(outset.minX < flush.minX)
+        }
+    }
+
     // MARK: - Dead token removal sanity
 
     @Test func settingsWindowTokensRemoved() {
@@ -318,13 +393,16 @@ struct ThemeFoundationTests {
         size: CGFloat,
         weight: FontLoader.Weight,
         family: FontLoader.Family,
-        lineHeight: CGFloat
+        lineHeight: CGFloat,
+        trackingEm: CGFloat = 0
     ) {
         #expect(metrics.size == size)
         #expect(metrics.weight == weight)
         #expect(metrics.family == family)
         #expect(metrics.lineHeight == lineHeight)
         #expect(metrics.lineSpacing == max(0, lineHeight - size))
+        #expect(metrics.trackingEm == trackingEm)
+        #expect(metrics.tracking == trackingEm * size)
     }
 }
 

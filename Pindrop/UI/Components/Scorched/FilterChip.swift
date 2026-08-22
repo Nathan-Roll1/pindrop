@@ -19,7 +19,7 @@ struct FilterChip: View {
             HStack(spacing: 6) {
                 if let systemImage {
                     Image(systemName: systemImage)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(AppIcon.chip())
                 }
                 Text(title)
                     .font(AppTypography.label)
@@ -37,7 +37,7 @@ struct FilterChip: View {
             )
         }
         .buttonStyle(.plain)
-        .keyboardFocusRing(Capsule(style: .continuous))
+        .focusRing(.capsule)
         .accessibilityLabel(title)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }

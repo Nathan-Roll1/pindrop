@@ -27,17 +27,15 @@ struct SchemaV14MigrationTests {
         }
     }
 
-    @Test func currentSchemaCatalogAndMigrationPlanEndAtV14() throws {
+    // The catalog and plan end at the newest schema version; SchemaV15MigrationTests
+    // owns those counts. This keeps V14's own identity and position.
+    @Test func migrationPlanKeepsV14ImmediatelyAfterV13() throws {
         let schemas = TranscriptionRecordMigrationPlan.schemas
         let v13Index = try #require(schemas.firstIndex { $0 == TranscriptionRecordSchemaV13.self })
         let v14Index = try #require(schemas.firstIndex { $0 == TranscriptionRecordSchemaV14.self })
 
         #expect(PindropPersistentSchemaVersion.v14.rawValue == "1.0.13")
         #expect(PindropPersistentSchemaVersion.v14.versionedSchema == TranscriptionRecordSchemaV14.self)
-        #expect(PindropPersistentSchemaVersion.allCases.count == 14)
-        #expect(PindropPersistentSchemaVersion.allCases.last == .v14)
-        #expect(schemas.count == 14)
-        #expect(TranscriptionRecordMigrationPlan.stages.count == 13)
         #expect(v14Index == v13Index + 1)
     }
 

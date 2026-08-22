@@ -1953,6 +1953,36 @@ public enum TranscriptionRecordSchemaV14: VersionedSchema {
     }
 }
 
+// V15: Adds enhanced note panels, per-note view state, and capture intents.
+public enum TranscriptionRecordSchemaV15: VersionedSchema {
+    public static var versionIdentifier = Schema.Version(1, 0, 14)
+
+    public static var models: [any PersistentModel.Type] {
+        [
+            TranscriptionRecord.self,
+            MediaFolder.self,
+            ParticipantProfile.self,
+            ParticipantTrainingEvidence.self,
+            WordReplacement.self,
+            VocabularyWord.self,
+            Note.self,
+            PromptPreset.self,
+            TrainingContribution.self,
+            CaptureSessionModel.self,
+            CaptureSourceModel.self,
+            CaptureChunkModel.self,
+            CaptureTranscriptRevisionModel.self,
+            CaptureStageProviderSnapshotModel.self,
+            CaptureNoteReferenceModel.self,
+            CaptureFailureRecordModel.self,
+            CaptureStagePromptSnapshotModel.self,
+            CaptureEnhancedPanelModel.self,
+            NoteViewStateModel.self,
+            CaptureIntentModel.self
+        ]
+    }
+}
+
 private enum PromptSnapshotMigrationError: Error {
     case duplicatePromptPreset(UUID)
     case duplicatePromptSnapshot(UUID)
@@ -2033,7 +2063,8 @@ enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
             TranscriptionRecordSchemaV11.self,
             TranscriptionRecordSchemaV12.self,
             TranscriptionRecordSchemaV13.self,
-            TranscriptionRecordSchemaV14.self
+            TranscriptionRecordSchemaV14.self,
+            TranscriptionRecordSchemaV15.self
         ]
     }
 
@@ -2051,7 +2082,8 @@ enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
             migrateV10toV11,
             migrateV11toV12,
             migrateV12toV13,
-            migrateV13toV14
+            migrateV13toV14,
+            migrateV14toV15
         ]
     }
 
@@ -2152,5 +2184,13 @@ enum TranscriptionRecordMigrationPlan: SchemaMigrationPlan {
         didMigrate: { context in
             try CapturePromptSnapshotBackfill.apply(in: context)
         }
+    )
+
+    // Lightweight migration from V14 to V15.
+    // Adds the enhanced-panel, note view state, and capture intent tables
+    // without changing any existing model.
+    static let migrateV14toV15 = MigrationStage.lightweight(
+        fromVersion: TranscriptionRecordSchemaV14.self,
+        toVersion: TranscriptionRecordSchemaV15.self
     )
 }

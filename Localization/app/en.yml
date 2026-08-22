@@ -130,6 +130,7 @@ avg:
 back:
   _self: "Back"
   to_library: "Back to library"
+  to_notes: "Back to notes"
 base:
   _self: "Base"
 bearer:

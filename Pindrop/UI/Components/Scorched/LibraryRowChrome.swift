@@ -32,7 +32,7 @@ struct LibraryRowChrome<Icon: View, Play: View>: View {
                     .monospacedDigit()
 
                 icon()
-                    .frame(width: 16, height: 16)
+                    .frame(width: AppIcon.rowSlot, height: AppIcon.rowSlot)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(preview)
@@ -90,9 +90,7 @@ struct LibraryRowChrome<Icon: View, Play: View>: View {
             preview: "Draft the launch notes for Scorched Earth…",
             destination: "→ Slack"
         ) {
-            Image(systemName: "mic.fill")
-                .font(.system(size: 13))
-                .foregroundStyle(AppColors.textTertiary)
+            IconSlot(systemImage: "mic.fill", slot: .row, tint: AppColors.textTertiary)
         } playChip: {
             PlayChip(durationText: "0:31", action: {})
         }
@@ -102,9 +100,7 @@ struct LibraryRowChrome<Icon: View, Play: View>: View {
             preview: "Weekly planning with design and eng",
             destination: nil
         ) {
-            Image(systemName: "person.2.fill")
-                .font(.system(size: 13))
-                .foregroundStyle(AppColors.textTertiary)
+            IconSlot(systemImage: "person.2.fill", slot: .row, tint: AppColors.textTertiary)
         } playChip: {
             PlayChip(durationText: "0:24", isExpired: true)
         }

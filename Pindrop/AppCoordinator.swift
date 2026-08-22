@@ -1194,11 +1194,18 @@ final class AppCoordinator {
             onStartDictation: { [weak self] in
                 self?.handleMainWindowDictationStart()
             },
-            onStartVoiceNote: { [weak self] in
-                self?.handleMainWindowVoiceNoteStart()
-            },
-            onStartMeeting: { [weak self] expectedSpeakerCount in
-                self?.handleStartMeetingCapture(expectedSpeakerCount: expectedSpeakerCount) ?? false
+            onStartNoteCapture: { [weak self] request in
+                guard let self else { return false }
+                // Until P4 lands the unified note-capture controller, the old
+                // paths still do the work: system audio means the meeting path,
+                // microphone only means the voice-note path.
+                if request.includeSystemAudio {
+                    return self.handleStartMeetingCapture(
+                        expectedSpeakerCount: request.expectedSpeakerCount
+                    )
+                }
+                self.handleMainWindowVoiceNoteStart()
+                return true
             }
         )
         self.mainWindowController.configureTranscribeFeature(
@@ -5922,8 +5929,8 @@ final class AppCoordinator {
     }
 
     private func openNoteEditor(_ note: PindropData.NoteSchema.Note) {
-        noteEditorWindowController.show(note: note, isNewNote: true)
-        Log.app.info("Opened note editor with durable quick-capture note")
+        mainWindowController.openNote(id: note.id)
+        Log.app.info("Opened durable quick-capture note in the main window")
     }
 
     private func handleMainWindowDictationStart() {
@@ -8365,7 +8372,7 @@ final class AppCoordinator {
             try ensurePendingMeetingCaptureStartCurrent(pendingStart)
             do {
                 let note = try notesStore.fetch(id: context.humanAnchorNoteID)
-                noteEditorWindowController.show(note: note, isNewNote: false)
+                mainWindowController.openNote(id: note.id)
             } catch {
                 Log.app.warning(
                     "Meeting capture started, but its human anchor could not be opened: \(error.localizedDescription)"
@@ -9144,8 +9151,18 @@ final class AppCoordinator {
 
     // MARK: - Main Menu Actions
 
+    /// ⌘N creates the note durably first, then opens it in the main window, so
+    /// the note page always has an identity to bind capture and panels to.
     func openNewNoteFromMenu() {
-        noteEditorWindowController.show(note: nil, isNewNote: true)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let note = try await self.notesStore.create(content: "")
+                self.mainWindowController.openNote(id: note.id)
+            } catch {
+                Log.app.error("Could not create a note from the menu: \(error.localizedDescription)")
+            }
+        }
     }
 
     func exportLastTranscriptFromMenu() async {
