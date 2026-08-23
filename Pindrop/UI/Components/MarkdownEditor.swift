@@ -18,15 +18,62 @@ import SwiftUI
 import AppKit
 import PindropCore
 
+/// Where a query matches, using the transcript search's rule.
+///
+/// The note page searches the editor and the transcript with one field, so the
+/// two must agree on what counts as a hit. The rule is mirrored here rather
+/// than imported: `TranscriptSegmentPresentation` builds SwiftUI runs, which an
+/// `NSTextView` cannot use.
+enum MarkdownSearchMatching {
+
+    /// Ranges of `query` in `text`, in reading order, as UTF-16 ranges the text
+    /// storage can address.
+    ///
+    /// Matching ignores case and diacritics: a person searching "resume" should
+    /// find "résumé", and nobody types the note's capitalization back.
+    static func ranges(in text: String, query: String) -> [NSRange] {
+        guard !query.isEmpty, !text.isEmpty else { return [] }
+
+        var ranges: [NSRange] = []
+        var index = text.startIndex
+        while index < text.endIndex,
+              let match = text.range(
+                of: query,
+                options: [.caseInsensitive, .diacriticInsensitive],
+                range: index..<text.endIndex
+              ) {
+            ranges.append(NSRange(match, in: text))
+            // A query that matches an empty range would never advance.
+            index = match.upperBound > match.lowerBound
+                ? match.upperBound
+                : text.index(after: match.lowerBound)
+        }
+        return ranges
+    }
+}
+
 struct MarkdownEditor: NSViewRepresentable {
     @Binding var text: String
+
+    /// False on the note page: the editor grows with its text and the page
+    /// scrolls. True everywhere else, where the editor owns a scroll view.
+    var isScrollable: Bool = true
+
+    /// The note page's search text. Empty means no highlight.
+    var searchQuery: String = ""
+
+    /// Which match the reader is standing on, counted from zero in reading
+    /// order. It wears the stronger wash and is scrolled into view.
+    var currentMatchIndex: Int?
+
+    /// Reports how many matches the text holds, so the page can draw "n of m".
+    var onMatchCountChange: ((Int) -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
 
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSScrollView()
+    func makeNSView(context: Context) -> NSView {
         let textView = MarkdownTextView()
 
         textView.delegate = context.coordinator
@@ -50,6 +97,26 @@ struct MarkdownEditor: NSViewRepresentable {
             coordinator?.parent.text = newText
         }
 
+        guard isScrollable else {
+            // No scroll view at all: an NSScrollView eats the wheel even with
+            // its scrollers hidden, and the page behind this editor is what
+            // must scroll. The text view sizes itself instead (see
+            // `sizeThatFits`), so the container height is unbounded and the
+            // width is driven from the frame rather than tracked by AppKit.
+            textView.autoGrows = true
+            textView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
+            textView.textContainer?.widthTracksTextView = false
+            textView.isHorizontallyResizable = false
+            textView.isVerticallyResizable = true
+
+            context.coordinator.textView = textView
+            textView.applyMarkdownStyling()
+
+            return textView
+        }
+
+        let scrollView = NSScrollView()
+
         textView.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainer?.widthTracksTextView = true
         textView.isHorizontallyResizable = false
@@ -69,20 +136,49 @@ struct MarkdownEditor: NSViewRepresentable {
         return scrollView
     }
 
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        guard let textView = scrollView.documentView as? MarkdownTextView else { return }
+    func updateNSView(_ nsView: NSView, context: Context) {
+        guard let textView = Self.markdownTextView(in: nsView) else { return }
+        // The coordinator outlives this struct, so it needs the current
+        // bindings and callbacks before anything can fire them back.
+        context.coordinator.parent = self
+
+        let searchChanged = textView.searchQuery != searchQuery
+            || textView.currentSearchMatchIndex != currentMatchIndex
+        textView.searchQuery = searchQuery
+        textView.currentSearchMatchIndex = currentMatchIndex
 
         if textView.string != text {
             let selectedRanges = textView.selectedRanges
             textView.string = text
             textView.applyMarkdownStyling()
             textView.selectedRanges = selectedRanges
+        } else if searchChanged {
+            textView.applyMarkdownStyling()
         }
+
+        context.coordinator.reportMatchCount(textView.searchMatchRanges.count)
+        if searchChanged {
+            context.coordinator.scrollToCurrentMatch(in: textView)
+        }
+    }
+
+    /// The editor's own height for a proposed width. Nil in the scrollable
+    /// mode, where the scroll view takes whatever height it is given.
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSView, context: Context) -> CGSize? {
+        guard !isScrollable, let textView = nsView as? MarkdownTextView else { return nil }
+        guard let width = proposal.width, width > 0 else { return nil }
+        return CGSize(width: width, height: textView.fittingHeight(forWidth: width))
+    }
+
+    private static func markdownTextView(in nsView: NSView) -> MarkdownTextView? {
+        if let textView = nsView as? MarkdownTextView { return textView }
+        return (nsView as? NSScrollView)?.documentView as? MarkdownTextView
     }
 
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: MarkdownEditor
         weak var textView: MarkdownTextView?
+        private var reportedMatchCount = 0
 
         init(_ parent: MarkdownEditor) {
             self.parent = parent
@@ -92,6 +188,26 @@ struct MarkdownEditor: NSViewRepresentable {
             guard let textView = notification.object as? MarkdownTextView else { return }
             parent.text = textView.string
             textView.applyMarkdownStyling()
+            reportMatchCount(textView.searchMatchRanges.count)
+        }
+
+        /// Announces a new count once. The stored count is written before the
+        /// hop to the next pass, so a re-entrant update sees the new value and
+        /// stops rather than looping.
+        func reportMatchCount(_ count: Int) {
+            guard count != reportedMatchCount else { return }
+            reportedMatchCount = count
+            let report = parent.onMatchCountChange
+            guard let report else { return }
+            // State the note page owns cannot be written inside a view update.
+            DispatchQueue.main.async { report(count) }
+        }
+
+        func scrollToCurrentMatch(in textView: MarkdownTextView) {
+            guard let index = parent.currentMatchIndex,
+                  textView.searchMatchRanges.indices.contains(index) else { return }
+            let range = textView.searchMatchRanges[index]
+            DispatchQueue.main.async { textView.scrollRangeToVisible(range) }
         }
     }
 }
@@ -103,6 +219,81 @@ class MarkdownTextView: NSTextView {
     static let headingMarginWidth: CGFloat = 28
 
     var onCheckboxToggle: ((String) -> Void)?
+
+    // MARK: - Auto-growing mode
+
+    /// True when the editor has no scroll view of its own: it reports the
+    /// height its text needs and lets the page scroll.
+    var autoGrows = false
+
+    /// Room kept above and below a range scrolled into view.
+    private static let scrollMargin: CGFloat = 24
+
+    /// The height this text needs at `width`, including both insets.
+    func fittingHeight(forWidth width: CGFloat) -> CGFloat {
+        guard let layoutManager, let textContainer else { return textContainerInset.height * 2 }
+        useContainerWidth(forFrameWidth: width)
+        layoutManager.ensureLayout(for: textContainer)
+        return ceil(layoutManager.usedRect(for: textContainer).height) + textContainerInset.height * 2
+    }
+
+    /// AppKit tracks the container width for us only inside a scroll view, so
+    /// the auto-growing mode sets it from the frame instead.
+    @discardableResult
+    private func useContainerWidth(forFrameWidth frameWidth: CGFloat) -> Bool {
+        guard let textContainer else { return false }
+        let contentWidth = max(0, frameWidth - textContainerInset.width * 2)
+        guard abs(textContainer.size.width - contentWidth) > 0.5 else { return false }
+        textContainer.size = NSSize(width: contentWidth, height: CGFloat.greatestFiniteMagnitude)
+        return true
+    }
+
+    override var intrinsicContentSize: NSSize {
+        guard autoGrows else { return super.intrinsicContentSize }
+        return NSSize(width: NSView.noIntrinsicMetric, height: fittingHeight(forWidth: bounds.width))
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        guard autoGrows, useContainerWidth(forFrameWidth: newSize.width) else { return }
+        // A new width rewraps the text, so the height the page reserved is stale.
+        invalidateIntrinsicContentSize()
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        guard autoGrows else {
+            super.scrollWheel(with: event)
+            return
+        }
+        // Nothing here scrolls. Hand the wheel to the page.
+        nextResponder?.scrollWheel(with: event)
+    }
+
+    override func scrollRangeToVisible(_ range: NSRange) {
+        guard autoGrows else {
+            super.scrollRangeToVisible(range)
+            return
+        }
+        guard let layoutManager, let textContainer else { return }
+        let glyphRange = layoutManager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+        let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        let origin = textContainerOrigin
+        // The nearest clip view is the page's, so this asks the page to scroll.
+        scrollToVisible(
+            rect.offsetBy(dx: origin.x, dy: origin.y).insetBy(dx: 0, dy: -Self.scrollMargin)
+        )
+    }
+
+    // MARK: - Search highlighting
+
+    /// The note page's search text. Set before `applyMarkdownStyling()`.
+    var searchQuery: String = ""
+
+    /// The match the reader is standing on, counted from zero.
+    var currentSearchMatchIndex: Int?
+
+    /// Where the query matches, rebuilt on every styling pass.
+    private(set) var searchMatchRanges: [NSRange] = []
 
     // MARK: - Type ramp (design spec, "Markdown editor grammar")
 
@@ -248,10 +439,39 @@ class MarkdownTextView: NSTextView {
         quoteBlockRanges = MarkdownBlockGrammar.quoteBlockRanges(lines)
         reapplyCodeBlocks(lines, to: textStorage)
 
+        // Last, because every pass above resets or strips attributes over the
+        // ranges a highlight covers.
+        searchMatchRanges = MarkdownSearchMatching.ranges(in: text, query: searchQuery)
+        applySearchHighlights(to: textStorage)
+
         textStorage.endEditing()
 
         // Markers and block decoration are painted in draw(_:) / drawBackground(in:).
         needsDisplay = true
+
+        if autoGrows {
+            invalidateIntrinsicContentSize()
+        }
+    }
+
+    /// Washes the matches. Only the background is painted: the foreground still
+    /// carries markdown meaning (link, code, dimmed marker), which a highlight
+    /// must not overwrite.
+    private func applySearchHighlights(to textStorage: NSTextStorage) {
+        guard !searchMatchRanges.isEmpty else { return }
+
+        let match = NSColor(AppColors.accentBackground)
+        let current = NSColor(AppColors.accent.opacity(0.28))
+        let length = textStorage.length
+
+        for (index, range) in searchMatchRanges.enumerated()
+        where range.length > 0 && NSMaxRange(range) <= length {
+            textStorage.addAttribute(
+                .backgroundColor,
+                value: index == currentSearchMatchIndex ? current : match,
+                range: range
+            )
+        }
     }
 
     // MARK: - Block pass

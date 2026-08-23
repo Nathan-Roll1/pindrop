@@ -443,13 +443,22 @@ enum NotePagePresentation {
         state.capture.isRecording
     }
 
-    /// Searching needs a finished transcript: live text has no spans to filter
-    /// and grows under the reader's hands.
-    static func showsTranscriptSearch(
+    /// True when the view on screen can answer a search. The typed notes always
+    /// can; the enhanced view needs a panel to read; the transcript needs
+    /// durable spans, because live text has no spans to filter and grows under
+    /// the reader's hands.
+    static func showsSearch(
         state: NotePageState,
         selection: CaptureNoteViewKind
     ) -> Bool {
-        selection == .transcript && state.hasTranscript && !isTranscriptLive(state: state)
+        switch selection {
+        case .humanNotes:
+            true
+        case .enhanced:
+            state.hasPanels
+        case .transcript:
+            state.hasTranscript && !isTranscriptLive(state: state)
+        }
     }
 
     /// The recording can be played from any view of the note, as long as the file

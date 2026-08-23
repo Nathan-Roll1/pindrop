@@ -383,6 +383,190 @@ struct EnhancedViewPresentationTests {
         #expect(presentation.sources.isEmpty)
     }
 
+    // MARK: - Search
+
+    /// The panel the search tests read: a heading and two bullets, all three
+    /// carrying the same word.
+    private let searchableContent = """
+    ## Release plan
+
+    - The release ships on Friday.
+    - The release note is written.
+    """
+
+    @Test func everyMatchIsNumberedInDocumentOrderAcrossBlocks() throws {
+        let panel = try makePanel(content: searchableContent)
+        let presentation = EnhancedViewPresentation.make(
+            panel: panel,
+            query: "release",
+            locale: locale
+        )
+
+        let numbers = presentation.blocks.flatMap { $0.runs.compactMap(\.matchIndex) }
+
+        #expect(presentation.matchCount == 3)
+        // The heading counts first because it is drawn first.
+        #expect(numbers == [0, 1, 2])
+        #expect(presentation.matchBlockIDs == [
+            "enhanced-block-0",
+            "enhanced-block-2",
+            "enhanced-block-3"
+        ])
+    }
+
+    @Test func aMatchedBlockKeepsItsWholeTextAcrossItsRuns() throws {
+        let panel = try makePanel(content: searchableContent)
+        let presentation = EnhancedViewPresentation.make(
+            panel: panel,
+            query: "release",
+            locale: locale
+        )
+        let bullet = try #require(presentation.blocks.first { $0.id == 2 })
+
+        // The runs are the line, cut: a highlight that shifted by a character
+        // would sit on the wrong word.
+        #expect(bullet.runs.map(\.text).joined() == bullet.text)
+        #expect(bullet.runs.filter(\.isMatch).map(\.text) == ["release"])
+    }
+
+    @Test func aBlockWithNothingMatchedIsLeftPlain() throws {
+        let panel = try makePanel(content: searchableContent)
+        let presentation = EnhancedViewPresentation.make(
+            panel: panel,
+            query: "Friday",
+            locale: locale
+        )
+        let heading = try #require(presentation.blocks.first { $0.id == 0 })
+
+        #expect(presentation.matchCount == 1)
+        #expect(heading.runs.isEmpty)
+        #expect(heading.text == "Release plan")
+    }
+
+    @Test func theCurrentMatchNamesTheBlockItLandedIn() throws {
+        let panel = try makePanel(content: searchableContent)
+        let presentation = EnhancedViewPresentation.make(
+            panel: panel,
+            query: "release",
+            currentMatchIndex: 2,
+            locale: locale
+        )
+
+        #expect(presentation.currentMatchIndex == 2)
+        #expect(presentation.currentMatchBlockID == "enhanced-block-3")
+    }
+
+    @Test func aMatchNumberThatNoLongerExistsMarksNothing() throws {
+        let panel = try makePanel(content: searchableContent)
+
+        let past = EnhancedViewPresentation.make(
+            panel: panel,
+            query: "release",
+            currentMatchIndex: 7,
+            locale: locale
+        )
+        let before = EnhancedViewPresentation.make(
+            panel: panel,
+            query: "release",
+            currentMatchIndex: -1,
+            locale: locale
+        )
+        let missing = EnhancedViewPresentation.make(
+            panel: panel,
+            query: "nothing here",
+            currentMatchIndex: 0,
+            locale: locale
+        )
+
+        #expect(past.currentMatchIndex == nil)
+        #expect(past.currentMatchBlockID == nil)
+        #expect(before.currentMatchIndex == nil)
+        #expect(missing.matchCount == 0)
+        #expect(missing.currentMatchBlockID == nil)
+    }
+
+    @Test func nothingSearchedLeavesThePanelExactlyAsItWas() throws {
+        let panel = try makePanel(content: searchableContent)
+        let plain = EnhancedViewPresentation.make(panel: panel, locale: locale)
+        let searched = EnhancedViewPresentation.make(
+            panel: panel,
+            query: "   ",
+            currentMatchIndex: 1,
+            locale: locale
+        )
+
+        let everyBlockIsPlain = searched.blocks.allSatisfy(\.runs.isEmpty)
+
+        #expect(plain == searched)
+        #expect(searched.matchCount == 0)
+        #expect(searched.currentMatchIndex == nil)
+        #expect(searched.currentMatchBlockID == nil)
+        #expect(everyBlockIsPlain)
+    }
+
+    @Test func aSearchIgnoresCaseAndDiacriticsTheWayTheTranscriptDoes() throws {
+        let panel = try makePanel(content: "- We read the résumé twice.")
+        let presentation = EnhancedViewPresentation.make(
+            panel: panel,
+            query: "RESUME",
+            locale: locale
+        )
+
+        #expect(presentation.matchCount == 1)
+        #expect(presentation.blocks[0].runs.filter(\.isMatch).map(\.text) == ["résumé"])
+    }
+
+    @Test func inlineMarkdownIsMatchedAsTheReaderSeesIt() throws {
+        // The panel draws the line verbatim, asterisks and all, so the search
+        // reads the same characters. A match still lands on the drawn text.
+        let panel = try makePanel(content: "- **Ship** the migration.")
+        let word = EnhancedViewPresentation.make(panel: panel, query: "Ship", locale: locale)
+        let syntax = EnhancedViewPresentation.make(panel: panel, query: "**Ship**", locale: locale)
+
+        #expect(word.matchCount == 1)
+        #expect(word.blocks[0].runs.map(\.text) == ["**", "Ship", "** the migration."])
+        #expect(syntax.matchCount == 1)
+        #expect(syntax.blocks[0].runs.filter(\.isMatch).map(\.text) == ["**Ship**"])
+    }
+
+    @Test func aCitationMarkerCannotBeSearchedBecauseItIsNeverDrawn() throws {
+        let panel = try makePanel(content: "- The migration ships. [C1]")
+        let presentation = EnhancedViewPresentation.make(
+            panel: panel,
+            citations: [citation("C1", start: 10, end: 14)],
+            segments: [segment(id: "span-a", start: 10)],
+            query: "C1",
+            locale: locale
+        )
+
+        #expect(presentation.matchCount == 0)
+        #expect(presentation.blocks[0].text == "The migration ships.")
+    }
+
+    @Test func twoMatchesOnOneLineAreNumberedLeftToRight() throws {
+        let blocks = EnhancedViewPresentation.blocks(
+            in: "- Ship it, then ship it again.",
+            targets: [:],
+            query: "ship"
+        )
+
+        let matches = blocks[0].runs.filter(\.isMatch)
+
+        #expect(matches.map(\.text) == ["Ship", "ship"])
+        #expect(matches.map(\.matchIndex) == [0, 1])
+    }
+
+    @Test func everyBlockCarriesTheScrollIdentifierThePageJumpsTo() {
+        let blocks = EnhancedViewPresentation.blocks(in: searchableContent, targets: [:])
+
+        #expect(blocks.map(\.blockID) == [
+            "enhanced-block-0",
+            "enhanced-block-1",
+            "enhanced-block-2",
+            "enhanced-block-3"
+        ])
+    }
+
     // MARK: - Legacy panels
 
     @Test func aLegacyPanelIsReadOnlyAndSaysSo() throws {

@@ -224,6 +224,18 @@ struct NoteFAB: View {
                     .foregroundStyle(AppColors.textPrimary)
                     .textFieldStyle(.plain)
                     .focused($isFieldFocused)
+                    // Claim focus when the field enters the tree, not only on
+                    // the state change: the change can land before the field
+                    // exists, and then the keystrokes go to the title. The tick
+                    // of delay is what lets it win: an assignment made while
+                    // the field is still being inserted loses to the window's
+                    // current first responder.
+                    .onAppear {
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(50))
+                            isFieldFocused = true
+                        }
+                    }
                     .accessibilityIdentifier("note.fab.search.field")
                     .accessibilityLabel(NoteFABPresentation.searchPlaceholder(locale: locale))
             }

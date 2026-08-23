@@ -34,7 +34,10 @@ struct EnhancedNoteBody: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(presentation.blocks) { block in
+                // The scroll target of a search hit is the block it landed in,
+                // so stepping through matches lands on the line, not the panel.
                 blockView(block)
+                    .id(block.blockID)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -48,7 +51,7 @@ struct EnhancedNoteBody: View {
 
         case .heading:
             // A heading opens a section, so it takes the extra air above it.
-            Text(block.text)
+            Text(highlighted(block))
                 .font(FontLoader.font(family: .newsreader, size: 20, weight: .medium))
                 .lineSpacing(6)
                 .foregroundStyle(AppColors.textPrimary)
@@ -81,7 +84,7 @@ struct EnhancedNoteBody: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
         case .code:
-            Text(block.text)
+            Text(highlighted(block))
                 .font(AppTypography.monoSmall)
                 .foregroundStyle(AppColors.textSecondary)
                 .textSelection(.enabled)
@@ -123,9 +126,41 @@ struct EnhancedNoteBody: View {
     }
 
     private func bodyText(_ block: EnhancedNoteBlock) -> some View {
-        Text(block.text)
+        Text(highlighted(block))
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// One block's text, with the searched words picked out.
+    ///
+    /// The runs are attributes of one string rather than separate views: a line
+    /// has to wrap as a line, and a row of views would break it wherever a match
+    /// happened to fall. A block with nothing matched is the plain string it has
+    /// always been, so a panel nobody is searching is drawn exactly as before.
+    private func highlighted(_ block: EnhancedNoteBlock) -> AttributedString {
+        guard block.runs.contains(where: \.isMatch) else {
+            return AttributedString(block.text)
+        }
+        return block.runs.reduce(into: AttributedString()) { string, run in
+            string.append(styled(run))
+        }
+    }
+
+    /// Matched words take the accent wash; the match the reader is standing on
+    /// takes a stronger one and the primary ink. Same treatment the transcript
+    /// gives a match, so one search reads the same in both views.
+    ///
+    /// Plain runs carry no color of their own: the block already decided its
+    /// ink, and a heading is not a paragraph.
+    private func styled(_ run: TranscriptTextRun) -> AttributedString {
+        var string = AttributedString(run.text)
+        guard run.isMatch else { return string }
+        let isCurrent = run.matchIndex != nil && run.matchIndex == presentation.currentMatchIndex
+        string.foregroundColor = isCurrent ? AppColors.textPrimary : AppColors.accent
+        string.backgroundColor = isCurrent
+            ? AppColors.accent.opacity(0.28)
+            : AppColors.accentBackground
+        return string
     }
 
     /// Wraps a line that has a resolved source in its peek affordance.

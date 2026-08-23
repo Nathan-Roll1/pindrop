@@ -204,3 +204,90 @@ struct MarkdownBlockGrammarTests {
         }
     }
 }
+
+@Suite("Markdown search matching")
+struct MarkdownSearchMatchingTests {
+
+    private func matched(_ text: String, _ query: String) -> [String] {
+        let nsText = text as NSString
+        return MarkdownSearchMatching.ranges(in: text, query: query).map(nsText.substring(with:))
+    }
+
+    // MARK: - Nothing to match
+
+    @Test func anEmptyQueryMatchesNothing() {
+        #expect(MarkdownSearchMatching.ranges(in: "some prose", query: "").isEmpty)
+    }
+
+    @Test func anEmptyTextMatchesNothing() {
+        #expect(MarkdownSearchMatching.ranges(in: "", query: "prose").isEmpty)
+    }
+
+    @Test func aQueryThatIsAbsentMatchesNothing() {
+        #expect(MarkdownSearchMatching.ranges(in: "some prose", query: "verse").isEmpty)
+    }
+
+    // MARK: - Positions
+
+    @Test func rangesAreInReadingOrderAndAddressTheSource() {
+        let text = "one two one two one"
+        let ranges = MarkdownSearchMatching.ranges(in: text, query: "one")
+        #expect(ranges == [
+            NSRange(location: 0, length: 3),
+            NSRange(location: 8, length: 3),
+            NSRange(location: 16, length: 3)
+        ])
+    }
+
+    @Test func matchesCrossLines() {
+        let text = "# Title\n\n- note\n- another note"
+        #expect(MarkdownSearchMatching.ranges(in: text, query: "note").count == 2)
+    }
+
+    // MARK: - Folding, same rule as the transcript search
+
+    @Test func caseIsIgnored() {
+        #expect(matched("Resume the RESUME", "resume") == ["Resume", "RESUME"])
+    }
+
+    @Test func diacriticsAreIgnored() {
+        #expect(matched("résumé", "resume") == ["résumé"])
+        #expect(matched("resume", "résumé") == ["resume"])
+    }
+
+    @Test func matchingAgreesWithTheTranscriptSearch() {
+        let text = "Résumé review, resume writing, RESUME."
+        let query = "resume"
+        let transcript = TranscriptSegmentPresentation.runs(in: text, query: query)
+            .filter(\.isMatch)
+            .map(\.text)
+        #expect(matched(text, query) == transcript)
+    }
+
+    // MARK: - Adjacent and overlapping
+
+    @Test func adjacentMatchesAreAllReported() {
+        #expect(matched("aaaa", "aa") == ["aa", "aa"])
+    }
+
+    @Test func aMatchNeverOverlapsTheOneBeforeIt() {
+        let ranges = MarkdownSearchMatching.ranges(in: "abab", query: "aba")
+        #expect(ranges == [NSRange(location: 0, length: 3)])
+    }
+
+    // MARK: - Multibyte safety
+
+    @Test func rangesAreUTF16OffsetsThroughEmoji() {
+        let text = "🎧 note 🎧 note"
+        let ranges = MarkdownSearchMatching.ranges(in: text, query: "note")
+        #expect(ranges == [
+            NSRange(location: 3, length: 4),
+            NSRange(location: 11, length: 4)
+        ])
+        #expect(matched(text, "note") == ["note", "note"])
+    }
+
+    @Test func anEmojiQueryMatchesItsWholeScalar() {
+        #expect(matched("a 🎧 b 🎧", "🎧") == ["🎧", "🎧"])
+    }
+}

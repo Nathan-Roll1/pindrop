@@ -8,7 +8,8 @@
 //
 //  One page draws every shape a note can have: a plain typed note, a note that
 //  is recording right now, and a note whose recording produced a transcript and
-//  an enhanced panel. The three views are switched by hand and never by the app.
+//  an enhanced panel. The three views are switched by hand, with one exception:
+//  a capture that just finished lands on the enhanced note it produced.
 //
 //  The editor is the one from the pop-out window, persistence stack included.
 //  Note autosave arbitration is subtle enough that a second implementation would
@@ -154,11 +155,16 @@ struct NotePageView: View {
 
     // MARK: Transcript view state
 
-    @State private var transcriptQuery = ""
+    /// What the floating control is searching for. Every view answers it: the
+    /// editor and the enhanced body highlight their own matches.
+    @State private var searchQuery = ""
     /// Which shape the floating control is in.
     @State private var fabState: NoteFABState = .resting
     /// The match the reader is standing on, counted from zero across the view.
     @State private var currentMatchIndex: Int?
+    /// How many times the query appears in the typed notes, reported by the
+    /// editor because only its layout knows.
+    @State private var editorMatchCount = 0
     /// How far the live transcript sheet is pulled open.
     @State private var liveSheetDetent: TranscriptSheetDetent = .collapsed
     @State private var playbackController = MediaPlaybackController()
@@ -279,8 +285,16 @@ struct NotePageView: View {
         .themeRefresh()
         .accessibilityIdentifier("note.page")
         .task(id: noteID) { await load() }
-        .onChange(of: capturePhase) { _, newValue in
-            Task { await refreshViews() }
+        .onChange(of: capturePhase) { oldValue, newValue in
+            let captureJustEnded = oldValue.isActive && newValue == .none
+            Task {
+                await refreshViews()
+                // A capture that just finished opens on its result: once the
+                // enhanced note exists, it is this page's default view.
+                if captureJustEnded, hasUnreadEnhanced {
+                    select(.enhanced)
+                }
+            }
             if newValue == .none {
                 isEnhancedNoticeDismissed = false
             }
@@ -299,11 +313,11 @@ struct NotePageView: View {
         .onChange(of: mediaURL) { _, url in loadPlayableAudio(url) }
         // Another letter renumbers the matches, so the reader is put back on the
         // first one rather than on a number that now means another word.
-        .onChange(of: transcriptQuery) { _, _ in
-            currentMatchIndex = NoteFABPresentation.resetMatch(total: transcriptMatchTotal)
+        .onChange(of: searchQuery) { _, _ in
+            currentMatchIndex = NoteFABPresentation.resetMatch(total: currentViewMatchTotal)
         }
         .onChange(of: resolvedSelection) { _, _ in
-            currentMatchIndex = NoteFABPresentation.resetMatch(total: transcriptMatchTotal)
+            currentMatchIndex = NoteFABPresentation.resetMatch(total: currentViewMatchTotal)
         }
         .onDisappear {
             playbackController.teardownPlayback()
@@ -411,6 +425,13 @@ struct NotePageView: View {
                             scrollProxy.scrollTo(segmentID, anchor: .center)
                         }
                     }
+                    // The same walk for the enhanced note, block by block.
+                    .onChange(of: enhancedPresentation.currentMatchBlockID) { _, blockID in
+                        guard let blockID else { return }
+                        withAnimation(reduceMotion ? nil : AppTheme.Animation.normal) {
+                            scrollProxy.scrollTo(blockID, anchor: .center)
+                        }
+                    }
                 }
             }
 
@@ -429,7 +450,7 @@ struct NotePageView: View {
                 hasPlayableAudio: mediaURL != nil
             ),
             canAsk: canAsk,
-            canSearch: NotePagePresentation.showsTranscriptSearch(
+            canSearch: NotePagePresentation.showsSearch(
                 state: pageState,
                 selection: resolvedSelection
             ),
@@ -455,16 +476,24 @@ struct NotePageView: View {
         )
     }
 
-    private var transcriptMatchTotal: Int {
-        transcriptPresentation.matchCount
+    /// The match count of the view on screen: each view counts its own.
+    private var currentViewMatchTotal: Int {
+        switch resolvedSelection {
+        case .humanNotes:
+            editorMatchCount
+        case .enhanced:
+            enhancedPresentation.matchCount
+        case .transcript:
+            transcriptPresentation.matchCount
+        }
     }
 
     private var noteFAB: some View {
         NoteFAB(
             context: fabContext,
             state: $fabState,
-            query: $transcriptQuery,
-            matchTotal: transcriptMatchTotal,
+            query: $searchQuery,
+            matchTotal: currentViewMatchTotal,
             currentMatch: $currentMatchIndex,
             controller: playbackController,
             fallbackDuration: mediaDuration,
@@ -607,19 +636,29 @@ struct NotePageView: View {
                 pendingNoteDeletion = true
             }
         } label: {
+            // 30×30: the height the export chrome resolves to (16pt label line
+            // + 7pt padding each side), so the square and the button align.
             Image(systemName: "ellipsis")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(AppColors.textSecondary)
                 .frame(width: 30, height: 30)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(AppColors.contentBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(AppColors.border, lineWidth: 1)
+                )
                 .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton)
+        // Same pairing as `ExportMenuButton`: the borderless style redraws the
+        // label with its own cell and shrinks it; this renders the label as-is.
+        .menuStyle(.button)
+        .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .fixedSize()
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(AppColors.border, lineWidth: 1)
-        )
+        .focusRing(.rounded(.sm))
         .accessibilityIdentifier("note.page.overflow")
         .accessibilityLabel(localized("More note actions", locale: locale))
     }
@@ -875,9 +914,22 @@ struct NotePageView: View {
 
             switch resolvedSelection {
             case .humanNotes:
-                MarkdownEditor(text: $content)
-                    .frame(minHeight: 320)
-                    .accessibilityIdentifier("note.page.editor")
+                // Not scrollable: the page's own scroll view is the one that
+                // scrolls, so the editor grows with its text instead of nesting
+                // a second scrollbar in the middle of the pane.
+                MarkdownEditor(
+                    text: $content,
+                    isScrollable: false,
+                    searchQuery: searchQuery,
+                    currentMatchIndex: currentMatchIndex,
+                    onMatchCountChange: { count in
+                        if editorMatchCount != count { editorMatchCount = count }
+                    }
+                )
+                // Top alignment: a short note must start under the chips, not
+                // float in the middle of the minimum height.
+                .frame(minHeight: 320, alignment: .top)
+                .accessibilityIdentifier("note.page.editor")
             case .enhanced:
                 enhancedCanvas
             case .transcript:
@@ -1001,6 +1053,8 @@ struct NotePageView: View {
             panel: currentPanel,
             citations: currentPanel.flatMap { panelCitations[$0.id] } ?? [],
             segments: views?.transcript?.segments ?? [],
+            query: resolvedSelection == .enhanced ? searchQuery : "",
+            currentMatchIndex: currentMatchIndex,
             locale: locale
         )
     }
@@ -1052,7 +1106,7 @@ struct NotePageView: View {
     private var transcriptPresentation: TranscriptListPresentation {
         TranscriptSegmentPresentation.make(
             segments: views?.transcript?.segments ?? [],
-            query: transcriptQuery,
+            query: resolvedSelection == .transcript ? searchQuery : "",
             currentMatchIndex: currentMatchIndex,
             locale: locale
         )
@@ -1277,6 +1331,11 @@ struct NotePageView: View {
         if let stored = views?.selectedView {
             selection = stored.kind
             selectedTemplateIdentifier = stored.templatePresetIdentifier
+        } else if views?.panels.isEmpty == false {
+            // A recorded note opens on its enhanced view until the person picks
+            // another view themselves; that pick is stored and wins from then on.
+            selection = .enhanced
+            selectedTemplateIdentifier = views?.panels.first?.templatePresetIdentifier
         }
         lastSeenPanelID = views?.panels.first?.id
         hasUnreadEnhanced = false
@@ -1459,7 +1518,7 @@ struct NotePageView: View {
     private func stepMatch(_ step: NoteFABMatchStep) {
         currentMatchIndex = NoteFABPresentation.steppedMatch(
             from: currentMatchIndex,
-            total: transcriptMatchTotal,
+            total: currentViewMatchTotal,
             step: step
         )
     }
@@ -1548,7 +1607,7 @@ struct NotePageView: View {
     /// A search narrows the transcript to what it matched, so it is cleared
     /// first: a citation must land on its own line and not on an empty list.
     private func followCitation(segmentID: String) {
-        transcriptQuery = ""
+        searchQuery = ""
         select(.transcript)
         citationJumpCount += 1
         let jump = NoteCitationJump(sequence: citationJumpCount, segmentID: segmentID)

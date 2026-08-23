@@ -82,7 +82,25 @@ struct NoteAskDock: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
-        .onAppear { isFieldFocused = true }
+        // The tick of delay is what lets the claim win: an assignment made
+        // while the dock is still being inserted loses to the window's current
+        // first responder, and the question lands in the title instead.
+        .onAppear {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(50))
+                isFieldFocused = true
+            }
+        }
+        // Thinking disables the field, and disabling drops focus. The reader's
+        // next move after an answer is a follow-up, so the field takes focus
+        // back the moment it can be typed into again.
+        .onChange(of: phase) { _, newValue in
+            guard NoteAskPresentation.isInputEnabled(phase: newValue) else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(50))
+                isFieldFocused = true
+            }
+        }
         .accessibilityIdentifier("note.ask.dock")
     }
 

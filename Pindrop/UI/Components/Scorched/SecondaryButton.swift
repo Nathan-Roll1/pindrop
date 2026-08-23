@@ -62,7 +62,8 @@ struct SecondaryButton: View {
     }
 }
 
-/// Export menu chrome matching `SecondaryButton` metrics (spec §6).
+/// Export menu chrome matching `SecondaryButton` metrics (spec §6), with the
+/// small chevron that says it opens a menu.
 struct ExportMenuButton: View {
     let title: String
     var systemImage: String? = "square.and.arrow.up"
@@ -78,12 +79,16 @@ struct ExportMenuButton: View {
                 }
             }
         } label: {
-            SecondaryButtonLabel(title: title, systemImage: systemImage)
+            SecondaryButtonLabel(title: title, systemImage: systemImage, showsChevron: true)
                 .menuButtonChrome()
         }
-        .menuStyle(.borderlessButton)
+        // `.button` + plain: the borderless style redraws the label with its own
+        // popup cell and drops the chrome; this pair renders the label as-is.
+        .menuStyle(.button)
+        .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .fixedSize()
+        .focusRing(.rounded(.sm))
     }
 }
 
@@ -91,6 +96,7 @@ struct ExportMenuButton: View {
 private struct SecondaryButtonLabel: View {
     let title: String
     var systemImage: String?
+    var showsChevron = false
 
     var body: some View {
         // Icon inside Text so the SF Symbol aligns on its baked-in baseline —
@@ -102,8 +108,16 @@ private struct SecondaryButtonLabel: View {
             }
             Text(title)
                 .font(AppTypography.label)
+            if showsChevron {
+                Text(Image(systemName: "chevron.down"))
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(AppColors.textSecondary)
+            }
         }
         .foregroundStyle(AppColors.textPrimary)
+        // Pinned to the label line height so every control on the header rail
+        // shares one height (the 30×30 overflow square beside this one).
+        .frame(height: AppTypography.labelMetrics.lineHeight)
     }
 }
 

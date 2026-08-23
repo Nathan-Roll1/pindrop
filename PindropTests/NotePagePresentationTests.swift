@@ -141,16 +141,21 @@ struct NotePagePresentationTests {
         ))
     }
 
-    @Test func searchWaitsForAFinishedTranscript() {
+    @Test func everyReadableViewCanBeSearched() {
+        // Live text has no durable spans yet, so the transcript view waits.
         let recording = NotePageState(capture: .capturing, hasLiveText: true)
-        #expect(!NotePagePresentation.showsTranscriptSearch(state: recording, selection: .transcript))
+        #expect(!NotePagePresentation.showsSearch(state: recording, selection: .transcript))
+        // The typed notes can always be searched, even mid-capture.
+        #expect(NotePagePresentation.showsSearch(state: recording, selection: .humanNotes))
 
-        let finished = NotePageState(hasTranscript: true, isRecorded: true)
-        #expect(NotePagePresentation.showsTranscriptSearch(state: finished, selection: .transcript))
-        // Only the transcript can answer a search: the other two views have no
-        // spans to narrow.
-        #expect(!NotePagePresentation.showsTranscriptSearch(state: finished, selection: .humanNotes))
-        #expect(!NotePagePresentation.showsTranscriptSearch(state: finished, selection: .enhanced))
+        let finished = NotePageState(hasPanels: true, hasTranscript: true, isRecorded: true)
+        #expect(NotePagePresentation.showsSearch(state: finished, selection: .transcript))
+        #expect(NotePagePresentation.showsSearch(state: finished, selection: .humanNotes))
+        #expect(NotePagePresentation.showsSearch(state: finished, selection: .enhanced))
+
+        // An enhanced view with no panel behind it has nothing to search.
+        let noPanels = NotePageState(hasTranscript: true, isRecorded: true)
+        #expect(!NotePagePresentation.showsSearch(state: noPanels, selection: .enhanced))
     }
 
     /// Round B moved playback out of the docked bar and into the floating

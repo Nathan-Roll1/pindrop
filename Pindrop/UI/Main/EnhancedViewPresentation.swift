@@ -56,6 +56,27 @@ struct EnhancedNoteBlock: Identifiable, Equatable, Sendable {
     /// The line with its citation markers removed. The chips carry those.
     let text: String
     let citations: [EnhancedCitationChip]
+    /// The line cut into plain and matched runs, in order. Empty when nothing
+    /// in the line matched, which is every line while nothing is searched.
+    let runs: [TranscriptTextRun]
+
+    /// The scroll identifier of this line. `id` is a position inside one panel
+    /// and the page scrolls by string, so the two never get mistaken.
+    var blockID: String { "enhanced-block-\(id)" }
+
+    init(
+        id: Int,
+        kind: MarkdownLine.Kind,
+        text: String,
+        citations: [EnhancedCitationChip],
+        runs: [TranscriptTextRun] = []
+    ) {
+        self.id = id
+        self.kind = kind
+        self.text = text
+        self.citations = citations
+        self.runs = runs
+    }
 }
 
 /// One resolved source: the words a line of the panel was written from, and the
@@ -89,6 +110,42 @@ struct EnhancedNotePresentation: Equatable, Sendable {
     let isReadOnly: Bool
     /// The quiet label a read-only panel wears where the template menu would be.
     let readOnlyLabel: String?
+    /// How many times the search text appears in the panel on screen.
+    let matchCount: Int
+    /// Which match the reader is standing on. It wears the stronger treatment.
+    let currentMatchIndex: Int?
+    /// The block each match lives in, indexed the same way the matches are. It
+    /// is what the page scrolls to when the reader steps to the next one.
+    let matchBlockIDs: [String]
+
+    init(
+        blocks: [EnhancedNoteBlock],
+        sources: [EnhancedSourceRow],
+        isReadOnly: Bool,
+        readOnlyLabel: String?,
+        matchCount: Int = 0,
+        currentMatchIndex: Int? = nil,
+        matchBlockIDs: [String] = []
+    ) {
+        self.blocks = blocks
+        self.sources = sources
+        self.isReadOnly = isReadOnly
+        self.readOnlyLabel = readOnlyLabel
+        self.matchCount = matchCount
+        self.currentMatchIndex = currentMatchIndex
+        self.matchBlockIDs = matchBlockIDs
+    }
+
+    /// The block holding the current match, when there is one.
+    var currentMatchBlockID: String? {
+        guard let currentMatchIndex,
+              currentMatchIndex >= 0,
+              currentMatchIndex < matchBlockIDs.count
+        else {
+            return nil
+        }
+        return matchBlockIDs[currentMatchIndex]
+    }
 
     static let empty = EnhancedNotePresentation(
         blocks: [],
@@ -175,6 +232,8 @@ enum EnhancedViewPresentation {
         panel: CaptureEnhancedPanelSnapshot?,
         citations: [MeetingNoteCitation] = [],
         segments: [TranscriptSegmentSnapshot] = [],
+        query: String = "",
+        currentMatchIndex: Int? = nil,
         locale: Locale
     ) -> EnhancedNotePresentation {
         guard let panel else { return .empty }
@@ -201,11 +260,25 @@ enum EnhancedViewPresentation {
             )
         }
 
+        // The search reads the drawn text, so a highlight can never land on a
+        // citation marker the reader was never shown.
+        let body = searched(
+            blocks: bodyBlocks(in: panel.content, targets: targets),
+            query: query
+        )
+        let matchCount = body.matchBlockIDs.count
+
         return EnhancedNotePresentation(
-            blocks: blocks(in: panel.content, targets: targets),
+            blocks: body.blocks,
             sources: rows,
             isReadOnly: !panel.isRegenerable,
-            readOnlyLabel: panel.isRegenerable ? nil : localized("Meeting note", locale: locale)
+            readOnlyLabel: panel.isRegenerable ? nil : localized("Meeting note", locale: locale),
+            matchCount: matchCount,
+            currentMatchIndex: TranscriptSegmentPresentation.clampedMatchIndex(
+                currentMatchIndex,
+                total: matchCount
+            ),
+            matchBlockIDs: body.matchBlockIDs
         )
     }
 
@@ -249,8 +322,59 @@ enum EnhancedViewPresentation {
     // MARK: Blocks
 
     /// The panel body as drawable lines, with the citation markers lifted out of
-    /// the text and into chips.
+    /// the text and into chips and the searched words picked out.
     static func blocks(
+        in content: String,
+        targets: [String: TranscriptSegmentSnapshot],
+        query: String = ""
+    ) -> [EnhancedNoteBlock] {
+        searched(blocks: bodyBlocks(in: content, targets: targets), query: query).blocks
+    }
+
+    /// Cuts every block into plain and matched runs and numbers the matches in
+    /// document order. One pass over the blocks on screen, so the numbers and
+    /// the scroll targets can never disagree.
+    ///
+    /// Matching is the transcript's own rule, applied to the text a block draws
+    /// rather than to the markdown behind it: a reader searching one note gets
+    /// one answer, and a highlight sits on the characters they can see.
+    static func searched(
+        blocks: [EnhancedNoteBlock],
+        query: String
+    ) -> (blocks: [EnhancedNoteBlock], matchBlockIDs: [String]) {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else { return (blocks, []) }
+
+        var counter = 0
+        var matchBlockIDs: [String] = []
+        let searched = blocks.map { block -> EnhancedNoteBlock in
+            let runs = TranscriptSegmentPresentation.runs(in: block.text, query: trimmedQuery)
+            guard !runs.isEmpty else { return block }
+            let numbered = runs.map { run -> TranscriptTextRun in
+                guard run.isMatch else { return run }
+                let index = counter
+                counter += 1
+                matchBlockIDs.append(block.blockID)
+                return TranscriptTextRun(
+                    id: run.id,
+                    text: run.text,
+                    isMatch: true,
+                    matchIndex: index
+                )
+            }
+            return EnhancedNoteBlock(
+                id: block.id,
+                kind: block.kind,
+                text: block.text,
+                citations: block.citations,
+                runs: numbered
+            )
+        }
+        return (searched, matchBlockIDs)
+    }
+
+    /// The panel body before any search: one block per source line.
+    private static func bodyBlocks(
         in content: String,
         targets: [String: TranscriptSegmentSnapshot]
     ) -> [EnhancedNoteBlock] {
