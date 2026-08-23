@@ -13,6 +13,7 @@
   recording: "%1$@ de gravação"
   recording_2: "%1$@ de gravação · %2$@"
   result: "1 resultado"
+  d_of_2_d: "%1$d de %2$d"
 90:
   days: "90 days"
 a:
@@ -73,6 +74,7 @@ ai:
 all:
   _self: "Todos"
   time: "All time"
+  templates: "Todos os modelos…"
 also:
   new_rtl_layout_support_and_20_new_interface: "Também novo: suporte a layout RTL e 20 novos idiomas de interface."
 an:
@@ -203,6 +205,7 @@ choose:
 clean:
   up_filler_words: "Limpe palavras de preenchimento"
 clear:
+  _self: "Limpar"
   audio_buffer: "Limpar buffer de áudio"
   hotkey: "Limpar tecla de atalho"
   shortcut: "Limpar atalho"
@@ -267,6 +270,7 @@ copy:
   to_clipboard: "Copiar para a área de transferência"
   transcript: "Copiar transcrição"
   content: "Copiar o conteúdo"
+  note: "Copiar nota"
 correct:
   grammar_mistakes: "Corrigir erros gramaticais"
 could:
@@ -418,6 +422,7 @@ english:
 enhanced:
   _self: "Aprimorado"
   note: "Nota aprimorada"
+  notes: "Notas aprimoradas"
 enhancement:
   prompts: "Solicitações de melhorias"
 enhancing:
@@ -477,7 +482,7 @@ file:
   _self: "Arquivo"
 find:
   _self: "Buscar"
-  in_transcript: "Buscar na transcrição"
+  in_this_note: "Localizar nesta nota"
 fix:
   punctuation_and_capitalization: "Corrigir pontuação e letras maiúsculas"
 floating:
@@ -730,10 +735,12 @@ new:
   preset: "Nova predefinição"
   note_with_system_audio: "Nova nota com áudio do sistema"
   note_without_recording: "Nova nota sem gravação"
+  template: "Novo modelo"
 newest:
   _self: "Mais recentes"
 next:
   _self: "Próximo"
+  match: "Próxima correspondência"
 no:
   activity_in_this_period: "No activity in this period"
   api_key: "Nenhuma chave de API"
@@ -770,6 +777,7 @@ no:
   enhanced_note_yet: "Ainda não há nota aprimorada."
   notes_yet_sentence: "Ainda não há notas."
   results_try_another_word: "Sem resultados. Tente outra palavra."
+  matches: "Nenhuma correspondência"
 not:
   assigned: "Não atribuído"
   enough_voice_data_yet: "Ainda não há dados de voz suficientes"
@@ -791,6 +799,7 @@ note:
   metadata: "Nota Metadados"
   saved: "Nota salva"
   title: "Título da nota"
+  actions: "Ações da nota"
 notes:
   _self: "Notas"
   3add7b96: "notas"
@@ -923,12 +932,15 @@ pindrop:
   theme: "Tema Pindrop"
   can_send_anonymous_privacy_preserving_si: "O Pindrop pode enviar sinais anônimos que preservam a privacidade para que os bugs sejam corrigidos mais rápido."
   writes_one_from_your_notes_and_the_trans: "O Pindrop escreve uma a partir das suas notas e da transcrição."
+  did_not_match_this_voice_to_a_saved_spea: "O Pindrop não conseguiu associar esta voz a nenhum interlocutor salvo, então ainda não há nome para alterar."
+  needs_this_one_it_downloads_once: "O Pindrop precisa disso. O download acontece só uma vez."
 pinned:
   _self: "Fixadas"
 plain:
   text_txt: "Texto simples (.txt)"
 play:
   _self: "Jogar"
+  recording: "Reproduzir gravação"
 please:
   check_your_internet_connection_and_try_ag: "Verifique sua conexão com a Internet e tente novamente."
   download_a_whisper_model_in_settings_befo: |-
@@ -1064,6 +1076,7 @@ report:
 required:
   _self: "Obrigatório"
   for_recording_your_voice: "Necessário para gravar sua voz"
+  helpers_download_when_you_set_pindrop_u: "Os auxiliares necessários são baixados quando você configura o Pindrop. O Pindrop busca o que estiver faltando na próxima vez que abrir."
 requires:
   a_fast_provider_apple_foundation_models: "Requer um provedor rápido (recomenda-se modelos Apple Foundation). Os provedores de nuvem emitirão uma chamada de API por pausa."
   diarization_model: "Requires diarization model"
@@ -1145,6 +1158,7 @@ show:
   in_dock: "Mostrar no Dock"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Mostrar a transcrição ao vivo"
+  in_transcript: "Mostrar na transcrição"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Aparece como um orbe de vidro líquido no canto da tela"
   as_a_pill_at_the_bottom_of_the_screen: "Mostra como uma pílula na parte inferior da tela"
@@ -1267,6 +1281,9 @@ the:
   recorder_did_not_start: "O gravador não iniciou."
   transcript_fills_in_as_you_speak: "A transcrição se preenche enquanto você fala."
   transcript_starts_once_you_speak: "A transcrição começa assim que você fala."
+  answer_came_back_in_a_form_pindrop_could_not: "A resposta voltou em um formato que o Pindrop não conseguiu ler. Pergunte de novo."
+  answer_could_not_be_generated_check_your_con: "Não foi possível gerar a resposta. Verifique sua conexão e pergunte de novo."
+  model_returned_an_empty_answer_ask_again: "O modelo devolveu uma resposta vazia. Pergunte de novo."
 theme:
   _self: "Tema"
   changes_apply_live_across_the_workspace_se: "As alterações de tema são aplicadas ao vivo na área de trabalho, nas configurações, no editor de notas e nos indicadores flutuantes."
@@ -1292,6 +1309,7 @@ this:
   will_permanently_remove_this_note: "Isso removerá permanentemente esta nota."
   permanently_deletes_all_stored_text_pairs_f: "Isso exclui permanentemente todos os pares de texto armazenados deste Mac."
   template_could_not_be_read_pick_another_tem: "Não foi possível ler este modelo. Escolha outro modelo e tente de novo."
+  note_could_not_be_opened_close_it_and_open: "Não foi possível abrir esta nota. Feche e abra de novo."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1346,6 +1364,7 @@ two:
   new_dictation_languages_fully_wired_into_mod: "Dois novos idiomas de ditado, totalmente integrados às recomendações de modelos."
 type:
   text_directly_into_the_active_app_when_poss: "Digite texto diretamente no aplicativo ativo, quando possível"
+  a_question_about_this_note_then_send_it_aga: "Digite uma pergunta sobre esta nota e envie de novo."
 u10:
   floating_inserted_into: "Inserido em %@"
   floating_microphone_unavailable: "Microfone indisponível"
@@ -1727,12 +1746,14 @@ sealing:
   the_recording: "Selando a gravação."
 see:
   this_in_the_transcript: "Ver isto na transcrição"
+  where_this_came_from: "Ver de onde isso veio"
 template:
   _self: "Modelo: %@"
 templates:
   _self: "Modelos"
 there:
   is_no_transcript_to_enhance_yet_record_thi: "Ainda não há transcrição para aprimorar. Grave esta nota primeiro."
+  is_nothing_to_ask_about_yet_record_or_writ: "Ainda não há nada para perguntar. Grave ou escreva algo primeiro."
 transcribing:
   _self: "Transcrevendo"
 transcript:
@@ -1745,3 +1766,27 @@ writing:
   your_enhanced_note: "Escrevendo sua nota aprimorada."
   your_enhanced_note_comes_next_long_recor: "Depois vem a escrita da sua nota aprimorada. Gravações longas podem levar alguns minutos. Você pode continuar digitando."
   your_enhanced_note_with: "Escrevendo sua nota aprimorada com %@."
+answers:
+  come_from_this_note_s_transcript_and_you: "As respostas vêm da transcrição desta nota e do seu provedor de IA. Confira tudo que for importante."
+ask:
+  a_follow_up: "Fazer uma pergunta de acompanhamento"
+  about_this_note: "Perguntar sobre esta nota"
+  this_note: "Perguntar a esta nota"
+detected:
+  from_the_recording_renames_apply_to_the: "Detectado a partir da gravação. As renomeações se aplicam à transcrição e às notas futuras."
+expect:
+  1: "Esperado: %1$@"
+from:
+  the_transcript: "Da transcrição"
+list:
+  action_items: "Listar itens de ação"
+match:
+  1_d_of_2_d: "Correspondência %1$d de %2$d"
+previous:
+  match: "Correspondência anterior"
+that:
+  speaker_profile_no_longer_exists_try_reopen: "Esse perfil de interlocutor não existe mais. Tente reabrir esta nota."
+thinking:
+  _self: "Pensando…"
+write:
+  this_note_again: "Reescrever esta nota"

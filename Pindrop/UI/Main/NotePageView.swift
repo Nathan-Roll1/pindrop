@@ -61,12 +61,13 @@ struct NotePageView: View {
     /// notes stay.
     let onCancelNoteCapture: (() -> Void)?
     let onGenerateEnhancedPanel: NoteEnhancementHandler?
-    /// Opens the Ask surface. Nil while the shell has none, which is what keeps
-    /// the Ask satellite off a build that cannot answer it.
-    let onOpenAsk: (() -> Void)?
-    /// True while the Ask surface is up. It owns the bottom-right corner, so the
-    /// floating control stands down.
-    let isAskSurfaceOpen: Bool
+    /// Answers questions about this note. Nil while the shell has none, which is
+    /// what keeps the Ask satellite off a build that cannot answer it.
+    ///
+    /// The service, and not a closure into the shell, because the Ask surface
+    /// turned out to live in this page's own bottom band: the questions are
+    /// about the note on screen, and a source link is a scroll inside it.
+    let noteChatService: NoteChatService?
 
     init(
         noteID: UUID,
@@ -76,8 +77,7 @@ struct NotePageView: View {
         onFinishNoteCapture: (() -> Void)? = nil,
         onCancelNoteCapture: (() -> Void)? = nil,
         onGenerateEnhancedPanel: NoteEnhancementHandler? = nil,
-        onOpenAsk: (() -> Void)? = nil,
-        isAskSurfaceOpen: Bool = false
+        noteChatService: NoteChatService? = nil
     ) {
         self.noteID = noteID
         self.onBack = onBack
@@ -86,8 +86,7 @@ struct NotePageView: View {
         self.onFinishNoteCapture = onFinishNoteCapture
         self.onCancelNoteCapture = onCancelNoteCapture
         self.onGenerateEnhancedPanel = onGenerateEnhancedPanel
-        self.onOpenAsk = onOpenAsk
-        self.isAskSurfaceOpen = isAskSurfaceOpen
+        self.noteChatService = noteChatService
         _notes = Query(
             filter: #Predicate<NoteSchema.Note> { $0.id == noteID },
             sort: \NoteSchema.Note.updatedAt
@@ -171,6 +170,17 @@ struct NotePageView: View {
     @State private var citationJump: NoteCitationJump?
     @State private var citationJumpCount = 0
     @State private var citationFlashTask: Task<Void, Never>?
+
+    // MARK: Ask state
+
+    /// True once the person opened the Ask dock. The conversation itself lives
+    /// in the service, so this is only about what is on screen.
+    @State private var isAskOpen = false
+    /// The thread as it is drawn, read back from the service after every turn.
+    @State private var askMessages: [NoteChatMessage] = []
+    @State private var askPhase: NoteAskPhase = .idle
+    @State private var askDraft = ""
+    @State private var askTask: Task<Void, Never>?
 
     @FocusState private var titleFieldFocused: Bool
 
@@ -301,6 +311,7 @@ struct NotePageView: View {
             wordCountTask?.cancel()
             confirmationTask?.cancel()
             citationFlashTask?.cancel()
+            askTask?.cancel()
             flushOnLeaving()
         }
         .sheet(isPresented: $isPresetSheetPresented, onDismiss: refreshTemplatePresets) {
@@ -417,12 +428,29 @@ struct NotePageView: View {
                 state: pageState,
                 hasPlayableAudio: mediaURL != nil
             ),
-            canAsk: onOpenAsk != nil,
+            canAsk: canAsk,
             canSearch: NotePagePresentation.showsTranscriptSearch(
                 state: pageState,
                 selection: resolvedSelection
             ),
-            isAskSurfaceOpen: isAskSurfaceOpen,
+            isAskSurfaceOpen: isAskDockVisible,
+            isCaptureDockVisible: NotePagePresentation.showsCaptureStrip(state: pageState)
+        )
+    }
+
+    /// True when this note can be asked about: the shell can answer, and the
+    /// note holds something worth asking about.
+    private var canAsk: Bool {
+        NoteAskPresentation.canAsk(
+            hasChatService: noteChatService != nil,
+            hasEvidence: views.map(NoteChatService.hasEvidence) ?? false
+        )
+    }
+
+    /// True when the Ask dock is in the band above the footer.
+    private var isAskDockVisible: Bool {
+        NoteAskPresentation.isVisible(
+            isOpen: isAskOpen && canAsk,
             isCaptureDockVisible: NotePagePresentation.showsCaptureStrip(state: pageState)
         )
     }
@@ -440,7 +468,7 @@ struct NotePageView: View {
             currentMatch: $currentMatchIndex,
             controller: playbackController,
             fallbackDuration: mediaDuration,
-            onAsk: { onOpenAsk?() },
+            onAsk: openAsk,
             onCopy: copyCurrentView,
             onPlay: startPlayback,
             onStepMatch: stepMatch
@@ -1033,13 +1061,32 @@ struct NotePageView: View {
     // MARK: - Bottom dock
 
     /// The band between the page and the footer: the capture dock while a
-    /// capture runs, and nothing otherwise. Playback moved into the floating
-    /// control, which is why nothing else claims this band any more.
+    /// capture runs, the Ask dock when it is open, and nothing otherwise.
+    /// Playback moved into the floating control, which is why nothing else
+    /// claims this band any more.
+    ///
+    /// A recording wins the band. The Ask dock keeps its thread and comes back
+    /// when the capture is over.
     @ViewBuilder
     private func bottomDock(canvasHeight: CGFloat) -> some View {
         if NotePagePresentation.showsCaptureStrip(state: pageState) {
             captureDock(canvasHeight: canvasHeight)
+        } else if isAskDockVisible {
+            askDock(canvasHeight: canvasHeight)
         }
+    }
+
+    private func askDock(canvasHeight: CGFloat) -> some View {
+        NoteAskDock(
+            messages: askMessages,
+            phase: askPhase,
+            draft: $askDraft,
+            canvasHeight: canvasHeight,
+            onSubmit: ask,
+            onClear: clearAsk,
+            onClose: closeAsk,
+            onFollowSource: { followCitation(segmentID: $0.segmentID) }
+        )
     }
 
     @ViewBuilder
@@ -1402,6 +1449,9 @@ struct NotePageView: View {
     /// control alone where one cannot.
     private func openSearch() {
         guard fabContext.canSearch else { return }
+        // The search pill grows out of the corner the Ask dock owns while it is
+        // open, so ⌘F closes the dock rather than opening a pill nobody sees.
+        isAskOpen = false
         fabState = .search
     }
 
@@ -1437,6 +1487,60 @@ struct NotePageView: View {
             playbackController.togglePlayback()
         }
         fabState = .playing
+    }
+
+    // MARK: Ask actions
+
+    /// Opens the Ask dock on whatever was already said about this note.
+    private func openAsk() {
+        guard let noteChatService else { return }
+        askMessages = noteChatService.conversation(noteID: noteID)
+        isAskOpen = true
+    }
+
+    /// Closes the dock. The conversation stays with the service, so opening it
+    /// again picks the thread back up.
+    private func closeAsk() {
+        isAskOpen = false
+    }
+
+    /// Forgets this note's conversation. The note itself is untouched.
+    private func clearAsk() {
+        askTask?.cancel()
+        noteChatService?.clear(noteID: noteID)
+        askMessages = []
+        askPhase = .idle
+    }
+
+    /// Asks one question and draws the answer.
+    ///
+    /// The question goes on screen before the provider is reached: a wait with
+    /// nothing on screen reads as a dropped key press. It is drawn from the
+    /// service's own thread afterwards either way, so a question that failed
+    /// leaves the notice behind and not a turn that never happened.
+    private func ask(_ question: String) {
+        guard let noteChatService,
+              NoteAskPresentation.canSend(question: question, phase: askPhase)
+        else {
+            return
+        }
+        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        askDraft = ""
+        askPhase = .thinking
+        askMessages = noteChatService.conversation(noteID: noteID)
+            + [NoteChatMessage(role: .person, text: trimmed)]
+
+        askTask?.cancel()
+        askTask = Task { @MainActor in
+            defer { askMessages = noteChatService.conversation(noteID: noteID) }
+            do {
+                _ = try await noteChatService.ask(noteID: noteID, question: trimmed)
+                askPhase = .idle
+            } catch {
+                askPhase = NoteAskPresentation.failure(from: error, question: trimmed)
+                    .map { NoteAskPhase.failed($0) } ?? .idle
+            }
+        }
     }
 
     /// Follows a citation to the words behind it.

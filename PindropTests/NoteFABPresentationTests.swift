@@ -32,6 +32,43 @@ struct NoteFABPresentationTests {
         #expect(NoteFABPresentation.isVisible(context: NoteFABContext()))
     }
 
+    /// The note page feeds `isAskSurfaceOpen` from the same rule the Ask dock is
+    /// drawn by, so the two never claim the band at once: a running capture
+    /// suppresses the dock, and the floating control still stands down for the
+    /// capture rather than reappearing over it.
+    @Test func theAskDockAndTheCaptureDockNeverBothTakeTheCorner() {
+        let askOpenDuringCapture = NoteAskPresentation.isVisible(
+            isOpen: true,
+            isCaptureDockVisible: true
+        )
+        #expect(!askOpenDuringCapture)
+
+        let context = NoteFABContext(
+            canAsk: true,
+            isAskSurfaceOpen: askOpenDuringCapture,
+            isCaptureDockVisible: true
+        )
+        #expect(!NoteFABPresentation.isVisible(context: context))
+    }
+
+    @Test func theOpenAskDockTakesTheCornerFromTheFloatingControl() {
+        let askOpen = NoteAskPresentation.isVisible(isOpen: true, isCaptureDockVisible: false)
+        #expect(askOpen)
+        #expect(!NoteFABPresentation.isVisible(
+            context: NoteFABContext(canAsk: true, isAskSurfaceOpen: askOpen)
+        ))
+        // Closing it hands the corner straight back.
+        #expect(NoteFABPresentation.isVisible(
+            context: NoteFABContext(
+                canAsk: true,
+                isAskSurfaceOpen: NoteAskPresentation.isVisible(
+                    isOpen: false,
+                    isCaptureDockVisible: false
+                )
+            )
+        ))
+    }
+
     // MARK: - Satellites
 
     @Test func copyIsAlwaysOffered() {

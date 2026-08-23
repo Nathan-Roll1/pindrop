@@ -33,7 +33,9 @@
 		WP3VIEWCHIPSBUILD01A2B3 /* NoteViewChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP3VIEWCHIPSFILE01A2B3C4 /* NoteViewChips.swift */; };
 		RBSPEAKERPOPBUILD00000001 /* NoteSpeakersPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = RBSPEAKERPOPFILE000000001 /* NoteSpeakersPopover.swift */; };
 		RBNOTEFABBUILD0000000001 /* NoteFAB.swift in Sources */ = {isa = PBXBuildFile; fileRef = RBNOTEFABFILE00000000001 /* NoteFAB.swift */; };
+		RBASKDOCKBUILD0000000001 /* NoteAskDock.swift in Sources */ = {isa = PBXBuildFile; fileRef = RBASKDOCKFILE00000000001 /* NoteAskDock.swift */; };
 		RBNOTEFABPRESBUILD000001 /* NoteFABPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = RBNOTEFABPRESFILE0000001 /* NoteFABPresentation.swift */; };
+		RBASKPRESBUILD0000000001 /* NoteAskPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = RBASKPRESFILE000000000001 /* NoteAskPresentation.swift */; };
 		WP0DIARNOTICEBUILD01A2B3 /* DiarizationSetupNotice.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP0DIARNOTICEFILE01A2B3C /* DiarizationSetupNotice.swift */; };
 		SCORCHSECTHDRBUILDSECTIONHEADE /* SectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCORCHSECTHDRFILESECTIONHEADE /* SectionHeader.swift */; };
 		SCORCHLIBROWBUILDLIBRARYROWCH /* LibraryRowChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCORCHLIBROWFILELIBRARYROWCH /* LibraryRowChrome.swift */; };
@@ -165,6 +167,7 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		WP3MDGRAMMARTESTBUILD01 /* MarkdownBlockGrammarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP3MDGRAMMARTESTFILE01A /* MarkdownBlockGrammarTests.swift */; };
 		WP3NOTEPAGEPRESTESTBUILD /* NotePagePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP3NOTEPAGEPRESTESTFILE0 /* NotePagePresentationTests.swift */; };
 		RBNOTEFABTESTBUILD000001 /* NoteFABPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = RBNOTEFABTESTFILE0000001 /* NoteFABPresentationTests.swift */; };
+		RBASKTESTBUILD00000000001 /* NoteAskPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = RBASKTESTFILE000000000001 /* NoteAskPresentationTests.swift */; };
 		NOTEENHSVCTESTBUILD01 /* NoteEnhancementServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTEENHSVCTESTFILE01 /* NoteEnhancementServiceTests.swift */; };
 		NOTECHATSVCTESTBUILD01 /* NoteChatServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTECHATSVCTESTFILE01 /* NoteChatServiceTests.swift */; };
 		CTXADAPT01A2B3C4D5E6F /* AppContextAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTXADAPT02A2B3C4D5E6F /* AppContextAdapter.swift */; };
@@ -316,7 +319,9 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		WP3VIEWCHIPSFILE01A2B3C4 /* NoteViewChips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteViewChips.swift; sourceTree = "<group>"; };
 		RBSPEAKERPOPFILE000000001 /* NoteSpeakersPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSpeakersPopover.swift; sourceTree = "<group>"; };
 		RBNOTEFABFILE00000000001 /* NoteFAB.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteFAB.swift; sourceTree = "<group>"; };
+		RBASKDOCKFILE00000000001 /* NoteAskDock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteAskDock.swift; sourceTree = "<group>"; };
 		RBNOTEFABPRESFILE0000001 /* NoteFABPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteFABPresentation.swift; sourceTree = "<group>"; };
+		RBASKPRESFILE000000000001 /* NoteAskPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteAskPresentation.swift; sourceTree = "<group>"; };
 		WP0DIARNOTICEFILE01A2B3C /* DiarizationSetupNotice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiarizationSetupNotice.swift; sourceTree = "<group>"; };
 		SCORCHSECTHDRFILESECTIONHEADE /* SectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeader.swift; sourceTree = "<group>"; };
 		SCORCHLIBROWFILELIBRARYROWCH /* LibraryRowChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryRowChrome.swift; sourceTree = "<group>"; };
@@ -429,6 +434,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 		WP3MDGRAMMARTESTFILE01A /* MarkdownBlockGrammarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlockGrammarTests.swift; sourceTree = "<group>"; };
 		WP3NOTEPAGEPRESTESTFILE0 /* NotePagePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotePagePresentationTests.swift; sourceTree = "<group>"; };
 		RBNOTEFABTESTFILE0000001 /* NoteFABPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteFABPresentationTests.swift; sourceTree = "<group>"; };
+		RBASKTESTFILE000000000001 /* NoteAskPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteAskPresentationTests.swift; sourceTree = "<group>"; };
 		NOTEENHSVCTESTFILE01 /* NoteEnhancementServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEnhancementServiceTests.swift; sourceTree = "<group>"; };
 		NOTECHATSVCTESTFILE01 /* NoteChatServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteChatServiceTests.swift; sourceTree = "<group>"; };
 		CTXADAPT02A2B3C4D5E6F /* AppContextAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContextAdapter.swift; sourceTree = "<group>"; };
@@ -860,6 +866,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				WP3MDGRAMMARTESTFILE01A /* MarkdownBlockGrammarTests.swift */,
 				WP3NOTEPAGEPRESTESTFILE0 /* NotePagePresentationTests.swift */,
 				RBNOTEFABTESTFILE0000001 /* NoteFABPresentationTests.swift */,
+				RBASKTESTFILE000000000001 /* NoteAskPresentationTests.swift */,
 				WP4CAPTUREBARTESTFILE0001 /* CaptureBarPresentationTests.swift */,
 				WP5TRSEGTESTFILE000000001 /* TranscriptSegmentPresentationTests.swift */,
 				WP6ENHTESTFILE0000000001 /* EnhancedViewPresentationTests.swift */,
@@ -944,6 +951,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				WP3VIEWCHIPSFILE01A2B3C4 /* NoteViewChips.swift */,
 				RBSPEAKERPOPFILE000000001 /* NoteSpeakersPopover.swift */,
 				RBNOTEFABFILE00000000001 /* NoteFAB.swift */,
+				RBASKDOCKFILE00000000001 /* NoteAskDock.swift */,
 			);
 			path = Scorched;
 			sourceTree = "<group>";
@@ -974,6 +982,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				NOTEPAGEVIEW1A2B3C4D5E71 /* NotePageView.swift */,
 				WP3NOTEPAGEPRESFILE01A2B /* NotePagePresentation.swift */,
 				RBNOTEFABPRESFILE0000001 /* NoteFABPresentation.swift */,
+				RBASKPRESFILE000000000001 /* NoteAskPresentation.swift */,
 				WP6ENHPRESFILE0000000001 /* EnhancedViewPresentation.swift */,
 				DASHBRD1A2B3C4D5E6F71 /* CapturePillarViews.swift */,
 				STATSVIEWFILE01A2B3C4D5E6 /* StatsView.swift */,
@@ -1279,6 +1288,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				WP3MDGRAMMARTESTBUILD01 /* MarkdownBlockGrammarTests.swift in Sources */,
 				WP3NOTEPAGEPRESTESTBUILD /* NotePagePresentationTests.swift in Sources */,
 				RBNOTEFABTESTBUILD000001 /* NoteFABPresentationTests.swift in Sources */,
+				RBASKTESTBUILD00000000001 /* NoteAskPresentationTests.swift in Sources */,
 				WP4CAPTUREBARTESTBUILD001 /* CaptureBarPresentationTests.swift in Sources */,
 				WP5TRSEGTESTBUILD00000001 /* TranscriptSegmentPresentationTests.swift in Sources */,
 				WP6ENHTESTBUILD000000001 /* EnhancedViewPresentationTests.swift in Sources */,
@@ -1385,11 +1395,13 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				WP5LIVESHEETBUILD00000001 /* LiveTranscriptSheet.swift in Sources */,
 				WP3NOTEPAGEPRESBUILD01A2 /* NotePagePresentation.swift in Sources */,
 				RBNOTEFABPRESBUILD000001 /* NoteFABPresentation.swift in Sources */,
+				RBASKPRESBUILD0000000001 /* NoteAskPresentation.swift in Sources */,
 				WP6ENHPRESBUILD000000001 /* EnhancedViewPresentation.swift in Sources */,
 				WP3MDGRAMMARBUILD01A2B3 /* MarkdownBlockGrammar.swift in Sources */,
 				WP3VIEWCHIPSBUILD01A2B3 /* NoteViewChips.swift in Sources */,
 				RBSPEAKERPOPBUILD00000001 /* NoteSpeakersPopover.swift in Sources */,
 				RBNOTEFABBUILD0000000001 /* NoteFAB.swift in Sources */,
+				RBASKDOCKBUILD0000000001 /* NoteAskDock.swift in Sources */,
 				WP0DIARNOTICEBUILD01A2B3 /* DiarizationSetupNotice.swift in Sources */,
 				SCORCHSECTHDRBUILDSECTIONHEADE /* SectionHeader.swift in Sources */,
 				SCORCHLIBROWBUILDLIBRARYROWCH /* LibraryRowChrome.swift in Sources */,

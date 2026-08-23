@@ -676,6 +676,10 @@ final class AppCoordinator {
     /// Generates the enhanced panels of a note. The note page uses it to
     /// regenerate under another template; the controller uses it on finish.
     private(set) var noteEnhancementService: NoteEnhancementService!
+    /// Answers questions about one note from that note's own evidence. The note
+    /// page's Ask dock is its only caller, and it holds the conversation for the
+    /// life of this app run.
+    private(set) var noteChatService: NoteChatService!
     private let meetingCaptureStartAdmission = MeetingCaptureStartAdmission()
     /// One admitted capture start owns both gates. The arbiter hands the
     /// controller a single opaque claim so it cannot release one and keep the
@@ -1042,6 +1046,15 @@ final class AppCoordinator {
         self.mainWindowController.setModelContainer(modelContainer)
         self.noteEditorWindowController = NoteEditorWindowController()
         self.noteEditorWindowController.setModelContainer(modelContainer)
+        // "Ask this note" reads the note it is asked about and writes nothing
+        // back, so it needs no place in the capture lifecycle: the note page is
+        // its only caller.
+        let noteChatService = NoteChatService(
+            captureSessionStore: captureSessionStore,
+            aiEnhancementService: aiEnhancementService,
+            settingsStore: settingsStore
+        )
+        self.noteChatService = noteChatService
         self.mainWindowController.configureCapture(
             floatingIndicatorState: floatingIndicatorState,
             recordingState: recordingState,
@@ -1064,7 +1077,8 @@ final class AppCoordinator {
             onGenerateEnhancedPanel: { [weak self] request in
                 guard let self else { return nil }
                 return await self.handleGenerateEnhancedPanel(request)
-            }
+            },
+            noteChatService: noteChatService
         )
         self.mainWindowController.configureTranscribeFeature(
             state: mediaTranscriptionState,

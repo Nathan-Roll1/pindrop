@@ -241,6 +241,9 @@ struct MainWindow: View {
     let onFinishNoteCapture: (() -> Void)?
     let onCancelNoteCapture: (() -> Void)?
     let onGenerateEnhancedPanel: NoteEnhancementHandler?
+    /// Answers questions about the open note. Nil keeps the Ask surface off a
+    /// build that cannot answer one.
+    let noteChatService: NoteChatService?
     let onOpenSettings: (SettingsTab) -> Void
 
     init(
@@ -260,6 +263,7 @@ struct MainWindow: View {
         onFinishNoteCapture: (() -> Void)? = nil,
         onCancelNoteCapture: (() -> Void)? = nil,
         onGenerateEnhancedPanel: NoteEnhancementHandler? = nil,
+        noteChatService: NoteChatService? = nil,
         onOpenSettings: @escaping (SettingsTab) -> Void
     ) {
         self.settingsStore = settingsStore
@@ -278,6 +282,7 @@ struct MainWindow: View {
         self.onFinishNoteCapture = onFinishNoteCapture
         self.onCancelNoteCapture = onCancelNoteCapture
         self.onGenerateEnhancedPanel = onGenerateEnhancedPanel
+        self.noteChatService = noteChatService
         self.onOpenSettings = onOpenSettings
     }
 
@@ -469,11 +474,8 @@ struct MainWindow: View {
                     onStartNoteCapture: onStartNoteCapture,
                     onFinishNoteCapture: onFinishNoteCapture,
                     onCancelNoteCapture: onCancelNoteCapture,
-                    onGenerateEnhancedPanel: onGenerateEnhancedPanel
-                    // `onOpenAsk` and `isAskSurfaceOpen` stay unwired until the
-                    // Ask surface lands. Until then the note page hides the Ask
-                    // satellite rather than offering a button that answers
-                    // nothing.
+                    onGenerateEnhancedPanel: onGenerateEnhancedPanel,
+                    noteChatService: noteChatService
                 )
                 .accessibilityIdentifier("main.destination.note")
             }
@@ -956,6 +958,7 @@ final class MainWindowController {
     var onFinishNoteCapture: (() -> Void)?
     var onCancelNoteCapture: (() -> Void)?
     var onGenerateEnhancedPanel: NoteEnhancementHandler?
+    var noteChatService: NoteChatService?
     var onOpenSettings: ((SettingsTab) -> Void)?
     private var noteCaptureState: NoteCaptureState?
 
@@ -985,7 +988,8 @@ final class MainWindowController {
         onStartNoteCapture: @escaping (NoteCaptureRequest) -> Bool,
         onFinishNoteCapture: (() -> Void)? = nil,
         onCancelNoteCapture: (() -> Void)? = nil,
-        onGenerateEnhancedPanel: NoteEnhancementHandler? = nil
+        onGenerateEnhancedPanel: NoteEnhancementHandler? = nil,
+        noteChatService: NoteChatService? = nil
     ) {
         self.floatingIndicatorState = floatingIndicatorState
         self.recordingState = recordingState
@@ -996,6 +1000,7 @@ final class MainWindowController {
         self.onFinishNoteCapture = onFinishNoteCapture
         self.onCancelNoteCapture = onCancelNoteCapture
         self.onGenerateEnhancedPanel = onGenerateEnhancedPanel
+        self.noteChatService = noteChatService
     }
 
     func configureTranscribeFeature(
@@ -1086,6 +1091,7 @@ final class MainWindowController {
                 onFinishNoteCapture: onFinishNoteCapture,
                 onCancelNoteCapture: onCancelNoteCapture,
                 onGenerateEnhancedPanel: onGenerateEnhancedPanel,
+                noteChatService: noteChatService,
                 onOpenSettings: onOpenSettings ?? { _ in
                     Log.ui.error("Settings presenter not set - cannot show settings")
                 }

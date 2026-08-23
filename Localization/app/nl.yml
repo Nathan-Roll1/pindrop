@@ -13,6 +13,7 @@
   recording: "%1$@ opname"
   recording_2: "%1$@ opname · %2$@"
   result: "1 resultaat"
+  d_of_2_d: "%1$d van %2$d"
 90:
   days: "90 days"
 a:
@@ -73,6 +74,7 @@ ai:
 all:
   _self: "Alle"
   time: "All time"
+  templates: "Alle sjablonen…"
 also:
   new_rtl_layout_support_and_20_new_interface: "Ook nieuw: ondersteuning voor RTL-layouts en 20 nieuwe interfacetalen."
 an:
@@ -203,6 +205,7 @@ choose:
 clean:
   up_filler_words: "Ruim opvulwoorden op"
 clear:
+  _self: "Wissen"
   audio_buffer: "Duidelijke audiobuffer"
   hotkey: "Sneltoets wissen"
   shortcut: "Sneltoets wissen"
@@ -267,6 +270,7 @@ copy:
   to_clipboard: "Kopiëren naar klembord"
   transcript: "Kopieer transcript"
   content: "Inhoud kopiëren"
+  note: "Notitie kopiëren"
 correct:
   grammar_mistakes: "Corrigeer grammaticafouten"
 could:
@@ -418,6 +422,7 @@ english:
 enhanced:
   _self: "Versterkt"
   note: "Verbeterde notitie"
+  notes: "Verbeterde notities"
 enhancement:
   prompts: "Verbeteringsprompts"
 enhancing:
@@ -477,7 +482,7 @@ file:
   _self: "Archief"
 find:
   _self: "Zoek"
-  in_transcript: "Zoeken in transcript"
+  in_this_note: "Zoeken in deze notitie"
 fix:
   punctuation_and_capitalization: "Corrigeer interpunctie en hoofdlettergebruik"
 floating:
@@ -730,10 +735,12 @@ new:
   preset: "Nieuwe voorinstelling"
   note_with_system_audio: "Nieuwe notitie met systeemgeluid"
   note_without_recording: "Nieuwe notitie zonder opname"
+  template: "Nieuw sjabloon"
 newest:
   _self: "Nieuwste"
 next:
   _self: "Volgende"
+  match: "Volgende overeenkomst"
 no:
   activity_in_this_period: "No activity in this period"
   api_key: "Geen API-sleutel"
@@ -770,6 +777,7 @@ no:
   enhanced_note_yet: "Nog geen verbeterde notitie."
   notes_yet_sentence: "Nog geen notities."
   results_try_another_word: "Geen resultaten. Probeer een ander woord."
+  matches: "Geen overeenkomsten"
 not:
   assigned: "Niet toegewezen"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -791,6 +799,7 @@ note:
   metadata: "Let op Metagegevens"
   saved: "Notitie opgeslagen"
   title: "Opmerking Titel"
+  actions: "Notitieacties"
 notes:
   _self: "Opmerkingen"
   3add7b96: "notities"
@@ -923,12 +932,15 @@ pindrop:
   theme: "Pindrop-thema"
   can_send_anonymous_privacy_preserving_si: "Pindrop kan anonieme, privacyvriendelijke signalen versturen zodat bugs sneller worden opgelost."
   writes_one_from_your_notes_and_the_trans: "Pindrop schrijft er een uit je notities en het transcript."
+  did_not_match_this_voice_to_a_saved_spea: "Pindrop kon deze stem niet koppelen aan een opgeslagen spreker, dus is er nog geen naam om te wijzigen."
+  needs_this_one_it_downloads_once: "Pindrop heeft dit nodig. Het wordt maar één keer gedownload."
 pinned:
   _self: "Vastgezet"
 plain:
   text_txt: "Platte tekst (.txt)"
 play:
   _self: "Toneelstuk"
+  recording: "Opname afspelen"
 please:
   check_your_internet_connection_and_try_ag: "Controleer uw internetverbinding en probeer het opnieuw."
   download_a_whisper_model_in_settings_befo: |-
@@ -1064,6 +1076,7 @@ report:
 required:
   _self: "Vereist"
   for_recording_your_voice: "Vereist voor het opnemen van uw stem"
+  helpers_download_when_you_set_pindrop_u: "Vereiste hulpprogramma's worden gedownload wanneer je Pindrop instelt. Pindrop haalt een ontbrekend onderdeel op de volgende keer dat het wordt geopend."
 requires:
   a_fast_provider_apple_foundation_models: "Vereist een snelle provider (Apple Foundation Models aanbevolen). Cloudproviders zullen één API-oproep per pauze doen."
   diarization_model: "Requires diarization model"
@@ -1145,6 +1158,7 @@ show:
   in_dock: "Weergeven in Dock"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Live transcript tonen"
+  in_transcript: "Weergeven in transcript"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Wordt weergegeven als een orb van vloeibaar glas in de hoek van het scherm"
   as_a_pill_at_the_bottom_of_the_screen: "Wordt weergegeven als een pil onder aan het scherm"
@@ -1267,6 +1281,9 @@ the:
   recorder_did_not_start: "De recorder is niet gestart."
   transcript_fills_in_as_you_speak: "Het transcript vult zich terwijl je praat."
   transcript_starts_once_you_speak: "Het transcript begint zodra je praat."
+  answer_came_back_in_a_form_pindrop_could_not: "Het antwoord kwam terug in een vorm die Pindrop niet kon lezen. Vraag het opnieuw."
+  answer_could_not_be_generated_check_your_con: "Het antwoord kon niet worden gegenereerd. Controleer je verbinding en vraag het opnieuw."
+  model_returned_an_empty_answer_ask_again: "Het model gaf een leeg antwoord terug. Vraag het opnieuw."
 theme:
   _self: "Thema"
   changes_apply_live_across_the_workspace_se: "Themawijzigingen zijn live van toepassing op de werkruimte, instellingen, notitie-editor en zwevende indicatoren."
@@ -1292,6 +1309,7 @@ this:
   will_permanently_remove_this_note: "Dit verwijdert deze notitie permanent."
   permanently_deletes_all_stored_text_pairs_f: "Hiermee worden alle opgeslagen tekstparen permanent van deze Mac verwijderd."
   template_could_not_be_read_pick_another_tem: "Dit sjabloon kon niet worden gelezen. Kies een ander sjabloon en probeer het opnieuw."
+  note_could_not_be_opened_close_it_and_open: "Deze notitie kon niet worden geopend. Sluit haar en open haar opnieuw."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1346,6 +1364,7 @@ two:
   new_dictation_languages_fully_wired_into_mod: "Twee nieuwe dicteertalen, volledig gekoppeld aan modelaanbevelingen."
 type:
   text_directly_into_the_active_app_when_poss: "Typ indien mogelijk tekst rechtstreeks in de actieve app"
+  a_question_about_this_note_then_send_it_aga: "Typ een vraag over deze notitie en verstuur die opnieuw."
 u10:
   floating_inserted_into: "Ingevoegd in %@"
   floating_microphone_unavailable: "Microfoon niet beschikbaar"
@@ -1727,12 +1746,14 @@ sealing:
   the_recording: "De opname wordt verzegeld."
 see:
   this_in_the_transcript: "Dit in het transcript bekijken"
+  where_this_came_from: "Bekijk waar dit vandaan komt"
 template:
   _self: "Sjabloon: %@"
 templates:
   _self: "Sjablonen"
 there:
   is_no_transcript_to_enhance_yet_record_thi: "Er is nog geen transcript om te verbeteren. Neem deze notitie eerst op."
+  is_nothing_to_ask_about_yet_record_or_writ: "Er is nog niets om te vragen. Neem eerst iets op of schrijf iets."
 transcribing:
   _self: "Transcriberen"
 transcript:
@@ -1745,3 +1766,27 @@ writing:
   your_enhanced_note: "Je verbeterde notitie wordt geschreven."
   your_enhanced_note_comes_next_long_recor: "Daarna wordt je verbeterde notitie geschreven. Bij lange opnames kan dat een paar minuten duren. Je kunt gewoon doortypen."
   your_enhanced_note_with: "Je verbeterde notitie wordt geschreven met %@."
+answers:
+  come_from_this_note_s_transcript_and_you: "Antwoorden komen uit het transcript van deze notitie en je AI-provider. Controleer alles wat belangrijk is."
+ask:
+  a_follow_up: "Een vervolgvraag stellen"
+  about_this_note: "Vraag stellen over deze notitie"
+  this_note: "Deze notitie iets vragen"
+detected:
+  from_the_recording_renames_apply_to_the: "Gedetecteerd op basis van de opname. Naamswijzigingen gelden voor het transcript en toekomstige notities."
+expect:
+  1: "Verwacht: %1$@"
+from:
+  the_transcript: "Uit het transcript"
+list:
+  action_items: "Actiepunten weergeven"
+match:
+  1_d_of_2_d: "Overeenkomst %1$d van %2$d"
+previous:
+  match: "Vorige overeenkomst"
+that:
+  speaker_profile_no_longer_exists_try_reopen: "Dat sprekersprofiel bestaat niet meer. Probeer deze notitie opnieuw te openen."
+thinking:
+  _self: "Denkt na…"
+write:
+  this_note_again: "Deze notitie opnieuw schrijven"
