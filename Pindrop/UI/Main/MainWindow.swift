@@ -220,7 +220,45 @@ struct MainWindow: View {
     let onDownloadDiarizationModel: (() -> Void)?
     let onStartDictation: (() -> Void)?
     let onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
+    /// The one live note capture, so the note page can draw its own recording.
+    let noteCaptureState: NoteCaptureState?
+    let onFinishNoteCapture: (() -> Void)?
+    let onGenerateEnhancedPanel: NoteEnhancementHandler?
     let onOpenSettings: (SettingsTab) -> Void
+
+    init(
+        settingsStore: SettingsStore,
+        routeState: MainWindowRouteState,
+        floatingIndicatorState: FloatingIndicatorState?,
+        mediaTranscriptionState: MediaTranscriptionFeatureState?,
+        recordingState: RecordingFeatureState?,
+        modelManager: ModelManager?,
+        onImportMediaFiles: (([URL], TranscriptionJobOptions) -> Void)?,
+        onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?,
+        onDownloadDiarizationModel: (() -> Void)?,
+        onStartDictation: (() -> Void)?,
+        onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?,
+        noteCaptureState: NoteCaptureState? = nil,
+        onFinishNoteCapture: (() -> Void)? = nil,
+        onGenerateEnhancedPanel: NoteEnhancementHandler? = nil,
+        onOpenSettings: @escaping (SettingsTab) -> Void
+    ) {
+        self.settingsStore = settingsStore
+        self.routeState = routeState
+        self.floatingIndicatorState = floatingIndicatorState
+        self.mediaTranscriptionState = mediaTranscriptionState
+        self.recordingState = recordingState
+        self.modelManager = modelManager
+        self.onImportMediaFiles = onImportMediaFiles
+        self.onSubmitMediaLink = onSubmitMediaLink
+        self.onDownloadDiarizationModel = onDownloadDiarizationModel
+        self.onStartDictation = onStartDictation
+        self.onStartNoteCapture = onStartNoteCapture
+        self.noteCaptureState = noteCaptureState
+        self.onFinishNoteCapture = onFinishNoteCapture
+        self.onGenerateEnhancedPanel = onGenerateEnhancedPanel
+        self.onOpenSettings = onOpenSettings
+    }
 
     private var isCaptureBusy: Bool {
         recordingState?.isCaptureBusy == true
@@ -336,8 +374,15 @@ struct MainWindow: View {
                 )
                 .accessibilityIdentifier("main.destination.notes")
             case .note(let noteID):
-                NotePageView(noteID: noteID, onBack: routeState.closeNote)
-                    .accessibilityIdentifier("main.destination.note")
+                NotePageView(
+                    noteID: noteID,
+                    onBack: routeState.closeNote,
+                    noteCaptureState: noteCaptureState,
+                    onStartNoteCapture: onStartNoteCapture,
+                    onFinishNoteCapture: onFinishNoteCapture,
+                    onGenerateEnhancedPanel: onGenerateEnhancedPanel
+                )
+                .accessibilityIdentifier("main.destination.note")
             }
         case .stats:
             StatsView()
@@ -699,7 +744,10 @@ final class MainWindowController {
     var onDownloadDiarizationModel: (() -> Void)?
     var onStartDictation: (() -> Void)?
     var onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
+    var onFinishNoteCapture: (() -> Void)?
+    var onGenerateEnhancedPanel: NoteEnhancementHandler?
     var onOpenSettings: ((SettingsTab) -> Void)?
+    private var noteCaptureState: NoteCaptureState?
 
     /// The main app window, if created. Used by list keyboard monitors for identity checks.
     var nsWindow: NSWindow? { window }
@@ -721,13 +769,19 @@ final class MainWindowController {
     func configureCapture(
         floatingIndicatorState: FloatingIndicatorState,
         recordingState: RecordingFeatureState? = nil,
+        noteCaptureState: NoteCaptureState? = nil,
         onStartDictation: @escaping () -> Void,
-        onStartNoteCapture: @escaping (NoteCaptureRequest) -> Bool
+        onStartNoteCapture: @escaping (NoteCaptureRequest) -> Bool,
+        onFinishNoteCapture: (() -> Void)? = nil,
+        onGenerateEnhancedPanel: NoteEnhancementHandler? = nil
     ) {
         self.floatingIndicatorState = floatingIndicatorState
         self.recordingState = recordingState
+        self.noteCaptureState = noteCaptureState
         self.onStartDictation = onStartDictation
         self.onStartNoteCapture = onStartNoteCapture
+        self.onFinishNoteCapture = onFinishNoteCapture
+        self.onGenerateEnhancedPanel = onGenerateEnhancedPanel
     }
 
     func configureTranscribeFeature(
@@ -813,6 +867,9 @@ final class MainWindowController {
                 onDownloadDiarizationModel: onDownloadDiarizationModel,
                 onStartDictation: onStartDictation,
                 onStartNoteCapture: onStartNoteCapture,
+                noteCaptureState: noteCaptureState,
+                onFinishNoteCapture: onFinishNoteCapture,
+                onGenerateEnhancedPanel: onGenerateEnhancedPanel,
                 onOpenSettings: onOpenSettings ?? { _ in
                     Log.ui.error("Settings presenter not set - cannot show settings")
                 }

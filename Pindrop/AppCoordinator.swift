@@ -1045,11 +1045,19 @@ final class AppCoordinator {
         self.mainWindowController.configureCapture(
             floatingIndicatorState: floatingIndicatorState,
             recordingState: recordingState,
+            noteCaptureState: noteCaptureState,
             onStartDictation: { [weak self] in
                 self?.handleMainWindowDictationStart()
             },
             onStartNoteCapture: { [weak self] request in
                 self?.handleStartNoteCapture(request, origin: .mainWindow) ?? false
+            },
+            onFinishNoteCapture: { [weak self] in
+                self?.handleFinishNoteCapture()
+            },
+            onGenerateEnhancedPanel: { [weak self] request in
+                guard let self else { return nil }
+                return await self.handleGenerateEnhancedPanel(request)
             }
         )
         self.mainWindowController.configureTranscribeFeature(
@@ -4129,6 +4137,44 @@ final class AppCoordinator {
             }
         }
         return true
+    }
+
+    /// Finishes the note capture from the note page.
+    ///
+    /// It goes through the same stop dispatch every other trigger uses, so the
+    /// operation token, the stop-admission gate, and the durable finalization
+    /// path are exactly the ones a hotkey or menu-bar stop would take.
+    private func handleFinishNoteCapture() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await self.dispatchRecordingStop()
+            } catch {
+                guard !Self.isTaskCancellation(error) else { return }
+                self.error = error
+                self.audioRecorder.resetAudioEngine()
+                Log.app.error("Failed to finish note capture: \(error)")
+            }
+        }
+    }
+
+    /// Generates one enhanced panel for a note. Returns nil when it worked, or
+    /// the message the note page shows when it did not.
+    private func handleGenerateEnhancedPanel(_ request: NoteEnhancementRequest) async -> String? {
+        do {
+            _ = try await noteEnhancementService.generatePanel(
+                sessionID: request.sessionID,
+                noteID: request.noteID,
+                templatePresetIdentifier: request.templatePresetIdentifier
+            )
+            return nil
+        } catch {
+            guard !Self.isTaskCancellation(error) else { return nil }
+            Log.aiEnhancement.warning(
+                "Enhanced note generation failed: \(error.localizedDescription)"
+            )
+            return error.localizedDescription
+        }
     }
 
     private func handleToggleRecording(

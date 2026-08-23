@@ -3,8 +3,11 @@
 100:
   local_processing: "100% local processing"
 1:
+  edited_2: "%1$@ · edited %2$@"
   folder: "1 folder"
   note: "1 note"
+  recording: "%1$@ recording"
+  recording_2: "%1$@ recording · %2$@"
   speaker: "1 speaker"
   transcription: "1 transcription"
   word: "1 word"
@@ -111,6 +114,9 @@ attach:
 audio:
   duration: "Audio duration"
   input: "Audio Input"
+  sealed: "Audio sealed"
+auto:
+  _self: "Auto"
 automatic:
   follow_system: "Automatic (Follow System)"
   updates: "Automatic updates"
@@ -120,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "Automatically start Pindrop when you sign in."
 available:
   models: "Available Models"
+  when_the_recording_is_finished: "Available when the recording is finished"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -247,6 +254,7 @@ copies:
 copy:
   _self: "Copy"
   and_edit_prompt: "Copy and Edit Prompt"
+  content: "Copy Content"
   enhanced: "Copy Enhanced"
   last_transcript: "Copy Last Transcript"
   original: "Copy Original"
@@ -310,18 +318,21 @@ degraded:
 delete:
   _self: "Delete"
   all: "Delete All"
+  all_contributions: "Delete all contributions…"
   all_participants: "Delete All Participants?"
   all_participants_60ed6e73: "Delete All Participants…"
+  all_stored_text_pairs: "Delete all stored text pairs?"
   folder: "Delete Folder"
   folder_e556e7c2: "Delete folder?"
   model: "Delete Model"
   note: "Delete note?"
   preset: "Delete Preset"
   preset_4f6cfe36: "Delete Preset?"
+  this_note: "Delete this note"
+  this_transcript: "Delete this transcript?"
+  transcript: "Delete transcript"
   transcription: "Delete transcription"
   transcription_f82187c4: "Delete transcription?"
-  all_contributions: "Delete all contributions…"
-  all_stored_text_pairs: "Delete all stored text pairs?"
 destinations:
   _self: "Destinations"
 diarization:
@@ -465,6 +476,8 @@ find:
 fix:
   punctuation_and_capitalization: "Fix punctuation and capitalization"
 finish:
+  _self: "Finish"
+  the_active_transcription_before_starting: "Finish the active transcription before starting another one."
   the_active_transcription_before_starting_another: "Finish the active transcription before starting another one."
 floating:
   indicator: "%@ floating indicator"
@@ -480,6 +493,11 @@ french:
   _self: "French"
 general:
   _self: "General"
+generated:
+  _self: "Generated %@"
+  1_2_template: "Generated %1$@ · %2$@ template"
+generate:
+  enhanced_note: "Generate enhanced note"
 german:
   _self: "German"
 hindi:
@@ -528,6 +546,8 @@ hotkeys:
   _self: "Hotkeys"
 identify:
   speakers_and_enable_timestamped_exports: "Identify speakers and enable timestamped exports."
+identifying:
+  speakers: "Identifying speakers"
 import:
   _self: "Import"
   dictionary: "Import Dictionary"
@@ -609,6 +629,7 @@ listening:
   _self: "Listening…"
 live:
   streaming_refinement: "Live Streaming Refinement"
+  text_stopped_the_recording_continues: "Live text stopped. The recording continues."
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -692,6 +713,9 @@ model:
   validation: "Model Validation"
 models:
   _self: "Models"
+more:
+  note_actions: "More note actions"
+  recording_options: "More recording options"
 move:
   to_folder: "Move to Folder"
 multilingual:
@@ -700,6 +724,8 @@ must:
   be_openai_compatible: "Must be OpenAI-compatible"
 mute:
   system_audio_during_recording: "Mute system audio during recording"
+my:
+  notes: "My notes"
 name:
   _self: "Name"
 nemotron:
@@ -715,15 +741,16 @@ newest:
 next:
   _self: "Next"
 no:
-  audio_was_recorded_for_this_note: "No audio was recorded for this note."
-  notes_yet_sentence: "No notes yet."
   activity_in_this_period: "No activity in this period"
   api_key: "No API key"
   api_key_endpoint: "No API key • Endpoint: %@"
+  audio_was_recorded_for_this_note: "No audio was recorded for this note."
   conflicts_found: "No conflicts found"
+  contributions_yet_pairs_are_stored_when_ai_en: "No contributions yet. Pairs are stored when AI enhancement or manual edits change a transcript."
   custom_presets: "No Custom Presets"
   destination_data: "No destination data"
   downloaded_models: "No downloaded models"
+  enhanced_note_yet: "No enhanced note yet."
   folders_yet: "No folders yet"
   items_in: "No items in %@"
   learned_participants_yet: "No learned participants yet"
@@ -738,6 +765,7 @@ no:
   models_loaded_open_edit_to_fetch_models: "No models loaded. Open Edit to fetch models."
   models_match: "No models match \"%@\""
   notes_yet: "No notes yet"
+  notes_yet_sentence: "No notes yet."
   providers_configured_yet: "No providers configured yet."
   providers_configured_yet_e6bc0075: "No providers configured yet"
   replacements: "No Replacements"
@@ -745,9 +773,8 @@ no:
   settings_found: "No settings found"
   speech_detected_try_speaking_closer_to_your: "No speech detected. Try speaking closer to your microphone."
   transcriptions_yet: "No transcriptions yet"
-  vocabulary_words: "No Vocabulary Words"
   transcripts_audio_prompts_file_names_or_perso: "No transcripts, audio, prompts, file names, or personal content — ever."
-  contributions_yet_pairs_are_stored_when_ai_en: "No contributions yet. Pairs are stored when AI enhancement or manual edits change a transcript."
+  vocabulary_words: "No Vocabulary Words"
 not:
   assigned: "Not assigned"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -775,6 +802,8 @@ notes:
   header_meta_today: "%1$@, %2$@ from today"
   new_note_options_label: "More new note options"
   row_recording_elapsed: "REC %@"
+nothing:
+  was_transcribed_yet: "Nothing was transcribed yet."
 off:
   _self: "Off"
 ok:
@@ -790,6 +819,7 @@ on:
 open:
   _self: "Open"
   history: "Open History"
+  in_new_window: "Open in new window"
   library: "Open Library"
   logs_in_finder: "Open Logs in Finder"
   original_link: "Open original link"
@@ -881,6 +911,7 @@ pin:
 pindrop:
   _self: "Pindrop"
   1_19: "Pindrop 1.19"
+  can_send_anonymous_privacy_preserving_si: "Pindrop can send anonymous, privacy-preserving signals so bugs get fixed faster."
   help: "Pindrop Help"
   is_ready_to_use_click_the_menu_bar_icon: |-
     Pindrop is ready to use.
@@ -896,7 +927,7 @@ pindrop:
   orb: "Pindrop Orb"
   pill: "Pindrop Pill"
   theme: "Pindrop Theme"
-  can_send_anonymous_privacy_preserving_si: "Pindrop can send anonymous, privacy-preserving signals so bugs get fixed faster."
+  writes_one_from_your_notes_and_the_trans: "Pindrop writes one from your notes and the transcript."
 pinned:
   _self: "Pinned"
 plain:
@@ -1012,6 +1043,7 @@ recommended:
   _self: "Recommended"
 record:
   _self: "Record"
+  with_system_audio: "Record with system audio"
 recording:
   _self: "Recording"
   3f8fd48c: "🔴 Recording"
@@ -1074,6 +1106,8 @@ runtime:
   status: "Runtime Status"
 russian:
   _self: "Russian"
+s:
+  to_save: "⌘S to save"
 save:
   _self: "Save"
   as_note: "Save as Note"
@@ -1086,6 +1120,7 @@ saved:
   as_note: "Saved as Note"
   transcription: "Saved transcription"
 sealing:
+  audio: "Sealing audio"
   the_recording: "Sealing the recording."
 search:
   media_transcripts: "Search media transcripts..."
@@ -1177,12 +1212,17 @@ spanish:
 speak:
   to_append: "Speak to append"
 speaker:
+  _self: "Speaker"
+  d: "Speaker %d"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Speaker diarization and timestamps are attached to playback."
   diarization_is_required: "Speaker diarization is required"
   profile_training: "Speaker profile training"
 speakers:
   _self: "Speakers"
+  1: "Speakers: %1$@"
+  are_set_when_the_recording_starts: "Speakers are set when the recording starts."
+  identified: "Speakers identified"
 speed:
   _self: "Speed"
 start:
@@ -1237,14 +1277,16 @@ thanks:
 the:
   enhanced_note_could_not_be_generated_try_aga: "The enhanced note could not be generated. Try again."
   enhanced_note_could_not_be_saved_try_again: "The enhanced note could not be saved. Try again."
+  floating_indicator_is_hidden: "The floating indicator is hidden."
   model_returned_an_empty_note_try_again: "The model returned an empty note. Try again."
+  new_nemotron_streaming_engine_shows_words_as: "The new Nemotron streaming engine shows words as you say them, and the engine prewarms at launch so your first dictation starts without a delay."
   note_enhancement_model_is_unavailable_check: "The note enhancement model is unavailable. Check it in Settings, then try again."
   note_this_recording_belongs_to_could_not_be_opened: "The note this recording belongs to could not be opened."
   recorded_audio_could_not_be_prepared: "The recorded audio could not be prepared for transcription."
   recorder_did_not_start: "The recorder did not start."
-  floating_indicator_is_hidden: "The floating indicator is hidden."
-  new_nemotron_streaming_engine_shows_words_as: "The new Nemotron streaming engine shows words as you say them, and the engine prewarms at launch so your first dictation starts without a delay."
   selected_chunk_variant_isn_t_downloaded_yet: "The selected chunk variant isn't downloaded yet. Toggling will start a download."
+  transcript_fills_in_as_you_speak: "The transcript fills in as you speak."
+  transcript_starts_once_you_speak: "The transcript starts once you speak."
 theme:
   _self: "Theme"
   changes_apply_live_across_the_workspace_se: "Theme changes apply live across the workspace, settings, note editor, and floating indicators."
@@ -1295,10 +1337,15 @@ transcribed:
   _self: "transcribed"
   source_name: "Transcribed: %@"
   words: "Transcribed words"
+transcript:
+  _self: "Transcript"
+transcribing:
+  _self: "Transcribing"
 transcription:
   _self: "Transcription"
   backend: "Transcription backend"
   deleted: "Transcription deleted."
+  done: "Transcription done"
   enhancement: "Transcription Enhancement"
   failed: "Transcription Failed"
   failed_with_error: "Transcription failed: %@"
@@ -1317,6 +1364,7 @@ try:
   a_different_search_term: "Try a different search term"
   a_different_search_term_0ba628a3: "Try a different search term."
   a_different_search_term_in_this_folder: "Try a different search term in this folder."
+  again: "Try again"
   searching_for_terms_like_hotkeys_microphone: "Try searching for terms like hotkeys, microphone, updates, or vibe mode."
 turkish:
   _self: "Turkish"
@@ -1588,24 +1636,32 @@ words:
   you_manually_correct_can_be_added_to_your: "Words you manually correct can be added to your vocabulary for future dictation."
 wpm:
   _self: "WPM"
+writing:
+  note: "Writing note"
+  your_enhanced_note: "Writing your enhanced note."
+  your_enhanced_note_comes_next_long_recor: "Writing your enhanced note comes next. Long recordings can take a few minutes. You can keep typing."
 yesterday:
   _self: "Yesterday"
 you:
+  _self: "You"
   are_a_note_formatting_assistant_transform_th: "You are a note formatting assistant. Transform the transcribed text into a well-structured note.nnRules:n- Fix grammar, punctuation, and spelling errorsn- For longer content (3+ paragraphs), add markdown formatting:n  - Use headers (## or ###) to organize sectionsn  - Use bullet points or numbered lists where appropriaten  - Use **bold** for emphasis on key termsn- For shorter content, keep it simple with minimal formattingn- Preserve the original meaning and tonen- Do not add content that wasn't in the originaln- Return only the formatted note without any commentary"
   are_a_text_enhancement_assistant_improve_the: "You are a text enhancement assistant. Improve the grammar, punctuation, and formatting of the provided text while preserving its original meaning and tone. Return only the enhanced text without any additional commentary."
   can_change_these_anytime_from_the_menu_bar_s: "You can change these anytime from the menu bar → Settings → Hotkeys"
+  deleted_this_transcript: "You deleted this transcript."
   re_all_set: "You're All Set!"
   re_all_set_058a8130: "You're all set!"
-  ve_exceeded_your_api_rate_limit_or_quota_to: "\"\"                 You've exceeded your API rate limit or quota.                                  To fix this:                 1. Wait a few minutes and try again                 2. Check your API provider's usage limits                 3. Consider upgrading your API plan                                  The transcription was saved without enhancement.                 \"\""
   re_in_control: "You're in control"
+  ve_exceeded_your_api_rate_limit_or_quota_to: "\"\"                 You've exceeded your API rate limit or quota.                                  To fix this:                 1. Wait a few minutes and try again                 2. Check your API provider's usage limits                 3. Consider upgrading your API plan                                  The transcription was saved without enhancement.                 \"\""
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\"                 Your API key appears to be invalid or expired.                                  To fix this:                 1. Open Settings → AI Enhancement                 2. Verify your API key is correct                 3. Check that your API endpoint is correct                                  The transcription was saved without enhancement.                 \"\""
+  enhanced_note_is_ready: "Your enhanced note is ready."
   floating_indicator_is_now_a_living_audio_re: "Your floating indicator is now a living, audio-reactive orb. It breathes while idle, swells when you speak, and streams your words live as you dictate."
   hotkeys_are_ready_to_use_nyou_can_customize: "Your hotkeys are ready to use.nYou can customize them later in Settings."
   hotkeys_are_ready_to_use_you_can_customize: |-
     Your hotkeys are ready to use.
     You can customize them later in Settings.
   model_is_ready_to_use: "Your model is ready to use."
+  notes_and_the_enhanced_note_stay_the_transc: "Your notes and the enhanced note stay. The transcript is hidden from this note."
   stats: "Your Stats"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "Your words stay yours"
