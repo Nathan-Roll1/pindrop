@@ -99,6 +99,9 @@ struct TranscriptParagraph: Identifiable, Equatable, Sendable {
     let id: String
     let text: String
     let startOffset: TimeInterval
+    /// Zero-padded mm:ss for this block. A solo note prints it in the gutter
+    /// beside the block; a speaker turn prints only the turn's own time.
+    let timestampText: String
     /// The paragraph cut into plain and matched runs, in order. One plain run
     /// when nothing is being searched.
     let runs: [TranscriptTextRun]
@@ -115,8 +118,14 @@ struct TranscriptTurnPresentation: Identifiable, Equatable, Sendable {
     let displayName: String
     let isCurrentUser: Bool
     let startOffset: TimeInterval
-    /// Zero-padded mm:ss from the start of the recording.
+    /// Zero-padded mm:ss from the start of the recording. A solo note has one
+    /// turn covering the whole recording, so its header prints the total length
+    /// instead of a start time that is always zero.
     let timestampText: String
+    /// True when this is the single turn of a note only the person recording
+    /// spoke in. Its blocks are pause breaks, not speaker turns, so each one
+    /// carries its own time in a gutter.
+    let isSolo: Bool
     let paragraphs: [TranscriptParagraph]
 
     var matchCount: Int {
@@ -178,10 +187,20 @@ enum TranscriptSegmentPresentation {
     ) -> TranscriptListPresentation {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let turns = TranscriptTurn.turns(in: segments)
+        // Decided before any search narrows the list: a solo note stays a solo
+        // note while the reader is looking for a word in it.
+        let isSolo = isSoloNote(turns)
+        let totalDuration = segments.map(\.endOffset).max() ?? 0
 
         guard !trimmedQuery.isEmpty else {
             let presented = turns.map { turn in
-                presentation(for: turn, query: nil, locale: locale)
+                presentation(
+                    for: turn,
+                    query: nil,
+                    isSolo: isSolo,
+                    totalDuration: totalDuration,
+                    locale: locale
+                )
             }
             return TranscriptListPresentation(
                 turns: presented,
@@ -197,7 +216,15 @@ enum TranscriptSegmentPresentation {
         // A searched list keeps only the paragraphs that matched, so the count
         // beside the field and the lines on screen are the same fact.
         let presented = turns
-            .map { presentation(for: $0, query: trimmedQuery, locale: locale) }
+            .map {
+                presentation(
+                    for: $0,
+                    query: trimmedQuery,
+                    isSolo: isSolo,
+                    totalDuration: totalDuration,
+                    locale: locale
+                )
+            }
             .filter { $0.matchCount > 0 }
         let matchCount = presented.reduce(0) { $0 + $1.matchCount }
         return TranscriptListPresentation(
@@ -243,9 +270,20 @@ enum TranscriptSegmentPresentation {
         NoteRowPresentation.elapsedText(offset)
     }
 
+    /// True when one person recorded a note alone.
+    ///
+    /// One turn and that turn is the person recording: nobody else was in the
+    /// audio, so its blocks came from pauses rather than from a change of
+    /// speaker, and a second speaker name would be a lie.
+    static func isSoloNote(_ turns: [TranscriptTurn]) -> Bool {
+        turns.count == 1 && turns[0].isCurrentUser
+    }
+
     private static func presentation(
         for turn: TranscriptTurn,
         query: String?,
+        isSolo: Bool,
+        totalDuration: TimeInterval,
         locale: Locale
     ) -> TranscriptTurnPresentation {
         let paragraphs = turn.spans.enumerated().map { index, span in
@@ -253,6 +291,7 @@ enum TranscriptSegmentPresentation {
                 id: span.id.isEmpty ? "\(turn.id)-\(index)" : span.id,
                 text: span.text,
                 startOffset: span.startOffset,
+                timestampText: timestampText(span.startOffset),
                 runs: runs(in: span.text, query: query)
             )
         }
@@ -262,7 +301,10 @@ enum TranscriptSegmentPresentation {
             displayName: turn.displayName(locale: locale),
             isCurrentUser: turn.isCurrentUser,
             startOffset: turn.startOffset,
-            timestampText: timestampText(turn.startOffset),
+            // A solo header answers "how long is this", because "when did it
+            // start" is always the beginning.
+            timestampText: timestampText(isSolo ? totalDuration : turn.startOffset),
+            isSolo: isSolo,
             paragraphs: query == nil
                 ? paragraphs
                 : paragraphs.filter { $0.matchCount > 0 }
@@ -425,12 +467,24 @@ struct TranscriptSegmentBubble: View {
     /// moment so the reader can find the line they were sent to.
     var flashingSegmentID: String?
 
+    /// The timestamp gutter of a solo note. Wide enough for h:mm:ss, so a long
+    /// recording never pushes its blocks out of line.
+    static let soloTimestampGutter: CGFloat = 44
+    /// The gap between the gutter and the block it labels.
+    static let soloTimestampGap: CGFloat = 12
+    /// The reading measure of a solo block.
+    static let soloBodyWidth: CGFloat = 560
+    /// The space between two pause breaks.
+    static let soloBlockSpacing: CGFloat = 14
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: turn.isSolo ? 12 : 4) {
             header
 
-            ForEach(turn.paragraphs) { paragraph in
-                paragraphView(paragraph)
+            VStack(alignment: .leading, spacing: turn.isSolo ? Self.soloBlockSpacing : 4) {
+                ForEach(turn.paragraphs) { paragraph in
+                    paragraphView(paragraph)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -463,12 +517,30 @@ struct TranscriptSegmentBubble: View {
     @ViewBuilder
     private func paragraphView(_ paragraph: TranscriptParagraph) -> some View {
         let isFlashing = paragraph.id == flashingSegmentID
-        let line = paragraphText(paragraph)
+        let body = paragraphText(paragraph)
             .font(Self.bodyMetrics.font)
             .lineSpacing(Self.bodyMetrics.lineSpacing)
-            .frame(maxWidth: 640, alignment: .leading)
-            .padding(.leading, 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+        let line = Group {
+            if turn.isSolo {
+                HStack(alignment: .firstTextBaseline, spacing: Self.soloTimestampGap) {
+                    Text(paragraph.timestampText)
+                        .font(AppTypography.monoSmall)
+                        .foregroundStyle(AppColors.textTertiary)
+                        .monospacedDigit()
+                        .environment(\.layoutDirection, .leftToRight)
+                        .frame(width: Self.soloTimestampGutter, alignment: .trailing)
+
+                    body.frame(maxWidth: Self.soloBodyWidth, alignment: .leading)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                body
+                    .frame(maxWidth: 640, alignment: .leading)
+                    .padding(.leading, 16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
 
         Group {
             if canSeek, let onSeek {

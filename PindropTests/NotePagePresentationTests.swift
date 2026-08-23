@@ -483,6 +483,241 @@ struct NotePagePresentationTests {
         #expect(!caption.contains("–"))
     }
 
+    // MARK: - View chips (Round B)
+
+    private func chip(
+        _ kind: CaptureNoteViewKind,
+        in state: NotePageState,
+        selection: CaptureNoteViewKind,
+        canOpenEnhancedMenu: Bool = false
+    ) -> NoteViewChipState? {
+        NotePagePresentation.chips(
+            state: state,
+            selection: selection,
+            canOpenEnhancedMenu: canOpenEnhancedMenu,
+            locale: locale
+        )
+        .first { $0.kind == kind }
+    }
+
+    @Test func everyChipCarriesItsOwnGlyph() {
+        #expect(NotePagePresentation.chipIcon(.humanNotes) == "text.alignleft")
+        #expect(NotePagePresentation.chipIcon(.enhanced) == "sparkles")
+        #expect(NotePagePresentation.chipIcon(.transcript) == "mic")
+    }
+
+    @Test func theChipsMirrorTheSegmentsTheyReplaced() {
+        let state = NotePageState(hasPanels: true, hasTranscript: true, isRecorded: true)
+        let chips = NotePagePresentation.chips(
+            state: state,
+            selection: .transcript,
+            locale: locale
+        )
+        let segments = NotePagePresentation.segments(state: state, locale: locale)
+
+        #expect(chips.map(\.kind) == segments.map(\.kind))
+        #expect(chips.map(\.isEnabled) == segments.map(\.isEnabled))
+        #expect(chips.map(\.indicator) == segments.map(\.indicator))
+        #expect(chips.map(\.helpText) == segments.map(\.helpText))
+        #expect(chips.filter(\.isSelected).map(\.kind) == [.transcript])
+    }
+
+    @Test func onlyTheSelectedEnhancedChipOpensTheDropdown() throws {
+        let state = NotePageState(hasPanels: true, hasTranscript: true, isRecorded: true)
+
+        let selected = try #require(
+            chip(.enhanced, in: state, selection: .enhanced, canOpenEnhancedMenu: true)
+        )
+        #expect(selected.isSelected)
+        #expect(selected.opensMenu)
+
+        // Unselected: clicking it switches views, so it wears no chevron.
+        let unselected = try #require(
+            chip(.enhanced, in: state, selection: .transcript, canOpenEnhancedMenu: true)
+        )
+        #expect(!unselected.isSelected)
+        #expect(!unselected.opensMenu)
+
+        // Nothing else ever opens a dropdown.
+        let transcript = try #require(
+            chip(.transcript, in: state, selection: .transcript, canOpenEnhancedMenu: true)
+        )
+        #expect(!transcript.opensMenu)
+    }
+
+    @Test func aPanelWithNoTemplatesToOfferKeepsItsChipAPlainSwitch() throws {
+        // A legacy panel cannot be regenerated, so the chip must not promise a
+        // dropdown that has nothing to do.
+        let state = NotePageState(hasPanels: true, hasTranscript: true, isRecorded: true)
+        let enhanced = try #require(
+            chip(.enhanced, in: state, selection: .enhanced, canOpenEnhancedMenu: false)
+        )
+        #expect(enhanced.isSelected)
+        #expect(!enhanced.opensMenu)
+    }
+
+    @Test func aDisabledChipIsNeverSelectedAndNeverOpensAnything() throws {
+        // Enhanced during a recording: the person's stored selection may still
+        // name it, but the page is drawing My notes.
+        let state = NotePageState(isRecorded: true, capture: .capturing)
+        let enhanced = try #require(
+            chip(.enhanced, in: state, selection: .enhanced, canOpenEnhancedMenu: true)
+        )
+        #expect(!enhanced.isEnabled)
+        #expect(!enhanced.isSelected)
+        #expect(!enhanced.opensMenu)
+        #expect(enhanced.helpText == "Available when the recording is finished")
+    }
+
+    @Test func theLiveAndReadyDotsCarryOverOntoTheChips() throws {
+        let recording = NotePageState(hasTranscript: true, isRecorded: true, capture: .capturing)
+        #expect(
+            try #require(chip(.transcript, in: recording, selection: .humanNotes)).indicator
+                == .live
+        )
+
+        let unread = NotePageState(hasPanels: true, isRecorded: true, hasUnreadEnhanced: true)
+        #expect(
+            try #require(chip(.enhanced, in: unread, selection: .humanNotes)).indicator == .ready
+        )
+    }
+
+    // MARK: - Speakers popover (Round B)
+
+    private func speakerSegment(
+        id: String,
+        key: String?,
+        label: String?,
+        number: Int? = nil,
+        profileID: UUID? = nil,
+        isCurrentUser: Bool = false,
+        start: TimeInterval
+    ) -> TranscriptSegmentSnapshot {
+        TranscriptSegmentSnapshot(
+            id: id,
+            revisionID: UUID(),
+            speakerKey: key,
+            speakerLabel: label,
+            speakerNumber: number,
+            speakerProfileID: profileID,
+            isCurrentUser: isCurrentUser,
+            text: "Words.",
+            startOffset: start,
+            duration: 2
+        )
+    }
+
+    @Test func theSpeakersChipCountsWhoTheRecordingHeard() {
+        #expect(
+            NotePagePresentation.speakersChipTitle(
+                speakerCount: 3,
+                expectedSpeakerCount: nil,
+                locale: locale
+            ) == "3 speakers"
+        )
+        // Before a transcript exists there is only the count that was asked for.
+        #expect(
+            NotePagePresentation.speakersChipTitle(
+                speakerCount: 0,
+                expectedSpeakerCount: nil,
+                locale: locale
+            ) == "Speakers: Auto"
+        )
+        #expect(
+            NotePagePresentation.speakersChipTitle(
+                speakerCount: 0,
+                expectedSpeakerCount: 4,
+                locale: locale
+            ) == "Speakers: 4"
+        )
+    }
+
+    @Test func thePopoverListsEachSpeakerOnceInTheOrderTheyWereHeard() throws {
+        let profileID = UUID()
+        let popover = NotePagePresentation.speakersPopover(
+            segments: [
+                speakerSegment(id: "a", key: "self", label: "You", isCurrentUser: true, start: 0),
+                speakerSegment(id: "b", key: "s2", label: "Andrea", profileID: profileID, start: 4),
+                speakerSegment(id: "c", key: "self", label: "You", isCurrentUser: true, start: 8),
+                speakerSegment(id: "d", key: "s3", label: "Speaker 3", number: 3, start: 12)
+            ],
+            duration: 2538,
+            locale: locale
+        )
+
+        #expect(popover.title == "Speakers")
+        #expect(popover.durationText == "42:18")
+        #expect(popover.rows.map(\.id) == ["self", "s2", "s3"])
+        #expect(popover.rows.map(\.name) == ["You", "Andrea", "Speaker 3"])
+        #expect(popover.rows.map(\.isCurrentUser) == [true, false, false])
+        #expect(popover.caption.contains("Renames apply to the transcript and future notes."))
+        // Copy rule: no em or en dashes as sentence dashes.
+        #expect(!popover.caption.contains("—"))
+    }
+
+    @Test func onlyASpeakerAProfileNamedCanBeRenamed() throws {
+        let profileID = UUID()
+        let popover = NotePagePresentation.speakersPopover(
+            segments: [
+                speakerSegment(id: "a", key: "s2", label: "Andrea", profileID: profileID, start: 0),
+                speakerSegment(id: "b", key: "s3", label: "Speaker 3", number: 3, start: 4)
+            ],
+            duration: 60,
+            locale: locale
+        )
+
+        #expect(try #require(popover.rows.first).canRename)
+        #expect(try #require(popover.rows.first).profileID == profileID)
+        // A generic number has no owner, so nothing here could keep a new name.
+        #expect(!(try #require(popover.rows.last).canRename))
+        #expect(!NotePagePresentation.renameUnavailableHelpText(locale: locale).isEmpty)
+    }
+
+    @Test func theRecorderReadsAsYouWhateverTheirProfileIsCalled() throws {
+        // The transcript names the person recording "You" everywhere, so the
+        // popover has to agree with the turns above it.
+        let popover = NotePagePresentation.speakersPopover(
+            segments: [
+                speakerSegment(
+                    id: "a",
+                    key: "self",
+                    label: "Chris",
+                    profileID: UUID(),
+                    isCurrentUser: true,
+                    start: 0
+                )
+            ],
+            duration: 60,
+            locale: locale
+        )
+
+        let row = try #require(popover.rows.first)
+        #expect(row.name == "You")
+        #expect(row.isCurrentUser)
+        #expect(row.canRename)
+    }
+
+    @Test func anUnattributedTranscriptStillListsOneSpeaker() throws {
+        let popover = NotePagePresentation.speakersPopover(
+            segments: [speakerSegment(id: "a", key: nil, label: nil, start: 0)],
+            duration: 30,
+            locale: locale
+        )
+
+        #expect(popover.rows.map(\.id) == ["_"])
+        #expect(try #require(popover.rows.first).name == "Speaker")
+    }
+
+    @Test func aNoteWithNoTranscriptHasNoSpeakerRows() {
+        let popover = NotePagePresentation.speakersPopover(
+            segments: [],
+            duration: 0,
+            locale: locale
+        )
+        #expect(popover.rows.isEmpty)
+        #expect(popover.durationText == "00:00")
+    }
+
     @Test func segmentIdentifiersAreStable() {
         #expect(NotePagePresentation.accessibilityIdentifier(.humanNotes) == "note.page.view.humanNotes")
         #expect(NotePagePresentation.accessibilityIdentifier(.enhanced) == "note.page.view.enhanced")

@@ -115,6 +115,83 @@ struct TranscriptSegmentPresentationTests {
         #expect(LibrarySpeakerColor.canonicalKey(speakerId: "s1", speakerLabel: "Alice") == "s1")
     }
 
+    // MARK: - Solo notes (Round B, board 67)
+
+    /// One person, recorded alone: the spans are pause breaks, not turns.
+    private var soloNote: [TranscriptSegmentSnapshot] {
+        [
+            segment(id: "a", speakerKey: "self", label: "You", isCurrentUser: true,
+                    text: "First thought here.", start: 0),
+            segment(id: "b", speakerKey: "self", label: "You", isCurrentUser: true,
+                    text: "Second thought here.", start: 30),
+            segment(id: "c", speakerKey: "self", label: "You", isCurrentUser: true,
+                    text: "Third thought here.", start: 61)
+        ]
+    }
+
+    @Test func aSoloNoteIsOneTurnOfSeveralTimeCodedBlocks() throws {
+        let presentation = TranscriptSegmentPresentation.make(
+            segments: soloNote,
+            locale: locale
+        )
+
+        #expect(presentation.turns.count == 1)
+        let turn = try #require(presentation.turns.first)
+        #expect(turn.isSolo)
+        #expect(turn.displayName == "You")
+        #expect(turn.paragraphs.count == 3)
+        #expect(turn.paragraphs.map(\.timestampText) == ["00:00", "00:30", "01:01"])
+    }
+
+    @Test func aSoloTurnHeaderReadsTheWholeLengthNotTheStart() throws {
+        let presentation = TranscriptSegmentPresentation.make(
+            segments: soloNote,
+            locale: locale
+        )
+        let turn = try #require(presentation.turns.first)
+
+        // The last block starts at 61 and runs 2 seconds.
+        #expect(turn.timestampText == "01:03")
+    }
+
+    @Test func aConversationKeepsTheSpeakerTurnLayout() throws {
+        let presentation = TranscriptSegmentPresentation.make(
+            segments: conversation,
+            locale: locale
+        )
+
+        #expect(presentation.turns.allSatisfy { !$0.isSolo })
+        let first = try #require(presentation.turns.first)
+        #expect(first.timestampText == "00:00")
+    }
+
+    @Test func oneTurnFromSomebodyElseIsNotASoloNote() throws {
+        let presentation = TranscriptSegmentPresentation.make(
+            segments: [
+                segment(id: "a", speakerKey: "s2", label: "Speaker 2", number: 2,
+                        text: "One.", start: 0),
+                segment(id: "b", speakerKey: "s2", label: "Speaker 2", number: 2,
+                        text: "Two.", start: 4)
+            ],
+            locale: locale
+        )
+        let turn = try #require(presentation.turns.first)
+        #expect(!turn.isSolo)
+    }
+
+    @Test func searchingASoloNoteKeepsItASoloNote() throws {
+        let presentation = TranscriptSegmentPresentation.make(
+            segments: soloNote,
+            query: "Second",
+            locale: locale
+        )
+        let turn = try #require(presentation.turns.first)
+
+        #expect(turn.isSolo)
+        #expect(turn.paragraphs.map(\.id) == ["b"])
+        #expect(turn.timestampText == "01:03")
+    }
+
     // MARK: - Nothing to read
 
     @Test func anEmptyTranscriptSaysSoInsteadOfDrawingAnEmptyColumn() {

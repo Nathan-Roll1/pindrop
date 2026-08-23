@@ -1607,7 +1607,13 @@ final class NoteCaptureController {
                 input,
                 options: arbiter.captureTranscriptionOptions(),
                 diarizationOptions: .init(expectedSpeakerCount: expectedSpeakerCount),
-                diarizationEnabled: diarizationEnabled
+                diarizationEnabled: diarizationEnabled,
+                // Nothing separates the speech of a capture with one voice in
+                // it, so the pauses are the only structure a reader can get.
+                // Only a microphone-only capture qualifies: the mixed audio of
+                // a meeting holds voices this cannot tell apart, and one
+                // speaker name over all of them would be a lie.
+                paragraphSegmentationEnabled: !handle.capturesSystemAudio
             )
             try operationGuard()
             let segmentsJSON = Self.encodeDiarizationSegmentsJSON(output.diarizedSegments)

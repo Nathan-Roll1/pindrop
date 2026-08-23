@@ -36,6 +36,9 @@ struct StreamingRefinementCoordinatorTests {
    final class FakeSink: StreamingRefinementOutputSink {
       private(set) var beganCount = 0
       private(set) var updates: [String] = []
+      /// The two halves as they arrived. A sink that draws them in separate
+      /// places (the note page does) sees this, not the composed string.
+      private(set) var splits: [(committed: String, tentative: String)] = []
       private(set) var finished: (text: String, trailingSpace: Bool)?
       private(set) var cancelledCount = 0
 
@@ -52,7 +55,10 @@ struct StreamingRefinementCoordinatorTests {
             )
             .trimmingCharacters(in: .whitespacesAndNewlines)
          )
+         splits.append((committed, tentative))
       }
+
+      var lastSplit: (committed: String, tentative: String)? { splits.last }
 
       func finishStreamingInsertion(finalText: String, appendTrailingSpace: Bool) async throws {
          finished = (finalText, appendTrailingSpace)
@@ -471,6 +477,54 @@ struct StreamingRefinementCoordinatorTests {
       // Committed output includes both utterances, cleanly capitalized.
       #expect(finalText.hasPrefix("Hello world how are you doing today."))
       #expect(finalText.contains("I am doing great thanks for asking."))
+   }
+
+   // MARK: - The split the sink is told about
+
+   // A sink that draws committed text and tentative text in two different
+   // places has to be told when the tail moves from one to the other. The
+   // composed string does not change when that happens, so a guard that only
+   // watches the composition leaves the old tail on screen beside the same
+   // words in the committed half, and the person who just stopped talking
+   // reads their last few words twice.
+
+   @Test func idleCommitTellsTheSinkTheTentativeTailIsGone() async throws {
+      let sink = FakeSink()
+      let coord = makeCoordinator(idleCommitNs: 80_000_000)
+      coord.beginSession(outputSink: sink)
+
+      await coord.ingestPartial("the last few words")
+      try await Task.sleep(nanoseconds: 200_000_000)
+
+      let split = try #require(sink.lastSplit)
+      #expect(split.committed == "The last few words")
+      #expect(split.tentative.isEmpty)
+   }
+
+   @Test func stopDrainTellsTheSinkTheTentativeTailIsGone() async throws {
+      let sink = FakeSink()
+      let coord = makeCoordinator()
+      coord.beginSession(outputSink: sink)
+
+      await coord.ingestPartial("the last few words")
+      _ = await coord.awaitFinalTextAndDrain()
+
+      let split = try #require(sink.lastSplit)
+      #expect(split.committed == "The last few words")
+      #expect(split.tentative.isEmpty)
+   }
+
+   @Test func aCommitThatChangesNothingIsStillNotResent() async throws {
+      let sink = FakeSink()
+      let coord = makeCoordinator()
+      coord.beginSession(outputSink: sink)
+
+      await coord.ingestPartial("hello there")
+      _ = await coord.awaitFinalTextAndDrain()
+      let countAfterDrain = sink.splits.count
+      _ = await coord.awaitFinalTextAndDrain()
+
+      #expect(sink.splits.count == countAfterDrain)
    }
 
    // MARK: - Metrics wiring

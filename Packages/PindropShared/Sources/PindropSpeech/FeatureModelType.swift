@@ -42,7 +42,10 @@ public enum StreamingChunkProfile: String, Sendable {
     }
 }
 
-/// Optional feature models separate from transcription models, downloaded on-demand.
+/// Feature models separate from transcription models.
+///
+/// Some are required and are fetched on first run; the rest are downloaded when
+/// a person asks for them. See `isRequired`.
 ///
 /// Presentation (display name, description, formatted size, icon) lives in the host app.
 public enum FeatureModelType: String, CaseIterable, Identifiable, Codable, Sendable {
@@ -51,6 +54,20 @@ public enum FeatureModelType: String, CaseIterable, Identifiable, Codable, Senda
     case streaming = "streaming"
 
     public var id: String { rawValue }
+
+    /// The models every install needs.
+    ///
+    /// Live transcription is what a person sees while they talk, and voice
+    /// activity detection is what puts paragraph breaks in what they said.
+    /// Neither is a setting anybody would think to turn on, so both are part of
+    /// setting the app up rather than an extra a person has to find. Speaker
+    /// diarization stays optional: it only matters when a recording has more
+    /// than one voice in it.
+    public static let required: [FeatureModelType] = [.vad, .streaming]
+
+    public var isRequired: Bool {
+        Self.required.contains(self)
+    }
 
     public var sizeInMB: Int {
         switch self {
@@ -62,10 +79,6 @@ public enum FeatureModelType: String, CaseIterable, Identifiable, Codable, Senda
             // Nemotron 0.6B per chunk variant (int8-quantized encoder).
             return 650
         }
-    }
-
-    public var isAutoEnabled: Bool {
-        self == .vad
     }
 
     /// Primary on-disk folder name for the feature. For streaming, this is the default

@@ -20,10 +20,14 @@
 //  Note on markers today: `NoteEnhancementService` runs every generation through
 //  `MeetingNoteDerivation.sanitizingGeneratedContent`, which strips citation
 //  markers outright, and legacy generated notes were stored under the same rule.
-//  Stored panels therefore carry no markers, so the inline chips stay empty and
-//  the "Sources" disclosure is the citation surface a reader actually gets. The
-//  marker path is implemented and tested for the day content keeps them; it is
-//  not a promise that today's panels have any.
+//  Stored panels therefore carry no markers, so most lines resolve to no source
+//  and are drawn as plain text with no peek. The marker path is implemented and
+//  tested for the day content keeps them; it is not a promise that today's
+//  panels have any.
+//
+//  Round B replaced the numeric chips and the "Sources" disclosure with the
+//  source peek. Resolution did not change: a line is peekable exactly when a
+//  chip would have been drawn on it.
 //
 
 import Foundation
@@ -54,7 +58,8 @@ struct EnhancedNoteBlock: Identifiable, Equatable, Sendable {
     let citations: [EnhancedCitationChip]
 }
 
-/// One row of the "Sources" disclosure.
+/// One resolved source: the words a line of the panel was written from, and the
+/// way back to them. Round B draws it as the source peek.
 struct EnhancedSourceRow: Identifiable, Equatable, Sendable {
     /// The citation identifier ("C3").
     let id: String
@@ -65,6 +70,9 @@ struct EnhancedSourceRow: Identifiable, Equatable, Sendable {
     /// Who said it, resolved the way the transcript resolves it. Nil when the
     /// span carries no speaker attribution.
     let speakerName: String?
+    /// The key the shared speaker palette colors the dot by.
+    let speakerKey: String?
+    let isCurrentUser: Bool
     /// The cited words, quoted for display. Transcript text is untrusted, so it
     /// never reaches a view raw.
     let text: String
@@ -76,10 +84,6 @@ struct EnhancedSourceRow: Identifiable, Equatable, Sendable {
 struct EnhancedNotePresentation: Equatable, Sendable {
     let blocks: [EnhancedNoteBlock]
     let sources: [EnhancedSourceRow]
-    /// "Sources (3)". Nil when nothing citable survived resolution.
-    let sourcesTitle: String?
-    /// What the disclosure says about its numbers.
-    let sourcesHint: String
     /// True for a panel an older build generated. It is read only: regenerating
     /// it would have to rewrite rows this build must not touch.
     let isReadOnly: Bool
@@ -89,8 +93,6 @@ struct EnhancedNotePresentation: Equatable, Sendable {
     static let empty = EnhancedNotePresentation(
         blocks: [],
         sources: [],
-        sourcesTitle: nil,
-        sourcesHint: "",
         isReadOnly: false,
         readOnlyLabel: nil
     )
@@ -114,6 +116,40 @@ struct TemplateMenuItem: Identifiable, Equatable, Sendable {
     let isBuiltIn: Bool
     /// The template the panel on screen was generated with.
     let isSelected: Bool
+}
+
+/// One row of the merged Enhanced dropdown.
+struct EnhancedMenuRow: Identifiable, Equatable, Sendable {
+
+    /// What the row does when it is picked.
+    enum Action: Equatable, Sendable {
+        /// Show, or write, the panel for this template.
+        case selectTemplate(String)
+        /// Open the template manager.
+        case manageTemplates
+        /// Open the template manager on a new template.
+        case newTemplate
+    }
+
+    let id: String
+    let title: String
+    /// The glyph in the row's 13pt slot.
+    let systemImage: String
+    /// The template the panel on screen was generated with.
+    let isSelected: Bool
+    let action: Action
+}
+
+/// The merged Enhanced dropdown, decided once.
+struct EnhancedMenuContent: Equatable, Sendable {
+    let headerTitle: String
+    /// The overline above the template rows.
+    let templatesTitle: String
+    let templates: [EnhancedMenuRow]
+    /// The rows under the second hairline: manage, and create.
+    let actions: [EnhancedMenuRow]
+    /// What the regenerate glyph says it will do.
+    let regenerateHelp: String
 }
 
 /// What picking a template in the menu has to do.
@@ -156,6 +192,8 @@ enum EnhancedViewPresentation {
                     label: label(for: citation.identifier),
                     timestampText: TranscriptSegmentPresentation.timestampText(segment.startOffset),
                     speakerName: speakerName(for: segment, locale: locale),
+                    speakerKey: segment.speakerKey,
+                    isCurrentUser: segment.isCurrentUser,
                     text: MeetingNoteDerivation.sourcePresentationText(citation.text),
                     segmentID: segment.id,
                     startOffset: segment.startOffset
@@ -166,18 +204,38 @@ enum EnhancedViewPresentation {
         return EnhancedNotePresentation(
             blocks: blocks(in: panel.content, targets: targets),
             sources: rows,
-            sourcesTitle: rows.isEmpty ? nil : sourcesTitle(rows.count, locale: locale),
-            sourcesHint: localized(
-                "Click a number to see it in the transcript.",
-                locale: locale
-            ),
             isReadOnly: !panel.isRegenerable,
             readOnlyLabel: panel.isRegenerable ? nil : localized("Meeting note", locale: locale)
         )
     }
 
-    static func sourcesTitle(_ count: Int, locale: Locale) -> String {
-        String(format: localized("Sources (%d)", locale: locale), locale: locale, count)
+    // MARK: Source peek
+
+    /// The source a line opens, or nil when the line cites nothing that resolved.
+    ///
+    /// The peek shows only what the citation path already proved: a marker in
+    /// the text that names a citation in the provenance, whose span is on screen.
+    /// A line with no such marker is not peekable, and gets no hover wash either.
+    static func peekTarget(
+        for block: EnhancedNoteBlock,
+        in sources: [EnhancedSourceRow]
+    ) -> EnhancedSourceRow? {
+        for citation in block.citations {
+            if let match = sources.first(where: { $0.id == citation.identifier }) {
+                return match
+            }
+        }
+        return nil
+    }
+
+    /// The overline above a peeked span.
+    static func peekTitle(locale: Locale) -> String {
+        localized("From the transcript", locale: locale)
+    }
+
+    /// The action that takes a reader from the peek to the words themselves.
+    static func peekJumpTitle(locale: Locale) -> String {
+        localized("Show in transcript", locale: locale)
     }
 
     /// What a read-only panel says when someone looks for the template menu.
@@ -338,6 +396,64 @@ enum EnhancedViewPresentation {
                 isBuiltIn: preset.isBuiltIn,
                 isSelected: preset.identifier == selected
             )
+        }
+    }
+
+    /// The merged dropdown the Enhanced chip opens.
+    ///
+    /// The template rows are the menu items in the same order the flat menu used,
+    /// so a template sits in one place wherever it is picked. The two rows below
+    /// them both end in the preset sheet: one on the list, one on a new template.
+    static func menu(
+        presets: [TemplateMenuPreset],
+        selected: String?,
+        locale: Locale
+    ) -> EnhancedMenuContent {
+        let templates = templateMenuItems(presets: presets, selected: selected).map { item in
+            EnhancedMenuRow(
+                id: item.id,
+                title: item.name,
+                systemImage: templateGlyph(identifier: item.id, isBuiltIn: item.isBuiltIn),
+                isSelected: item.isSelected,
+                action: .selectTemplate(item.id)
+            )
+        }
+        return EnhancedMenuContent(
+            headerTitle: localized("Enhanced notes", locale: locale),
+            templatesTitle: localized("Templates", locale: locale),
+            templates: templates,
+            actions: [
+                EnhancedMenuRow(
+                    id: "all-templates",
+                    title: localized("All templates…", locale: locale),
+                    systemImage: "square.grid.2x2",
+                    isSelected: false,
+                    action: .manageTemplates
+                ),
+                EnhancedMenuRow(
+                    id: "new-template",
+                    title: localized("New template", locale: locale),
+                    systemImage: "plus",
+                    isSelected: false,
+                    action: .newTemplate
+                )
+            ],
+            regenerateHelp: localized("Write this note again", locale: locale)
+        )
+    }
+
+    /// The glyph a template wears in its 13pt slot. Built-ins get a glyph that
+    /// says what they write; anything a person made is a document.
+    static func templateGlyph(identifier: String, isBuiltIn: Bool) -> String {
+        guard isBuiltIn else { return "doc.text" }
+        switch identifier {
+        case "clean": return "text.alignleft"
+        case "meeting": return "person.2"
+        case "email": return "envelope"
+        case "social": return "bubble.left.and.bubble.right"
+        case "bullets": return "list.bullet"
+        case "technical": return "chevron.left.forwardslash.chevron.right"
+        default: return "sparkles"
         }
     }
 

@@ -661,6 +661,57 @@ struct CaptureSessionStoreNoteViewsTests {
         #expect(transcript.segments.map(\.speakerLabel) == [nil])
     }
 
+    @Test func paragraphBreaksOfASoloNoteReadAsSeveralTimeCodedSpansOfOnePerson() throws {
+        // What a microphone-only capture writes at finalization: the same
+        // payload shape diarization uses, with one speaker across every span.
+        let text = "First thought here. Second thought here."
+        let recorded = try makeRecordedNote(
+            includeSystemAudio: false,
+            segments: { duration in
+                SpeechParagraphSegmentation.paragraphSegments(
+                    text: text,
+                    speechIntervals: [
+                        .init(startTime: 0, endTime: duration / 3),
+                        .init(startTime: duration * 2 / 3, endTime: duration)
+                    ],
+                    chunkDuration: duration
+                ) ?? []
+            },
+            text: text
+        )
+
+        let transcript = try #require(
+            try recorded.store.noteCaptureViews(noteID: recorded.noteID).transcript
+        )
+
+        #expect(transcript.segments.count == 2)
+        #expect(transcript.segments.map(\.text) == [
+            "First thought here.",
+            "Second thought here."
+        ])
+        #expect(transcript.segments.map(\.isCurrentUser) == [true, true])
+        #expect(transcript.segments.map(\.speakerLabel) == ["You", "You"])
+        #expect(transcript.speakerCount == 1)
+        #expect(transcript.segments[0].startOffset == 0)
+        #expect(transcript.segments[1].startOffset > transcript.segments[0].endOffset - 0.001)
+        #expect(transcript.duration == recorded.chunkDuration)
+    }
+
+    @Test func aSoloNoteWithNoParagraphPayloadStillReadsAsOneSpan() throws {
+        let recorded = try makeRecordedNote(
+            includeSystemAudio: false,
+            segments: nil,
+            text: "One block of speech."
+        )
+
+        let transcript = try #require(
+            try recorded.store.noteCaptureViews(noteID: recorded.noteID).transcript
+        )
+
+        #expect(transcript.segments.map(\.text) == ["One block of speech."])
+        #expect(transcript.segments.map(\.speakerLabel) == ["You"])
+    }
+
     // MARK: - Speaker attribution
 
     @Test func aMatchedParticipantProfileNamesTheSpeaker() throws {

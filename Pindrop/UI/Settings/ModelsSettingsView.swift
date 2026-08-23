@@ -54,7 +54,8 @@ struct ModelsSettingsView: View {
 
     /// On-device helpers: existing feature models (no deferred text-corrector row).
     private var helperFeatures: [FeatureModelType] {
-        Array(FeatureModelType.allCases)
+        FeatureModelType.allCases.filter(\.isRequired)
+            + FeatureModelType.allCases.filter { !$0.isRequired }
     }
 
     private var diskTotalText: String {
@@ -320,6 +321,19 @@ struct ModelsSettingsView: View {
         )
     }
 
+    /// Says a helper is part of setting Pindrop up rather than an extra.
+    private var requiredBadge: some View {
+        Text(localized("Required", locale: locale))
+            .font(AppTypography.badge)
+            .foregroundStyle(AppColors.textSecondary)
+            .padding(.vertical, 2)
+            .padding(.horizontal, 9)
+            .background(
+                Capsule().fill(AppColors.windowBackground)
+            )
+            .overlay(Capsule().strokeBorder(AppColors.border, lineWidth: 1))
+    }
+
     private func downloadButton(action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 6) {
@@ -466,13 +480,20 @@ struct ModelsSettingsView: View {
             )
             .padding(.horizontal, 20)
 
-            // Speaker diarization is the design-featured helper; also show VAD.
-            // Streaming stays available for existing users (no text-corrector row).
+            // Required helpers first: they are part of setting Pindrop up, and a
+            // person reading this list should see what is not a choice before
+            // what is.
             ForEach(helperFeatures, id: \.id) { feature in
                 featureRowCard(feature)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 8)
             }
+
+            Text(localized("Required helpers download when you set Pindrop up. Pindrop fetches a missing one the next time it opens.", locale: locale))
+                .font(AppTypography.label)
+                .foregroundStyle(AppColors.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 20)
         }
         .padding(.top, 8)
     }
@@ -493,6 +514,10 @@ struct ModelsSettingsView: View {
 
                     if isActive {
                         activeBadge
+                    }
+
+                    if feature.isRequired {
+                        requiredBadge
                     }
                 }
 

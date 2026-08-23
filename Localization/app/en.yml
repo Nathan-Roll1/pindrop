@@ -72,6 +72,7 @@ ai:
   model: "AI Model"
 all:
   _self: "All"
+  templates: "All templates…"
   time: "All time"
 also:
   new_rtl_layout_support_and_20_new_interface: "Also new: RTL layout support and 20 new interface languages."
@@ -341,6 +342,8 @@ delete:
   transcription_f82187c4: "Delete transcription?"
 destinations:
   _self: "Destinations"
+detected:
+  from_the_recording_renames_apply_to_the: "Detected from the recording. Renames apply to the transcript and future notes."
 diarization:
   _self: "Speaker diarization"
   automatic: "Automatic"
@@ -423,6 +426,7 @@ english:
 enhanced:
   _self: "Enhanced"
   note: "Enhanced note"
+  notes: "Enhanced notes"
 enhancement:
   prompts: "Enhancement Prompts"
 enhancing:
@@ -439,6 +443,8 @@ european:
   multilingual: "European multilingual"
 excellent:
   _self: "Excellent"
+expect:
+  1: "Expect: %1$@"
 export:
   _self: "Export"
   as_csv: "Export as CSV"
@@ -503,6 +509,8 @@ format:
   text_appropriately: "Format text appropriately"
 french:
   _self: "French"
+from:
+  the_transcript: "From the transcript"
 general:
   _self: "General"
 generated:
@@ -757,6 +765,7 @@ new:
   folder: "New Folder"
   note: "New Note"
   preset: "New Preset"
+  template: "New template"
 newest:
   _self: "Newest"
 next:
@@ -936,6 +945,7 @@ pindrop:
   _self: "Pindrop"
   1_19: "Pindrop 1.19"
   can_send_anonymous_privacy_preserving_si: "Pindrop can send anonymous, privacy-preserving signals so bugs get fixed faster."
+  did_not_match_this_voice_to_a_saved_spea: "Pindrop did not match this voice to a saved speaker, so there is no name to change yet."
   help: "Pindrop Help"
   is_ready_to_use_click_the_menu_bar_icon: |-
     Pindrop is ready to use.
@@ -947,6 +957,7 @@ pindrop:
     Your privacy is always respected.
   needs_accessibility_permission_to_insert: "\"\"             Pindrop needs Accessibility permission to insert text at your cursor.                          To grant permission:             1. Click \"Open System Settings\" below             2. Click the + button             3. Navigate to the app shown in Finder             4. Restart Pindrop after granting permission                          Without this permission, text will only be copied to your clipboard.             \"\""
   needs_microphone_access_to_record_and_tr: "Pindrop needs microphone access to record and transcribe your voice.nnPlease grant permission in System Settings."
+  needs_this_one_it_downloads_once: "Pindrop needs this one. It downloads once."
   on_github: "Pindrop on GitHub"
   orb: "Pindrop Orb"
   pill: "Pindrop Pill"
@@ -1112,6 +1123,7 @@ report:
 required:
   _self: "Required"
   for_recording_your_voice: "Required for recording your voice"
+  helpers_download_when_you_set_pindrop_u: "Required helpers download when you set Pindrop up. Pindrop fetches a missing one the next time it opens."
 requires:
   a_fast_provider_apple_foundation_models: "Requires a fast provider (Apple Foundation Models recommended). Cloud providers will issue one API call per pause."
   diarization_model: "Requires diarization model"
@@ -1196,6 +1208,7 @@ show:
   app_in_finder: "Show App in Finder"
   floating_indicator: "Show floating indicator"
   in_dock: "Show in Dock"
+  in_transcript: "Show in transcript"
   live_transcript: "Show live transcript"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
 shows:
@@ -1305,6 +1318,8 @@ tertiary:
 thanks:
   to_for_investigating_and_kicking_off_the: "Thanks to %@ for investigating and kicking off the fix (PR #64)."
   to_for_the_contribution_pr_61: "Thanks to %@ for the contribution (PR #61)."
+that:
+  speaker_profile_no_longer_exists_try_reopen: "That speaker profile no longer exists. Try reopening this note."
 the:
   audio_and_the_live_transcript_are_deleted_yo: "The audio and the live transcript are deleted. Your typed notes stay."
   enhanced_note_could_not_be_generated_try_aga: "The enhanced note could not be generated. Try again."
@@ -1675,6 +1690,8 @@ words:
   you_manually_correct_can_be_added_to_your: "Words you manually correct can be added to your vocabulary for future dictation."
 wpm:
   _self: "WPM"
+write:
+  this_note_again: "Write this note again"
 writing:
   your_enhanced_note_with: "Writing your enhanced note with %@."
   note: "Writing note"
@@ -1752,6 +1769,7 @@ tokens:
   in_out_thinking: "%@ in / %@ out / %@ thinking tokens"
 see:
   this_in_the_transcript: "See this in the transcript"
+  where_this_came_from: "See where this came from"
 templates:
   _self: "Templates"
 was:

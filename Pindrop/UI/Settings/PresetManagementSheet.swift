@@ -22,6 +22,12 @@ struct PresetManagementSheet: View {
     @State private var newName = ""
     @State private var newPrompt = ""
 
+    /// Opens straight on the create form, for callers whose action was "new
+    /// template" rather than "show me the templates".
+    init(startsCreating: Bool = false) {
+        _isCreating = State(initialValue: startsCreating)
+    }
+
     @State private var editingPresetID: UUID?
     @State private var editName = ""
     @State private var editPrompt = ""

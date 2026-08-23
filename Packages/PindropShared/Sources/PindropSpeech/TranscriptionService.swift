@@ -177,6 +177,7 @@ public final class TranscriptionService {
     public private(set) var error: Error?
     private var engine: (any TranscriptionEngine)?
     private var speakerDiarizer: (any SpeakerDiarizer)?
+    private var voiceActivityDetector: (any VoiceActivityDetector)?
     private var streamingEngine: (any StreamingTranscriptionEngine)?
 
     /// The live engine for the streaming session's audio pump. The pump runs on a
@@ -301,6 +302,7 @@ public final class TranscriptionService {
     private let engineFactory: @MainActor (ModelManager.ModelProvider) throws -> any TranscriptionEngine
     private let openAIAPIKeyProvider: @MainActor () throws -> String
     private let speakerDiarizerFactory: @MainActor (_ modelsDirectory: URL) -> any SpeakerDiarizer
+    private let voiceActivityDetectorFactory: @MainActor (_ modelsDirectory: URL) -> any VoiceActivityDetector
     private let streamingEngineFactory: @MainActor (_ profile: StreamingChunkProfile, _ modelsRoot: URL) -> any StreamingTranscriptionEngine
     private let appleSpeechEngineFactory: @MainActor () -> (any StreamingTranscriptionEngine)?
     private var streamingChunkProfileProvider: @MainActor () -> StreamingChunkProfile
@@ -325,6 +327,7 @@ public final class TranscriptionService {
             throw OpenAITranscriptionEngine.EngineError.apiKeyMissing
         },
         diarizerFactory: (@MainActor (_ modelsDirectory: URL) -> any SpeakerDiarizer)? = nil,
+        voiceActivityDetectorFactory: (@MainActor (_ modelsDirectory: URL) -> any VoiceActivityDetector)? = nil,
         streamingEngineFactory: (@MainActor (_ profile: StreamingChunkProfile, _ modelsRoot: URL) -> any StreamingTranscriptionEngine)? = nil,
         appleSpeechEngineFactory: (@MainActor () -> (any StreamingTranscriptionEngine)?)? = nil,
         streamingChunkProfileProvider: @escaping @MainActor () -> StreamingChunkProfile = { .standard },
@@ -341,6 +344,9 @@ public final class TranscriptionService {
         self.openAIAPIKeyProvider = openAIAPIKeyProvider
         self.speakerDiarizerFactory = diarizerFactory ?? { modelsDirectory in
             FluidSpeakerDiarizer(modelsDirectory: modelsDirectory)
+        }
+        self.voiceActivityDetectorFactory = voiceActivityDetectorFactory ?? { modelsDirectory in
+            FluidVoiceActivityDetector(modelsDirectory: modelsDirectory)
         }
         self.streamingEngineFactory = streamingEngineFactory ?? { profile, modelsRoot in
             NemotronStreamingEngine(
@@ -663,11 +669,18 @@ public final class TranscriptionService {
     /// Transcribes one durable meeting chunk. The file is validated and read in
     /// bounded blocks before ASR; optional diarization can never replace a
     /// successfully produced plain transcript.
+    /// - Parameter paragraphSegmentationEnabled: Cuts the chunk into paragraphs
+    ///   at the pauses a voice activity detector hears. It applies only when
+    ///   diarization is off, which is exactly the single-speaker case that has
+    ///   no other structure to read. A missing or failing VAD model leaves the
+    ///   chunk as one block: paragraph breaks are enrichment, never a reason to
+    ///   fail a finished recording.
     public func transcribeMeetingChunk(
         _ input: TranscriptionChunkInput,
         options: TranscriptionOptions = .init(),
         diarizationOptions: PindropCore.DiarizationOptions = .init(),
-        diarizationEnabled: Bool = true
+        diarizationEnabled: Bool = true,
+        paragraphSegmentationEnabled: Bool = false
     ) async throws -> TranscriptionChunkOutput {
         try Task.checkCancellation()
         if diarizationEnabled {
@@ -700,6 +713,15 @@ public final class TranscriptionService {
                     audioData: audioData,
                     options: options,
                     diarizationOptions: diarizationOptions
+                )
+            } else if paragraphSegmentationEnabled {
+                diarization = (
+                    await paragraphSegments(
+                        text: plainText,
+                        audioData: audioData,
+                        chunkDuration: input.duration
+                    ),
+                    nil
                 )
             } else {
                 diarization = (nil, nil)
@@ -870,6 +892,58 @@ public final class TranscriptionService {
         } catch {
             return (nil, "Speaker diarization unavailable: \(error.localizedDescription)")
         }
+    }
+
+    /// The paragraph spans of one single-speaker chunk, or nil when the chunk
+    /// reads as one block.
+    ///
+    /// Nil is the ordinary answer for short chunks, for chunks with no pause in
+    /// them, and for every install that does not have the VAD model on disk.
+    /// Nothing here can fail a capture: a recording that finished is worth more
+    /// than the paragraph breaks inside it.
+    private func paragraphSegments(
+        text: String,
+        audioData: Data,
+        chunkDuration: TimeInterval
+    ) async -> [DiarizedTranscriptSegment]? {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        do {
+            try Task.checkCancellation()
+            let samples = await Self.floatSamples(from: audioData)
+            try Task.checkCancellation()
+            let detector = getOrCreateVoiceActivityDetector()
+            try await detector.loadModel()
+            try Task.checkCancellation()
+            let speech = try await detector.segmentSpeech(
+                in: samples,
+                sampleRate: Self.sampleRate
+            )
+            try Task.checkCancellation()
+            return SpeechParagraphSegmentation.paragraphSegments(
+                text: text,
+                voiceSegments: speech,
+                chunkDuration: chunkDuration
+            )
+        } catch {
+            Log.transcription.info(
+                "Paragraph segmentation skipped: \(error.localizedDescription)"
+            )
+            return nil
+        }
+    }
+
+    private func getOrCreateVoiceActivityDetector() -> any VoiceActivityDetector {
+        if let voiceActivityDetector {
+            return voiceActivityDetector
+        }
+        let created = voiceActivityDetectorFactory(
+            storageLocations.fluidAudioModelsRoot
+                .appendingPathComponent(FeatureModelType.vad.repoFolderName, isDirectory: true)
+        )
+        voiceActivityDetector = created
+        return created
     }
 
     private func materializeMeetingChunk(_ input: TranscriptionChunkInput) throws -> Data {

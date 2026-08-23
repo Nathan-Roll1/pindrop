@@ -1797,6 +1797,7 @@ final class AppCoordinator {
 
         updateVibeRuntimeStateFromSettings()
         applyMCPServerSettings()
+        fetchMissingRequiredFeatureModels()
         prewarmStreamingEngineIfEnabled()
         scheduleMeetingRecovery()
         Log.boot.info("startNormalOperation complete")
@@ -1875,6 +1876,35 @@ final class AppCoordinator {
     /// the recording indicator is animating in. `prepareStreamingEngine` coalesces
     /// concurrent callers, so a session that starts mid-prewarm awaits this same
     /// load rather than failing over to batch.
+    /// Fetches the required helper models an install is missing.
+    ///
+    /// Live transcription and voice activity detection became part of setting
+    /// the app up, so an install from before that has to catch up. It runs in
+    /// the background at low priority: nothing on screen waits for it, and a
+    /// launch with no network simply tries again next time. Tests never
+    /// download anything.
+    private func fetchMissingRequiredFeatureModels() {
+        guard !Self.isRunningTests else { return }
+        Task(priority: .utility) { [weak self] in
+            guard let self else { return }
+            await self.modelManager.refreshDownloadedFeatureModels()
+            let missing = self.modelManager.missingRequiredFeatureModels(
+                streamingChunkProfile: self.settingsStore.streamingChunkProfile
+            )
+            guard !missing.isEmpty else { return }
+            Log.boot.info("Fetching required feature models: \(missing.map(\.rawValue))")
+            let failures = await self.modelManager.downloadMissingRequiredFeatureModels(
+                streamingChunkProfile: self.settingsStore.streamingChunkProfile
+            )
+            await self.modelManager.refreshDownloadedFeatureModels()
+            for failure in failures {
+                Log.model.error(
+                    "Required feature model \(failure.type.rawValue) is still missing: \(failure.error.localizedDescription)"
+                )
+            }
+        }
+    }
+
     private func prewarmStreamingEngineIfEnabled() {
         guard settingsStore.streamingFeatureEnabled else { return }
         Task(priority: .utility) { [weak self] in

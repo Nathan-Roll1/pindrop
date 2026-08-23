@@ -129,6 +129,52 @@ struct NotePageSegment: Equatable, Sendable, Identifiable {
     var id: CaptureNoteViewKind { kind }
 }
 
+/// One chip of the Round B view switcher: a segment, plus what the chip draws.
+struct NoteViewChipState: Equatable, Sendable, Identifiable {
+    let kind: CaptureNoteViewKind
+    let isEnabled: Bool
+    let indicator: NotePageSegmentIndicator?
+    /// Why the chip cannot be picked yet.
+    let helpText: String?
+    /// This chip is the view on screen.
+    let isSelected: Bool
+    /// Clicking the chip opens the Enhanced dropdown instead of switching view.
+    /// Only ever true for the selected Enhanced chip.
+    let opensMenu: Bool
+    let systemImage: String
+
+    var id: CaptureNoteViewKind { kind }
+}
+
+// MARK: - Speakers popover
+
+/// One speaker of a finished transcript, as the popover lists them.
+///
+/// There is no separate "you" caption: the transcript already names the person
+/// recording "You", so a caption saying the same word beside it would only be
+/// noise. The accent dot marks the row for readers who skim the colors.
+struct NoteSpeakerRow: Equatable, Sendable, Identifiable {
+    /// The speaker key the transcript groups turns by.
+    let id: String
+    let name: String
+    let isCurrentUser: Bool
+    /// The participant profile that named this speaker, when one did. A speaker
+    /// with no profile carries a generic number that nothing durable can rename.
+    let profileID: UUID?
+
+    /// A name can only be changed where a profile owns it.
+    var canRename: Bool { profileID != nil }
+}
+
+/// The "n speakers" popover, decided once.
+struct NoteSpeakersPopoverContent: Equatable, Sendable {
+    let title: String
+    /// Total recording length, in the mono slot beside the overline.
+    let durationText: String
+    let rows: [NoteSpeakerRow]
+    let caption: String
+}
+
 /// What the header rail can offer.
 struct NotePageHeaderActions: Equatable, Sendable {
     /// Shown only when no capture is attached to this note.
@@ -230,6 +276,106 @@ enum NotePagePresentation {
     /// A note with nothing but typed text shows no toggle at all.
     static func isToggleVisible(state: NotePageState, locale: Locale) -> Bool {
         segments(state: state, locale: locale).count > 1
+    }
+
+    // MARK: Chips
+
+    /// The chips, in segment order.
+    ///
+    /// `canOpenEnhancedMenu` is the one thing the chips cannot work out for
+    /// themselves: a legacy panel has no templates to offer, so its chip stays a
+    /// plain switch with no chevron and no dropdown.
+    static func chips(
+        state: NotePageState,
+        selection: CaptureNoteViewKind,
+        canOpenEnhancedMenu: Bool = false,
+        locale: Locale
+    ) -> [NoteViewChipState] {
+        segments(state: state, locale: locale).map { segment in
+            let isSelected = segment.kind == selection && segment.isEnabled
+            return NoteViewChipState(
+                kind: segment.kind,
+                isEnabled: segment.isEnabled,
+                indicator: segment.indicator,
+                helpText: segment.helpText,
+                isSelected: isSelected,
+                opensMenu: segment.kind == .enhanced && isSelected && canOpenEnhancedMenu,
+                systemImage: chipIcon(segment.kind)
+            )
+        }
+    }
+
+    /// Round B glyphs: text lines, sparkle, microphone.
+    static func chipIcon(_ kind: CaptureNoteViewKind) -> String {
+        switch kind {
+        case .humanNotes: "text.alignleft"
+        case .enhanced: "sparkles"
+        case .transcript: "mic"
+        }
+    }
+
+    // MARK: Speakers
+
+    /// What the speakers chip reads.
+    ///
+    /// A finished transcript knows how many people it heard, so it says so.
+    /// Before that there is only the count the person asked for, or none.
+    static func speakersChipTitle(
+        speakerCount: Int,
+        expectedSpeakerCount: Int?,
+        locale: Locale
+    ) -> String {
+        if speakerCount > 0 {
+            return speakerCountLabel(speakerCount, locale: locale)
+        }
+        let value = expectedSpeakerCount.map(String.init)
+            ?? localized("Auto", locale: locale)
+        return String(format: localized("Speakers: %1$@", locale: locale), value)
+    }
+
+    /// The speakers behind a transcript, in the order they were first heard.
+    static func speakersPopover(
+        segments: [TranscriptSegmentSnapshot],
+        duration: TimeInterval,
+        locale: Locale
+    ) -> NoteSpeakersPopoverContent {
+        var rows: [NoteSpeakerRow] = []
+        var seen: Set<String> = []
+        for segment in segments {
+            let key = segment.speakerKey ?? "_"
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            rows.append(
+                NoteSpeakerRow(
+                    id: key,
+                    name: TranscriptSegmentPresentation.speakerName(
+                        isCurrentUser: segment.isCurrentUser,
+                        speakerNumber: segment.speakerNumber,
+                        speakerLabel: segment.speakerLabel,
+                        locale: locale
+                    ),
+                    isCurrentUser: segment.isCurrentUser,
+                    profileID: segment.speakerProfileID
+                )
+            )
+        }
+        return NoteSpeakersPopoverContent(
+            title: localized("Speakers", locale: locale),
+            durationText: NoteRowPresentation.elapsedText(duration),
+            rows: rows,
+            caption: localized(
+                "Detected from the recording. Renames apply to the transcript and future notes.",
+                locale: locale
+            )
+        )
+    }
+
+    /// Why a generic speaker cannot be renamed here.
+    static func renameUnavailableHelpText(locale: Locale) -> String {
+        localized(
+            "Pindrop did not match this voice to a saved speaker, so there is no name to change yet.",
+            locale: locale
+        )
     }
 
     /// The view to draw, given the one the person picked.

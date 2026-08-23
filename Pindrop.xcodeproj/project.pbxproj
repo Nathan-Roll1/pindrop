@@ -31,7 +31,8 @@
 		WP4CAPTUREBARTESTBUILD001 /* CaptureBarPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP4CAPTUREBARTESTFILE0001 /* CaptureBarPresentationTests.swift */; };
 		WP3NOTEPAGEPRESBUILD01A2 /* NotePagePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP3NOTEPAGEPRESFILE01A2B /* NotePagePresentation.swift */; };
 		WP3MDGRAMMARBUILD01A2B3 /* MarkdownBlockGrammar.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP3MDGRAMMARFILE01A2B3C4 /* MarkdownBlockGrammar.swift */; };
-		WP3SEGTOGGLEBUILD01A2B3 /* SegmentedViewToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP3SEGTOGGLEFILE01A2B3C4 /* SegmentedViewToggle.swift */; };
+		WP3VIEWCHIPSBUILD01A2B3 /* NoteViewChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP3VIEWCHIPSFILE01A2B3C4 /* NoteViewChips.swift */; };
+		RBSPEAKERPOPBUILD00000001 /* NoteSpeakersPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = RBSPEAKERPOPFILE000000001 /* NoteSpeakersPopover.swift */; };
 		WP0DIARNOTICEBUILD01A2B3 /* DiarizationSetupNotice.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP0DIARNOTICEFILE01A2B3C /* DiarizationSetupNotice.swift */; };
 		SCORCHSECTHDRBUILDSECTIONHEADE /* SectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCORCHSECTHDRFILESECTIONHEADE /* SectionHeader.swift */; };
 		SCORCHLIBROWBUILDLIBRARYROWCH /* LibraryRowChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCORCHLIBROWFILELIBRARYROWCH /* LibraryRowChrome.swift */; };
@@ -309,7 +310,8 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		WP4CAPTUREBARTESTFILE0001 /* CaptureBarPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureBarPresentationTests.swift; sourceTree = "<group>"; };
 		WP3NOTEPAGEPRESFILE01A2B /* NotePagePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotePagePresentation.swift; sourceTree = "<group>"; };
 		WP3MDGRAMMARFILE01A2B3C4 /* MarkdownBlockGrammar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlockGrammar.swift; sourceTree = "<group>"; };
-		WP3SEGTOGGLEFILE01A2B3C4 /* SegmentedViewToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedViewToggle.swift; sourceTree = "<group>"; };
+		WP3VIEWCHIPSFILE01A2B3C4 /* NoteViewChips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteViewChips.swift; sourceTree = "<group>"; };
+		RBSPEAKERPOPFILE000000001 /* NoteSpeakersPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSpeakersPopover.swift; sourceTree = "<group>"; };
 		WP0DIARNOTICEFILE01A2B3C /* DiarizationSetupNotice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiarizationSetupNotice.swift; sourceTree = "<group>"; };
 		SCORCHSECTHDRFILESECTIONHEADE /* SectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionHeader.swift; sourceTree = "<group>"; };
 		SCORCHLIBROWFILELIBRARYROWCH /* LibraryRowChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryRowChrome.swift; sourceTree = "<group>"; };
@@ -929,7 +931,8 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				WP6ENHBODYFILE0000000001 /* EnhancedNoteBody.swift */,
 				WP5LIVESHEETFILE000000001 /* LiveTranscriptSheet.swift */,
 				WP5PLAYBARFILE00000000001 /* TranscriptPlaybackBar.swift */,
-				WP3SEGTOGGLEFILE01A2B3C4 /* SegmentedViewToggle.swift */,
+				WP3VIEWCHIPSFILE01A2B3C4 /* NoteViewChips.swift */,
+				RBSPEAKERPOPFILE000000001 /* NoteSpeakersPopover.swift */,
 			);
 			path = Scorched;
 			sourceTree = "<group>";
@@ -1369,7 +1372,8 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				WP3NOTEPAGEPRESBUILD01A2 /* NotePagePresentation.swift in Sources */,
 				WP6ENHPRESBUILD000000001 /* EnhancedViewPresentation.swift in Sources */,
 				WP3MDGRAMMARBUILD01A2B3 /* MarkdownBlockGrammar.swift in Sources */,
-				WP3SEGTOGGLEBUILD01A2B3 /* SegmentedViewToggle.swift in Sources */,
+				WP3VIEWCHIPSBUILD01A2B3 /* NoteViewChips.swift in Sources */,
+				RBSPEAKERPOPBUILD00000001 /* NoteSpeakersPopover.swift in Sources */,
 				WP0DIARNOTICEBUILD01A2B3 /* DiarizationSetupNotice.swift in Sources */,
 				SCORCHSECTHDRBUILDSECTIONHEADE /* SectionHeader.swift in Sources */,
 				SCORCHLIBROWBUILDLIBRARYROWCH /* LibraryRowChrome.swift in Sources */,

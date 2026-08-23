@@ -133,6 +133,13 @@ struct NotePageView: View {
     /// The templates the menu offers, in their stored order.
     @State private var templatePresets: [TemplateMenuPreset] = []
     @State private var isPresetSheetPresented = false
+    /// True when the preset sheet was opened to make a template, not to read the
+    /// list of them.
+    @State private var presetSheetStartsCreating = false
+    /// The chip whose dropdown is open. Only the Enhanced chip has one.
+    @State private var openChipMenu: CaptureNoteViewKind?
+    @State private var isSpeakersPopoverPresented = false
+    @State private var isTitleHovering = false
 
     // MARK: Transcript view state
 
@@ -298,7 +305,7 @@ struct NotePageView: View {
             flushOnLeaving()
         }
         .sheet(isPresented: $isPresetSheetPresented, onDismiss: refreshTemplatePresets) {
-            PresetManagementSheet()
+            PresetManagementSheet(startsCreating: presetSheetStartsCreating)
         }
         .confirmationDialog(
             localized("Delete this transcript?", locale: locale),
@@ -502,15 +509,38 @@ struct NotePageView: View {
 
     // MARK: - Title
 
+    /// The title, with the quiet pencil that says it can be typed into.
+    ///
+    /// The glyph is a hint, not a control: it goes as soon as the field has
+    /// focus, because by then the caret is saying the same thing.
     private var titleField: some View {
-        TextField(localized("Note Title", locale: locale), text: $title)
-            .font(AppTypography.pageTitle)
-            .tracking(AppTypography.pageTitleTracking)
-            .foregroundStyle(AppColors.textPrimary)
-            .textFieldStyle(.plain)
-            .focused($titleFieldFocused)
-            .padding(.leading, textColumnInset)
-            .accessibilityIdentifier("note.page.title")
+        HStack(spacing: 10) {
+            TextField(localized("Note Title", locale: locale), text: $title)
+                .font(AppTypography.pageTitle)
+                .tracking(AppTypography.pageTitleTracking)
+                .foregroundStyle(AppColors.textPrimary)
+                .textFieldStyle(.plain)
+                .focused($titleFieldFocused)
+                // Only the resting title hugs its text, so the pencil can sit
+                // right after the words. A focused field takes the row back and
+                // keeps scrolling while a long title is typed. The text is
+                // leading-aligned either way, so nothing moves on screen.
+                .fixedSize(horizontal: !titleFieldFocused, vertical: false)
+                .accessibilityIdentifier("note.page.title")
+
+            if !titleFieldFocused {
+                Image(systemName: "pencil")
+                    .font(.system(size: 15))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .opacity(isTitleHovering ? 0.45 : 0)
+                    .accessibilityHidden(true)
+
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(.leading, textColumnInset)
+        .onHover { isTitleHovering = $0 }
+        .appAnimation(.fast, value: isTitleHovering)
     }
 
     // MARK: - Meta chips
@@ -518,16 +548,12 @@ struct NotePageView: View {
     private var metaChipRow: some View {
         HStack(spacing: 8) {
             if NotePagePresentation.isToggleVisible(state: pageState, locale: locale) {
-                viewToggle
+                viewChips
             }
 
-            if EnhancedViewPresentation.showsTemplateMenu(
-                panel: currentPanel,
-                selection: resolvedSelection
-            ) {
-                templateMenu
-            } else if resolvedSelection == .enhanced,
-                      let label = enhancedPresentation.readOnlyLabel {
+            if !canOpenEnhancedMenu,
+               resolvedSelection == .enhanced,
+               let label = enhancedPresentation.readOnlyLabel {
                 readOnlyTemplateChip(label)
             }
 
@@ -571,17 +597,44 @@ struct NotePageView: View {
         }
     }
 
-    private var templateMenu: some View {
-        TemplateMenuButton(
-            templateName: currentPanel?.templateDisplayName
-                ?? localized("Enhanced note", locale: locale),
-            items: EnhancedViewPresentation.templateMenuItems(
+    /// The Enhanced chip's dropdown is only offered where it can be honored: a
+    /// panel this build wrote, which can be regenerated into another template.
+    private var canOpenEnhancedMenu: Bool {
+        EnhancedViewPresentation.showsTemplateMenu(
+            panel: currentPanel,
+            selection: resolvedSelection
+        )
+    }
+
+    private var enhancedMenu: some View {
+        EnhancedMenuPanel(
+            content: EnhancedViewPresentation.menu(
                 presets: templatePresets,
-                selected: currentPanel?.templatePresetIdentifier
+                selected: currentPanel?.templatePresetIdentifier,
+                locale: locale
             ),
             isBusy: isGeneratingPanel,
-            onSelect: selectTemplate,
-            onManage: { isPresetSheetPresented = true }
+            onSelectTemplate: { identifier in
+                openChipMenu = nil
+                selectTemplate(identifier)
+            },
+            onRegenerate: {
+                openChipMenu = nil
+                regeneratePanel(
+                    templatePresetIdentifier: currentPanel?.templatePresetIdentifier
+                        ?? selectedTemplateIdentifier
+                )
+            },
+            onManageTemplates: {
+                openChipMenu = nil
+                presetSheetStartsCreating = false
+                isPresetSheetPresented = true
+            },
+            onNewTemplate: {
+                openChipMenu = nil
+                presetSheetStartsCreating = true
+                isPresetSheetPresented = true
+            }
         )
     }
 
@@ -603,25 +656,35 @@ struct NotePageView: View {
         .accessibilityIdentifier("note.page.enhanced.readOnly")
     }
 
-    private var viewToggle: some View {
-        SegmentedViewToggle(
-            segments: NotePagePresentation.segments(state: pageState, locale: locale).map { segment in
-                SegmentedViewToggle<CaptureNoteViewKind>.Segment(
-                    value: segment.kind,
-                    title: NotePagePresentation.viewTitle(segment.kind, locale: locale),
-                    isEnabled: segment.isEnabled,
-                    helpText: segment.helpText,
-                    indicator: segment.indicator.map { indicator in
+    private var viewChips: some View {
+        NoteViewChips(
+            chips: NotePagePresentation.chips(
+                state: pageState,
+                selection: resolvedSelection,
+                canOpenEnhancedMenu: canOpenEnhancedMenu,
+                locale: locale
+            ).map { chip in
+                NoteViewChips<CaptureNoteViewKind, AnyView>.Chip(
+                    value: chip.kind,
+                    title: NotePagePresentation.viewTitle(chip.kind, locale: locale),
+                    systemImage: chip.systemImage,
+                    isEnabled: chip.isEnabled,
+                    helpText: chip.helpText,
+                    indicator: chip.indicator.map { indicator in
                         switch indicator {
                         case .live: .live
                         case .ready: .ready
                         }
                     },
-                    accessibilityIdentifier: NotePagePresentation.accessibilityIdentifier(segment.kind)
+                    opensMenu: chip.opensMenu,
+                    accentsIconWhenSelected: chip.kind == .enhanced,
+                    accessibilityIdentifier: NotePagePresentation.accessibilityIdentifier(chip.kind)
                 )
             },
             selection: resolvedSelection,
-            onSelect: select
+            onSelect: select,
+            openMenuValue: $openChipMenu,
+            menuContent: { _ in AnyView(enhancedMenu) }
         )
         .accessibilityIdentifier("note.page.viewToggle")
     }
@@ -636,14 +699,10 @@ struct NotePageView: View {
         )
     }
 
+    /// The speakers chip: who the recording heard, and the way to correct a name.
     private var speakersChip: some View {
-        Menu {
-            Button(localized("Auto", locale: locale)) { expectedSpeakerCount = nil }
-            ForEach(2...8, id: \.self) { count in
-                Button(NotePagePresentation.speakerCountLabel(count, locale: locale)) {
-                    expectedSpeakerCount = count
-                }
-            }
+        Button {
+            isSpeakersPopoverPresented = true
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "person.2")
@@ -660,27 +719,30 @@ struct NotePageView: View {
             .padding(.horizontal, 10)
             .contentShape(Capsule(style: .continuous))
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
+        .buttonStyle(.plain)
+        .focusRing(.capsule)
         .overlay(Capsule(style: .continuous).strokeBorder(AppColors.border, lineWidth: 1))
-        .disabled(capturePhase.isActive)
-        .help(capturePhase.isActive
-              ? localized("Speakers are set when the recording starts.", locale: locale)
-              : "")
+        .popover(isPresented: $isSpeakersPopoverPresented, arrowEdge: .bottom) {
+            NoteSpeakersPopover(
+                content: NotePagePresentation.speakersPopover(
+                    segments: views?.transcript?.segments ?? [],
+                    duration: views?.transcript?.duration ?? 0,
+                    locale: locale
+                ),
+                expectedSpeakerCount: $expectedSpeakerCount,
+                isExpectedCountLocked: capturePhase.isActive,
+                onRename: renameSpeakerProfile
+            )
+        }
         .accessibilityIdentifier("note.page.speakers")
+        .accessibilityLabel(speakersChipTitle)
     }
 
     private var speakersChipTitle: String {
-        guard let expectedSpeakerCount else {
-            return String(
-                format: localized("Speakers: %1$@", locale: locale),
-                localized("Auto", locale: locale)
-            )
-        }
-        return String(
-            format: localized("Speakers: %1$@", locale: locale),
-            "\(expectedSpeakerCount)"
+        NotePagePresentation.speakersChipTitle(
+            speakerCount: views?.transcript?.speakerCount ?? 0,
+            expectedSpeakerCount: expectedSpeakerCount,
+            locale: locale
         )
     }
 
@@ -802,17 +864,8 @@ struct NotePageView: View {
 
                 EnhancedNoteBody(
                     presentation: enhancedPresentation,
-                    onFollowCitation: { followCitation(segmentID: $0.segmentID) }
+                    onFollowSource: { followCitation(segmentID: $0.segmentID) }
                 )
-
-                if let sourcesTitle = enhancedPresentation.sourcesTitle {
-                    EnhancedSourcesDisclosure(
-                        title: sourcesTitle,
-                        hint: enhancedPresentation.sourcesHint,
-                        sources: enhancedPresentation.sources,
-                        onFollow: { followCitation(segmentID: $0.segmentID) }
-                    )
-                }
 
                 if !enhancedPresentation.isReadOnly {
                     EnhancedPanelFeedbackRow(feedback: panel.feedback, onRate: ratePanel)
@@ -1312,6 +1365,30 @@ struct NotePageView: View {
             withAnimation(reduceMotion ? nil : AppTheme.Animation.normal) {
                 citationJump = nil
             }
+        }
+    }
+
+    /// Changes the name behind one speaker.
+    ///
+    /// The name a note shows for a speaker comes from the participant profile
+    /// diarization matched, the same profile the Library detail page assigns. So
+    /// a rename here is a rename of that profile: this transcript and every
+    /// future note that matches the same voice read the new name.
+    private func renameSpeakerProfile(profileID: UUID, name: String) {
+        let service = SpeakerIdentityService(modelContext: modelContext)
+        do {
+            guard let profile = try service.fetchAllProfiles().first(where: { $0.id == profileID })
+            else {
+                errorMessage = localized(
+                    "That speaker profile no longer exists. Try reopening this note.",
+                    locale: locale
+                )
+                return
+            }
+            try service.renameProfile(profile, to: name)
+            Task { await refreshViews() }
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 

@@ -120,6 +120,17 @@ public final class StreamingRefinementCoordinator {
     /// Last string we handed to the output sink. Used to suppress redundant updates.
     private var currentlyDisplayed = ""
 
+    /// The two halves exactly as the sink last received them.
+    ///
+    /// The composed display is not enough to decide whether the sink is up to
+    /// date. Promoting the tentative tail wholesale (idle commit, stop drain)
+    /// leaves the composition byte-identical while the split moves, and a sink
+    /// that draws the two halves in separate places would keep the old tail
+    /// beside the same words in the committed half. That is the last few words
+    /// appearing twice the moment a person stops talking.
+    private var deliveredCommitted = ""
+    private var deliveredTentative = ""
+
     /// Last committed string delivered to the observer. Kept separately from display state
     /// because display updates may contain tentative text.
     private var lastObservedCommittedText = ""
@@ -162,6 +173,8 @@ public final class StreamingRefinementCoordinator {
         committedText = ""
         tentativeTail = ""
         currentlyDisplayed = ""
+        deliveredCommitted = ""
+        deliveredTentative = ""
         lastObservedCommittedText = ""
         idleCommitTask?.cancel()
         idleCommitTask = nil
@@ -385,9 +398,22 @@ public final class StreamingRefinementCoordinator {
         recomputeTentativeTail()
         let displayed = Self.composeDisplay(committed: committedText, tentative: tentativeTail)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard displayed != currentlyDisplayed else { return }
-        stabilityMetrics.recordDisplayUpdate(displayed)
-        currentlyDisplayed = displayed
+        let displayChanged = displayed != currentlyDisplayed
+        // The sink is told about the split, so the split is what decides
+        // whether it is stale. A commit that only moves the tail across the
+        // boundary changes nothing about the composed text and everything
+        // about who owns those words.
+        let splitChanged = committedText != deliveredCommitted
+            || tentativeTail != deliveredTentative
+        guard displayChanged || splitChanged else { return }
+        if displayChanged {
+            // Stability is a fact about what the person reads, not about
+            // bookkeeping, so a split-only update is not a display update.
+            stabilityMetrics.recordDisplayUpdate(displayed)
+            currentlyDisplayed = displayed
+        }
+        deliveredCommitted = committedText
+        deliveredTentative = tentativeTail
         do {
             try await outputSink?.updateStreamingInsertion(
                 committed: committedText,

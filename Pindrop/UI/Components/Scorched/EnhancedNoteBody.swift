@@ -9,7 +9,7 @@
 //  Everything with a right answer is decided in `EnhancedViewPresentation`:
 //  which blocks exist, which citations survived resolution, what the sources
 //  say, and what picking a template has to do. These views draw those answers
-//  and nothing else, which is why a citation chip here can only ever point at a
+//  and nothing else, which is why a source peek here can only ever point at a
 //  span the transcript is already showing.
 //
 
@@ -19,11 +19,17 @@ import PindropData
 
 // MARK: - Body
 
-/// The generated note: sections, bullets, and the citations that survived.
+/// The generated note: sections, bullets, and the sources behind them.
 struct EnhancedNoteBody: View {
+    @Environment(\.locale) private var locale
+
     let presentation: EnhancedNotePresentation
-    /// Follows a citation to the transcript.
-    var onFollowCitation: ((EnhancedCitationChip) -> Void)?
+    /// Follows a source to the words it quotes.
+    var onFollowSource: ((EnhancedSourceRow) -> Void)?
+
+    /// The line whose peek is open. Only one at a time: the popover owns the
+    /// reader's attention while it is up.
+    @State private var peekedBlockID: Int?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -122,249 +128,301 @@ struct EnhancedNoteBody: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Hangs the block's citation chips off the end of its last line.
+    /// Wraps a line that has a resolved source in its peek affordance.
+    ///
+    /// A line that cites nothing is drawn exactly as it was: no wash, no
+    /// magnifier, nothing to click. The affordance is the promise that there is
+    /// something behind the words, so it only appears where there is.
     @ViewBuilder
     private func cited(
         _ block: EnhancedNoteBlock,
         @ViewBuilder content: () -> some View
     ) -> some View {
-        if block.citations.isEmpty {
-            content()
+        if let source = EnhancedViewPresentation.peekTarget(
+            for: block,
+            in: presentation.sources
+        ) {
+            EnhancedSourcePeekRow(
+                source: source,
+                isPeeking: Binding(
+                    get: { peekedBlockID == block.id },
+                    set: { isPeeking in
+                        if isPeeking {
+                            peekedBlockID = block.id
+                        } else if peekedBlockID == block.id {
+                            peekedBlockID = nil
+                        }
+                    }
+                ),
+                onFollow: { onFollowSource?(source) },
+                content: content
+            )
         } else {
-            HStack(alignment: .lastTextBaseline, spacing: 4) {
-                content()
-
-                ForEach(block.citations) { citation in
-                    EnhancedCitationChipView(
-                        citation: citation,
-                        action: { onFollowCitation?(citation) }
-                    )
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            content()
         }
     }
 }
 
-// MARK: - Citation chip
+// MARK: - Source peek
 
-/// One inline citation: the source number, and the way back to the words.
-struct EnhancedCitationChipView: View {
+/// One line of the panel that has words behind it.
+///
+/// Hover washes the line and shows the magnifier; the click opens the span the
+/// line was written from, with the way into the transcript beside it.
+struct EnhancedSourcePeekRow<Content: View>: View {
     @Environment(\.locale) private var locale
 
-    let citation: EnhancedCitationChip
-    var action: () -> Void
+    let source: EnhancedSourceRow
+    @Binding var isPeeking: Bool
+    var onFollow: () -> Void
+    @ViewBuilder let content: Content
+
+    @State private var isHovering = false
+
+    private var isWashed: Bool { isHovering || isPeeking }
 
     var body: some View {
-        Button(action: action) {
-            Text(citation.label)
-                .font(FontLoader.font(family: .jetbrainsMono, size: 10, weight: .semibold))
-                .foregroundStyle(AppColors.accent)
-                .monospacedDigit()
-                .environment(\.layoutDirection, .leftToRight)
-                .padding(.horizontal, 4)
-                .frame(minWidth: 16, minHeight: 16)
-                .background(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(AppColors.accentBackground)
-                )
-                .offset(y: -2)
-                .contentShape(Rectangle())
+        Button {
+            isPeeking = true
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                content
+
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .opacity(isWashed ? 1 : 0)
+                    .accessibilityHidden(true)
+            }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isWashed ? AppColors.windowBackground : Color.clear)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
         .buttonStyle(.plain)
         .focusRing(.rounded(.sm))
-        .help(localized("See this in the transcript", locale: locale))
-        .accessibilityIdentifier("note.page.enhanced.citation")
-        .accessibilityLabel(
-            String(
-                format: localized("Transcript source %@", locale: locale),
-                citation.label
+        .onHover { isHovering = $0 }
+        .help(localized("See where this came from", locale: locale))
+        .accessibilityIdentifier("note.page.enhanced.peek")
+        .accessibilityHint(localized("See where this came from", locale: locale))
+        .popover(isPresented: $isPeeking, arrowEdge: .bottom) {
+            EnhancedSourcePeek(
+                source: source,
+                onFollow: {
+                    isPeeking = false
+                    onFollow()
+                }
             )
-        )
+        }
+        // The wash is a hover state, not a transition the reader has to wait on.
+        .appAnimation(.fast, value: isWashed)
     }
 }
 
-// MARK: - Sources
-
-/// The collapsed list of everything the note was written from.
-struct EnhancedSourcesDisclosure: View {
+/// The quoted span behind one line, and the way to it.
+struct EnhancedSourcePeek: View {
     @Environment(\.locale) private var locale
 
-    let title: String
-    let hint: String
-    let sources: [EnhancedSourceRow]
-    var onFollow: ((EnhancedSourceRow) -> Void)?
-
-    @State private var isExpanded = false
-    @Environment(\.layoutDirection) private var layoutDirection
-
-    private var disclosureRotation: Double {
-        layoutDirection == .rightToLeft ? -90 : 90
-    }
+    let source: EnhancedSourceRow
+    var onFollow: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                isExpanded.toggle()
-            } label: {
-                HStack(spacing: 6) {
-                    // `.forward` mirrors with the locale; the open rotation has
-                    // to turn the other way with it so the chevron still points
-                    // down at the list it opened.
-                    Image(systemName: "chevron.forward")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(AppColors.textTertiary)
-                        .rotationEffect(.degrees(isExpanded ? disclosureRotation : 0))
-
-                    Text(title)
-                        .font(AppTypography.label)
-                        .foregroundStyle(AppColors.textSecondary)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .focusRing(.rounded(.sm))
-            .accessibilityIdentifier("note.page.enhanced.sources")
-
-            if isExpanded {
-                Text(hint)
-                    .font(AppTypography.captionLarge)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text(EnhancedViewPresentation.peekTitle(locale: locale))
+                    .font(AppTypography.overline)
                     .foregroundStyle(AppColors.textTertiary)
+                    .textCase(.uppercase)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(sources) { source in
-                        sourceRow(source)
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .appAnimation(.fast, value: isExpanded)
-    }
-
-    private func sourceRow(_ source: EnhancedSourceRow) -> some View {
-        Button {
-            onFollow?(source)
-        } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(source.label)
-                    .font(FontLoader.font(family: .jetbrainsMono, size: 10, weight: .semibold))
-                    .foregroundStyle(AppColors.accent)
-                    .monospacedDigit()
-                    .environment(\.layoutDirection, .leftToRight)
-                    .padding(.horizontal, 4)
-                    .frame(minWidth: 16, minHeight: 16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
-                            .fill(AppColors.accentBackground)
-                    )
+                Spacer(minLength: 12)
 
                 Text(source.timestampText)
                     .font(AppTypography.monoSmall)
                     .foregroundStyle(AppColors.textTertiary)
                     .monospacedDigit()
                     .environment(\.layoutDirection, .leftToRight)
+            }
 
+            Text(source.text)
+                .font(FontLoader.font(family: .newsreader, size: 15))
+                .lineSpacing(7)
+                .foregroundStyle(AppColors.textSecondary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 8) {
                 if let speakerName = source.speakerName {
+                    Circle()
+                        .fill(speakerColor)
+                        .frame(width: 8, height: 8)
+                        .accessibilityHidden(true)
+
                     Text(speakerName)
                         .font(AppTypography.labelSemibold)
-                        .foregroundStyle(AppColors.textSecondary)
+                        .foregroundStyle(AppColors.textPrimary)
                 }
 
-                Text(source.text)
-                    .font(AppTypography.captionLarge)
-                    .foregroundStyle(AppColors.textTertiary)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 12)
+
+                Button(action: onFollow) {
+                    Text(EnhancedViewPresentation.peekJumpTitle(locale: locale))
+                        .font(AppTypography.labelSemibold)
+                        .foregroundStyle(AppColors.accent)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .focusRing(.rounded(.sm))
+                .accessibilityIdentifier("note.page.enhanced.peek.jump")
             }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .focusRing(.rounded(.sm))
-        .help(localized("See this in the transcript", locale: locale))
-        .accessibilityIdentifier("note.page.enhanced.source")
+        .padding(.vertical, 14)
+        .padding(.horizontal, 16)
+        .frame(width: 520, alignment: .leading)
+        .background(AppColors.contentBackground)
+        .accessibilityIdentifier("note.page.enhanced.peek.popover")
+    }
+
+    private var speakerColor: Color {
+        source.isCurrentUser
+            ? AppColors.accent
+            : LibrarySpeakerColor.color(for: source.speakerKey ?? "_")
     }
 }
 
-// MARK: - Template menu
+// MARK: - Enhanced dropdown
 
-/// The template this panel was written with, and the ones it could be.
-struct TemplateMenuButton: View {
+/// The merged dropdown the Enhanced chip opens: what this view is, which
+/// template wrote it, and the two ways to reach the rest of them.
+struct EnhancedMenuPanel: View {
     @Environment(\.locale) private var locale
 
-    /// The frozen label of the panel on screen.
-    let templateName: String
-    let items: [TemplateMenuItem]
+    let content: EnhancedMenuContent
     var isBusy = false
-    var onSelect: (String) -> Void
-    var onManage: () -> Void
-
-    private var builtInItems: [TemplateMenuItem] {
-        items.filter(\.isBuiltIn)
-    }
-
-    private var customItems: [TemplateMenuItem] {
-        items.filter { !$0.isBuiltIn }
-    }
+    var onSelectTemplate: (String) -> Void
+    var onRegenerate: () -> Void
+    var onManageTemplates: () -> Void
+    var onNewTemplate: () -> Void
 
     var body: some View {
-        Menu {
-            if !builtInItems.isEmpty {
-                Section(localized("Templates", locale: locale)) {
-                    ForEach(builtInItems) { item in
-                        menuItem(item)
-                    }
-                }
+        VStack(alignment: .leading, spacing: 0) {
+            header
+
+            hairline
+
+            Text(content.templatesTitle)
+                .font(AppTypography.overline)
+                .foregroundStyle(AppColors.textTertiary)
+                .textCase(.uppercase)
+                .padding(.top, 8)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 4)
+
+            ForEach(content.templates) { row in
+                menuRow(row)
             }
 
-            if !customItems.isEmpty {
-                Section(localized("Custom templates", locale: locale)) {
-                    ForEach(customItems) { item in
-                        menuItem(item)
-                    }
-                }
+            hairline
+
+            ForEach(content.actions) { row in
+                menuRow(row)
             }
-
-            Divider()
-
-            Button(localized("Manage templates…", locale: locale), action: onManage)
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: isBusy ? "sparkles.rectangle.stack" : "sparkles")
-                    .font(.system(size: 12))
-                    .foregroundStyle(AppColors.accent)
-
-                Text(templateName)
-                    .font(AppTypography.labelSemibold)
-                    .foregroundStyle(AppColors.textPrimary)
-                    .lineLimit(1)
-
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(AppColors.textTertiary)
-            }
-            .menuButtonChrome(verticalPadding: 5, horizontalPadding: 12)
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .accessibilityIdentifier("note.page.enhanced.template")
-        .accessibilityLabel(
-            String(format: localized("Template: %@", locale: locale), templateName)
-        )
+        .padding(6)
+        .frame(width: 236, alignment: .leading)
+        .background(AppColors.contentBackground)
+        .accessibilityIdentifier("note.page.enhanced.menu")
     }
 
-    @ViewBuilder
-    private func menuItem(_ item: TemplateMenuItem) -> some View {
-        Button {
-            onSelect(item.id)
-        } label: {
-            if item.isSelected {
-                Label(item.name, systemImage: "checkmark")
-            } else {
-                Text(item.name)
+    private var header: some View {
+        HStack(spacing: 8) {
+            Image(systemName: isBusy ? "sparkles.rectangle.stack" : "sparkles")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(AppColors.accent)
+
+            Text(content.headerTitle)
+                .font(AppTypography.labelStrongSelected)
+                .foregroundStyle(AppColors.textPrimary)
+
+            Spacer(minLength: 8)
+
+            Button(action: onRegenerate) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .focusRing(.rounded(.sm))
+            .disabled(isBusy)
+            .help(content.regenerateHelp)
+            .accessibilityLabel(content.regenerateHelp)
+            .accessibilityIdentifier("note.page.enhanced.menu.regenerate")
+
+            Image(systemName: "checkmark")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(AppColors.accent)
+                .accessibilityHidden(true)
         }
+        .padding(.vertical, 7)
+        .padding(.horizontal, 10)
+    }
+
+    private var hairline: some View {
+        Rectangle()
+            .fill(AppColors.border)
+            .frame(height: 1)
+            .padding(.vertical, 4)
+    }
+
+    private func menuRow(_ row: EnhancedMenuRow) -> some View {
+        Button {
+            switch row.action {
+            case .selectTemplate(let identifier): onSelectTemplate(identifier)
+            case .manageTemplates: onManageTemplates()
+            case .newTemplate: onNewTemplate()
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: row.systemImage)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(
+                        row.isSelected ? AppColors.accent : AppColors.textTertiary
+                    )
+                    .frame(width: 16, alignment: .center)
+
+                Text(row.title)
+                    .font(row.isSelected
+                          ? AppTypography.labelStrongSelected
+                          : AppTypography.labelStrong)
+                    .foregroundStyle(
+                        row.isSelected ? AppColors.textPrimary : AppColors.textSecondary
+                    )
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+
+                if row.isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(AppColors.accent)
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(.vertical, 7)
+            .padding(.horizontal, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(row.isSelected ? AppColors.accentBackground : Color.clear)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .focusRing(.rounded(.sm))
+        .accessibilityAddTraits(row.isSelected ? .isSelected : [])
+        .accessibilityIdentifier("note.page.enhanced.menu.row")
     }
 }
 
@@ -424,48 +482,82 @@ struct EnhancedPanelFeedbackRow: View {
 
 #Preview("Enhanced note") {
     let locale = Locale(identifier: "en")
+    let source = EnhancedSourceRow(
+        id: "C1",
+        label: "1",
+        timestampText: "00:12",
+        speakerName: "You",
+        speakerKey: "self",
+        isCurrentUser: true,
+        text: "\"We can stage it behind the schema version.\"",
+        segmentID: "a",
+        startOffset: 12
+    )
     let presentation = EnhancedNotePresentation(
         blocks: EnhancedViewPresentation.blocks(
             in: """
             ## Decisions
 
-            - Ship the migration behind the schema version.
+            - Ship the migration behind the schema version. [C1]
             - Keep audio retention at seven days.
 
             ## Next steps
 
             - Andrea writes the release note.
             """,
-            targets: [:]
+            targets: [
+                "C1": TranscriptSegmentSnapshot(
+                    id: "a",
+                    revisionID: UUID(),
+                    speakerKey: "self",
+                    speakerLabel: "You",
+                    isCurrentUser: true,
+                    text: "We can stage it behind the schema version.",
+                    startOffset: 12,
+                    duration: 4
+                )
+            ]
         ),
-        sources: [
-            EnhancedSourceRow(
-                id: "C1",
-                label: "1",
-                timestampText: "00:12",
-                speakerName: "You",
-                text: "\"We can stage it behind the schema version.\"",
-                segmentID: "a",
-                startOffset: 12
-            )
-        ],
-        sourcesTitle: "Sources (1)",
-        sourcesHint: "Click a number to see it in the transcript.",
+        sources: [source],
         isReadOnly: false,
         readOnlyLabel: nil
     )
 
     return VStack(alignment: .leading, spacing: 16) {
         EnhancedNoteBody(presentation: presentation)
-        EnhancedSourcesDisclosure(
-            title: presentation.sourcesTitle ?? "",
-            hint: presentation.sourcesHint,
-            sources: presentation.sources
-        )
+        EnhancedSourcePeek(source: source, onFollow: {})
     }
     .padding(40)
     .frame(width: 760)
     .background(AppColors.contentBackground)
     .environment(\.locale, locale)
+    .themeRefresh()
+}
+
+#Preview("Enhanced dropdown") {
+    EnhancedMenuPanel(
+        content: EnhancedViewPresentation.menu(
+            presets: [
+                TemplateMenuPreset(
+                    identifier: "meeting", name: "Meeting Notes", isBuiltIn: true, sortOrder: 0
+                ),
+                TemplateMenuPreset(
+                    identifier: "bullets", name: "Bullet Summary", isBuiltIn: true, sortOrder: 1
+                ),
+                TemplateMenuPreset(
+                    identifier: "mine", name: "Client recap", isBuiltIn: false, sortOrder: 0
+                )
+            ],
+            selected: "meeting",
+            locale: Locale(identifier: "en")
+        ),
+        onSelectTemplate: { _ in },
+        onRegenerate: {},
+        onManageTemplates: {},
+        onNewTemplate: {}
+    )
+    .padding(24)
+    .background(AppColors.windowBackground)
+    .environment(\.locale, Locale(identifier: "en"))
     .themeRefresh()
 }

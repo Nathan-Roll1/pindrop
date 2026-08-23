@@ -232,8 +232,6 @@ struct EnhancedViewPresentationTests {
         #expect(presentation.sources.map(\.label) == ["1", "2"])
         #expect(presentation.sources.map(\.segmentID) == ["span-a", "span-b"])
         #expect(presentation.sources.map(\.timestampText) == ["00:10", "00:30"])
-        #expect(presentation.sourcesTitle == "Sources (2)")
-        #expect(presentation.sourcesHint == "Click a number to see it in the transcript.")
     }
 
     @Test func aCitationWithNoSpanOnScreenIsNotOfferedAsASource() throws {
@@ -248,7 +246,30 @@ struct EnhancedViewPresentationTests {
         )
 
         #expect(presentation.sources.isEmpty)
-        #expect(presentation.sourcesTitle == nil)
+    }
+
+    @Test func aSourceCarriesWhatTheSpeakerDotNeeds() throws {
+        // Round B draws a speaker dot in the peek, colored by the same key the
+        // transcript turns use. The row has to carry it or the dot would invent
+        // a color of its own.
+        let panel = try makePanel(content: "- Ship it.")
+        let presentation = EnhancedViewPresentation.make(
+            panel: panel,
+            citations: [
+                citation("C1", start: 10, end: 14),
+                citation("C2", start: 30, end: 34)
+            ],
+            segments: [
+                segment(id: "span-a", start: 10, speakerLabel: "You", speakerNumber: nil, isCurrentUser: true),
+                segment(id: "span-b", start: 30)
+            ],
+            locale: locale
+        )
+
+        #expect(presentation.sources[0].isCurrentUser)
+        #expect(presentation.sources[0].speakerKey == "s1")
+        #expect(!presentation.sources[1].isCurrentUser)
+        #expect(presentation.sources[1].speakerKey == "s2")
     }
 
     @Test func aSourceNamesItsSpeakerTheWayTheTranscriptDoes() throws {
@@ -282,9 +303,9 @@ struct EnhancedViewPresentationTests {
         #expect(presentation.sources[0].text == "\"Line one\\nLine two\"")
     }
 
-    @Test func aChipIsOnlyDrawnWhenItsSourceResolvedToo() throws {
-        // One resolution pass answers both surfaces, so a panel can never show
-        // an inline number that the sources list does not explain.
+    @Test func aLineIsOnlyPeekableWhenItsSourceResolvedToo() throws {
+        // One resolution pass answers the line and the peek, so a panel can
+        // never offer a source it cannot open.
         let panel = try makePanel(content: "- Ship it. [C1] [C2]")
         let presentation = EnhancedViewPresentation.make(
             panel: panel,
@@ -298,6 +319,60 @@ struct EnhancedViewPresentationTests {
 
         #expect(presentation.sources.map(\.id) == ["C1"])
         #expect(presentation.blocks[0].citations.map(\.identifier) == ["C1"])
+
+        let peek = EnhancedViewPresentation.peekTarget(
+            for: presentation.blocks[0],
+            in: presentation.sources
+        )
+        #expect(peek?.id == "C1")
+        #expect(peek?.segmentID == "span-a")
+    }
+
+    // MARK: - Source peek
+
+    @Test func aLineThatCitesNothingHasNoPeek() throws {
+        // The shipping path: generation strips markers, so most lines cite
+        // nothing. Those lines get no wash, no magnifier, and nothing to click.
+        let panel = try makePanel(content: "- Ship it.")
+        let presentation = EnhancedViewPresentation.make(
+            panel: panel,
+            citations: [citation("C1", start: 10, end: 14)],
+            segments: [segment(id: "span-a", start: 10)],
+            locale: locale
+        )
+
+        #expect(presentation.sources.count == 1)
+        #expect(
+            EnhancedViewPresentation.peekTarget(
+                for: presentation.blocks[0],
+                in: presentation.sources
+            ) == nil
+        )
+    }
+
+    @Test func aLineWithTwoMarkersPeeksAtTheFirstThatResolved() throws {
+        let panel = try makePanel(content: "- Both agreed. [C1] [C2]")
+        let presentation = EnhancedViewPresentation.make(
+            panel: panel,
+            citations: [
+                citation("C1", start: 10, end: 14),
+                citation("C2", start: 30, end: 34)
+            ],
+            segments: [segment(id: "span-a", start: 10), segment(id: "span-b", start: 30)],
+            locale: locale
+        )
+
+        #expect(
+            EnhancedViewPresentation.peekTarget(
+                for: presentation.blocks[0],
+                in: presentation.sources
+            )?.id == "C1"
+        )
+    }
+
+    @Test func thePeekSaysWhereItCameFromAndHowToGetThere() {
+        #expect(EnhancedViewPresentation.peekTitle(locale: locale) == "From the transcript")
+        #expect(EnhancedViewPresentation.peekJumpTitle(locale: locale) == "Show in transcript")
     }
 
     @Test func noPanelIsAnEmptyView() {
@@ -305,7 +380,7 @@ struct EnhancedViewPresentationTests {
 
         #expect(presentation == .empty)
         #expect(presentation.blocks.isEmpty)
-        #expect(presentation.sourcesTitle == nil)
+        #expect(presentation.sources.isEmpty)
     }
 
     // MARK: - Legacy panels
@@ -445,7 +520,74 @@ struct EnhancedViewPresentationTests {
         #expect(EnhancedViewPresentation.label(for: "Chapter") == "Chapter")
     }
 
-    @Test func oneSourceStillCountsAsOne() {
-        #expect(EnhancedViewPresentation.sourcesTitle(1, locale: locale) == "Sources (1)")
+    // MARK: - The merged dropdown
+
+    private var dropdownPresets: [TemplateMenuPreset] {
+        [
+            preset("mine", "Client recap", isBuiltIn: false, sortOrder: 0),
+            preset("meeting", "Meeting Notes", isBuiltIn: true, sortOrder: 1),
+            preset("bullets", "Bullet Summary", isBuiltIn: true, sortOrder: 0)
+        ]
+    }
+
+    @Test func theDropdownKeepsTheMenuOrderAndChecksTheTemplateOnScreen() {
+        let menu = EnhancedViewPresentation.menu(
+            presets: dropdownPresets,
+            selected: "meeting",
+            locale: locale
+        )
+
+        #expect(menu.headerTitle == "Enhanced notes")
+        #expect(menu.templatesTitle == "Templates")
+        #expect(menu.templates.map(\.title) == ["Bullet Summary", "Meeting Notes", "Client recap"])
+        #expect(menu.templates.filter(\.isSelected).map(\.id) == ["meeting"])
+        #expect(menu.templates.map(\.action) == [
+            .selectTemplate("bullets"),
+            .selectTemplate("meeting"),
+            .selectTemplate("mine")
+        ])
+    }
+
+    @Test func theDropdownEndsWithTheTwoWaysIntoTheTemplateSheet() {
+        let menu = EnhancedViewPresentation.menu(
+            presets: dropdownPresets,
+            selected: nil,
+            locale: locale
+        )
+
+        #expect(menu.actions.map(\.title) == ["All templates…", "New template"])
+        #expect(menu.actions.map(\.action) == [.manageTemplates, .newTemplate])
+        #expect(menu.actions.allSatisfy { !$0.isSelected })
+    }
+
+    @Test func everyTemplateRowCarriesAGlyphAndCustomOnesReadAsDocuments() {
+        let menu = EnhancedViewPresentation.menu(
+            presets: dropdownPresets,
+            selected: nil,
+            locale: locale
+        )
+
+        #expect(menu.templates.allSatisfy { !$0.systemImage.isEmpty })
+        #expect(
+            EnhancedViewPresentation.templateGlyph(identifier: "mine", isBuiltIn: false)
+                == "doc.text"
+        )
+        #expect(
+            EnhancedViewPresentation.templateGlyph(identifier: "bullets", isBuiltIn: true)
+                == "list.bullet"
+        )
+        // A built-in this build has never heard of still gets a glyph slot.
+        #expect(
+            EnhancedViewPresentation.templateGlyph(identifier: "future", isBuiltIn: true)
+                == "sparkles"
+        )
+    }
+
+    @Test func aNoteWithNoTemplatesStillOffersTheWayToMakeOne() {
+        let menu = EnhancedViewPresentation.menu(presets: [], selected: nil, locale: locale)
+
+        #expect(menu.templates.isEmpty)
+        #expect(menu.actions.map(\.action) == [.manageTemplates, .newTemplate])
+        #expect(menu.regenerateHelp == "Write this note again")
     }
 }

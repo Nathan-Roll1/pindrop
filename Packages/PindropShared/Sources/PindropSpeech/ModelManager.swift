@@ -1306,6 +1306,55 @@ public final class ModelManager {
         return pldaCandidates.contains { fileManager.fileExists(atPath: $0.path) }
     }
 
+    /// The required feature models this install still has to fetch.
+    ///
+    /// Reads the state of a previous refresh, so callers refresh first. An
+    /// empty answer means the install is complete, which is the answer for
+    /// almost every launch after the first.
+    public func missingRequiredFeatureModels(
+        streamingChunkProfile: StreamingChunkProfile = .standard
+    ) -> [FeatureModelType] {
+        FeatureModelType.required.filter { type in
+            switch type {
+            case .streaming:
+                // The variant this install actually runs has to be the one on
+                // disk: the other one would load nothing.
+                return !isStreamingChunkVariantDownloaded(streamingChunkProfile)
+            default:
+                return !isFeatureModelDownloaded(type)
+            }
+        }
+    }
+
+    /// Fetches every required feature model that is missing, in order.
+    ///
+    /// One failure does not stop the rest: an install with live transcription
+    /// but no paragraph breaks is better than an install with neither. The
+    /// failures are returned so the caller can say what is still missing.
+    @discardableResult
+    public func downloadMissingRequiredFeatureModels(
+        streamingChunkProfile: StreamingChunkProfile = .standard,
+        onProgress: ((FeatureModelType, Double) -> Void)? = nil
+    ) async -> [(type: FeatureModelType, error: any Error)] {
+        var failures: [(type: FeatureModelType, error: any Error)] = []
+        for type in missingRequiredFeatureModels(streamingChunkProfile: streamingChunkProfile) {
+            if Task.isCancelled { break }
+            do {
+                try await downloadFeatureModel(
+                    type,
+                    streamingChunkProfile: streamingChunkProfile,
+                    onProgress: { progress in onProgress?(type, progress) }
+                )
+            } catch {
+                Log.model.error(
+                    "Required feature model \(type.rawValue) failed to download: \(error.localizedDescription)"
+                )
+                failures.append((type, error))
+            }
+        }
+        return failures
+    }
+
     public func refreshDownloadedFeatureModels() async {
         var downloaded: Set<FeatureModelType> = []
 

@@ -363,4 +363,73 @@ struct ModelManagerTests {
         FileManager.default.createFile(atPath: siblingPlda.path, contents: Data("{}".utf8))
         #expect(modelManager.isOfflineDiarizationModelsReady(at: root))
     }
+
+    // MARK: - Required feature models
+
+    @Test func liveTranscriptionAndVoiceDetectionAreRequiredAndDiarizationIsNot() {
+        #expect(FeatureModelType.required == [.vad, .streaming])
+        #expect(FeatureModelType.vad.isRequired)
+        #expect(FeatureModelType.streaming.isRequired)
+        #expect(!FeatureModelType.diarization.isRequired)
+    }
+
+    @Test func aFreshInstallIsMissingEveryRequiredFeatureModel() async throws {
+        try await withManagerAsync { modelManager, _ in
+            await modelManager.refreshDownloadedFeatureModels()
+
+            #expect(modelManager.missingRequiredFeatureModels() == [.vad, .streaming])
+        }
+    }
+
+    @Test func aRequiredFeatureModelOnDiskIsNoLongerMissing() async throws {
+        try await withManagerAsync { modelManager, root in
+            try FileManager.default.createDirectory(
+                at: root.appendingPathComponent(FeatureModelType.vad.repoFolderName),
+                withIntermediateDirectories: true
+            )
+            await modelManager.refreshDownloadedFeatureModels()
+
+            #expect(modelManager.missingRequiredFeatureModels() == [.streaming])
+        }
+    }
+
+    @Test func theStreamingVariantThisInstallRunsIsTheOneThatCounts() async throws {
+        try await withManagerAsync { modelManager, root in
+            try FileManager.default.createDirectory(
+                at: root.appendingPathComponent(StreamingChunkProfile.standard.repoFolderName),
+                withIntermediateDirectories: true
+            )
+            await modelManager.refreshDownloadedFeatureModels()
+
+            #expect(!modelManager.missingRequiredFeatureModels(streamingChunkProfile: .standard)
+                .contains(.streaming))
+            // A person running low-latency mode needs that export, not this one.
+            #expect(modelManager.missingRequiredFeatureModels(streamingChunkProfile: .lowLatency)
+                .contains(.streaming))
+        }
+    }
+
+    @Test func downloadingNothingReportsNoFailures() async throws {
+        try await withManagerAsync { modelManager, root in
+            for type in FeatureModelType.required {
+                try FileManager.default.createDirectory(
+                    at: root.appendingPathComponent(type.repoFolderName),
+                    withIntermediateDirectories: true
+                )
+            }
+            await modelManager.refreshDownloadedFeatureModels()
+
+            let failures = await modelManager.downloadMissingRequiredFeatureModels()
+
+            #expect(failures.isEmpty)
+        }
+    }
+
+    private func withManagerAsync<T>(
+        _ body: (ModelManager, URL) async throws -> T
+    ) async throws -> T {
+        let (locations, root) = try SpeechTestSupport.makeStorageLocations(label: "model-manager")
+        defer { try? FileManager.default.removeItem(at: root) }
+        return try await body(ModelManager(storageLocations: locations), locations.fluidAudioModelsRoot)
+    }
 }

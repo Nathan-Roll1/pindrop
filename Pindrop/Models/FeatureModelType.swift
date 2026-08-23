@@ -5,7 +5,7 @@
 //  Created on 2026-01-30.
 //
 //  Presentation helpers for PindropSpeech.FeatureModelType.
-//  Size, auto-enable, and repository folder mapping live in the package.
+//  Size, required-or-not, and repository folder mapping live in the package.
 //
 
 import Foundation
@@ -26,7 +26,7 @@ extension FeatureModelType {
     var description: String {
         switch self {
         case .vad:
-            return "Detects when you stop speaking for smarter recording cutoffs"
+            return "Hears when you stop speaking, so a recorded note breaks into paragraphs"
         case .diarization:
             return "Identifies different speakers in recordings"
         case .streaming:
