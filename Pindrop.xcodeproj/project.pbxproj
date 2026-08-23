@@ -44,6 +44,10 @@ NOTESPRESENTBUILD01A2B3C4D5 /* NotesPresentation.swift in Sources */ = {isa = PB
 DICTPRESENTBUILD01A2B3C4D5 /* DictionaryPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DICTPRESENTFILE01A2B3C4D5 /* DictionaryPresentation.swift */; };
 MODELSPRESENTBUILD01A2B3C4 /* ModelsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = MODELSPRESENTFILE01A2B3C4 /* ModelsPresentation.swift */; };
 NOTESPRESENTTESTBUILD01A2 /* NotesPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTESPRESENTTESTFILE01A2 /* NotesPresentationTests.swift */; };
+NOTEPAGEFIXTURETESTB01 /* NotePageFixtureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTEPAGEFIXTURETESTF01 /* NotePageFixtureTests.swift */; };
+L10NKEYRESTESTBUILD01A2 /* LocalizationKeyResolutionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = L10NKEYRESTESTFILE01A2 /* LocalizationKeyResolutionTests.swift */; };
+MENTIONREWRITETESTBUILD1 /* MentionRewriteServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = MENTIONREWRITETESTFILE1 /* MentionRewriteServiceTests.swift */; };
+PATHMENTIONRESTESTBUILD1 /* PathMentionResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PATHMENTIONRESTESTFILE1 /* PathMentionResolverTests.swift */; };
 DICTPRESENTTESTBUILD01A2B3 /* DictionaryPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DICTPRESENTTESTFILE01A2B3 /* DictionaryPresentationTests.swift */; };
 MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */; };
 		SCORCHPLAYERROWBUILDPLAYERROWSW /* PlayerRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCORCHPLAYERROWFILEPLAYERROWSW /* PlayerRow.swift */; };
@@ -317,6 +321,10 @@ NOTESPRESENTFILE01A2B3C4D5 /* NotesPresentation.swift */ = {isa = PBXFileReferen
 DICTPRESENTFILE01A2B3C4D5 /* DictionaryPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictionaryPresentation.swift; sourceTree = "<group>"; };
 MODELSPRESENTFILE01A2B3C4 /* ModelsPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsPresentation.swift; sourceTree = "<group>"; };
 NOTESPRESENTTESTFILE01A2 /* NotesPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesPresentationTests.swift; sourceTree = "<group>"; };
+NOTEPAGEFIXTURETESTF01 /* NotePageFixtureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotePageFixtureTests.swift; sourceTree = "<group>"; };
+L10NKEYRESTESTFILE01A2 /* LocalizationKeyResolutionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationKeyResolutionTests.swift; sourceTree = "<group>"; };
+MENTIONREWRITETESTFILE1 /* MentionRewriteServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MentionRewriteServiceTests.swift; sourceTree = "<group>"; };
+PATHMENTIONRESTESTFILE1 /* PathMentionResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathMentionResolverTests.swift; sourceTree = "<group>"; };
 DICTPRESENTTESTFILE01A2B3 /* DictionaryPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictionaryPresentationTests.swift; sourceTree = "<group>"; };
 MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsPresentationTests.swift; sourceTree = "<group>"; };
 		SCORCHPLAYERROWFILEPLAYERROWSW /* PlayerRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerRow.swift; sourceTree = "<group>"; };
@@ -804,6 +812,10 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				E0729D0116F8418084311F4C /* HistoryStoreTests.swift */,
 				LIBPRESENTTESTFILE01A2 /* LibraryPresentationTests.swift */,
 				NOTESPRESENTTESTFILE01A2 /* NotesPresentationTests.swift */,
+				NOTEPAGEFIXTURETESTF01 /* NotePageFixtureTests.swift */,
+				L10NKEYRESTESTFILE01A2 /* LocalizationKeyResolutionTests.swift */,
+				MENTIONREWRITETESTFILE1 /* MentionRewriteServiceTests.swift */,
+				PATHMENTIONRESTESTFILE1 /* PathMentionResolverTests.swift */,
 				DICTPRESENTTESTFILE01A2B3 /* DictionaryPresentationTests.swift */,
 				MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */,
 				HOMEPRESENTTESTFILE01A2 /* HomePresentationTests.swift */,
@@ -1194,6 +1206,10 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				6B2BB9C7EBDC41319789EF2F /* HistoryStoreTests.swift in Sources */,
 				LIBPRESENTTESTBUILD01A2 /* LibraryPresentationTests.swift in Sources */,
 				NOTESPRESENTTESTBUILD01A2 /* NotesPresentationTests.swift in Sources */,
+				NOTEPAGEFIXTURETESTB01 /* NotePageFixtureTests.swift in Sources */,
+				L10NKEYRESTESTBUILD01A2 /* LocalizationKeyResolutionTests.swift in Sources */,
+				MENTIONREWRITETESTBUILD1 /* MentionRewriteServiceTests.swift in Sources */,
+				PATHMENTIONRESTESTBUILD1 /* PathMentionResolverTests.swift in Sources */,
 				DICTPRESENTTESTBUILD01A2B3 /* DictionaryPresentationTests.swift in Sources */,
 				MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */,
 				HOMEPRESENTTESTBUILD01A2 /* HomePresentationTests.swift in Sources */,

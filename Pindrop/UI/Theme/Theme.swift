@@ -349,6 +349,11 @@ enum AppTypography {
     static let monoTimeMetrics = TypographyRoleMetrics(
         family: .jetbrainsMono, size: 12, weight: .medium, lineHeight: 16
     )
+    /// JetBrains Mono 13/17 · 500 — the elapsed clock on a page-sized capture
+    /// frame (Dictate action row), one notch above the row-time `monoTime`.
+    static let monoTimeLargeMetrics = TypographyRoleMetrics(
+        family: .jetbrainsMono, size: 13, weight: .medium, lineHeight: 17
+    )
     static let monoSmallMetrics = TypographyRoleMetrics(
         family: .jetbrainsMono, size: 11, weight: .medium, lineHeight: 14
     )
@@ -391,7 +396,7 @@ enum AppTypography {
             bodyMetrics, bodyMetaMetrics, pageMetaMetrics, labelMetrics, labelSemiboldMetrics,
             labelStrongMetrics, labelStrongSelectedMetrics, badgeMetrics,
             captionMetrics, captionMediumMetrics, captionLargeMetrics,
-            monoTimeMetrics, monoSmallMetrics, sectionHeaderMetrics,
+            monoTimeMetrics, monoTimeLargeMetrics, monoSmallMetrics, sectionHeaderMetrics,
             statLargeMetrics, statMediumMetrics,
             heroDisplayMetrics, heroDisplayEmphasisMetrics, statNumberMetrics,
             overlineMetrics, statLabelMetrics,
@@ -431,6 +436,8 @@ enum AppTypography {
     static let captionLarge = captionLargeMetrics.font
     /// JetBrains Mono 12/16 · 500 — row times
     static let monoTime = monoTimeMetrics.font
+    /// JetBrains Mono 13/17 · 500 — elapsed clock on a page-sized capture frame
+    static let monoTimeLarge = monoTimeLargeMetrics.font
     /// JetBrains Mono 11/14 · 400–500 — counts, kbd hints
     static let monoSmall = monoSmallMetrics.font
     /// Inter 11–12/14 · 500 · uppercase section headers

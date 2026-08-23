@@ -9,11 +9,16 @@
   transcription: "1 transskription"
   word: "1 ord"
   year: "1 year"
+  edited_2: "%1$@ · redigeret %2$@"
+  recording: "%1$@ optagelse"
+  recording_2: "%1$@ optagelse · %2$@"
+  result: "1 resultat"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "En stor runde opgraderinger — og to taksigelser til fællesskabet."
   native_macos_menu_bar_dictation_app_using_loca: "En indbygget macOS-menulinjedikteringsapp, der bruger lokal tale-til-tekst med WhisperKit. 100 % lokal behandling som standard med valgfri AI-forbedring."
+  note_capture_is_already_running: "Der kører allerede en noteoptagelse."
 about:
   _self: "Om"
   pindrop: "Om Pindrop"
@@ -79,6 +84,7 @@ an:
     Den originale transskription blev gemt uden forbedring.
     Du kan prøve at aktivere AI-forbedring igen i Indstillinger.
   error_occurred_while_enhancing_your_transcrip_1790ad05: "Der opstod en fejl under forbedring af din transskription:nn%@nnDen originale transskription blev gemt uden forbedring.nDu kan prøve at aktivere AI-forbedring igen i Indstillinger."
+  earlier_version_of_pindrop_wrote_this_note_it: "En tidligere version af Pindrop skrev denne note. Den kan ikke skrives igen."
 anthropic:
   _self: "Antropisk"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "Lydindgang"
+  sealed: "Lyden er forseglet"
 automatic:
   follow_system: "Automatisk (følg systemet)"
   updates: "Automatiske opdateringer"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "Start Pindrop automatisk, når du logger ind."
 available:
   models: "Tilgængelige modeller"
+  when_the_recording_is_finished: "Tilgængelig, når optagelsen er færdig"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "Tilbage"
   to_library: "Tilbage til biblioteket"
+  to_notes: "Tilbage til noter"
 base:
   _self: "Grundlag"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "Ophæve"
   operation: "Annuller handling"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "Annullér optagelsen"
 capture:
   directly_into_the_note_editor_with_a_hol: "Fang direkte ind i noteeditoren med et hold-til-optag flow."
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "Klik eller tryk"
   or_set_a_hotkey_to_start_talking: "Klik eller indstil en genvejstast for at begynde at tale"
   this_icon_anytime_to: "Klik på dette ikon når som helst for at:"
+  a_number_to_see_it_in_the_transcript: "Klik på et tal for at se det i udskriften."
+  new_note_to_start_one: "Klik på Ny note for at starte en. Pindrop optager, mens du skriver."
 client:
   _self: "Klient"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copy the most recent transcript to the clipboard."
   to_clipboard: "Kopiér til udklipsholder"
   transcript: "Kopi afskrift"
+  content: "Kopiér indholdet"
 correct:
   grammar_mistakes: "Ret grammatiske fejl"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "Brugerdefineret / lokal"
   openai_compatible: "Brugerdefineret (OpenAI-kompatibel)"
   presets: "Brugerdefinerede forudindstillinger"
+  templates: "Egne skabeloner"
 customize:
   hotkey: "Tilpas genvejstast"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d samples · %@"
   speakers: "%d talere"
   words: "%d ord"
+  results: "%d resultater"
 dark:
   _self: "Mørk"
   preview: "Mørk forhåndsvisning"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "Vil du slette transskription?"
   all_contributions: "Slet alle bidrag…"
   all_stored_text_pairs: "Slet alle gemte tekstpar?"
+  this_note: "Slet denne note"
+  this_transcript: "Slet denne udskrift?"
+  transcript: "Slet udskriften"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "Kun engelsk"
 enhanced:
   _self: "Forbedret"
+  note: "Forbedret note"
 enhancement:
   prompts: "Forbedringsprompter"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "Arkiv"
 find:
   _self: "Find"
+  in_transcript: "Søg i udskriften"
 fix:
   punctuation_and_capitalization: "Ret tegnsætning og store bogstaver"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "Skjul API-nøgle"
   this_for_1_hour: "Skjul dette i 1 time"
+  live_transcript: "Skjul liveudskriften"
 history:
   _self: "Historie"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "Lytter…"
 live:
   streaming_refinement: "Forfining af livestreaming"
+  text_stopped_the_recording_continues: "Liveteksten stoppede. Optagelsen fortsætter."
+  transcript: "Liveudskrift"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "Administrer forudindstillinger"
   presets_ab87986d: "Administrer forudindstillinger..."
   presets_d5d4c2c2: "Manage Presets…"
+  templates: "Administrér skabeloner…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "Mød den nye Orb"
 meeting:
   saved: "Møde gemt"
+  note: "Mødenote"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "Ny mappe"
   note: "Ny note"
   preset: "Ny forudindstilling"
+  note_with_system_audio: "Ny note med systemlyd"
+  note_without_recording: "Ny note uden optagelse"
 newest:
   _self: "Nyeste"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "Ingen ordforråd"
   transcripts_audio_prompts_file_names_or_perso: "Ingen transskriptioner, lyd, prompter, filnavne eller personligt indhold — aldrig."
   contributions_yet_pairs_are_stored_when_ai_en: "Ingen bidrag endnu. Par gemmes, når AI-forbedring eller manuelle redigeringer ændrer en transskription."
+  audio_was_recorded_for_this_note: "Der blev ikke optaget lyd til denne note."
+  enhanced_note_yet: "Ingen forbedret note endnu."
+  notes_yet_sentence: "Ingen noter endnu."
+  results_try_another_word: "Ingen resultater. Prøv et andet ord."
 not:
   assigned: "Ikke tildelt"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -748,6 +779,7 @@ not:
   set: "Ikke indstillet"
   set_93039e60: "Ikke indstillet"
   now: "Ikke nu"
+  helpful: "Ikke nyttig"
 note:
   _self: "Note"
   capture_hold: "Note Capture — Hold"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "Noter"
   3add7b96: "noter"
+  header_meta_empty: "ingenting her endnu"
+  header_meta_today: "%1$@, %2$@ fra i dag"
+  new_note_options_label: "Flere valg til ny note"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "Slukket"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "Åbn Indstillinger"
   settings_fd7108f8: "Åbn indstillinger"
   system_settings: "Åbn Systemindstillinger"
+  in_new_window: "Åbn i nyt vindue"
+  note: "Åbn noten"
 openai:
   _self: "OpenAI"
   compatible_local_server: "OpenAI-kompatibel lokal server"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "Vælg, hvilken udbyder og model, der håndterer hver AI-opgave. Lad være som \\\"Ikke tildelt\\\" for at springe et formål over."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
+  a_model_for_note_enhancement_in_settings_th: "Vælg en model til noteforbedring i Indstillinger, og prøv igen."
 pill:
   _self: "Pille"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "Pindrop pille"
   theme: "Pindrop-tema"
   can_send_anonymous_privacy_preserving_si: "Pindrop kan sende anonyme, privatlivsbevarende signaler, så fejl rettes hurtigere."
+  writes_one_from_your_notes_and_the_trans: "Pindrop skriver en ud fra dine noter og udskriften."
 pinned:
   _self: "Fastgjort"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "Anbefales"
 record:
   _self: "Optage"
+  with_system_audio: "Optag med systemlyd"
 recording:
   _self: "Indspilning"
   3f8fd48c: "🔴 Optagelse"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "Optagelse i gang — transskriptionen starter, når den er færdig."
   stopped_with_error: "Optagelse stoppet: %@"
   from_external_and_bluetooth_microphone: "Optagelse fra eksterne og Bluetooth-mikrofoner er nu klippestabil, selv når lydoutputtet sendes et andet sted hen."
+  continues_while_you_work: "Optagelsen fortsætter, mens du arbejder"
+  transcribed: "Optagelsen er transskriberet."
 recordings:
   _self: "optagelser"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "Vis flydende indikator"
   in_dock: "Vis i Dock"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "Vis liveudskriften"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Vises som en kugle af flydende glas i hjørnet af skærmen"
   as_a_pill_at_the_bottom_of_the_screen: "Vises som en pille nederst på skærmen"
@@ -1138,17 +1182,24 @@ source:
   _self: "Kilde"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "Kilderne låses, når optagelsen starter."
+  d: "Kilder (%d)"
 spanish:
   _self: "spansk"
 speak:
   to_append: "Tal for at tilføje"
 speaker:
+  _self: "Taler"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Højttalerdiarisering og tidsstempler er knyttet til afspilning."
   diarization_is_required: "Højttalerdiaarisering er påkrævet"
   profile_training: "Speaker profile training"
+  d: "Taler %d"
 speakers:
   _self: "Talere"
+  1: "Talere: %1$@"
+  are_set_when_the_recording_starts: "Talerne sættes, når optagelsen starter."
+  identified: "Talere fundet"
 speed:
   _self: "Hastighed"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "System"
   default: "Systemstandard"
+  audio: "Systemlyd"
 teach:
   custom_words: "Lær tilpassede ord"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\\\"\\\" Modellen kunne ikke indlæses inden for 60 sekunder. Dette betyder normalt, at modelfilerne er beskadigede eller inkompatible.                          For at løse dette: 1. Åbn Indstillinger → Modeller 2. Slet den problematiske model 3. Download modellen igen Hvis problemet fortsætter, prøv en mindre model (Tiny eller Base).             \\\"\\\""
   new_nemotron_streaming_engine_shows_words_as: "Den nye Nemotron-streamingmotor viser ordene, mens du siger dem, og motoren forvarmes ved start, så din første diktering begynder uden forsinkelse."
   selected_chunk_variant_isn_t_downloaded_yet: "Den valgte chunk-variant er ikke downloadet endnu. Skift vil starte en download."
+  audio_and_the_live_transcript_are_deleted_yo: "Lyden og liveudskriften slettes. De noter, du har skrevet, bliver."
+  enhanced_note_could_not_be_generated_try_aga: "Den forbedrede note kunne ikke laves. Prøv igen."
+  enhanced_note_could_not_be_saved_try_again: "Den forbedrede note kunne ikke gemmes. Prøv igen."
+  model_returned_an_empty_note_try_again: "Modellen returnerede en tom note. Prøv igen."
+  note_enhancement_model_is_unavailable_check: "Modellen til noteforbedring er ikke tilgængelig. Tjek den i Indstillinger, og prøv igen."
+  note_this_recording_belongs_to_could_not_be_opened: "Den note, som denne optagelse hører til, kunne ikke åbnes."
+  recorded_audio_could_not_be_prepared: "Den optagede lyd kunne ikke klargøres til transskribering."
+  recorder_did_not_start: "Optageren startede ikke."
+  transcript_fills_in_as_you_speak: "Udskriften fyldes ud, mens du taler."
+  transcript_starts_once_you_speak: "Udskriften begynder, så snart du taler."
 theme:
   _self: "Tema"
   changes_apply_live_across_the_workspace_se: "Temaændringer gælder live på tværs af arbejdsområdet, indstillinger, noteeditor og flydende indikatorer."
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "Dette vil permanent fjerne transskriptionen og dens administrerede mediefil."
   will_permanently_remove_this_note: "Dette fjerner permanent denne note."
   permanently_deletes_all_stored_text_pairs_f: "Dette sletter permanent alle gemte tekstpar fra denne Mac."
+  template_could_not_be_read_pick_another_tem: "Denne skabelon kunne ikke læses. Vælg en anden skabelon, og prøv igen."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "Transskriptionsmetadata"
   saved: "Transskription gemt"
   update: "Transskriptionsopdatering"
+  done: "Transskriberingen er færdig"
 transcriptions:
   _self: "Transskriptioner"
   f0972acc: "transskriptioner"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "Prøv en anden søgeterm."
   a_different_search_term_in_this_folder: "Prøv et andet søgeord i denne mappe."
   searching_for_terms_like_hotkeys_microphone: "Prøv at søge efter termer som genvejstaster, mikrofon, opdateringer eller vibetilstand."
+  again: "Prøv igen"
 turkish:
   _self: "tyrkisk"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "Dine seneste dikteringer vises her."
   home_streak: "Stime"
   home_subline_duration_only: "%@ diktering."
-  home_subline_full: "%@ diktering — ca. %@ sparet i forhold til at skrive det."
+  home_subline_full: "%@ diktering. Cirka %@ sparet i forhold til at skrive."
   home_this_week: "Denne uge"
   home_welcome_tagline: "Tal. Det er skrevet."
   home_words_per_min: "Ord / min"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "Ord i dag"
   home_you_spoke_this_week: "Du sagde %@ i denne uge."
   home_zero_day: "0-dages"
+  home_n_sessions_grouped: "%@ sessioner"
+  home_no_dictations_yet: "Ingen dikteringer endnu."
+  home_one_session: "1 session"
+  home_press_hotkey_to_start: "Tryk på %@ hvor som helst for at starte."
+  home_stop: "Stop"
 u5:
   u7_add_replacement: "Add replacement"
   u7_add_word: "Add word"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "Stemmeisolering"
   reduce_background_noise_before_transcription: "Reducer baggrundsstøj før transskription"
+  note: "Talenote"
 vs:
   typing: "vs at skrive"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "I går"
 you:
+  _self: "Dig"
   are_a_note_formatting_assistant_transform_th: "Du er en noteformateringsassistent. Omdan den transskriberede tekst til en velstruktureret note.nnRegler:n- Ret grammatik-, tegnsætnings- og stavefejln- For længere indhold (3+ afsnit), tilføj markdown-formatering:n - Brug overskrifter (## eller ###) til at organisere sektionern - Brug punktopstillinger eller nummererede lister, hvor det er passenden - Brug **kortere nøgleord** for at understrege,-n Bevar den oprindelige betydning og vis - Tilføj ikke indhold, der ikke var i originalen - Returner kun den formaterede note uden nogen kommentarer"
   are_a_text_enhancement_assistant_improve_the: "Du er en tekstforbedringsassistent. Forbedre grammatikken, tegnsætningen og formateringen af ​​den medfølgende tekst, samtidig med at dens oprindelige betydning og tone bevares. Returner kun den forbedrede tekst uden yderligere kommentarer."
   can_change_these_anytime_from_the_menu_bar_s: "Du kan til enhver tid ændre disse fra menulinjen → Indstillinger → Genvejstaster"
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "Du er klar!"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\\\"\\\" Du har overskredet din API-hastighedsgrænse eller -kvote.                                  Sådan rettes dette: 1. Vent et par minutter, og prøv igen 2. Tjek din API-udbyders brugsgrænser 3. Overvej at opgradere din API-plan. Transskriptionen blev gemt uden forbedring.                 \\\"\\\""
   re_in_control: "Du har kontrollen"
+  deleted_this_transcript: "Du slettede denne udskrift."
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\\\"\\\" Din API-nøgle ser ud til at være ugyldig eller udløbet.                                  For at rette dette: 1. Åbn Indstillinger → AI-forbedring 2. Bekræft, at din API-nøgle er korrekt 3. Kontroller, at dit API-slutpunkt er korrekt. Transskriptionen blev gemt uden forbedring.                 \\\"\\\""
   floating_indicator_is_now_a_living_audio_re: "Din flydende indikator er nu en levende, lydreaktiv orb. Den ånder i tomgang, vokser når du taler, og streamer dine ord live mens du dikterer."
@@ -1566,6 +1639,8 @@ your:
   stats: "Dine statistikker"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "Dine ord forbliver dine"
+  enhanced_note_is_ready: "Din forbedrede note er klar."
+  notes_and_the_enhanced_note_stay_the_transc: "Dine noter og den forbedrede note bliver. Udskriften skjules i denne note."
 zoom:
   _self: "Zoom"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "%@ ind / %@ ud tokens"
   in_out_thinking: "%@ ind / %@ ud / %@ tænke-tokens"
+auto:
+  _self: "Automatisk"
+discard:
+  recording: "Kassér optagelsen"
+  this_recording: "Kassér denne optagelse?"
+finalizing:
+  _self: "Afslutter"
+finish:
+  _self: "Afslut"
+  the_active_transcription_before_starting: "Afslut den igangværende transskribering, før du starter en ny."
+  the_active_transcription_before_starting_another: "Afslut den igangværende transskribering, før du starter en ny."
+generate:
+  enhanced_note: "Lav forbedret note"
+generated:
+  _self: "Lavet %@"
+  1_2_template: "Lavet %1$@ · skabelonen %2$@"
+helpful:
+  _self: "Nyttig"
+identifying:
+  speakers: "Finder talere"
+jump:
+  to_live: "Gå til live"
+  to_this_line: "Gå til denne linje"
+mic:
+  _self: "Mikrofon"
+more:
+  note_actions: "Flere handlinger for noten"
+  recording_options: "Flere optagelsesvalg"
+my:
+  notes: "Mine noter"
+nothing:
+  was_transcribed_yet: "Der er ikke transskriberet noget endnu."
+playback:
+  position: "Afspilningsposition"
+s:
+  to_save: "⌘S for at gemme"
+sealing:
+  audio: "Forsegler lyden"
+  the_recording: "Forsegler optagelsen."
+see:
+  this_in_the_transcript: "Se dette i udskriften"
+template:
+  _self: "Skabelon: %@"
+templates:
+  _self: "Skabeloner"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "Der er endnu ingen udskrift at forbedre. Optag denne note først."
+transcribing:
+  _self: "Transskriberer"
+transcript:
+  _self: "Udskrift"
+  source: "Udskriftskilde %@"
+was:
+  this_note_useful: "Var denne note nyttig?"
+writing:
+  note: "Skriver noten"
+  your_enhanced_note: "Skriver din forbedrede note."
+  your_enhanced_note_comes_next_long_recor: "Derefter skrives din forbedrede note. Lange optagelser kan tage et par minutter. Du kan skrive videre."
+  your_enhanced_note_with: "Skriver din forbedrede note med %@."

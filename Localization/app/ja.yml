@@ -9,11 +9,16 @@
   transcription: "1 転写"
   word: "1語"
   year: "1 year"
+  edited_2: "%1$@ · 編集 %2$@"
+  recording: "録音 %1$@"
+  recording_2: "録音 %1$@ · %2$@"
+  result: "1 件"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "大きなアップグレードの数々 — そしてコミュニティへの2つの感謝。"
   native_macos_menu_bar_dictation_app_using_loca: "WhisperKit によるローカル音声テキスト変換を使用するネイティブ macOS メニュー バー ディクテーション アプリ。デフォルトで 100% ローカル処理、オプションの AI 強化。"
+  note_capture_is_already_running: "メモの録音はすでに実行中です。"
 about:
   _self: "について"
   pindrop: "ピンドロップについて"
@@ -79,6 +84,7 @@ an:
     元の文字起こしは補正なしで保存されました。
     [設定] で AI 強化を再度有効にしてみてください。
   error_occurred_while_enhancing_your_transcrip_1790ad05: "文字起こしの強化中にエラーが発生しました:nn%@nn元の文字起こしは強化なしで保存されました。n[設定] で AI 強化を再度有効にしてみてください。"
+  earlier_version_of_pindrop_wrote_this_note_it: "このメモは以前のバージョンの Pindrop が書きました。書き直すことはできません。"
 anthropic:
   _self: "Anthropic"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "オーディオ入力"
+  sealed: "音声を保存しました"
 automatic:
   follow_system: "自動（フォローシステム）"
   updates: "自動更新"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "サインインすると Pindrop が自動的に起動します。"
 available:
   models: "利用可能なモデル"
+  when_the_recording_is_finished: "録音が終わると使えます"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "戻る"
   to_library: "ライブラリに戻る"
+  to_notes: "メモに戻る"
 base:
   _self: "ベース"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "キャンセル"
   operation: "操作のキャンセル"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "録音を中止"
 capture:
   directly_into_the_note_editor_with_a_hol: "ホールドして録音するフローを使用して、ノートエディターに直接キャプチャします。"
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "クリックまたは押してください"
   or_set_a_hotkey_to_start_talking: "クリックするかホットキーを設定して通話を開始します"
   this_icon_anytime_to: "このアイコンをクリックすると、いつでも次のことができます。"
+  a_number_to_see_it_in_the_transcript: "番号をクリックすると文字起こしで確認できます。"
+  new_note_to_start_one: "「新しいメモ」をクリックして始めます。入力している間も Pindrop が録音します。"
 client:
   _self: "クライアント"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "最新の文字起こしをクリップボードにコピーします。"
   to_clipboard: "クリップボードにコピー"
   transcript: "成績証明書のコピー"
+  content: "内容をコピー"
 correct:
   grammar_mistakes: "文法の間違いを正す"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "カスタム/ローカル"
   openai_compatible: "カスタム（OpenAI互換）"
   presets: "カスタムプリセット"
+  templates: "自分のテンプレート"
 customize:
   hotkey: "ホットキーをカスタマイズする"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d サンプル · %@"
   speakers: "話者 %d 人"
   words: "%d語"
+  results: "%d 件"
 dark:
   _self: "暗い"
   preview: "ダークプレビュー"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "転写を削除しますか?"
   all_contributions: "すべての提供データを削除…"
   all_stored_text_pairs: "保存されたテキストペアをすべて削除しますか？"
+  this_note: "このメモを削除"
+  this_transcript: "この文字起こしを削除しますか？"
+  transcript: "文字起こしを削除"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "英語のみ"
 enhanced:
   _self: "強化された"
+  note: "強化メモ"
 enhancement:
   prompts: "拡張プロンプト"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "ファイル"
 find:
   _self: "検索"
+  in_transcript: "文字起こしを検索"
 fix:
   punctuation_and_capitalization: "句読点と大文字の使用を修正する"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "API キーを隠す"
   this_for_1_hour: "これを1時間非表示にします"
+  live_transcript: "ライブ文字起こしを隠す"
 history:
   _self: "歴史"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "聞き取り中…"
 live:
   streaming_refinement: "ライブストリーミングの改良"
+  text_stopped_the_recording_continues: "ライブ文字が止まりました。録音は続いています。"
+  transcript: "ライブ文字起こし"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "プリセットの管理"
   presets_ab87986d: "プリセットを管理..."
   presets_d5d4c2c2: "プリセットを管理…"
+  templates: "テンプレートを管理…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "新しい Orb を紹介"
 meeting:
   saved: "ミーティングを保存しました"
+  note: "会議メモ"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "新しいフォルダー"
   note: "新しいメモ"
   preset: "新しいプリセット"
+  note_with_system_audio: "システム音声付きの新しいメモ"
+  note_without_recording: "録音なしの新しいメモ"
 newest:
   _self: "新しい順"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "語彙がありません"
   transcripts_audio_prompts_file_names_or_perso: "文字起こし、音声、プロンプト、ファイル名、個人的な内容は一切ありません — 決して。"
   contributions_yet_pairs_are_stored_when_ai_en: "まだ提供データはありません。AI 強化または手動編集で文字起こしが変更されると、ペアが保存されます。"
+  audio_was_recorded_for_this_note: "このメモには音声が録音されていません。"
+  enhanced_note_yet: "強化メモはまだありません。"
+  notes_yet_sentence: "メモはまだありません。"
+  results_try_another_word: "結果がありません。別の言葉で試してください。"
 not:
   assigned: "割り当てられていません"
   enough_voice_data_yet: "音声データがまだ不足しています"
@@ -748,6 +779,7 @@ not:
   set: "未設定"
   set_93039e60: "未設定"
   now: "あとで"
+  helpful: "役に立たなかった"
 note:
   _self: "注記"
   capture_hold: "ノート録音 — 押し続け"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "注意事項"
   3add7b96: "メモ"
+  header_meta_empty: "まだ何もありません"
+  header_meta_today: "%1$@、うち今日 %2$@"
+  new_note_options_label: "新しいメモのその他のオプション"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "オフ"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "設定を開く"
   settings_fd7108f8: "設定を開く"
   system_settings: "システム設定を開く"
+  in_new_window: "新しいウインドウで開く"
+  note: "メモを開く"
 openai:
   _self: "OpenAI"
   compatible_local_server: "OpenAI対応ローカルサーバー"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "各 AI タスクを処理するプロバイダーとモデルを選択します。目的をスキップするには、「未割り当て」のままにします。"
   which_provider_and_model_handles_each_ai_ta_3140fe59: "各 AI タスクに使うプロバイダとモデルを選びます。未割り当てはスキップされます。"
+  a_model_for_note_enhancement_in_settings_th: "設定でメモ強化用のモデルを選んでから、もう一度お試しください。"
 pill:
   _self: "ピル"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "ピンドロップピル"
   theme: "ピンドロップのテーマ"
   can_send_anonymous_privacy_preserving_si: "Pindrop は、バグをより早く修正できるよう、匿名かつプライバシーを保護するシグナルを送信できます。"
+  writes_one_from_your_notes_and_the_trans: "Pindrop があなたのメモと文字起こしから書きます。"
 pinned:
   _self: "ピン留め"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "推奨"
 record:
   _self: "記録"
+  with_system_audio: "システム音声付きで録音"
 recording:
   _self: "録音"
   3f8fd48c: "🔴 録音"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "録音中です — 終了すると文字起こしが開始されます。"
   stopped_with_error: "録音を停止しました: %@"
   from_external_and_bluetooth_microphone: "外部マイクや Bluetooth マイクからの録音が、音声出力が別の場所にルーティングされていても安定して動作するようになりました。"
+  continues_while_you_work: "作業中も録音は続きます"
+  transcribed: "録音を文字起こししました。"
 recordings:
   _self: "録音"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "フローティングインジケータを表示"
   in_dock: "ドックに表示"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "ライブ文字起こしを表示"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "画面の隅にリキッドガラスのオーブとして表示されます"
   as_a_pill_at_the_bottom_of_the_screen: "画面の下部に錠剤として表示されます"
@@ -1138,17 +1182,24 @@ source:
   _self: "ソース"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "音源は録音の開始時に決まります。"
+  d: "ソース (%d)"
 spanish:
   _self: "スペイン語"
 speak:
   to_append: "話して追記"
 speaker:
+  _self: "話者"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "再生にはスピーカーのダイアライゼーションとタイムスタンプが付加されます。"
   diarization_is_required: "スピーカーのダイアライゼーションが必要です"
   profile_training: "Speaker profile training"
+  d: "話者 %d"
 speakers:
   _self: "話者"
+  1: "話者: %1$@"
+  are_set_when_the_recording_starts: "話者は録音の開始時に決まります。"
+  identified: "話者を判別しました"
 speed:
   _self: "スピード"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "システム"
   default: "システムのデフォルト"
+  audio: "システム音声"
 teach:
   custom_words: "カスタム単語を教える"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\"\" モデルは 60 秒以内にロードできませんでした。これは通常、モデル ファイルが破損しているか、互換性がないことを意味します。                          これを修正するには: 1. [設定] → [モデル] を開きます。 2. 問題のあるモデルを削除します。 3. モデルを再ダウンロードします。 問題が解決しない場合は、より小さいモデル (Tiny または Base) を試してください。             「」"
   new_nemotron_streaming_engine_shows_words_as: "新しい Nemotron ストリーミングエンジンは、話したそばから言葉を表示し、起動時にプリウォームされるため、最初のディクテーションも遅延なく始まります。"
   selected_chunk_variant_isn_t_downloaded_yet: "選択したチャンク版はまだダウンロードされていません。切り替えるとダウンロードが始まります。"
+  audio_and_the_live_transcript_are_deleted_yo: "音声とライブ文字起こしを削除します。入力したメモは残ります。"
+  enhanced_note_could_not_be_generated_try_aga: "強化メモを作成できませんでした。もう一度お試しください。"
+  enhanced_note_could_not_be_saved_try_again: "強化メモを保存できませんでした。もう一度お試しください。"
+  model_returned_an_empty_note_try_again: "モデルが空のメモを返しました。もう一度お試しください。"
+  note_enhancement_model_is_unavailable_check: "メモ強化のモデルが利用できません。設定で確認してから、もう一度お試しください。"
+  note_this_recording_belongs_to_could_not_be_opened: "この録音が属するメモを開けませんでした。"
+  recorded_audio_could_not_be_prepared: "録音した音声を文字起こし用に準備できませんでした。"
+  recorder_did_not_start: "レコーダーが開始しませんでした。"
+  transcript_fills_in_as_you_speak: "話すにつれて文字起こしが埋まります。"
+  transcript_starts_once_you_speak: "話し始めると文字起こしが始まります。"
 theme:
   _self: "テーマ"
   changes_apply_live_across_the_workspace_se: "テーマの変更は、ワークスペース、設定、ノートエディター、フローティングインジケーター全体にライブで適用されます。"
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "これにより、トランスクリプトとその管理対象メディア ファイルが完全に削除されます。"
   will_permanently_remove_this_note: "このメモは完全に削除されます。"
   permanently_deletes_all_stored_text_pairs_f: "この操作により、保存されたすべてのテキストペアがこの Mac から完全に削除されます。"
+  template_could_not_be_read_pick_another_tem: "このテンプレートを読み込めませんでした。別のテンプレートを選んで、もう一度お試しください。"
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "転写メタデータ"
   saved: "文字起こしを保存しました"
   update: "文字起こしの更新"
+  done: "文字起こし完了"
 transcriptions:
   _self: "転写"
   f0972acc: "転写"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "別の検索語を試してください。"
   a_different_search_term_in_this_folder: "このフォルダー内で別の検索語を試してください。"
   searching_for_terms_like_hotkeys_microphone: "ホットキー、マイク、アップデート、バイブ モードなどの用語を検索してみてください。"
+  again: "もう一度"
 turkish:
   _self: "トルコ語"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "最新の口述がここに表示されます。"
   home_streak: "連続"
   home_subline_duration_only: "口述%@。"
-  home_subline_full: "口述%@ — 入力するより約%@短縮。"
+  home_subline_full: "音声入力 %@。入力するより約 %@ の短縮。"
   home_this_week: "今週"
   home_welcome_tagline: "話せば、書かれる。"
   home_words_per_min: "語 / 分"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "今日の語数"
   home_you_spoke_this_week: "今週は%@話しました。"
   home_zero_day: "0日"
+  home_n_sessions_grouped: "%@ セッション"
+  home_no_dictations_yet: "音声入力はまだありません。"
+  home_one_session: "1 セッション"
+  home_press_hotkey_to_start: "どこでも %@ を押すと始まります。"
+  home_stop: "停止"
 u5:
   u7_add_replacement: "置換を追加"
   u7_add_word: "単語を追加"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "声の分離"
   reduce_background_noise_before_transcription: "文字起こし前に背景ノイズを低減"
+  note: "音声メモ"
 vs:
   typing: "対タイピング"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "昨日"
 you:
+  _self: "あなた"
   are_a_note_formatting_assistant_transform_th: "あなたはメモの書式設定アシスタントです。転写されたテキストを適切に構造化されたメモに変換します。nnルール:n- 文法、句読点、およびスペルの誤りを修正しますn- 長いコンテンツ (3 段落以上) の場合は、マークダウン書式を追加します:n - ヘッダー (## または ###) を使用してセクションを整理しますn - 必要に応じて箇条書きまたは番号付きリストを使用しますn - 重要な用語を強調するには **太字** を使用しますn- 短いコンテンツの場合は、最小限の書式でシンプルにしますn- 元の意味と文体を維持します-元の内容にない内容を追加しないでください - コメントなしで書式設定されたメモのみを返します"
   are_a_text_enhancement_assistant_improve_the: "あなたはテキスト強化アシスタントです。提供されたテキストの元の意味と語調を維持しながら、文法、句読点、書式設定を改善します。追加のコメントなしで拡張テキストのみを返します。"
   can_change_these_anytime_from_the_menu_bar_s: "これらは、メニュー バー → 設定 → ホットキーからいつでも変更できます。"
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "準備は完了です!"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" API レート制限または割り当てを超過しました。                                  これを修正するには: 1. 数分待ってから再試行します。 2. API プロバイダーの使用制限を確認します。 3. API プランのアップグレードを検討してください。 文字起こしは拡張せずに保存されました。                 「」"
   re_in_control: "あなたがコントロールできます"
+  deleted_this_transcript: "この文字起こしを削除しました。"
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\" API キーが無効か期限切れのようです。                                  これを修正するには: 1. [設定] → [AI 拡張] を開きます。 2. API キーが正しいことを確認します。 3. API エンドポイントが正しいことを確認します。 文字起こしは拡張なしで保存されました。                 「」"
   floating_indicator_is_now_a_living_audio_re: "フローティングインジケーターは、音声に反応する生きた Orb になりました。待機中は呼吸し、話すとふくらみ、ディクテーション中は言葉をライブで表示します。"
@@ -1566,6 +1639,8 @@ your:
   stats: "あなたの統計"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "あなたの言葉はあなたのもの"
+  enhanced_note_is_ready: "強化メモができました。"
+  notes_and_the_enhanced_note_stay_the_transc: "メモと強化メモは残ります。文字起こしはこのメモから隠されます。"
 zoom:
   _self: "拡大／縮小"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "入力 %@ / 出力 %@ トークン"
   in_out_thinking: "入力 %@ / 出力 %@ / 思考 %@ トークン"
+auto:
+  _self: "自動"
+discard:
+  recording: "録音を破棄"
+  this_recording: "この録音を破棄しますか？"
+finalizing:
+  _self: "仕上げ中"
+finish:
+  _self: "終了"
+  the_active_transcription_before_starting: "次を始める前に、実行中の文字起こしを終わらせてください。"
+  the_active_transcription_before_starting_another: "次を始める前に、実行中の文字起こしを終わらせてください。"
+generate:
+  enhanced_note: "強化メモを作成"
+generated:
+  _self: "作成 %@"
+  1_2_template: "作成 %1$@ · テンプレート %2$@"
+helpful:
+  _self: "役に立った"
+identifying:
+  speakers: "話者を判別中"
+jump:
+  to_live: "ライブへ移動"
+  to_this_line: "この行へ移動"
+mic:
+  _self: "マイク"
+more:
+  note_actions: "メモのその他の操作"
+  recording_options: "録音のその他のオプション"
+my:
+  notes: "自分のメモ"
+nothing:
+  was_transcribed_yet: "まだ何も文字起こしされていません。"
+playback:
+  position: "再生位置"
+s:
+  to_save: "⌘S で保存"
+sealing:
+  audio: "音声を保存中"
+  the_recording: "録音を保存中です。"
+see:
+  this_in_the_transcript: "文字起こしで見る"
+template:
+  _self: "テンプレート: %@"
+templates:
+  _self: "テンプレート"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "強化する文字起こしがまだありません。先にこのメモを録音してください。"
+transcribing:
+  _self: "文字起こし中"
+transcript:
+  _self: "文字起こし"
+  source: "文字起こしのソース %@"
+was:
+  this_note_useful: "このメモは役に立ちましたか？"
+writing:
+  note: "メモを作成中"
+  your_enhanced_note: "強化メモを作成中です。"
+  your_enhanced_note_comes_next_long_recor: "次に強化メモを作成します。長い録音では数分かかることがあります。そのまま入力を続けられます。"
+  your_enhanced_note_with: "%@ で強化メモを作成中です。"

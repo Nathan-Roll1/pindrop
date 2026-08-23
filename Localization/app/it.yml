@@ -9,11 +9,16 @@
   transcription: "1 trascrizione"
   word: "1 parola"
   year: "1 year"
+  edited_2: "%1$@ · modificata %2$@"
+  recording: "%1$@ di registrazione"
+  recording_2: "%1$@ di registrazione · %2$@"
+  result: "1 risultato"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "Un grande ciclo di aggiornamenti — e due ringraziamenti alla community."
   native_macos_menu_bar_dictation_app_using_loca: "Un'app nativa per la dettatura della barra dei menu di macOS che utilizza la sintesi vocale locale con WhisperKit. Elaborazione locale al 100% per impostazione predefinita con miglioramento dell'intelligenza artificiale opzionale."
+  note_capture_is_already_running: "Una registrazione di nota è già in corso."
 about:
   _self: "Di"
   pindrop: "A proposito di Pindrop"
@@ -79,6 +84,7 @@ an:
     La trascrizione originale è stata salvata senza miglioramenti.
     Puoi provare ad abilitare nuovamente il miglioramento dell'intelligenza artificiale in Impostazioni.
   error_occurred_while_enhancing_your_transcrip_1790ad05: "Si è verificato un errore durante il miglioramento della trascrizione:nn%@nnLa trascrizione originale è stata salvata senza miglioramenti.nPuoi provare ad abilitare nuovamente il miglioramento AI nelle Impostazioni."
+  earlier_version_of_pindrop_wrote_this_note_it: "Una versione precedente di Pindrop ha scritto questa nota. Non può essere riscritta."
 anthropic:
   _self: "Anthropic"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "Ingresso audio"
+  sealed: "Audio sigillato"
 automatic:
   follow_system: "Automatico (Segui sistema)"
   updates: "Aggiornamenti automatici"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "Avvia automaticamente Pindrop quando accedi."
 available:
   models: "Modelli disponibili"
+  when_the_recording_is_finished: "Disponibile quando la registrazione è finita"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "Indietro"
   to_library: "Ritorno in biblioteca"
+  to_notes: "Torna alle note"
 base:
   _self: "Base"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "Cancellare"
   operation: "Annulla operazione"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "Annulla la registrazione"
 capture:
   directly_into_the_note_editor_with_a_hol: "Cattura direttamente nell'editor delle note con un flusso hold-to-record."
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "Fare clic o premere"
   or_set_a_hotkey_to_start_talking: "Fare clic o impostare un tasto di scelta rapida per iniziare a parlare"
   this_icon_anytime_to: "Fare clic su questa icona in qualsiasi momento per:"
+  a_number_to_see_it_in_the_transcript: "Fai clic su un numero per vederlo nella trascrizione."
+  new_note_to_start_one: "Fai clic su Nuova nota per iniziarne una. Pindrop registra mentre scrivi."
 client:
   _self: "Client"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copia la trascrizione più recente negli appunti."
   to_clipboard: "Copia negli appunti"
   transcript: "Copia trascrizione"
+  content: "Copia il contenuto"
 correct:
   grammar_mistakes: "Correggere gli errori grammaticali"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "Personalizzato/locale"
   openai_compatible: "Personalizzato (compatibile con OpenAI)"
   presets: "Preimpostazioni personalizzate"
+  templates: "Modelli personalizzati"
 customize:
   hotkey: "Personalizza il tasto di scelta rapida"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d campioni · %@"
   speakers: "%d interlocutori"
   words: "%d parole"
+  results: "%d risultati"
 dark:
   _self: "Buio"
   preview: "Anteprima oscura"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "Eliminare la trascrizione?"
   all_contributions: "Elimina tutti i contributi…"
   all_stored_text_pairs: "Eliminare tutte le coppie di testo salvate?"
+  this_note: "Elimina questa nota"
+  this_transcript: "Eliminare questa trascrizione?"
+  transcript: "Elimina la trascrizione"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "Solo inglese"
 enhanced:
   _self: "Migliorato"
+  note: "Nota migliorata"
 enhancement:
   prompts: "Suggerimenti di miglioramento"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "File"
 find:
   _self: "Cerca"
+  in_transcript: "Cerca nella trascrizione"
 fix:
   punctuation_and_capitalization: "Correggi la punteggiatura e le maiuscole"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "Nascondi chiave API"
   this_for_1_hour: "Nascondilo per 1 ora"
+  live_transcript: "Nascondi la trascrizione dal vivo"
 history:
   _self: "Storia"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "In ascolto…"
 live:
   streaming_refinement: "Perfezionamento dello streaming live"
+  text_stopped_the_recording_continues: "Il testo dal vivo si è fermato. La registrazione continua."
+  transcript: "Trascrizione dal vivo"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "Gestisci preimpostazioni"
   presets_ab87986d: "Gestisci preimpostazioni..."
   presets_d5d4c2c2: "Gestisci preimpostazioni…"
+  templates: "Gestisci i modelli…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "Scopri il nuovo Orb"
 meeting:
   saved: "Riunione salvata"
+  note: "Nota di riunione"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "Nuova cartella"
   note: "Nuova nota"
   preset: "Nuova preimpostazione"
+  note_with_system_audio: "Nuova nota con audio di sistema"
+  note_without_recording: "Nuova nota senza registrazione"
 newest:
   _self: "Più recenti"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "Nessuna parola del vocabolario"
   transcripts_audio_prompts_file_names_or_perso: "Nessuna trascrizione, nessun audio, nessun prompt, nessun nome di file né contenuto personale — mai."
   contributions_yet_pairs_are_stored_when_ai_en: "Ancora nessun contributo. Le coppie vengono salvate quando il miglioramento con IA o le modifiche manuali cambiano una trascrizione."
+  audio_was_recorded_for_this_note: "Per questa nota non è stato registrato audio."
+  enhanced_note_yet: "Ancora nessuna nota migliorata."
+  notes_yet_sentence: "Ancora nessuna nota."
+  results_try_another_word: "Nessun risultato. Prova un'altra parola."
 not:
   assigned: "Non assegnato"
   enough_voice_data_yet: "Dati vocali ancora insufficienti"
@@ -748,6 +779,7 @@ not:
   set: "Non impostato"
   set_93039e60: "Non impostato"
   now: "Non ora"
+  helpful: "Non utile"
 note:
   _self: "Nota"
   capture_hold: "Cattura nota — Tieni premuto"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "Note"
   3add7b96: "note"
+  header_meta_empty: "qui non c'è ancora niente"
+  header_meta_today: "%1$@, %2$@ di oggi"
+  new_note_options_label: "Altre opzioni per la nuova nota"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "Spento"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "Apri Impostazioni"
   settings_fd7108f8: "Apri le impostazioni"
   system_settings: "Apri Impostazioni di sistema"
+  in_new_window: "Apri in una nuova finestra"
+  note: "Apri la nota"
 openai:
   _self: "OpenAI"
   compatible_local_server: "Server locale compatibile con OpenAI"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "Pick which provider and model handles each AI task. Lascia come \"Non assegnato\" per saltare uno scopo."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Scegli provider e modello per ogni attività IA. Lascia uno scopo non assegnato per saltarlo."
+  a_model_for_note_enhancement_in_settings_th: "Scegli un modello per il miglioramento delle note in Impostazioni, poi riprova."
 pill:
   _self: "Pillola"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "Pillola Pindrop"
   theme: "Tema Pindrop"
   can_send_anonymous_privacy_preserving_si: "Pindrop può inviare segnali anonimi e rispettosi della privacy per correggere i bug più velocemente."
+  writes_one_from_your_notes_and_the_trans: "Pindrop la scrive dalle tue note e dalla trascrizione."
 pinned:
   _self: "Fissate"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "Raccomandato"
 record:
   _self: "Documentazione"
+  with_system_audio: "Registra con l'audio di sistema"
 recording:
   _self: "Registrazione"
   3f8fd48c: "🔴 Registrazione"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "Registrazione in corso — la trascrizione inizierà al termine."
   stopped_with_error: "Registrazione interrotta: %@"
   from_external_and_bluetooth_microphone: "La registrazione da microfoni esterni e Bluetooth ora è estremamente affidabile, anche quando l’uscita audio è indirizzata altrove."
+  continues_while_you_work: "La registrazione continua mentre lavori"
+  transcribed: "Registrazione trascritta."
 recordings:
   _self: "registrazioni"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "Mostra indicatore fluttuante"
   in_dock: "Mostra nel Dock"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "Mostra la trascrizione dal vivo"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Appare come una sfera di vetro liquido nell'angolo dello schermo"
   as_a_pill_at_the_bottom_of_the_screen: "Viene visualizzato come una pillola nella parte inferiore dello schermo"
@@ -1138,17 +1182,24 @@ source:
   _self: "Fonte"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "Le sorgenti sono fissate all'avvio della registrazione."
+  d: "Sorgenti (%d)"
 spanish:
   _self: "spagnolo"
 speak:
   to_append: "Parla per aggiungere"
 speaker:
+  _self: "Parlante"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "La diarizzazione degli altoparlanti e i timestamp sono allegati alla riproduzione."
   diarization_is_required: "È richiesta la diarizzazione del relatore"
   profile_training: "Speaker profile training"
+  d: "Parlante %d"
 speakers:
   _self: "Parlanti"
+  1: "Parlanti: %1$@"
+  are_set_when_the_recording_starts: "I parlanti si impostano all'avvio della registrazione."
+  identified: "Parlanti identificati"
 speed:
   _self: "Velocità"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "Sistema"
   default: "Predefinito del sistema"
+  audio: "Audio di sistema"
 teach:
   custom_words: "Insegna parole personalizzate"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\"\" Impossibile caricare il modello entro 60 secondi. Questo di solito significa che i file del modello sono danneggiati o incompatibili.                          Per risolvere questo problema: 1. Apri Impostazioni → Modelli 2. Elimina il modello problematico 3. Scarica nuovamente il modello Se il problema persiste, prova un modello più piccolo (Tiny o Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "Il nuovo motore di streaming Nemotron mostra le parole mentre le dici e si preriscalda all’avvio, così la tua prima dettatura parte senza ritardi."
   selected_chunk_variant_isn_t_downloaded_yet: "La variante selezionata non è ancora scaricata. Cambiare avvierà un download."
+  audio_and_the_live_transcript_are_deleted_yo: "L'audio e la trascrizione dal vivo vengono eliminati. Le note che hai scritto restano."
+  enhanced_note_could_not_be_generated_try_aga: "Non è stato possibile generare la nota migliorata. Riprova."
+  enhanced_note_could_not_be_saved_try_again: "Non è stato possibile salvare la nota migliorata. Riprova."
+  model_returned_an_empty_note_try_again: "Il modello ha restituito una nota vuota. Riprova."
+  note_enhancement_model_is_unavailable_check: "Il modello per il miglioramento delle note non è disponibile. Controllalo in Impostazioni, poi riprova."
+  note_this_recording_belongs_to_could_not_be_opened: "Non è stato possibile aprire la nota a cui appartiene questa registrazione."
+  recorded_audio_could_not_be_prepared: "L'audio registrato non è stato preparato per la trascrizione."
+  recorder_did_not_start: "Il registratore non è partito."
+  transcript_fills_in_as_you_speak: "La trascrizione si riempie mentre parli."
+  transcript_starts_once_you_speak: "La trascrizione inizia appena parli."
 theme:
   _self: "Tema"
   changes_apply_live_across_the_workspace_se: "Le modifiche al tema vengono applicate in tempo reale nell'area di lavoro, nelle impostazioni, nell'editor delle note e negli indicatori mobili."
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "Ciò rimuoverà definitivamente la trascrizione e il relativo file multimediale gestito."
   will_permanently_remove_this_note: "Questo rimuoverà permanentemente questa nota."
   permanently_deletes_all_stored_text_pairs_f: "Questa operazione elimina definitivamente tutte le coppie di testo salvate da questo Mac."
+  template_could_not_be_read_pick_another_tem: "Non è stato possibile leggere questo modello. Scegli un altro modello e riprova."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "Metadati di trascrizione"
   saved: "Trascrizione salvata"
   update: "Aggiornamento della trascrizione"
+  done: "Trascrizione completata"
 transcriptions:
   _self: "Trascrizioni"
   f0972acc: "trascrizioni"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "Prova un termine di ricerca diverso."
   a_different_search_term_in_this_folder: "Prova un termine di ricerca diverso in questa cartella."
   searching_for_terms_like_hotkeys_microphone: "Prova a cercare termini come tasti di scelta rapida, microfono, aggiornamenti o modalità vibrazione."
+  again: "Riprova"
 turkish:
   _self: "turco"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "Le tue dettature più recenti compariranno qui."
   home_streak: "Serie"
   home_subline_duration_only: "%@ di dettatura."
-  home_subline_full: "%@ di dettatura — circa %@ risparmiati rispetto a digitarlo."
+  home_subline_full: "%@ di dettatura. Circa %@ risparmiati rispetto alla digitazione."
   home_this_week: "Questa settimana"
   home_welcome_tagline: "Parla. È scritto."
   home_words_per_min: "Parole / min"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "Parole oggi"
   home_you_spoke_this_week: "Hai detto %@ questa settimana."
   home_zero_day: "0 giorni"
+  home_n_sessions_grouped: "%@ sessioni"
+  home_no_dictations_yet: "Ancora nessuna dettatura."
+  home_one_session: "1 sessione"
+  home_press_hotkey_to_start: "Premi %@ ovunque per iniziare."
+  home_stop: "Ferma"
 u5:
   u7_add_replacement: "Aggiungi sostituzione"
   u7_add_word: "Aggiungi parola"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "Isolamento vocale"
   reduce_background_noise_before_transcription: "Riduci il rumore di fondo prima della trascrizione"
+  note: "Nota vocale"
 vs:
   typing: "rispetto alla digitazione"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "Ieri"
 you:
+  _self: "Tu"
   are_a_note_formatting_assistant_transform_th: "Sei un assistente per la formattazione delle note. Trasforma il testo trascritto in una nota ben strutturata.nnRegole:n- Correggi errori grammaticali, di punteggiatura e di ortografian- Per contenuti più lunghi (3+ paragrafi), aggiungi la formattazione markdown:n - Utilizza le intestazioni (## o ###) per organizzare le sezionin - Utilizza punti elenco o elenchi numerati ove appropriaton - Utilizza **grassetto** per enfatizzare i termini chiaven- Per contenuti più brevi, mantienili semplici con una formattazione miniman- Conserva il significato e il tono originali- Non aggiungere contenuto che non era nell'originalen- Restituisci solo la nota formattata senza alcun commento"
   are_a_text_enhancement_assistant_improve_the: "Sei un assistente per il miglioramento del testo. Migliora la grammatica, la punteggiatura e la formattazione del testo fornito preservandone il significato e il tono originali. Restituisce solo il testo arricchito senza alcun commento aggiuntivo."
   can_change_these_anytime_from_the_menu_bar_s: "Puoi modificarli in qualsiasi momento dalla barra dei menu → Impostazioni → Tasti di scelta rapida"
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "È tutto pronto!"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Hai superato il limite di velocità o la quota API.                                  Per risolvere questo problema: 1. Attendi qualche minuto e riprova 2. Controlla i limiti di utilizzo del tuo provider API 3. Valuta la possibilità di aggiornare il tuo piano API La trascrizione è stata salvata senza miglioramenti.                 \"\""
   re_in_control: "Hai il controllo"
+  deleted_this_transcript: "Hai eliminato questa trascrizione."
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\" La tua chiave API sembra non essere valida o scaduta.                                  Per risolvere questo problema: 1. Apri Impostazioni → Miglioramento AI 2. Verifica che la chiave API sia corretta 3. Verifica che l'endpoint API sia corretto La trascrizione è stata salvata senza miglioramenti.                 \"\""
   floating_indicator_is_now_a_living_audio_re: "Il tuo indicatore flottante ora è un orb vivo e reattivo all’audio. Respira quando è inattivo, si espande quando parli e mostra le tue parole in tempo reale mentre detti."
@@ -1566,6 +1639,8 @@ your:
   stats: "Le tue statistiche"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "Le tue parole restano tue"
+  enhanced_note_is_ready: "La tua nota migliorata è pronta."
+  notes_and_the_enhanced_note_stay_the_transc: "Le tue note e la nota migliorata restano. La trascrizione è nascosta in questa nota."
 zoom:
   _self: "Zoom"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "%@ token in ingresso / %@ in uscita"
   in_out_thinking: "%@ token in ingresso / %@ in uscita / %@ di ragionamento"
+auto:
+  _self: "Automatico"
+discard:
+  recording: "Scarta la registrazione"
+  this_recording: "Scartare questa registrazione?"
+finalizing:
+  _self: "Completamento"
+finish:
+  _self: "Termina"
+  the_active_transcription_before_starting: "Termina la trascrizione in corso prima di avviarne un'altra."
+  the_active_transcription_before_starting_another: "Termina la trascrizione in corso prima di avviarne un'altra."
+generate:
+  enhanced_note: "Genera la nota migliorata"
+generated:
+  _self: "Generata %@"
+  1_2_template: "Generata %1$@ · modello %2$@"
+helpful:
+  _self: "Utile"
+identifying:
+  speakers: "Identificazione dei parlanti"
+jump:
+  to_live: "Vai al dal vivo"
+  to_this_line: "Vai a questa riga"
+mic:
+  _self: "Microfono"
+more:
+  note_actions: "Altre azioni sulla nota"
+  recording_options: "Altre opzioni di registrazione"
+my:
+  notes: "Le mie note"
+nothing:
+  was_transcribed_yet: "Non è stato ancora trascritto nulla."
+playback:
+  position: "Posizione di riproduzione"
+s:
+  to_save: "⌘S per salvare"
+sealing:
+  audio: "Sigillatura dell'audio"
+  the_recording: "Sigillatura della registrazione."
+see:
+  this_in_the_transcript: "Vedi questo nella trascrizione"
+template:
+  _self: "Modello: %@"
+templates:
+  _self: "Modelli"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "Non c'è ancora una trascrizione da migliorare. Registra prima questa nota."
+transcribing:
+  _self: "Trascrizione in corso"
+transcript:
+  _self: "Trascrizione"
+  source: "Sorgente della trascrizione %@"
+was:
+  this_note_useful: "Questa nota è stata utile?"
+writing:
+  note: "Scrittura della nota"
+  your_enhanced_note: "Scrittura della tua nota migliorata."
+  your_enhanced_note_comes_next_long_recor: "Poi viene scritta la tua nota migliorata. Le registrazioni lunghe possono richiedere qualche minuto. Puoi continuare a scrivere."
+  your_enhanced_note_with: "Scrittura della tua nota migliorata con %@."

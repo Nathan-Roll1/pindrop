@@ -164,6 +164,50 @@ enum NoteRowPresentation {
         String(format: localized("REC %@", locale: locale), elapsedText(elapsed))
     }
 
+    /// One spoken sentence for a Notes-list row.
+    ///
+    /// The row is a lane grid: a glyph, a title, a preview, a badge slot, a
+    /// duration, a time. VoiceOver reads it as one element, so every lane that
+    /// only carries meaning visually is named here. The glyph lane becomes a
+    /// word, and a live row says it is recording instead of reading three empty
+    /// lanes.
+    static func accessibilityLabel(
+        title: String,
+        facts: NoteRowCaptureFacts,
+        isPinned: Bool = false,
+        liveElapsed: TimeInterval? = nil,
+        dateText: String = "",
+        locale: Locale
+    ) -> String {
+        var parts: [String] = [kindLabel(facts: facts, locale: locale), title]
+
+        if isPinned {
+            parts.append(localized("Pinned", locale: locale))
+        }
+
+        if let liveElapsed {
+            parts.append(localized("Recording", locale: locale))
+            parts.append(elapsedText(liveElapsed))
+            return parts.filter { !$0.isEmpty }.joined(separator: ", ")
+        }
+
+        if showsEnhancedBadge(facts: facts) {
+            parts.append(localized("Enhanced", locale: locale))
+        }
+        parts.append(durationText(facts.duration))
+        parts.append(dateText)
+        return parts.filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+
+    /// The word behind the glyph lane.
+    static func kindLabel(facts: NoteRowCaptureFacts, locale: Locale) -> String {
+        switch kind(facts: facts) {
+        case .typed: localized("Note", locale: locale)
+        case .voice: localized("Voice note", locale: locale)
+        case .meeting: localized("Meeting note", locale: locale)
+        }
+    }
+
     /// Zero-padded mm:ss (h:mm:ss past an hour) for the live lane.
     static func elapsedText(_ elapsed: TimeInterval) -> String {
         let total = max(0, Int(elapsed.rounded()))

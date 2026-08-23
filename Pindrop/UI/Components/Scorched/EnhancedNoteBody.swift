@@ -196,6 +196,11 @@ struct EnhancedSourcesDisclosure: View {
     var onFollow: ((EnhancedSourceRow) -> Void)?
 
     @State private var isExpanded = false
+    @Environment(\.layoutDirection) private var layoutDirection
+
+    private var disclosureRotation: Double {
+        layoutDirection == .rightToLeft ? -90 : 90
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -203,10 +208,13 @@ struct EnhancedSourcesDisclosure: View {
                 isExpanded.toggle()
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "chevron.right")
+                    // `.forward` mirrors with the locale; the open rotation has
+                    // to turn the other way with it so the chevron still points
+                    // down at the list it opened.
+                    Image(systemName: "chevron.forward")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(AppColors.textTertiary)
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        .rotationEffect(.degrees(isExpanded ? disclosureRotation : 0))
 
                     Text(title)
                         .font(AppTypography.label)

@@ -1049,6 +1049,9 @@ final class AppCoordinator {
             onStartDictation: { [weak self] in
                 self?.handleMainWindowDictationStart()
             },
+            onStopDictation: { [weak self] in
+                self?.handleMainWindowDictationStop()
+            },
             onStartNoteCapture: { [weak self] request in
                 self?.handleStartNoteCapture(request, origin: .mainWindow) ?? false
             },
@@ -4094,6 +4097,15 @@ final class AppCoordinator {
                 source: .statusBarMenu,
                 captureStartClaim: claim
             )
+        }
+    }
+
+    /// Stop from the Dictate page's recording frame. Same toggle the indicator
+    /// and the hotkey use; the guard keeps it from starting one by accident.
+    private func handleMainWindowDictationStop() {
+        guard isRecording else { return }
+        Task { @MainActor [weak self] in
+            await self?.handleToggleRecording(source: .statusBarMenu)
         }
     }
 

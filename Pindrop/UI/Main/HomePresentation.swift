@@ -142,51 +142,15 @@ enum HomePresentation {
         return heroParts(template: template, metric: metric)
     }
 
-    // MARK: Capture pillar heroes (Voice Note / Meeting)
-
-    /// "1 voice note" or "4 voice notes" (grouped count for plural).
-    static func voiceNoteMetric(count: Int, locale: Locale) -> String {
+    /// "1 session" or "12 sessions" (grouped count for plural). Trailing meta on
+    /// the THIS WEEK chart header, where the old Sessions stat tile moved.
+    static func sessionMetric(count: Int, locale: Locale) -> String {
         if count == 1 {
-            return localized("1 voice note", locale: locale)
+            return localized("1 session", locale: locale)
         }
         return String(
-            format: localized("%@ voice notes", locale: locale),
+            format: localized("%@ sessions", locale: locale),
             formatGrouped(count, locale: locale)
-        )
-    }
-
-    /// "1 meeting" or "3 meetings" (grouped count for plural).
-    static func meetingMetric(count: Int, locale: Locale) -> String {
-        if count == 1 {
-            return localized("1 meeting", locale: locale)
-        }
-        return String(
-            format: localized("%@ meetings", locale: locale),
-            formatGrouped(count, locale: locale)
-        )
-    }
-
-    /// Voice Note hero: "You captured %@ this week." split around the metric.
-    static func voiceNoteHeroParts(notesThisWeek: Int, locale: Locale) -> HeroSentenceParts {
-        let metric = voiceNoteMetric(count: notesThisWeek, locale: locale)
-        let template = localized("You captured %@ this week.", locale: locale)
-        return heroParts(template: template, metric: metric)
-    }
-
-    /// Meeting hero: "You recorded %@ this week." split around the metric.
-    static func meetingHeroParts(meetingsThisWeek: Int, locale: Locale) -> HeroSentenceParts {
-        let metric = meetingMetric(count: meetingsThisWeek, locale: locale)
-        let template = localized("You recorded %@ this week.", locale: locale)
-        return heroParts(template: template, metric: metric)
-    }
-
-    /// Meeting sub-line: "4 h 12 m of meeting audio." Empty when there is no audio.
-    static func meetingSubLine(meetingDuration: TimeInterval, locale: Locale) -> String {
-        let recorded = formatCompactDuration(meetingDuration, locale: locale)
-        guard !recorded.isEmpty else { return "" }
-        return String(
-            format: localized("%@ of meeting audio.", locale: locale),
-            recorded
         )
     }
 
@@ -227,7 +191,8 @@ enum HomePresentation {
         return String(format: localized("%d m", locale: locale), max(1, minutes))
     }
 
-    /// "2 h 38 m of dictation — about 1 h 51 m saved over typing it out."
+    /// "2 h 38 m of dictation. About 1 h 51 m saved over typing it out."
+    /// Two sentences, not one clause hung off a dash (spec: no sentence dashes).
     /// Empty-week: quiet empty string so the view can hide the sub-line or show a short empty hint.
     static func subLine(
         dictationDuration: TimeInterval,
@@ -245,7 +210,7 @@ enum HomePresentation {
             )
         }
         return String(
-            format: localized("%@ of dictation — about %@ saved over typing it out.", locale: locale),
+            format: localized("%@ of dictation. About %@ saved over typing it out.", locale: locale),
             spoken,
             saved
         )
@@ -468,4 +433,129 @@ enum HomePresentation {
         formatter.timeStyle = .none
         return formatter.string(from: date)
     }
+
+    // MARK: Dictate action frame
+
+    /// The hotkey as the page prints it. Falls back to the shipped default so the
+    /// button and the empty state never say "Press  anywhere to start."
+    static func dictationShortcut(_ hotkey: String, locale: Locale) -> String {
+        let trimmed = hotkey.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? localized("⌥Space", locale: locale) : trimmed
+    }
+
+    /// What the one action frame on the Dictate page shows.
+    ///
+    /// Start and recording are the same frame: the CTA becomes the clock in
+    /// place, so beginning a dictation never moves the page under the pointer.
+    static func captureControl(
+        isDictating: Bool,
+        elapsed: TimeInterval,
+        isStartAvailable: Bool,
+        isCaptureBusy: Bool,
+        hotkey: String,
+        locale: Locale
+    ) -> DictateCaptureControl {
+        let shortcut = dictationShortcut(hotkey, locale: locale)
+        if isDictating {
+            return DictateCaptureControl(
+                mode: .recording,
+                startTitle: localized("Start dictating", locale: locale),
+                shortcut: shortcut,
+                isStartEnabled: false,
+                disabledReason: nil,
+                elapsedText: NoteRowPresentation.elapsedText(elapsed),
+                stopTitle: localized("Stop", locale: locale)
+            )
+        }
+        return DictateCaptureControl(
+            mode: .start,
+            startTitle: localized("Start dictating", locale: locale),
+            shortcut: shortcut,
+            isStartEnabled: isStartAvailable && !isCaptureBusy,
+            // The old page shouted this in a warning block under the button. It
+            // belongs on the button that will not press.
+            disabledReason: isCaptureBusy
+                ? localized("Finish the current capture before starting another.", locale: locale)
+                : nil,
+            elapsedText: "",
+            stopTitle: localized("Stop", locale: locale)
+        )
+    }
+
+    // MARK: Dictate stats
+
+    /// The three tiles above the Recent list. Sessions used to be a fourth; it
+    /// reads better as trailing meta on the THIS WEEK chart, where the week it
+    /// counts is already named.
+    static func statTiles(
+        wordsToday: Int,
+        wpmThisWeek: Double,
+        streakDays: Int,
+        locale: Locale
+    ) -> [DictateStatTile] {
+        [
+            DictateStatTile(
+                value: formatGrouped(wordsToday, locale: locale),
+                label: localized("Words today", locale: locale)
+            ),
+            DictateStatTile(
+                value: formatWPM(wpmThisWeek, locale: locale),
+                label: localized("Words / min", locale: locale)
+            ),
+            DictateStatTile(
+                value: streakLabel(days: streakDays, locale: locale),
+                label: localized("Streak", locale: locale)
+            )
+        ]
+    }
+
+    // MARK: Dictate empty state
+
+    /// First run: name the situation, then the next action. No slogan.
+    static func emptyState(hotkey: String, locale: Locale) -> DictateEmptyState {
+        DictateEmptyState(
+            title: localized("No dictations yet.", locale: locale),
+            guidance: String(
+                format: localized("Press %@ anywhere to start.", locale: locale),
+                dictationShortcut(hotkey, locale: locale)
+            )
+        )
+    }
+}
+
+// MARK: - Dictate value types
+
+/// The Dictate page's one action frame, decided without a window.
+struct DictateCaptureControl: Equatable, Sendable {
+    enum Mode: Equatable, Sendable {
+        /// "Start dictating", with the hotkey printed inside the button.
+        case start
+        /// Elapsed clock, live level, Stop.
+        case recording
+    }
+
+    let mode: Mode
+    let startTitle: String
+    /// The user's dictation hotkey, as printed inside the CTA and the empty state.
+    let shortcut: String
+    let isStartEnabled: Bool
+    /// Why the CTA will not press. Nil when it will.
+    let disabledReason: String?
+    /// Zero-padded mm:ss (h:mm:ss past an hour). Empty outside `.recording`.
+    let elapsedText: String
+    let stopTitle: String
+}
+
+/// One tile in the Dictate stats strip.
+struct DictateStatTile: Equatable, Sendable, Identifiable {
+    let value: String
+    let label: String
+
+    var id: String { label }
+}
+
+/// The two lines the Dictate page shows before the first dictation.
+struct DictateEmptyState: Equatable, Sendable {
+    let title: String
+    let guidance: String
 }

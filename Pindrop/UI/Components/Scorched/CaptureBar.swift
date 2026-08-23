@@ -374,6 +374,8 @@ struct CaptureBar: View {
 private struct CaptureSourceChip: View {
     let chip: CaptureBarSourceChip
 
+    @Environment(\.locale) private var locale
+
     var body: some View {
         HStack(spacing: 6) {
             Circle()
@@ -406,6 +408,8 @@ private struct CaptureSourceChip: View {
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(chip.accessibilityIdentifier)
         .accessibilityLabel(chip.title)
+        // On and off differ only by fill and dot, so the state has to be spoken.
+        .accessibilityValue(localized(chip.isOn ? "On" : "Off", locale: locale))
         .accessibilityHint(chip.helpText ?? "")
     }
 }

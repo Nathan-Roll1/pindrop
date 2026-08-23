@@ -9,11 +9,16 @@
   transcription: "1 전사"
   word: "단어 1개"
   year: "1 year"
+  edited_2: "%1$@ · 편집 %2$@"
+  recording: "녹음 %1$@"
+  recording_2: "녹음 %1$@ · %2$@"
+  result: "1개 결과"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "큰 업그레이드 한 묶음 — 그리고 커뮤니티에 전하는 두 번의 감사."
   native_macos_menu_bar_dictation_app_using_loca: "WhisperKit을 통해 로컬 음성-텍스트 변환을 사용하는 기본 macOS 메뉴 표시줄 받아쓰기 앱입니다. AI 향상 옵션이 기본적으로 100% 로컬 처리됩니다."
+  note_capture_is_already_running: "메모 녹음이 이미 진행 중입니다."
 about:
   _self: "에 대한"
   pindrop: "핀드롭 소개"
@@ -79,6 +84,7 @@ an:
     원본 전사본이 향상되지 않고 저장되었습니다.
     설정에서 AI 향상을 다시 활성화해 볼 수 있습니다.
   error_occurred_while_enhancing_your_transcrip_1790ad05: "전사를 강화하는 동안 오류가 발생했습니다:nn%@nn원본 전사가 강화되지 않고 저장되었습니다.n설정에서 AI 강화를 다시 활성화할 수 있습니다."
+  earlier_version_of_pindrop_wrote_this_note_it: "이 메모는 이전 버전의 Pindrop이 작성했습니다. 다시 작성할 수 없습니다."
 anthropic:
   _self: "Anthropic"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "오디오 입력"
+  sealed: "오디오 저장됨"
 automatic:
   follow_system: "자동(추종 시스템)"
   updates: "자동 업데이트"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "로그인하면 Pindrop이 자동으로 시작됩니다."
 available:
   models: "사용 가능한 모델"
+  when_the_recording_is_finished: "녹음이 끝나면 사용할 수 있습니다"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "뒤쪽에"
   to_library: "도서관으로 돌아가기"
+  to_notes: "메모로 돌아가기"
 base:
   _self: "베이스"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "취소"
   operation: "작업 취소"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "녹음 취소"
 capture:
   directly_into_the_note_editor_with_a_hol: "기록 보관 흐름을 통해 노트 편집기에 직접 캡처하세요."
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "클릭하거나 누르세요."
   or_set_a_hotkey_to_start_talking: "대화를 시작하려면 단축키를 클릭하거나 설정하세요."
   this_icon_anytime_to: "언제든지 이 아이콘을 클릭하여 다음을 수행하세요."
+  a_number_to_see_it_in_the_transcript: "번호를 클릭하면 대본에서 볼 수 있습니다."
+  new_note_to_start_one: "새 메모를 클릭해 시작하세요. 입력하는 동안 Pindrop이 녹음합니다."
 client:
   _self: "클라이언트"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "가장 최근 전사 내용을 클립보드에 복사합니다."
   to_clipboard: "클립보드에 복사"
   transcript: "성적 증명서 복사"
+  content: "내용 복사"
 correct:
   grammar_mistakes: "올바른 문법 실수"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "맞춤/로컬"
   openai_compatible: "맞춤형(OpenAI 호환)"
   presets: "사용자 정의 사전 설정"
+  templates: "내 템플릿"
 customize:
   hotkey: "단축키 맞춤설정"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d개 샘플 · %@"
   speakers: "화자 %d명"
   words: "%d개 단어"
+  results: "%d개 결과"
 dark:
   _self: "어두운"
   preview: "어두운 미리보기"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "스크립트를 삭제하시겠습니까?"
   all_contributions: "모든 기여 삭제…"
   all_stored_text_pairs: "저장된 텍스트 쌍을 모두 삭제하시겠어요?"
+  this_note: "이 메모 삭제"
+  this_transcript: "이 대본을 삭제할까요?"
+  transcript: "대본 삭제"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "영어로만 제공"
 enhanced:
   _self: "향상된"
+  note: "보강 메모"
 enhancement:
   prompts: "개선 프롬프트"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "파일"
 find:
   _self: "찾기"
+  in_transcript: "대본에서 찾기"
 fix:
   punctuation_and_capitalization: "구두점 및 대소문자 수정"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "API 키 숨기기"
   this_for_1_hour: "이것을 1시간 동안 숨기세요"
+  live_transcript: "실시간 대본 숨기기"
 history:
   _self: "역사"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "듣는 중…"
 live:
   streaming_refinement: "라이브 스트리밍 개선"
+  text_stopped_the_recording_continues: "실시간 텍스트가 멈췄습니다. 녹음은 계속됩니다."
+  transcript: "실시간 대본"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "사전 설정 관리"
   presets_ab87986d: "사전 설정 관리..."
   presets_d5d4c2c2: "프리셋 관리…"
+  templates: "템플릿 관리…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "새로운 Orb 만나보기"
 meeting:
   saved: "회의가 저장됨"
+  note: "회의 메모"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "새 폴더"
   note: "새 메모"
   preset: "새로운 사전 설정"
+  note_with_system_audio: "시스템 오디오가 있는 새 메모"
+  note_without_recording: "녹음 없는 새 메모"
 newest:
   _self: "최신순"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "어휘 없음"
   transcripts_audio_prompts_file_names_or_perso: "전사, 오디오, 프롬프트, 파일 이름, 개인 콘텐츠는 결코 포함되지 않습니다."
   contributions_yet_pairs_are_stored_when_ai_en: "아직 기여가 없습니다. AI 향상 또는 수동 편집이 전사를 변경하면 쌍이 저장됩니다."
+  audio_was_recorded_for_this_note: "이 메모에는 오디오가 녹음되지 않았습니다."
+  enhanced_note_yet: "아직 보강 메모가 없습니다."
+  notes_yet_sentence: "아직 메모가 없습니다."
+  results_try_another_word: "결과가 없습니다. 다른 단어로 시도하세요."
 not:
   assigned: "할당되지 않음"
   enough_voice_data_yet: "아직 음성 데이터가 부족합니다"
@@ -748,6 +779,7 @@ not:
   set: "설정되지 않음"
   set_93039e60: "설정되지 않음"
   now: "나중에"
+  helpful: "도움이 안 됨"
 note:
   _self: "메모"
   capture_hold: "메모 캡처 — 길게 누르기"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "메모"
   3add7b96: "메모"
+  header_meta_empty: "아직 아무것도 없습니다"
+  header_meta_today: "%1$@, 오늘 %2$@"
+  new_note_options_label: "새 메모 추가 옵션"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "끄다"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "설정 열기"
   settings_fd7108f8: "설정 열기"
   system_settings: "시스템 설정 열기"
+  in_new_window: "새 창에서 열기"
+  note: "메모 열기"
 openai:
   _self: "OpenAI"
   compatible_local_server: "OpenAI 호환 로컬 서버"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "각 AI 작업을 처리하는 공급자와 모델을 선택하세요. 목적을 건너뛰려면 '할당되지 않음'으로 두세요."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "각 AI 작업을 처리할 제공자와 모델을 선택합니다. 미할당 목적은 건너뜁니다."
+  a_model_for_note_enhancement_in_settings_th: "설정에서 메모 보강 모델을 고른 다음 다시 시도하세요."
 pill:
   _self: "알약"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "핀드롭 알약"
   theme: "핀드롭 테마"
   can_send_anonymous_privacy_preserving_si: "Pindrop은 버그를 더 빨리 고칠 수 있도록 익명의 개인정보 보호 신호를 보낼 수 있습니다."
+  writes_one_from_your_notes_and_the_trans: "Pindrop이 메모와 대본으로 작성합니다."
 pinned:
   _self: "고정됨"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "추천"
 record:
   _self: "기록"
+  with_system_audio: "시스템 오디오와 함께 녹음"
 recording:
   _self: "녹음"
   3f8fd48c: "🔴 녹음"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "녹음이 진행 중입니다 — 완료되면 전사가 시작됩니다."
   stopped_with_error: "녹음이 중지되었습니다: %@"
   from_external_and_bluetooth_microphone: "이제 외부 및 Bluetooth 마이크 녹음이 매우 안정적이며, 오디오 출력이 다른 곳으로 라우팅되어도 문제없이 동작합니다."
+  continues_while_you_work: "작업하는 동안 녹음이 계속됩니다"
+  transcribed: "녹음을 전사했습니다."
 recordings:
   _self: "녹음"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "플로팅 표시기 표시"
   in_dock: "Dock에 표시"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "실시간 대본 보기"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "화면 모서리에 리퀴드 글래스 오브로 표시됩니다"
   as_a_pill_at_the_bottom_of_the_screen: "화면 하단에 알약으로 표시됩니다."
@@ -1138,17 +1182,24 @@ source:
   _self: "원천"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "소스는 녹음이 시작될 때 정해집니다."
+  d: "출처 (%d)"
 spanish:
   _self: "스페인 사람"
 speak:
   to_append: "말해 추가"
 speaker:
+  _self: "화자"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "화자 분할 및 타임스탬프가 재생에 첨부됩니다."
   diarization_is_required: "화자 분할이 필요합니다."
   profile_training: "Speaker profile training"
+  d: "화자 %d"
 speakers:
   _self: "화자"
+  1: "화자: %1$@"
+  are_set_when_the_recording_starts: "화자는 녹음이 시작될 때 정해집니다."
+  identified: "화자 식별 완료"
 speed:
   _self: "속도"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "체계"
   default: "시스템 기본값"
+  audio: "시스템 오디오"
 teach:
   custom_words: "맞춤 단어 가르치기"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\"\" 60초 이내에 모델을 불러오지 못했습니다. 이는 일반적으로 모델 파일이 손상되었거나 호환되지 않음을 의미합니다.                          이 문제를 해결하려면: 1. 설정 → 모델을 엽니다. 2. 문제가 있는 모델을 삭제합니다. 3. 모델을 다시 다운로드합니다. 문제가 지속되면 더 작은 모델(Tiny 또는 Base)을 사용해 보십시오.             \"\""
   new_nemotron_streaming_engine_shows_words_as: "새로운 Nemotron 스트리밍 엔진은 말하는 즉시 단어를 표시하고, 실행 시 미리 준비되어 첫 받아쓰기가 지연 없이 시작됩니다."
   selected_chunk_variant_isn_t_downloaded_yet: "선택한 청크 변형이 아직 다운로드되지 않았습니다. 전환하면 다운로드가 시작됩니다."
+  audio_and_the_live_transcript_are_deleted_yo: "오디오와 실시간 대본이 삭제됩니다. 직접 입력한 메모는 남습니다."
+  enhanced_note_could_not_be_generated_try_aga: "보강 메모를 만들지 못했습니다. 다시 시도하세요."
+  enhanced_note_could_not_be_saved_try_again: "보강 메모를 저장하지 못했습니다. 다시 시도하세요."
+  model_returned_an_empty_note_try_again: "모델이 빈 메모를 반환했습니다. 다시 시도하세요."
+  note_enhancement_model_is_unavailable_check: "메모 보강 모델을 사용할 수 없습니다. 설정에서 확인한 다음 다시 시도하세요."
+  note_this_recording_belongs_to_could_not_be_opened: "이 녹음이 속한 메모를 열지 못했습니다."
+  recorded_audio_could_not_be_prepared: "녹음된 오디오를 전사용으로 준비하지 못했습니다."
+  recorder_did_not_start: "레코더가 시작되지 않았습니다."
+  transcript_fills_in_as_you_speak: "말하는 동안 대본이 채워집니다."
+  transcript_starts_once_you_speak: "말을 시작하면 대본이 시작됩니다."
 theme:
   _self: "주제"
   changes_apply_live_across_the_workspace_se: "테마 변경 사항은 작업 공간, 설정, 노트 편집기 및 플로팅 표시기에 실시간으로 적용됩니다."
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "이렇게 하면 스크립트와 관리되는 미디어 파일이 영구적으로 제거됩니다."
   will_permanently_remove_this_note: "이 메모가 영구적으로 삭제됩니다."
   permanently_deletes_all_stored_text_pairs_f: "이 작업은 이 Mac에서 저장된 모든 텍스트 쌍을 영구적으로 삭제합니다."
+  template_could_not_be_read_pick_another_tem: "이 템플릿을 읽지 못했습니다. 다른 템플릿을 골라 다시 시도하세요."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "전사 메타데이터"
   saved: "전사 내용이 저장됨"
   update: "전사 업데이트"
+  done: "전사 완료"
 transcriptions:
   _self: "전사"
   f0972acc: "필사본"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "다른 검색어를 사용해 보세요."
   a_different_search_term_in_this_folder: "이 폴더에서 다른 검색어를 사용해 보세요."
   searching_for_terms_like_hotkeys_microphone: "단축키, 마이크, 업데이트, 진동 모드 등의 용어를 검색해 보세요."
+  again: "다시 시도"
 turkish:
   _self: "터키어"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "최근 받아쓰기가 여기에 표시됩니다."
   home_streak: "연속"
   home_subline_duration_only: "받아쓰기 %@."
-  home_subline_full: "받아쓰기 %@ — 타이핑 대비 약 %@ 절약."
+  home_subline_full: "받아쓰기 %@. 직접 입력하는 것보다 약 %@ 절약."
   home_this_week: "이번 주"
   home_welcome_tagline: "말하면 적힙니다."
   home_words_per_min: "단어 / 분"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "오늘 단어"
   home_you_spoke_this_week: "이번 주에 %@ 말했습니다."
   home_zero_day: "0일"
+  home_n_sessions_grouped: "%@개 세션"
+  home_no_dictations_yet: "아직 받아쓰기가 없습니다."
+  home_one_session: "1개 세션"
+  home_press_hotkey_to_start: "어디서든 %@를 눌러 시작하세요."
+  home_stop: "정지"
 u5:
   u7_add_replacement: "치환 추가"
   u7_add_word: "단어 추가"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "음성 분리"
   reduce_background_noise_before_transcription: "텍스트 변환 전에 배경 소음 줄이기"
+  note: "음성 메모"
 vs:
   typing: "vs 타이핑"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "어제"
 you:
+  _self: "나"
   are_a_note_formatting_assistant_transform_th: "당신은 노트 서식 도우미입니다. 전사된 텍스트를 잘 구조화된 노트로 변환합니다.nn규칙:n- 문법, 구두점 및 철자 오류 수정n- 긴 콘텐츠(3개 이상의 단락)의 경우 마크다운 서식 추가:n - 헤더(## 또는 ###)를 사용하여 섹션 구성n - 적절한 경우 글머리 기호 또는 번호 매기기 목록 사용 - 핵심 용어 강조를 위해 **굵게** 사용n- 짧은 콘텐츠의 경우 최소한의 서식으로 단순하게 유지n- 원래 의미와 어조 유지- 다음과 같은 내용을 추가하지 마세요. 원본에는 없었습니다. - 설명 없이 형식화된 메모만 반환합니다."
   are_a_text_enhancement_assistant_improve_the: "당신은 텍스트 향상 도우미입니다. 제공된 텍스트의 원래 의미와 어조를 유지하면서 문법, 구두점, 서식을 개선합니다. 추가 설명 없이 향상된 텍스트만 반환합니다."
   can_change_these_anytime_from_the_menu_bar_s: "메뉴 모음 → 설정 → 단축키에서 언제든지 변경할 수 있습니다."
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "모든 준비가 완료되었습니다."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" API 속도 제한 또는 할당량을 초과했습니다.                                  이 문제를 해결하려면: 1. 몇 분 정도 기다렸다가 다시 시도하십시오. 2. API 공급자의 사용 제한을 확인하십시오. 3. API 계획 업그레이드를 고려하십시오. 스크립트가 향상되지 않고 저장되었습니다.                 \"\""
   re_in_control: "당신이 제어합니다"
+  deleted_this_transcript: "이 대본을 삭제했습니다."
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\" 귀하의 API 키가 유효하지 않거나 만료된 것 같습니다.                                  이 문제를 해결하려면: 1. 설정 → AI 향상을 엽니다. 2. API 키가 올바른지 확인합니다. 3. API 엔드포인트가 올바른지 확인합니다. 전사가 향상 없이 저장되었습니다.                 \"\""
   floating_indicator_is_now_a_living_audio_re: "이제 플로팅 표시기는 소리에 반응하는 살아 있는 orb입니다. 대기 중에는 숨 쉬고, 말하면 부풀어 오르며, 받아쓰는 동안 단어를 실시간으로 보여줍니다."
@@ -1566,6 +1639,8 @@ your:
   stats: "귀하의 통계"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "당신의 말은 당신의 것입니다"
+  enhanced_note_is_ready: "보강 메모가 준비되었습니다."
+  notes_and_the_enhanced_note_stay_the_transc: "메모와 보강 메모는 남습니다. 대본은 이 메모에서 숨겨집니다."
 zoom:
   _self: "확대/축소"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "입력 %@ / 출력 %@ 토큰"
   in_out_thinking: "입력 %@ / 출력 %@ / 추론 %@ 토큰"
+auto:
+  _self: "자동"
+discard:
+  recording: "녹음 버리기"
+  this_recording: "이 녹음을 버릴까요?"
+finalizing:
+  _self: "마무리 중"
+finish:
+  _self: "완료"
+  the_active_transcription_before_starting: "다른 전사를 시작하기 전에 진행 중인 전사를 끝내세요."
+  the_active_transcription_before_starting_another: "다른 전사를 시작하기 전에 진행 중인 전사를 끝내세요."
+generate:
+  enhanced_note: "보강 메모 만들기"
+generated:
+  _self: "생성 %@"
+  1_2_template: "생성 %1$@ · %2$@ 템플릿"
+helpful:
+  _self: "도움이 됨"
+identifying:
+  speakers: "화자 식별 중"
+jump:
+  to_live: "실시간으로 이동"
+  to_this_line: "이 줄로 이동"
+mic:
+  _self: "마이크"
+more:
+  note_actions: "메모 추가 작업"
+  recording_options: "추가 녹음 옵션"
+my:
+  notes: "내 메모"
+nothing:
+  was_transcribed_yet: "아직 전사된 내용이 없습니다."
+playback:
+  position: "재생 위치"
+s:
+  to_save: "⌘S로 저장"
+sealing:
+  audio: "오디오 저장 중"
+  the_recording: "녹음을 저장하는 중입니다."
+see:
+  this_in_the_transcript: "대본에서 보기"
+template:
+  _self: "템플릿: %@"
+templates:
+  _self: "템플릿"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "아직 보강할 대본이 없습니다. 먼저 이 메모를 녹음하세요."
+transcribing:
+  _self: "전사 중"
+transcript:
+  _self: "대본"
+  source: "대본 출처 %@"
+was:
+  this_note_useful: "이 메모가 도움이 되었나요?"
+writing:
+  note: "메모 작성 중"
+  your_enhanced_note: "보강 메모를 작성하는 중입니다."
+  your_enhanced_note_comes_next_long_recor: "다음으로 보강 메모를 작성합니다. 긴 녹음은 몇 분 걸릴 수 있습니다. 계속 입력해도 됩니다."
+  your_enhanced_note_with: "%@(으)로 보강 메모를 작성하는 중입니다."

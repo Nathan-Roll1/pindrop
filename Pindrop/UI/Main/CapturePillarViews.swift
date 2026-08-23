@@ -3,8 +3,9 @@
 //  Pindrop
 //
 //  The Dictate destination: the retrospective dashboard (hero, stats, recent,
-//  charts) with a start action beside the hero. The Voice Note and Meeting
-//  pillars merged into the one Notes page (WP2); WP7 polishes what is left here.
+//  charts) with one action frame on the kicker row. That frame starts a
+//  dictation and then becomes it, so the page never moves under the pointer.
+//  The Voice Note and Meeting pillars merged into the one Notes page (WP2).
 //
 
 import SwiftUI
@@ -24,18 +25,32 @@ struct DictateView: View {
     @State private var chartRowWidth: CGFloat = 0
 
     let recordingState: RecordingFeatureState?
+    /// Dictation's own recording state. Read only inside `DictateActionFrame`,
+    /// never in this body: its clock ticks ten times a second, and the page
+    /// around it must not redraw with it.
+    let dictationState: FloatingIndicatorState?
     let isCaptureBusy: Bool
+    /// True while a note capture owns the recorder. The action frame then keeps
+    /// its start face: that recording belongs to the note, not to this page.
+    let isNoteCaptureActive: Bool
     let onStartDictation: (() -> Void)?
+    let onStopDictation: (() -> Void)?
     let onOpenLibrary: (() -> Void)?
     let onShowMoreStats: (() -> Void)?
     let onOpenLibraryRecord: ((UUID) -> Void)?
     let onDownloadDiarizationModel: (() -> Void)?
 
+    /// Keyboard selection in the Recent list (↑/↓ move, Return opens, Esc clears).
+    @State private var selectedRecordID: UUID?
+
     init(
         settingsStore: SettingsStore,
         recordingState: RecordingFeatureState? = nil,
+        dictationState: FloatingIndicatorState? = nil,
         isCaptureBusy: Bool = false,
+        isNoteCaptureActive: Bool = false,
         onStartDictation: (() -> Void)? = nil,
+        onStopDictation: (() -> Void)? = nil,
         onOpenLibrary: (() -> Void)? = nil,
         onShowMoreStats: (() -> Void)? = nil,
         onOpenLibraryRecord: ((UUID) -> Void)? = nil,
@@ -43,8 +58,11 @@ struct DictateView: View {
     ) {
         self.settingsStore = settingsStore
         self.recordingState = recordingState
+        self.dictationState = dictationState
         self.isCaptureBusy = isCaptureBusy
+        self.isNoteCaptureActive = isNoteCaptureActive
         self.onStartDictation = onStartDictation
+        self.onStopDictation = onStopDictation
         self.onOpenLibrary = onOpenLibrary
         self.onShowMoreStats = onShowMoreStats
         self.onOpenLibraryRecord = onOpenLibraryRecord
@@ -103,11 +121,8 @@ struct DictateView: View {
                     .padding(.bottom, 16)
                 }
 
-                HStack(alignment: .top, spacing: 16) {
-                    heroBlock(now: now, stats: dashboardStats)
-                    Spacer(minLength: 0)
-                    dictateStartRow
-                }
+                kickerRow(now: now)
+                heroBlock(now: now, stats: dashboardStats)
                 statsStrip(stats: dashboardStats)
                 recentSection
                 chartRowWidthProbe
@@ -119,33 +134,44 @@ struct DictateView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(AppColors.contentBackground)
+        .listKeyboardSelection(isSearchFieldFocused: false) { command in
+            handleRecentListCommand(command)
+        }
         .accessibilityIdentifier("main.destination.dictate")
     }
 
-    /// The one action the old dashboard lacked: start a dictation from the page.
-    /// Sits top-right of the hero. Shortcut display observes SettingsStore inside
-    /// the row so the rest of the page stays isolated from settings publications.
-    private var dictateStartRow: some View {
-        DictateStartRow(
-            settingsStore: settingsStore,
-            isBusy: isCaptureBusy,
-            isStartAvailable: onStartDictation != nil,
-            onStart: { onStartDictation?() }
-        )
-        .padding(.top, 24)
+    /// Date kicker on the left, the one action frame on the right at the page
+    /// padding. The frame starts a dictation and then becomes that dictation.
+    private func kickerRow(now: Date) -> some View {
+        // Centered, not baseline-aligned: both labels are vertically centred in
+        // the 36 pt frame, so their baselines land together anyway, and the row
+        // cannot collapse if the frame stops exposing a text baseline.
+        HStack(alignment: .center, spacing: 16) {
+            Text(HomePresentation.dateKicker(date: now, locale: locale, calendar: calendar))
+                .font(AppTypography.overline)
+                .foregroundStyle(AppColors.textTertiary)
+                .tracking(AppTypography.overlineTracking)
+
+            Spacer(minLength: 0)
+
+            DictateActionFrame(
+                settingsStore: settingsStore,
+                dictationState: dictationState,
+                isCaptureBusy: isCaptureBusy,
+                isNoteCaptureActive: isNoteCaptureActive,
+                isStartAvailable: onStartDictation != nil,
+                onStart: { onStartDictation?() },
+                onStop: { onStopDictation?() }
+            )
+        }
     }
 
     // MARK: - Hero
 
     private func heroBlock(now: Date, stats: DashboardStats) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(HomePresentation.dateKicker(date: now, locale: locale, calendar: calendar))
-                .font(AppTypography.overline)
-                .foregroundStyle(AppColors.textTertiary)
-                .tracking(AppTypography.overlineTracking)
-
             if isFirstRun {
-                DashboardFirstRunWelcome()
+                DictateEmptyHero(settingsStore: settingsStore)
                     .padding(.top, 8)
                     .padding(.bottom, HomeLayoutMetrics.heroBottomPadding)
             } else {
@@ -181,32 +207,19 @@ struct DictateView: View {
     // MARK: - Stats strip
 
     private func statsStrip(stats: DashboardStats) -> some View {
-        HStack(spacing: 0) {
-            homeStat(
-                value: HomePresentation.formatGrouped(stats.wordsToday, locale: locale),
-                label: localized("Words today", locale: locale)
-            )
-
-            statsDivider
-
-            homeStat(
-                value: HomePresentation.formatWPM(stats.wpmThisWeek, locale: locale),
-                label: localized("Words / min", locale: locale)
-            )
-
-            statsDivider
-
-            homeStat(
-                value: HomePresentation.formatGrouped(stats.sessionsThisWeek, locale: locale),
-                label: localized("Sessions", locale: locale)
-            )
-
-            statsDivider
-
-            homeStat(
-                value: HomePresentation.streakLabel(days: stats.streakDays, locale: locale),
-                label: localized("Streak", locale: locale)
-            )
+        let tiles = HomePresentation.statTiles(
+            wordsToday: stats.wordsToday,
+            wpmThisWeek: stats.wpmThisWeek,
+            streakDays: stats.streakDays,
+            locale: locale
+        )
+        return HStack(spacing: 0) {
+            ForEach(Array(tiles.enumerated()), id: \.element.id) { index, tile in
+                if index > 0 {
+                    statsDivider
+                }
+                homeStat(value: tile.value, label: tile.label)
+            }
 
             Spacer(minLength: 0)
         }
@@ -257,7 +270,11 @@ struct DictateView: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(recentRecords) { record in
-                        CaptureRecentRow(record: record) {
+                        CaptureRecentRow(
+                            record: record,
+                            isSelected: selectedRecordID == record.id
+                        ) {
+                            selectedRecordID = record.id
                             onOpenLibraryRecord?(record.id)
                         }
                     }
@@ -273,6 +290,44 @@ struct DictateView: View {
             .foregroundStyle(AppColors.textTertiary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 12)
+    }
+
+    /// Keyboard selection over the Recent list. There is nothing to delete from
+    /// this page, so Delete falls through to whoever else wants it.
+    private func handleRecentListCommand(_ command: ListKeyboardCommand) -> Bool {
+        let records = recentRecords
+        switch command {
+        case .moveUp:
+            return moveRecentSelection(delta: -1, records: records)
+        case .moveDown:
+            return moveRecentSelection(delta: 1, records: records)
+        case .activate:
+            guard let selectedRecordID, records.contains(where: { $0.id == selectedRecordID }) else {
+                return false
+            }
+            onOpenLibraryRecord?(selectedRecordID)
+            return true
+        case .clearSelection:
+            guard selectedRecordID != nil else { return false }
+            selectedRecordID = nil
+            return true
+        case .delete:
+            return false
+        }
+    }
+
+    private func moveRecentSelection(delta: Int, records: [TranscriptionRecord]) -> Bool {
+        guard !records.isEmpty else { return false }
+        let current = selectedRecordID.flatMap { id in records.firstIndex { $0.id == id } }
+        guard let next = ListSelectionNavigation.moveIndex(
+            current: current,
+            count: records.count,
+            delta: delta
+        ) else {
+            return false
+        }
+        selectedRecordID = records[next].id
+        return true
     }
 
     // MARK: - THIS WEEK chart
@@ -299,6 +354,7 @@ struct DictateView: View {
         return HStack(alignment: .top, spacing: HomeLayoutMetrics.chartPanelGap) {
             DashboardWeeklyBarsChart(
                 buckets: stats.wordsPerWeekday,
+                sessionsThisWeek: stats.sessionsThisWeek,
                 now: now,
                 locale: locale,
                 calendar: calendar,
@@ -364,70 +420,245 @@ private func captureHeroText(parts: HomePresentation.HeroSentenceParts) -> some 
     .fixedSize(horizontal: false, vertical: true)
 }
 
-/// Primary start button with an optional shortcut hint and the busy warning.
-/// Sits at the trailing edge of the hero row on each capture page.
-private struct CaptureStartRow: View {
-    @Environment(\.locale) private var locale
-    let startTitle: String
-    let startIdentifier: String
-    let shortcut: String?
-    let isBusy: Bool
+// MARK: - Dictate action frame
+
+/// Metrics both faces of the action frame share. One height, so starting a
+/// dictation swaps the contents of the frame without moving the page.
+private enum DictateActionFrameMetrics {
+    static let height: CGFloat = 36
+    static let cornerRadius: CGFloat = 8
+    static let contentGap: CGFloat = 8
+    static let dotSize: CGFloat = 8
+    static let startHorizontalPadding: CGFloat = 16
+    static let recordingHorizontalPadding: CGFloat = 14
+    static let recordingGap: CGFloat = 12
+}
+
+/// The one action on the Dictate page: start a dictation, then be that dictation.
+///
+/// The hotkey is read here, at the leaf, so unrelated `SettingsStore`
+/// publications cannot invalidate the dashboard behind it.
+private struct DictateActionFrame: View {
+    @ObservedObject var settingsStore: SettingsStore
+    /// `nil` in previews and test mode: the frame then only offers start.
+    var dictationState: FloatingIndicatorState?
+    let isCaptureBusy: Bool
+    let isNoteCaptureActive: Bool
     let isStartAvailable: Bool
     let onStart: () -> Void
+    let onStop: () -> Void
+
+    @Environment(\.locale) private var locale
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 8) {
-            HStack(alignment: .center, spacing: 12) {
-                if let shortcut, !shortcut.isEmpty {
-                    Text(shortcut)
-                        .font(AppTypography.monoSmall)
-                        .foregroundStyle(AppColors.textTertiary)
-                        .monospacedDigit()
-                        .environment(\.layoutDirection, .leftToRight)
-                }
+        if let dictationState {
+            DictateLiveActionFrame(
+                dictationState: dictationState,
+                hotkey: settingsStore.toggleHotkey,
+                isCaptureBusy: isCaptureBusy,
+                isNoteCaptureActive: isNoteCaptureActive,
+                isStartAvailable: isStartAvailable,
+                onStart: onStart,
+                onStop: onStop
+            )
+        } else {
+            DictateActionFrameFace(
+                control: HomePresentation.captureControl(
+                    isDictating: false,
+                    elapsed: 0,
+                    isStartAvailable: isStartAvailable,
+                    isCaptureBusy: isCaptureBusy,
+                    hotkey: settingsStore.toggleHotkey,
+                    locale: locale
+                ),
+                levels: nil,
+                onStart: onStart,
+                onStop: onStop
+            )
+        }
+    }
+}
 
-                PrimaryButton(
-                    title: startTitle,
-                    systemImage: "record.circle",
-                    isEnabled: isStartAvailable && !isBusy,
-                    action: onStart
-                )
-                .accessibilityIdentifier(startIdentifier)
-                .accessibilityHint(isBusy ? localized("Finish the current capture before starting another.", locale: locale) : "")
-            }
+/// The face that watches dictation. Observing the clock here keeps its ten
+/// ticks a second inside this frame instead of the whole dashboard.
+private struct DictateLiveActionFrame: View {
+    @ObservedObject var dictationState: FloatingIndicatorState
+    let hotkey: String
+    let isCaptureBusy: Bool
+    /// A note capture drives the same recorder and the same meters. It owns the
+    /// global capture bar at the bottom of the page, so this frame stays a CTA.
+    let isNoteCaptureActive: Bool
+    let isStartAvailable: Bool
+    let onStart: () -> Void
+    let onStop: () -> Void
 
-            if isBusy {
-                VStack(alignment: .trailing, spacing: 2) {
-                    Label(localized("Capture in progress", locale: locale), systemImage: "record.circle.fill")
-                    Text(localized("Finish the current capture before starting another.", locale: locale))
-                }
-                .font(AppTypography.caption)
-                .foregroundStyle(AppColors.warning)
-                .accessibilityElement(children: .combine)
+    @Environment(\.locale) private var locale
+
+    @ViewBuilder
+    var body: some View {
+        let isDictating = dictationState.isRecording && !isNoteCaptureActive
+        let control = HomePresentation.captureControl(
+            isDictating: isDictating,
+            elapsed: dictationState.recordingDuration,
+            isStartAvailable: isStartAvailable,
+            isCaptureBusy: isCaptureBusy,
+            hotkey: hotkey,
+            locale: locale
+        )
+        if isDictating {
+            // Meters are sampled inside `CaptureLevelBars`, never in this body.
+            DictateActionFrameFace(
+                control: control,
+                levels: sampleLevels,
+                onStart: onStart,
+                onStop: onStop
+            )
+        } else {
+            DictateActionFrameFace(
+                control: control,
+                levels: nil,
+                onStart: onStart,
+                onStop: onStop
+            )
+        }
+    }
+
+    @MainActor
+    private func sampleLevels() -> CaptureLevelSample {
+        CaptureLevelSample(level: dictationState.audioLevel, bands: dictationState.bandLevels)
+    }
+}
+
+/// Draws whichever face `DictateCaptureControl` asked for.
+private struct DictateActionFrameFace: View {
+    let control: DictateCaptureControl
+    var levels: (@MainActor () -> CaptureLevelSample)?
+    let onStart: () -> Void
+    let onStop: () -> Void
+
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        Group {
+            switch control.mode {
+            case .start: startButton
+            case .recording: recordingBar
             }
         }
+        .frame(height: DictateActionFrameMetrics.height)
+    }
+
+    // MARK: Start
+
+    private var startButton: some View {
+        Button(action: onStart) {
+            HStack(spacing: DictateActionFrameMetrics.contentGap) {
+                Circle()
+                    .fill(AppColors.contentBackground)
+                    .frame(
+                        width: DictateActionFrameMetrics.dotSize,
+                        height: DictateActionFrameMetrics.dotSize
+                    )
+
+                Text(control.startTitle)
+                    .font(AppTypography.labelStrongSelected)
+                    .foregroundStyle(AppColors.contentBackground)
+
+                Text(control.shortcut)
+                    .font(AppTypography.monoSmall)
+                    .foregroundStyle(AppColors.contentBackground.opacity(0.72))
+                    .environment(\.layoutDirection, .leftToRight)
+            }
+            .padding(.horizontal, DictateActionFrameMetrics.startHorizontalPadding)
+            .frame(height: DictateActionFrameMetrics.height)
+            .background(
+                RoundedRectangle(
+                    cornerRadius: DictateActionFrameMetrics.cornerRadius,
+                    style: .continuous
+                )
+                .fill(control.isStartEnabled ? AppColors.accent : AppColors.accent.opacity(0.4))
+            )
+        }
+        .buttonStyle(.plain)
+        .focusRing(.rounded(.sm))
+        .disabled(!control.isStartEnabled)
+        .help(control.disabledReason ?? "")
+        .accessibilityIdentifier("main.capture.dictate.start")
+        .accessibilityLabel(control.startTitle)
+        .accessibilityHint(control.disabledReason ?? "")
+    }
+
+    // MARK: Recording
+
+    private var recordingBar: some View {
+        HStack(spacing: DictateActionFrameMetrics.recordingGap) {
+            Circle()
+                .fill(AppColors.recording)
+                .frame(
+                    width: DictateActionFrameMetrics.dotSize,
+                    height: DictateActionFrameMetrics.dotSize
+                )
+                .accessibilityHidden(true)
+
+            Text(control.elapsedText)
+                .font(AppTypography.monoTimeLarge)
+                .foregroundStyle(AppColors.textPrimary)
+                .monospacedDigit()
+                .environment(\.layoutDirection, .leftToRight)
+                .accessibilityLabel(localized("Recording", locale: locale))
+                .accessibilityValue(control.elapsedText)
+
+            if let levels {
+                CaptureLevelBars(sample: levels)
+            }
+
+            DictateStopButton(title: control.stopTitle, action: onStop)
+        }
+        .padding(.horizontal, DictateActionFrameMetrics.recordingHorizontalPadding)
+        .frame(height: DictateActionFrameMetrics.height)
+        .background(
+            RoundedRectangle(
+                cornerRadius: DictateActionFrameMetrics.cornerRadius,
+                style: .continuous
+            )
+            .fill(AppColors.errorBackground)
+        )
+        .overlay(
+            RoundedRectangle(
+                cornerRadius: DictateActionFrameMetrics.cornerRadius,
+                style: .continuous
+            )
+            .strokeBorder(AppColors.border, lineWidth: 1)
+        )
         .accessibilityElement(children: .contain)
     }
 }
 
-/// Dictate's start row observes SettingsStore for the hotkey hint so the rest
-/// of the page stays isolated from unrelated settings publications.
-private struct DictateStartRow: View {
-    @ObservedObject var settingsStore: SettingsStore
-    let isBusy: Bool
-    let isStartAvailable: Bool
-    let onStart: () -> Void
-    @Environment(\.locale) private var locale
+/// Quiet button inside the recording frame: page fill, line border, radius 6.
+private struct DictateStopButton: View {
+    let title: String
+    let action: () -> Void
 
     var body: some View {
-        CaptureStartRow(
-            startTitle: localized("Start dictating", locale: locale),
-            startIdentifier: "main.capture.dictate.start",
-            shortcut: settingsStore.toggleHotkey,
-            isBusy: isBusy,
-            isStartAvailable: isStartAvailable,
-            onStart: onStart
-        )
+        Button(action: action) {
+            Text(title)
+                .font(AppTypography.labelSemibold)
+                .foregroundStyle(AppColors.textPrimary)
+                .padding(.vertical, 5)
+                .padding(.horizontal, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(AppColors.contentBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(AppColors.border, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .focusRing(.rounded(.sm))
+        .accessibilityIdentifier("main.capture.dictate.stop")
+        .accessibilityLabel(title)
     }
 }
 
@@ -459,6 +690,8 @@ private struct CaptureRecentRow: View {
     @Environment(\.locale) private var locale
     @Environment(\.layoutDirection) private var layoutDirection
     let record: TranscriptionRecord
+    /// Set by ↑/↓ keyboard selection over the Recent list.
+    var isSelected: Bool = false
     let action: () -> Void
 
     private static let rowTimeFormatter: DateFormatter = {
@@ -511,6 +744,11 @@ private struct CaptureRecentRow: View {
             },
             action: action
         )
+        .background {
+            if isSelected {
+                AppColors.accent.opacity(0.06)
+            }
+        }
         // Row chrome includes 24 pt horizontal padding; counteract outer 40 so lanes
         // sit flush with the page content edge the way Library rows do.
         .padding(.horizontal, -24)
@@ -524,6 +762,9 @@ private struct DashboardWeeklyBarsChart: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let buckets: [Int]
+    /// Trailing meta on the header. It used to be a fourth stat tile; the week
+    /// it counts is the week this chart already draws.
+    let sessionsThisWeek: Int
     let now: Date
     let locale: Locale
     let calendar: Calendar
@@ -549,7 +790,12 @@ private struct DashboardWeeklyBarsChart: View {
                 title: localized("This week", locale: locale),
                 trailing: HomePresentation.wordMetric(count: activeWords, locale: locale),
                 isFirst: true
-            )
+            ) {
+                Text(HomePresentation.sessionMetric(count: sessionsThisWeek, locale: locale))
+                    .font(AppTypography.captionMedium)
+                    .foregroundStyle(AppColors.textTertiary)
+                    .accessibilityIdentifier("capture.dictate.sessionsMeta")
+            }
 
             ZStack(alignment: .bottom) {
                 Rectangle()
@@ -909,17 +1155,34 @@ private struct DashboardActivityHeatmapCell: View {
     }
 }
 
-// MARK: - First-run welcome
+// MARK: - Empty state
 
-private struct DashboardFirstRunWelcome: View {
+/// Before the first dictation: name the situation, then the next action. The
+/// hotkey is read here so the rest of the page stays off `SettingsStore`.
+private struct DictateEmptyHero: View {
+    @ObservedObject var settingsStore: SettingsStore
     @Environment(\.locale) private var locale
 
     var body: some View {
-        Text(localized("Speak. It's written.", locale: locale))
-            .font(AppTypography.heroDisplay)
-            .foregroundStyle(AppColors.textPrimary)
-            .tracking(AppTypography.heroDisplayTracking)
-            .lineSpacing(AppTypography.heroDisplayLineSpacing)
+        let state = HomePresentation.emptyState(
+            hotkey: settingsStore.toggleHotkey,
+            locale: locale
+        )
+        return VStack(alignment: .leading, spacing: 10) {
+            Text(state.title)
+                .font(AppTypography.heroDisplay)
+                .foregroundStyle(AppColors.textPrimary)
+                .tracking(AppTypography.heroDisplayTracking)
+                .lineSpacing(AppTypography.heroDisplayLineSpacing)
+
+            Text(state.guidance)
+                .font(AppTypography.bodyMeta)
+                .foregroundStyle(AppColors.textSecondary)
+                .lineSpacing(AppTypography.bodyMetaLineSpacing)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("capture.dictate.emptyState")
     }
 }
 
@@ -1002,4 +1265,18 @@ private struct HomeDayBoundarySchedule: TimelineSchedule {
         .modelContainer(PreviewContainer.withSampleData)
         .frame(width: 800, height: 700)
         .preferredColorScheme(.dark)
+}
+
+#Preview("Dictate - Recording") {
+    let dictationState = FloatingIndicatorState()
+    dictationState.isRecording = true
+    dictationState.recordingDuration = 125
+
+    return DictateView(
+        settingsStore: SettingsStore(),
+        dictationState: dictationState
+    )
+    .modelContainer(PreviewContainer.withSampleData)
+    .frame(width: 800, height: 700)
+    .preferredColorScheme(.light)
 }

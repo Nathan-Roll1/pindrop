@@ -9,11 +9,16 @@
   transcription: "1 प्रतिलेखन"
   word: "1 शब्द"
   year: "1 year"
+  edited_2: "%1$@ · संपादित %2$@"
+  recording: "%1$@ रिकॉर्डिंग"
+  recording_2: "%1$@ रिकॉर्डिंग · %2$@"
+  result: "1 परिणाम"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "अपग्रेड का बड़ा दौर — और समुदाय के दो सदस्यों को धन्यवाद।"
   native_macos_menu_bar_dictation_app_using_loca: "WhisperKit के साथ स्थानीय स्पीच-टू-टेक्स्ट का उपयोग करने वाला एक देशी macOS मेनू बार डिक्टेशन ऐप। वैकल्पिक एआई संवर्द्धन के साथ डिफ़ॉल्ट रूप से 100% स्थानीय प्रसंस्करण।"
+  note_capture_is_already_running: "एक नोट रिकॉर्डिंग पहले से चल रही है।"
 about:
   _self: "के बारे में"
   pindrop: "पिंड्रोप के बारे में"
@@ -79,6 +84,7 @@ an:
     मूल प्रतिलेखन बिना किसी संवर्द्धन के सहेजा गया था।
     आप सेटिंग्स में AI एन्हांसमेंट को फिर से सक्षम करने का प्रयास कर सकते हैं।
   error_occurred_while_enhancing_your_transcrip_1790ad05: "आपके ट्रांसक्रिप्शन को बढ़ाते समय एक त्रुटि हुई:nn%@nnमूल ट्रांसक्रिप्शन को बिना किसी संवर्द्धन के सहेजा गया था। आप सेटिंग्स में AI एन्हांसमेंट को फिर से सक्षम करने का प्रयास कर सकते हैं।"
+  earlier_version_of_pindrop_wrote_this_note_it: "यह नोट Pindrop के पुराने संस्करण ने लिखा था। इसे दोबारा नहीं लिखा जा सकता।"
 anthropic:
   _self: "anthropic"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "श्रव्य इनपुट"
+  sealed: "ऑडियो सुरक्षित किया गया"
 automatic:
   follow_system: "स्वचालित (सिस्टम का पालन करें)"
   updates: "स्वचालित अद्यतन"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "जब आप साइन इन करते हैं तो स्वचालित रूप से पिनड्रॉप प्रारंभ करें।"
 available:
   models: "उपलब्ध मॉडल"
+  when_the_recording_is_finished: "रिकॉर्डिंग पूरी होने पर उपलब्ध"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "पीछे"
   to_library: "लाइब्रेरी में वापस जाएँ"
+  to_notes: "नोट्स पर वापस"
 base:
   _self: "आधार"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "रद्द करना"
   operation: "ऑपरेशन रद्द करें"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "रिकॉर्डिंग रद्द करें"
 capture:
   directly_into_the_note_editor_with_a_hol: "होल्ड-टू-रिकॉर्ड प्रवाह के साथ सीधे नोट संपादक में कैप्चर करें।"
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "क्लिक करें या दबाएँ"
   or_set_a_hotkey_to_start_talking: "बात शुरू करने के लिए हॉटकी पर क्लिक करें या सेट करें"
   this_icon_anytime_to: "इसके लिए किसी भी समय इस आइकन पर क्लिक करें:"
+  a_number_to_see_it_in_the_transcript: "प्रतिलेख में देखने के लिए किसी संख्या पर क्लिक करें।"
+  new_note_to_start_one: "शुरू करने के लिए नया नोट पर क्लिक करें। आप टाइप करते रहें, Pindrop रिकॉर्ड करता रहेगा।"
 client:
   _self: "क्लाइंट"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copy the most recent transcript to the clipboard."
   to_clipboard: "क्लिपबोर्ड पर कॉपी करें"
   transcript: "प्रतिलेख कॉपी करें"
+  content: "सामग्री कॉपी करें"
 correct:
   grammar_mistakes: "व्याकरण की गलतियाँ सुधारें"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "कस्टम/स्थानीय"
   openai_compatible: "कस्टम (ओपनएआई-संगत)"
   presets: "कस्टम प्रीसेट"
+  templates: "आपके टेम्पलेट"
 customize:
   hotkey: "हॉटकी अनुकूलित करें"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d samples · %@"
   speakers: "%d वक्ता"
   words: "%d शब्द"
+  results: "%d परिणाम"
 dark:
   _self: "अँधेरा"
   preview: "डार्क पूर्वावलोकन"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "प्रतिलेखन हटाएँ?"
   all_contributions: "सभी योगदान हटाएँ…"
   all_stored_text_pairs: "सभी संग्रहीत टेक्स्ट जोड़े हटाएँ?"
+  this_note: "यह नोट हटाएँ"
+  this_transcript: "यह प्रतिलेख हटाएँ?"
+  transcript: "प्रतिलेख हटाएँ"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "केवल अंग्रेज़ी"
 enhanced:
   _self: "बढ़ी"
+  note: "उन्नत नोट"
 enhancement:
   prompts: "संवर्द्धन संकेत"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "फ़ाइल"
 find:
   _self: "खोजें"
+  in_transcript: "प्रतिलेख में खोजें"
 fix:
   punctuation_and_capitalization: "विराम चिह्न और बड़े अक्षरों को ठीक करें"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "API कुंजी छिपाएँ"
   this_for_1_hour: "इसे 1 घंटे के लिए छुपा दें"
+  live_transcript: "लाइव प्रतिलेख छिपाएँ"
 history:
   _self: "इतिहास"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "सुन रहा है…"
 live:
   streaming_refinement: "लाइव स्ट्रीमिंग परिशोधन"
+  text_stopped_the_recording_continues: "लाइव टेक्स्ट रुक गया। रिकॉर्डिंग जारी है।"
+  transcript: "लाइव प्रतिलेख"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "प्रीसेट प्रबंधित करें"
   presets_ab87986d: "प्रीसेट प्रबंधित करें..."
   presets_d5d4c2c2: "Manage Presets…"
+  templates: "टेम्पलेट प्रबंधित करें…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "नए Orb से मिलें"
 meeting:
   saved: "मीटिंग सहेजी गई"
+  note: "मीटिंग नोट"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "नया फ़ोल्डर"
   note: "नया नोट"
   preset: "नया प्रीसेट"
+  note_with_system_audio: "सिस्टम ऑडियो के साथ नया नोट"
+  note_without_recording: "बिना रिकॉर्डिंग के नया नोट"
 newest:
   _self: "नवीनतम"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "कोई शब्दावली शब्द नहीं"
   transcripts_audio_prompts_file_names_or_perso: "कोई ट्रांसक्रिप्ट, ऑडियो, प्रॉम्प्ट, फ़ाइल नाम या व्यक्तिगत सामग्री नहीं — कभी नहीं।"
   contributions_yet_pairs_are_stored_when_ai_en: "अभी तक कोई योगदान नहीं। जब AI संवर्द्धन या मैन्युअल संपादन किसी ट्रांसक्रिप्ट को बदलते हैं, तो जोड़े संग्रहीत होते हैं।"
+  audio_was_recorded_for_this_note: "इस नोट के लिए कोई ऑडियो रिकॉर्ड नहीं हुआ।"
+  enhanced_note_yet: "अभी कोई उन्नत नोट नहीं है।"
+  notes_yet_sentence: "अभी कोई नोट नहीं है।"
+  results_try_another_word: "कोई परिणाम नहीं। कोई और शब्द आज़माएँ।"
 not:
   assigned: "सौंपा नहीं गया है"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -748,6 +779,7 @@ not:
   set: "सेट नहीं"
   set_93039e60: "सेट नहीं"
   now: "अभी नहीं"
+  helpful: "उपयोगी नहीं"
 note:
   _self: "टिप्पणी"
   capture_hold: "Note Capture — Hold"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "टिप्पणियाँ"
   3add7b96: "टिप्पणियाँ"
+  header_meta_empty: "यहाँ अभी कुछ नहीं है"
+  header_meta_today: "%1$@, %2$@ आज के"
+  new_note_options_label: "नए नोट के और विकल्प"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "बंद"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "खुली सेटिंग"
   settings_fd7108f8: "खुली सेटिंग"
   system_settings: "सिस्टम सेटिंग्स खोलें"
+  in_new_window: "नई विंडो में खोलें"
+  note: "नोट खोलें"
 openai:
   _self: "ओपनएआई"
   compatible_local_server: "OpenAI-संगत स्थानीय सर्वर"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "चुनें कि कौन सा प्रदाता और मॉडल प्रत्येक एआई कार्य को संभालता है। किसी उद्देश्य को छोड़ने के लिए \"असाइन नहीं किया गया\" के रूप में छोड़ दें।"
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
+  a_model_for_note_enhancement_in_settings_th: "सेटिंग्स में नोट सुधार के लिए एक मॉडल चुनें, फिर दोबारा कोशिश करें।"
 pill:
   _self: "गोली"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "पिंड्रोप गोली"
   theme: "पिनड्रॉप थीम"
   can_send_anonymous_privacy_preserving_si: "Pindrop गुमनाम, गोपनीयता-संरक्षी सिग्नल भेज सकता है ताकि बग तेज़ी से ठीक हों।"
+  writes_one_from_your_notes_and_the_trans: "Pindrop इसे आपके नोट्स और प्रतिलेख से लिखता है।"
 pinned:
   _self: "पिन की गई"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "अनुशंसित"
 record:
   _self: "अभिलेख"
+  with_system_audio: "सिस्टम ऑडियो के साथ रिकॉर्ड करें"
 recording:
   _self: "रिकॉर्डिंग"
   3f8fd48c: "🔴रिकॉर्डिंग"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "रिकॉर्डिंग प्रगति पर है — समाप्त होने पर प्रतिलेखन शुरू होगा।"
   stopped_with_error: "रिकॉर्डिंग रुकी: %@"
   from_external_and_bluetooth_microphone: "बाहरी और Bluetooth माइक्रोफ़ोन से रिकॉर्डिंग अब बेहद स्थिर है, भले ही ऑडियो आउटपुट कहीं और रूट हो रहा हो।"
+  continues_while_you_work: "आप काम करते रहें, रिकॉर्डिंग चलती रहेगी"
+  transcribed: "रिकॉर्डिंग प्रतिलेखित हुई।"
 recordings:
   _self: "रिकॉर्डिंग"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "फ़्लोटिंग संकेतक दिखाएँ"
   in_dock: "डॉक में दिखाएँ"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "लाइव प्रतिलेख दिखाएँ"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "स्क्रीन के कोने में तरल कांच के गोले के रूप में दिखता है"
   as_a_pill_at_the_bottom_of_the_screen: "स्क्रीन के नीचे एक गोली के रूप में दिखाई देता है"
@@ -1138,17 +1182,24 @@ source:
   _self: "स्रोत"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "रिकॉर्डिंग शुरू होते ही स्रोत तय हो जाते हैं।"
+  d: "स्रोत (%d)"
 spanish:
   _self: "स्पैनिश"
 speak:
   to_append: "जोड़ने के लिए बोलें"
 speaker:
+  _self: "वक्ता"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "स्पीकर डायराइज़ेशन और टाइमस्टैम्प प्लेबैक से जुड़े हुए हैं।"
   diarization_is_required: "स्पीकर डायरीकरण आवश्यक है"
   profile_training: "Speaker profile training"
+  d: "वक्ता %d"
 speakers:
   _self: "वक्ता"
+  1: "वक्ता: %1$@"
+  are_set_when_the_recording_starts: "रिकॉर्डिंग शुरू होते ही वक्ता तय हो जाते हैं।"
+  identified: "वक्ता पहचाने गए"
 speed:
   _self: "रफ़्तार"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "प्रणाली"
   default: "प्रणालीगत चूक"
+  audio: "सिस्टम ऑडियो"
 teach:
   custom_words: "कस्टम शब्द सिखाएं"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\"\" मॉडल 60 सेकंड के भीतर लोड होने में विफल रहा। इसका आमतौर पर मतलब है कि मॉडल फ़ाइलें दूषित या असंगत हैं।                          इसे ठीक करने के लिए: 1. सेटिंग्स खोलें → मॉडल 2. समस्याग्रस्त मॉडल हटाएं 3. मॉडल को दोबारा डाउनलोड करें यदि समस्या बनी रहती है, तो एक छोटा मॉडल (छोटा या बेस) आज़माएं।             \"\""
   new_nemotron_streaming_engine_shows_words_as: "नया Nemotron स्ट्रीमिंग इंजन आपके बोलते ही शब्द दिखाता है, और लॉन्च पर पहले से तैयार हो जाता है ताकि आपका पहला डिक्टेशन बिना देरी शुरू हो।"
   selected_chunk_variant_isn_t_downloaded_yet: "चयनित चंक संस्करण अभी तक डाउनलोड नहीं हुआ है। टॉगल करने से डाउनलोड प्रारंभ हो जाएगा."
+  audio_and_the_live_transcript_are_deleted_yo: "ऑडियो और लाइव प्रतिलेख हट जाते हैं। आपके टाइप किए नोट्स बने रहते हैं।"
+  enhanced_note_could_not_be_generated_try_aga: "उन्नत नोट नहीं बन सका। दोबारा कोशिश करें।"
+  enhanced_note_could_not_be_saved_try_again: "उन्नत नोट सहेजा नहीं जा सका। दोबारा कोशिश करें।"
+  model_returned_an_empty_note_try_again: "मॉडल ने खाली नोट लौटाया। दोबारा कोशिश करें।"
+  note_enhancement_model_is_unavailable_check: "नोट सुधार मॉडल उपलब्ध नहीं है। सेटिंग्स में जाँचें, फिर दोबारा कोशिश करें।"
+  note_this_recording_belongs_to_could_not_be_opened: "जिस नोट से यह रिकॉर्डिंग जुड़ी है, वह नहीं खुल सका।"
+  recorded_audio_could_not_be_prepared: "रिकॉर्ड किया गया ऑडियो प्रतिलेखन के लिए तैयार नहीं हो सका।"
+  recorder_did_not_start: "रिकॉर्डर शुरू नहीं हुआ।"
+  transcript_fills_in_as_you_speak: "आप बोलते जाएँ, प्रतिलेख भरता जाएगा।"
+  transcript_starts_once_you_speak: "आपके बोलते ही प्रतिलेख शुरू हो जाता है।"
 theme:
   _self: "विषय"
   changes_apply_live_across_the_workspace_se: "थीम परिवर्तन कार्यक्षेत्र, सेटिंग्स, नोट संपादक और फ़्लोटिंग संकेतकों पर लाइव लागू होते हैं।"
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "यह प्रतिलेख और उसकी प्रबंधित मीडिया फ़ाइल को स्थायी रूप से हटा देगा।"
   will_permanently_remove_this_note: "इससे यह नोट स्थायी रूप से हट जाएगा।"
   permanently_deletes_all_stored_text_pairs_f: "यह इस Mac से सभी संग्रहीत टेक्स्ट जोड़े स्थायी रूप से हटा देता है।"
+  template_could_not_be_read_pick_another_tem: "यह टेम्पलेट पढ़ा नहीं जा सका। दूसरा टेम्पलेट चुनें और दोबारा कोशिश करें।"
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "प्रतिलेखन मेटाडेटा"
   saved: "प्रतिलेख सहेजा गया"
   update: "प्रतिलेखन अद्यतन"
+  done: "प्रतिलेखन पूरा"
 transcriptions:
   _self: "ट्रांसक्रिप्शन"
   f0972acc: "ट्रांसक्रिप्शन"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "कोई भिन्न खोज शब्द आज़माएँ."
   a_different_search_term_in_this_folder: "इस फ़ोल्डर में कोई भिन्न खोज शब्द आज़माएँ."
   searching_for_terms_like_hotkeys_microphone: "हॉटकी, माइक्रोफ़ोन, अपडेट या वाइब मोड जैसे शब्दों को खोजने का प्रयास करें।"
+  again: "दोबारा कोशिश करें"
 turkish:
   _self: "तुर्की"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "आपके नवीनतम डिक्टेशन यहाँ दिखेंगे।"
   home_streak: "लगातार"
   home_subline_duration_only: "%@ का डिक्टेशन।"
-  home_subline_full: "%@ का डिक्टेशन — टाइप करने की तुलना में लगभग %@ बचाए।"
+  home_subline_full: "%@ डिक्टेशन। टाइप करने की तुलना में लगभग %@ की बचत।"
   home_this_week: "इस सप्ताह"
   home_welcome_tagline: "बोलो। लिख दिया गया।"
   home_words_per_min: "शब्द / मि"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "आज के शब्द"
   home_you_spoke_this_week: "आपने इस सप्ताह %@ बोले।"
   home_zero_day: "0-दिन"
+  home_n_sessions_grouped: "%@ सत्र"
+  home_no_dictations_yet: "अभी कोई डिक्टेशन नहीं है।"
+  home_one_session: "1 सत्र"
+  home_press_hotkey_to_start: "शुरू करने के लिए कहीं भी %@ दबाएँ।"
+  home_stop: "रोकें"
 u5:
   u7_add_replacement: "Add replacement"
   u7_add_word: "Add word"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "वॉइस आइसोलेशन"
   reduce_background_noise_before_transcription: "ट्रांसक्रिप्शन से पहले पृष्ठभूमि का शोर कम करें"
+  note: "आवाज़ नोट"
 vs:
   typing: "बनाम टाइपिंग"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "कल"
 you:
+  _self: "आप"
   are_a_note_formatting_assistant_transform_th: "आप एक नोट फ़ॉर्मेटिंग सहायक हैं. लिखित पाठ को एक अच्छी तरह से संरचित नोट में रूपांतरित करें। टोनन- वह सामग्री न जोड़ें जो मूल में नहीं थी। बिना किसी टिप्पणी के केवल स्वरूपित नोट लौटाएँ"
   are_a_text_enhancement_assistant_improve_the: "आप एक टेक्स्ट एन्हांसमेंट सहायक हैं. दिए गए पाठ के मूल अर्थ और स्वर को संरक्षित करते हुए उसके व्याकरण, विराम चिह्न और स्वरूपण में सुधार करें। बिना किसी अतिरिक्त टिप्पणी के केवल उन्नत पाठ लौटाएँ।"
   can_change_these_anytime_from_the_menu_bar_s: "आप इन्हें मेनू बार → सेटिंग्स → हॉटकीज़ से कभी भी बदल सकते हैं"
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "तुम सब सेट हो!"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\"आपने अपनी एपीआई दर सीमा या कोटा पार कर लिया है।                                  इसे ठीक करने के लिए: 1. कुछ मिनट प्रतीक्षा करें और पुनः प्रयास करें 2. अपने एपीआई प्रदाता की उपयोग सीमा की जांच करें 3. अपने एपीआई योजना को अपग्रेड करने पर विचार करें ट्रांसक्रिप्शन को बिना किसी संवर्द्धन के सहेजा गया था।                 \"\""
   re_in_control: "नियंत्रण आपके पास है"
+  deleted_this_transcript: "आपने यह प्रतिलेख हटा दिया।"
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\" आपकी एपीआई कुंजी अमान्य या समाप्त हो गई प्रतीत होती है।                                  इसे ठीक करने के लिए: 1. सेटिंग्स खोलें → एआई एन्हांसमेंट 2. सत्यापित करें कि आपकी एपीआई कुंजी सही है 3. जांचें कि आपका एपीआई एंडपॉइंट सही है ट्रांसक्रिप्शन बिना एन्हांसमेंट के सहेजा गया था।                 \"\""
   floating_indicator_is_now_a_living_audio_re: "आपका फ्लोटिंग इंडिकेटर अब एक जीवंत, ऑडियो-प्रतिक्रियाशील orb है। निष्क्रिय होने पर यह सांस लेता है, आपके बोलने पर फैलता है, और डिक्टेशन के दौरान आपके शब्द लाइव दिखाता है।"
@@ -1566,6 +1639,8 @@ your:
   stats: "आपके आँकड़े"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "आपके शब्द आपके ही रहते हैं"
+  enhanced_note_is_ready: "आपका उन्नत नोट तैयार है।"
+  notes_and_the_enhanced_note_stay_the_transc: "आपके नोट्स और उन्नत नोट बने रहते हैं। इस नोट में प्रतिलेख छिपा दिया जाता है।"
 zoom:
   _self: "ज़ूम"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "%@ इनपुट / %@ आउटपुट टोकन"
   in_out_thinking: "%@ इनपुट / %@ आउटपुट / %@ चिंतन टोकन"
+auto:
+  _self: "स्वचालित"
+discard:
+  recording: "रिकॉर्डिंग छोड़ें"
+  this_recording: "यह रिकॉर्डिंग छोड़ें?"
+finalizing:
+  _self: "पूरा किया जा रहा है"
+finish:
+  _self: "समाप्त करें"
+  the_active_transcription_before_starting: "दूसरा शुरू करने से पहले चल रहा प्रतिलेखन पूरा करें।"
+  the_active_transcription_before_starting_another: "दूसरा शुरू करने से पहले चल रहा प्रतिलेखन पूरा करें।"
+generate:
+  enhanced_note: "उन्नत नोट बनाएँ"
+generated:
+  _self: "बनाया गया %@"
+  1_2_template: "बनाया गया %1$@ · टेम्पलेट %2$@"
+helpful:
+  _self: "उपयोगी"
+identifying:
+  speakers: "वक्ताओं की पहचान हो रही है"
+jump:
+  to_live: "लाइव पर जाएँ"
+  to_this_line: "इस पंक्ति पर जाएँ"
+mic:
+  _self: "माइक्रोफ़ोन"
+more:
+  note_actions: "नोट की और क्रियाएँ"
+  recording_options: "रिकॉर्डिंग के और विकल्प"
+my:
+  notes: "मेरे नोट्स"
+nothing:
+  was_transcribed_yet: "अभी तक कुछ भी प्रतिलेखित नहीं हुआ।"
+playback:
+  position: "प्लेबैक की स्थिति"
+s:
+  to_save: "सहेजने के लिए ⌘S"
+sealing:
+  audio: "ऑडियो सुरक्षित किया जा रहा है"
+  the_recording: "रिकॉर्डिंग सुरक्षित की जा रही है।"
+see:
+  this_in_the_transcript: "इसे प्रतिलेख में देखें"
+template:
+  _self: "टेम्पलेट: %@"
+templates:
+  _self: "टेम्पलेट"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "सुधारने के लिए अभी कोई प्रतिलेख नहीं है। पहले यह नोट रिकॉर्ड करें।"
+transcribing:
+  _self: "प्रतिलेखन हो रहा है"
+transcript:
+  _self: "प्रतिलेख"
+  source: "प्रतिलेख का स्रोत %@"
+was:
+  this_note_useful: "क्या यह नोट काम आया?"
+writing:
+  note: "नोट लिखा जा रहा है"
+  your_enhanced_note: "आपका उन्नत नोट लिखा जा रहा है।"
+  your_enhanced_note_comes_next_long_recor: "इसके बाद आपका उन्नत नोट लिखा जाता है। लंबी रिकॉर्डिंग में कुछ मिनट लग सकते हैं। आप टाइप करते रह सकते हैं।"
+  your_enhanced_note_with: "आपका उन्नत नोट %@ से लिखा जा रहा है।"

@@ -9,11 +9,16 @@
   transcription: "1 přepis"
   word: "1 slovo"
   year: "1 year"
+  edited_2: "%1$@ · upraveno %2$@"
+  recording: "%1$@ nahrávky"
+  recording_2: "%1$@ nahrávky · %2$@"
+  result: "1 výsledek"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "Velká sada vylepšení — a dvě komunitní poděkování."
   native_macos_menu_bar_dictation_app_using_loca: "Nativní aplikace pro diktování na liště nabídek macOS využívající místní převod řeči na text pomocí WhisperKit. 100% místní zpracování ve výchozím nastavení s volitelným vylepšením AI."
+  note_capture_is_already_running: "Nahrávání poznámky už běží."
 about:
   _self: "O"
   pindrop: "O Pindropovi"
@@ -79,6 +84,7 @@ an:
     Původní přepis byl uložen bez vylepšení.
     Vylepšení AI můžete zkusit znovu povolit v Nastavení.
   error_occurred_while_enhancing_your_transcrip_1790ad05: "Během en došlo k chybě enhancing vaší transcription:nn%@n__PH_10_PH__1 origi transcription bylo uloženo bez enhancement.nVylepšení AI můžete zkusit znovu povolit v Nastavení."
+  earlier_version_of_pindrop_wrote_this_note_it: "Tuto poznámku napsala starší verze Pindropu. Nelze ji napsat znovu."
 anthropic:
   _self: "Antropický"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "Zvukový vstup"
+  sealed: "Zvuk zabezpečen"
 automatic:
   follow_system: "Automaticky (Sledovat systém)"
   updates: "Automatické aktualizace"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "Automaticky spustit Pindrop, když se přihlásíte."
 available:
   models: "Dostupné modely"
+  when_the_recording_is_finished: "Dostupné, až bude nahrávka hotová"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "Zadní"
   to_library: "Zpět do knihovny"
+  to_notes: "Zpět na poznámky"
 base:
   _self: "Báze"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "Zrušit"
   operation: "Zrušit operaci"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "Zrušit nahrávání"
 capture:
   directly_into_the_note_editor_with_a_hol: "Zachyťte přímo do editoru poznámek pomocí toku podržení pro záznam."
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "Klikněte nebo stiskněte"
   or_set_a_hotkey_to_start_talking: "Chcete-li začít mluvit, klikněte nebo nastavte klávesovou zkratku"
   this_icon_anytime_to: "Kliknutím na tuto ikonu můžete kdykoli:"
+  a_number_to_see_it_in_the_transcript: "Kliknutím na číslo je uvidíte v přepisu."
+  new_note_to_start_one: "Klikněte na Nová poznámka a začněte. Pindrop nahrává, zatímco píšete."
 client:
   _self: "Klient"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copy the most recent transcript to the clipboard."
   to_clipboard: "Kopírovat do schránky"
   transcript: "Kopírovat přepis"
+  content: "Kopírovat obsah"
 correct:
   grammar_mistakes: "Opravte gramatické chyby"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "Vlastní / Místní"
   openai_compatible: "Vlastní (kompatibilní s OpenAI)"
   presets: "Vlastní předvolby"
+  templates: "Vlastní šablony"
 customize:
   hotkey: "Přizpůsobit klávesovou zkratku"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d samples · %@"
   speakers: "%d mluvčích"
   words: "%d slov"
+  results: "%d výsledků"
 dark:
   _self: "Tmavý"
   preview: "Tmavý náhled"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "Smazat přepis?"
   all_contributions: "Smazat všechny příspěvky…"
   all_stored_text_pairs: "Smazat všechny uložené textové páry?"
+  this_note: "Smazat tuto poznámku"
+  this_transcript: "Smazat tento přepis?"
+  transcript: "Smazat přepis"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "Pouze v angličtině"
 enhanced:
   _self: "Vylepšené"
+  note: "Vylepšená poznámka"
 enhancement:
   prompts: "Výzvy k vylepšení"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "Soubor"
 find:
   _self: "Najít"
+  in_transcript: "Hledat v přepisu"
 fix:
   punctuation_and_capitalization: "Opravte interpunkci a velká písmena"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "Skrýt API klíč"
   this_for_1_hour: "Skryjte to na 1 hodinu"
+  live_transcript: "Skrýt živý přepis"
 history:
   _self: "Dějiny"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "Poslouchám…"
 live:
   streaming_refinement: "Upřesnění živého vysílání"
+  text_stopped_the_recording_continues: "Živý text se zastavil. Nahrávka pokračuje."
+  transcript: "Živý přepis"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "Správa předvoleb"
   presets_ab87986d: "Spravovat předvolby..."
   presets_d5d4c2c2: "Manage Presets…"
+  templates: "Spravovat šablony…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "Seznamte se s novým Orbem"
 meeting:
   saved: "Schůzka uložena"
+  note: "Poznámka ze schůzky"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "Nová složka"
   note: "Nová poznámka"
   preset: "Nová předvolba"
+  note_with_system_audio: "Nová poznámka se zvukem systému"
+  note_without_recording: "Nová poznámka bez nahrávání"
 newest:
   _self: "Nejnovější"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "Žádná slova slovní zásoby"
   transcripts_audio_prompts_file_names_or_perso: "Žádné přepisy, zvuk, prompty, názvy souborů ani osobní obsah — nikdy."
   contributions_yet_pairs_are_stored_when_ai_en: "Zatím žádné příspěvky. Páry se ukládají, když vylepšení pomocí AI nebo ruční úpravy změní přepis."
+  audio_was_recorded_for_this_note: "K této poznámce nebyl nahrán žádný zvuk."
+  enhanced_note_yet: "Zatím žádná vylepšená poznámka."
+  notes_yet_sentence: "Zatím žádné poznámky."
+  results_try_another_word: "Žádné výsledky. Zkuste jiné slovo."
 not:
   assigned: "Nezařazeno"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -748,6 +779,7 @@ not:
   set: "Nenastaveno"
   set_93039e60: "Nenastaveno"
   now: "Teď ne"
+  helpful: "Neužitečné"
 note:
   _self: "Poznámka"
   capture_hold: "Note Capture — Hold"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "Poznámky"
   3add7b96: "poznámky"
+  header_meta_empty: "zatím tu nic není"
+  header_meta_today: "%1$@, %2$@ z dneška"
+  new_note_options_label: "Další možnosti nové poznámky"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "Vypnuto"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "Otevřete Nastavení"
   settings_fd7108f8: "Otevřete nastavení"
   system_settings: "Otevřete Nastavení systému"
+  in_new_window: "Otevřít v novém okně"
+  note: "Otevřít poznámku"
 openai:
   _self: "OpenAI"
   compatible_local_server: "Lokální server kompatibilní s OpenAI"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "Vyberte poskytovatele a model, který zpracuje jednotlivé úkoly AI. Chcete-li přeskočit účel, ponechte jako „Nepřiřazeno“."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
+  a_model_for_note_enhancement_in_settings_th: "Vyberte v Nastavení model pro vylepšování poznámek a zkuste to znovu."
 pill:
   _self: "Pilulka"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "Pindrop pilulka"
   theme: "Pindrop téma"
   can_send_anonymous_privacy_preserving_si: "Pindrop může odesílat anonymní signály chránící soukromí, aby se chyby opravovaly rychleji."
+  writes_one_from_your_notes_and_the_trans: "Pindrop ji napíše z vašich poznámek a přepisu."
 pinned:
   _self: "Připnuté"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "Doporučeno"
 record:
   _self: "Záznam"
+  with_system_audio: "Nahrávat se zvukem systému"
 recording:
   _self: "Záznam"
   3f8fd48c: "🔴 Nahrávání"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "Probíhá nahrávání — přepis se spustí po jeho dokončení."
   stopped_with_error: "Nahrávání zastaveno: %@"
   from_external_and_bluetooth_microphone: "Nahrávání z externích a Bluetooth mikrofonů je nyní spolehlivé, i když je zvukový výstup směrován jinam."
+  continues_while_you_work: "Nahrávka pokračuje, zatímco pracujete"
+  transcribed: "Nahrávka přepsána."
 recordings:
   _self: "nahrávek"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "Zobrazit plovoucí indikátor"
   in_dock: "Zobrazit v Docku"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "Zobrazit živý přepis"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Zobrazuje se jako koule z tekutého skla v rohu obrazovky"
   as_a_pill_at_the_bottom_of_the_screen: "Zobrazuje se jako pilulka ve spodní části obrazovky"
@@ -1138,17 +1182,24 @@ source:
   _self: "Zdroj"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "Zdroje se určují při spuštění nahrávání."
+  d: "Zdroje (%d)"
 spanish:
   _self: "španělština"
 speak:
   to_append: "Mluvte pro přidání"
 speaker:
+  _self: "Mluvčí"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "K přehrávání jsou připojeny diarizace a časová razítka reproduktoru."
   diarization_is_required: "Je vyžadována dializace reproduktoru"
   profile_training: "Speaker profile training"
+  d: "Mluvčí %d"
 speakers:
   _self: "Řečníci"
+  1: "Mluvčí: %1$@"
+  are_set_when_the_recording_starts: "Mluvčí se nastavují při spuštění nahrávání."
+  identified: "Mluvčí rozpoznáni"
 speed:
   _self: "Rychlost"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "Systém"
   default: "Výchozí nastavení systému"
+  audio: "Zvuk systému"
 teach:
   custom_words: "Učte vlastní slova"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\"\" Model se nepodařilo načíst do 60 sekund. To obvykle znamená, že soubory modelu jsou poškozené nebo nekompatibilní.                          Řešení: 1. Otevřete Nastavení → Modely 2. Odstraňte problematický model 3. Znovu si stáhněte model Pokud problém přetrvává, zkuste menší model (Tiny nebo Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "Nový streamovací engine Nemotron zobrazuje slova tak, jak je říkáte, a při spuštění se předehřívá, takže první diktování začne bez zdržení."
   selected_chunk_variant_isn_t_downloaded_yet: "Vybraná varianta bloku ještě není stažena. Přepnutím se zahájí stahování."
+  audio_and_the_live_transcript_are_deleted_yo: "Zvuk a živý přepis se smažou. Vaše napsané poznámky zůstanou."
+  enhanced_note_could_not_be_generated_try_aga: "Vylepšenou poznámku se nepodařilo vytvořit. Zkuste to znovu."
+  enhanced_note_could_not_be_saved_try_again: "Vylepšenou poznámku se nepodařilo uložit. Zkuste to znovu."
+  model_returned_an_empty_note_try_again: "Model vrátil prázdnou poznámku. Zkuste to znovu."
+  note_enhancement_model_is_unavailable_check: "Model pro vylepšování poznámek není dostupný. Zkontrolujte ho v Nastavení a zkuste to znovu."
+  note_this_recording_belongs_to_could_not_be_opened: "Poznámku, ke které tato nahrávka patří, se nepodařilo otevřít."
+  recorded_audio_could_not_be_prepared: "Nahraný zvuk se nepodařilo připravit k přepisu."
+  recorder_did_not_start: "Rekordér se nespustil."
+  transcript_fills_in_as_you_speak: "Přepis se doplňuje, zatímco mluvíte."
+  transcript_starts_once_you_speak: "Přepis začne, jakmile promluvíte."
 theme:
   _self: "Téma"
   changes_apply_live_across_the_workspace_se: "Změny motivu se projeví na pracovní ploše, v nastavení, v editoru poznámek a v plovoucích indikátorech."
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "Tím trvale odstraníte přepis a jeho spravovaný mediální soubor."
   will_permanently_remove_this_note: "Tímto trvale odstraníte tuto poznámku."
   permanently_deletes_all_stored_text_pairs_f: "Tímto se trvale smažou všechny uložené textové páry z tohoto Macu."
+  template_could_not_be_read_pick_another_tem: "Tuto šablonu se nepodařilo načíst. Vyberte jinou šablonu a zkuste to znovu."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "Metadata přepisu"
   saved: "Přepis uložen"
   update: "Aktualizace přepisu"
+  done: "Přepis hotov"
 transcriptions:
   _self: "Přepisy"
   f0972acc: "přepisy"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "Zkuste jiný hledaný výraz."
   a_different_search_term_in_this_folder: "Zkuste jiný hledaný výraz v této složce."
   searching_for_terms_like_hotkeys_microphone: "Zkuste vyhledat výrazy jako klávesové zkratky, mikrofon, aktualizace nebo vibrační režim."
+  again: "Zkusit znovu"
 turkish:
   _self: "turečtina"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "Vaše nejnovější diktáty se zobrazí zde."
   home_streak: "Série"
   home_subline_duration_only: "%@ diktování."
-  home_subline_full: "%@ diktování — asi %@ ušetřeno oproti psaní."
+  home_subline_full: "%@ diktování. Přibližně %@ ušetřeno oproti psaní."
   home_this_week: "Tento týden"
   home_welcome_tagline: "Mluvte. Je to napsáno."
   home_words_per_min: "Slov / min"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "Slova dnes"
   home_you_spoke_this_week: "Tento týden jste pronesli %@."
   home_zero_day: "0denní"
+  home_n_sessions_grouped: "%@ relací"
+  home_no_dictations_yet: "Zatím žádné diktování."
+  home_one_session: "1 relace"
+  home_press_hotkey_to_start: "Začněte stisknutím %@ kdekoliv."
+  home_stop: "Zastavit"
 u5:
   u7_add_replacement: "Add replacement"
   u7_add_word: "Add word"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "Izolace hlasu"
   reduce_background_noise_before_transcription: "Omezit hluk na pozadí před přepisem"
+  note: "Hlasová poznámka"
 vs:
   typing: "vs psaní"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "Včera"
 you:
+  _self: "Vy"
   are_a_note_formatting_assistant_transform_th: "Jste asistent formátování poznámek. Transformujte přepsaný text do dobře strukturované poznámky.nnPravidla:n- Opravte gramatické, interpunkční a pravopisné chybyn- Pro delší obsah (3 a více odstavců) přidejte formátování markdown:n - Používejte záhlaví (## nebo ###) k uspořádání sekcín - Používejte odrážky nebo číslované seznamy tam, kde je to vhodné - Použijte **tučné** pro zdůraznění klíčových pojmů a zachování jednoduchého významu- tonen- Nepřidávejte obsah, který nebyl v originálen- Vraťte pouze formátovanou poznámku bez komentáře"
   are_a_text_enhancement_assistant_improve_the: "Jste asistent vylepšení textu. Vylepšete gramatiku, interpunkci a formátování poskytnutého textu při zachování jeho původního významu a tónu. Vrátit pouze vylepšený text bez dalšího komentáře."
   can_change_these_anytime_from_the_menu_bar_s: "Můžete je kdykoli změnit na liště nabídek → Nastavení → Klávesové zkratky"
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "Vše je připraveno!"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Překročili jste limit nebo kvótu rychlosti API.                                  Chcete-li tento problém vyřešit: 1. Počkejte několik minut a zkuste to znovu. 2. Zkontrolujte limity využití poskytovatele rozhraní API. 3. Zvažte upgrade plánu rozhraní API Přepis byl uložen bez vylepšení.                 \"\""
   re_in_control: "Máte to pod kontrolou"
+  deleted_this_transcript: "Tento přepis jste smazali."
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\" Váš klíč API je zřejmě neplatný nebo vypršela jeho platnost.                                  Chcete-li tento problém vyřešit: 1. Otevřete Nastavení → Vylepšení AI 2. Ověřte správnost klíče API 3. Zkontrolujte, zda je koncový bod rozhraní API správný Přepis byl uložen bez vylepšení.                 \"\""
   floating_indicator_is_now_a_living_audio_re: "Váš plovoucí indikátor je teď živý, zvukově reaktivní orb. V klidu dýchá, při řeči se zvětšuje a během diktování živě streamuje vaše slova."
@@ -1566,6 +1639,8 @@ your:
   stats: "Vaše statistiky"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "Vaše slova zůstávají vaše"
+  enhanced_note_is_ready: "Vaše vylepšená poznámka je hotová."
+  notes_and_the_enhanced_note_stay_the_transc: "Vaše poznámky a vylepšená poznámka zůstanou. Přepis se v této poznámce skryje."
 zoom:
   _self: "Přiblížit"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "%@ vstupních / %@ výstupních tokenů"
   in_out_thinking: "%@ vstupních / %@ výstupních / %@ uvažovacích tokenů"
+auto:
+  _self: "Automaticky"
+discard:
+  recording: "Zahodit nahrávku"
+  this_recording: "Zahodit tuto nahrávku?"
+finalizing:
+  _self: "Dokončování"
+finish:
+  _self: "Dokončit"
+  the_active_transcription_before_starting: "Dokončete probíhající přepis, než začnete další."
+  the_active_transcription_before_starting_another: "Dokončete probíhající přepis, než začnete další."
+generate:
+  enhanced_note: "Vytvořit vylepšenou poznámku"
+generated:
+  _self: "Vytvořeno %@"
+  1_2_template: "Vytvořeno %1$@ · šablona %2$@"
+helpful:
+  _self: "Užitečné"
+identifying:
+  speakers: "Rozpoznávání mluvčích"
+jump:
+  to_live: "Přejít na živý text"
+  to_this_line: "Přejít na tento řádek"
+mic:
+  _self: "Mikrofon"
+more:
+  note_actions: "Další akce s poznámkou"
+  recording_options: "Další možnosti nahrávání"
+my:
+  notes: "Moje poznámky"
+nothing:
+  was_transcribed_yet: "Zatím nebylo nic přepsáno."
+playback:
+  position: "Pozice přehrávání"
+s:
+  to_save: "⌘S uloží"
+sealing:
+  audio: "Zabezpečování zvuku"
+  the_recording: "Zabezpečování nahrávky."
+see:
+  this_in_the_transcript: "Zobrazit to v přepisu"
+template:
+  _self: "Šablona: %@"
+templates:
+  _self: "Šablony"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "Zatím není co vylepšovat. Nejdřív tuto poznámku nahrajte."
+transcribing:
+  _self: "Přepisování"
+transcript:
+  _self: "Přepis"
+  source: "Zdroj přepisu %@"
+was:
+  this_note_useful: "Byla tato poznámka užitečná?"
+writing:
+  note: "Psaní poznámky"
+  your_enhanced_note: "Píšeme vaši vylepšenou poznámku."
+  your_enhanced_note_comes_next_long_recor: "Dále se píše vaše vylepšená poznámka. U dlouhých nahrávek to může trvat několik minut. Můžete dál psát."
+  your_enhanced_note_with: "Píšeme vaši vylepšenou poznámku pomocí %@."

@@ -536,7 +536,11 @@ private struct SpeakerProfilesManageSheet: View {
                                 Text(profile.displayName)
                                     .font(AppTypography.labelStrong)
                                 if profile.isCurrentUser {
-                                    Text(localized("Current", locale: locale))
+                                    // "Current" slugs onto the "Current: %@" key
+                                    // and rendered that format string verbatim.
+                                    // "You" is also the word the transcript uses
+                                    // for this speaker.
+                                    Text(localized("You", locale: locale))
                                         .font(AppTypography.caption)
                                         .foregroundStyle(AppColors.accent)
                                 }

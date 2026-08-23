@@ -9,11 +9,16 @@
   transcription: "תמלול 1"
   word: "מילה אחת"
   year: "1 year"
+  edited_2: "%1$@ · נערך %2$@"
+  recording: "%1$@ הקלטה"
+  recording_2: "%1$@ הקלטה · %2$@"
+  result: "תוצאה אחת"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "סבב גדול של שדרוגים — ושתי תודות לקהילה."
   native_macos_menu_bar_dictation_app_using_loca: "אפליקציית הכתבה מקורית של שורת התפריט של macOS המשתמשת בדיבור לטקסט מקומי עם WhisperKit. עיבוד מקומי של 100% כברירת מחדל עם שיפור AI אופציונלי."
+  note_capture_is_already_running: "הקלטת פתק כבר פועלת."
 about:
   _self: "אוֹדוֹת"
   pindrop: "על פינדרופ"
@@ -79,6 +84,7 @@ an:
     התמלול המקורי נשמר ללא שיפור.
     אתה יכול לנסות להפעיל שוב שיפור AI בהגדרות.
   error_occurred_while_enhancing_your_transcrip_1790ad05: "אירעה שגיאה בעת שיפור התמלול שלך:nn%@nnהתמלול המקורי נשמר ללא שיפור.nתוכל לנסות להפעיל שוב שיפור בינה מלאכותית בהגדרות."
+  earlier_version_of_pindrop_wrote_this_note_it: "גרסה מוקדמת יותר של Pindrop כתבה את הפתק הזה. אי אפשר לכתוב אותו מחדש."
 anthropic:
   _self: "אנתרופית"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "קלט שמע"
+  sealed: "האודיו נחתם"
 automatic:
   follow_system: "אוטומטי (עקוב אחרי המערכת)"
   updates: "עדכונים אוטומטיים"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "הפעל באופן אוטומטי את Pindrop כשאתה נכנס."
 available:
   models: "דגמים זמינים"
+  when_the_recording_is_finished: "יהיה זמין כשההקלטה תסתיים"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "בְּחֲזָרָה"
   to_library: "חזרה לספרייה"
+  to_notes: "חזרה לפתקים"
 base:
   _self: "בָּסִיס"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "לְבַטֵל"
   operation: "בטל פעולה"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "ביטול ההקלטה"
 capture:
   directly_into_the_note_editor_with_a_hol: "לכוד ישירות לתוך עורך ההערות עם זרימת החזקה להקלטה."
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "לחץ או לחץ"
   or_set_a_hotkey_to_start_talking: "לחץ או הגדר מקש קיצור כדי להתחיל לדבר"
   this_icon_anytime_to: "לחץ על סמל זה בכל עת כדי:"
+  a_number_to_see_it_in_the_transcript: "לחצו על מספר כדי לראות אותו בתמליל."
+  new_note_to_start_one: "לחצו על פתק חדש כדי להתחיל. Pindrop מקליט בזמן שאתם מקלידים."
 client:
   _self: "לקוח"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copy the most recent transcript to the clipboard."
   to_clipboard: "העתק ללוח"
   transcript: "העתק תמליל"
+  content: "העתקת התוכן"
 correct:
   grammar_mistakes: "תקן טעויות דקדוק"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "מותאם אישית / מקומי"
   openai_compatible: "מותאם אישית (תואם OpenAI)"
   presets: "הגדרות מותאמות אישית"
+  templates: "תבניות משלכם"
 customize:
   hotkey: "התאמה אישית של מקש קיצור"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d samples · %@"
   speakers: "%d דוברים"
   words: "%d מילים"
+  results: "%d תוצאות"
 dark:
   _self: "כֵּהֶה"
   preview: "תצוגה מקדימה כהה"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "למחוק תמלול?"
   all_contributions: "מחק את כל התרומות…"
   all_stored_text_pairs: "למחוק את כל זוגות הטקסט השמורים?"
+  this_note: "מחיקת הפתק הזה"
+  this_transcript: "למחוק את התמליל הזה?"
+  transcript: "מחיקת התמליל"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "באנגלית בלבד"
 enhanced:
   _self: "משופר"
+  note: "פתק משופר"
 enhancement:
   prompts: "הנחיות לשיפור"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "קובץ"
 find:
   _self: "חפש"
+  in_transcript: "חיפוש בתמליל"
 fix:
   punctuation_and_capitalization: "תקן סימני פיסוק ואותיות רישיות"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "הסתר מפתח API"
   this_for_1_hour: "הסתר את זה למשך שעה"
+  live_transcript: "הסתרת התמליל החי"
 history:
   _self: "הִיסטוֹרִיָה"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "מאזין…"
 live:
   streaming_refinement: "חידוד סטרימינג בשידור חי"
+  text_stopped_the_recording_continues: "הטקסט החי נעצר. ההקלטה ממשיכה."
+  transcript: "תמליל חי"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "נהל הגדרות קבועות מראש"
   presets_ab87986d: "נהל הגדרות מוגדרות מראש..."
   presets_d5d4c2c2: "Manage Presets…"
+  templates: "ניהול תבניות…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "הכירו את ה-Orb החדש"
 meeting:
   saved: "הפגישה נשמרה"
+  note: "פתק פגישה"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "תיקיה חדשה"
   note: "הערה חדשה"
   preset: "הגדרה חדשה מראש"
+  note_with_system_audio: "פתק חדש עם קול המערכת"
+  note_without_recording: "פתק חדש בלי הקלטה"
 newest:
   _self: "החדשים ביותר"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "אין מילים אוצר מילים"
   transcripts_audio_prompts_file_names_or_perso: "אין תמלולים, אודיו, הנחיות, שמות קבצים או תוכן אישי — לעולם."
   contributions_yet_pairs_are_stored_when_ai_en: "אין תרומות עדיין. זוגות נשמרים כאשר שיפור באמצעות בינה מלאכותית או עריכות ידניות משנים תמלול."
+  audio_was_recorded_for_this_note: "לא הוקלט אודיו לפתק הזה."
+  enhanced_note_yet: "עדיין אין פתק משופר."
+  notes_yet_sentence: "עדיין אין פתקים."
+  results_try_another_word: "אין תוצאות. נסו מילה אחרת."
 not:
   assigned: "לא מוקצה"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -748,6 +779,7 @@ not:
   set: "לא מוגדר"
   set_93039e60: "לא מוגדר"
   now: "לא עכשיו"
+  helpful: "לא מועיל"
 note:
   _self: "פֶּתֶק"
   capture_hold: "Note Capture — Hold"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "הערות"
   3add7b96: "הערות"
+  header_meta_empty: "עדיין אין כאן כלום"
+  header_meta_today: "%1$@, %2$@ מהיום"
+  new_note_options_label: "אפשרויות נוספות לפתק חדש"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "כבוי"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "פתח את ההגדרות"
   settings_fd7108f8: "פתח את ההגדרות"
   system_settings: "פתח את הגדרות מערכת"
+  in_new_window: "פתיחה בחלון חדש"
+  note: "פתיחת הפתק"
 openai:
   _self: "OpenAI"
   compatible_local_server: "שרת מקומי תואם OpenAI"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "בחר איזה ספק ודגם מטפלים בכל משימת AI. השאר בתור \"לא מוקצה\" כדי לדלג על מטרה."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
+  a_model_for_note_enhancement_in_settings_th: "בחרו מודל לשיפור פתקים בהגדרות, ואז נסו שוב."
 pill:
   _self: "כַּדוּר"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "גלולת פינדרופ"
   theme: "נושא Pindrop"
   can_send_anonymous_privacy_preserving_si: "Pindrop יכול לשלוח אותות אנונימיים ששומרים על הפרטיות כדי שבאגים יתוקנו מהר יותר."
+  writes_one_from_your_notes_and_the_trans: "Pindrop כותב אותו מהפתקים שלכם ומהתמליל."
 pinned:
   _self: "נעוצות"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "מוּמלָץ"
 record:
   _self: "רְשׁוּמָה"
+  with_system_audio: "הקלטה עם קול המערכת"
 recording:
   _self: "הַקלָטָה"
   3f8fd48c: "🔴 הקלטה"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "ההקלטה מתבצעת — התמלול יתחיל כשהיא תסתיים."
   stopped_with_error: "ההקלטה הופסקה: %@"
   from_external_and_bluetooth_microphone: "הקלטה ממיקרופונים חיצוניים וממיקרופוני Bluetooth יציבה עכשיו מאוד, גם כשפלט האודיו מנותב למקום אחר."
+  continues_while_you_work: "ההקלטה ממשיכה בזמן שאתם עובדים"
+  transcribed: "ההקלטה תומללה."
 recordings:
   _self: "הקלטות"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "הצגת המחוון הצף"
   in_dock: "הצג ב-Dock"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "הצגת התמליל החי"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "מוצג ככדור זכוכית נוזלית בפינת המסך"
   as_a_pill_at_the_bottom_of_the_screen: "מוצג כגלולה בתחתית המסך"
@@ -1138,17 +1182,24 @@ source:
   _self: "מָקוֹר"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "המקורות נקבעים כשההקלטה מתחילה."
+  d: "מקורות (%d)"
 spanish:
   _self: "סְפָרַדִית"
 speak:
   to_append: "דברו כדי להוסיף"
 speaker:
+  _self: "דובר"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "יומן רמקול וחותמות זמן מצורפות להשמעה."
   diarization_is_required: "נדרש יומן דובר"
   profile_training: "Speaker profile training"
+  d: "דובר %d"
 speakers:
   _self: "דוברים"
+  1: "דוברים: %1$@"
+  are_set_when_the_recording_starts: "הדוברים נקבעים כשההקלטה מתחילה."
+  identified: "הדוברים זוהו"
 speed:
   _self: "מְהִירוּת"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "מַעֲרֶכֶת"
   default: "מערכת ברירת מחדל"
+  audio: "קול המערכת"
 teach:
   custom_words: "למד מילים מותאמות אישית"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\"\" הדגם לא הצליח להיטען בתוך 60 שניות. זה בדרך כלל אומר שקובצי הדגם פגומים או לא תואמים.                          כדי לתקן זאת: 1. פתח את הגדרות ← דגמים 2. מחק את הדגם הבעייתי 3. הורד מחדש את הדגם אם הבעיה נמשכת, נסה דגם קטן יותר (Tiny או Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "מנוע הסטרימינג החדש Nemotron מציג מילים תוך כדי הדיבור, ומתחמם מראש בהפעלה כדי שההכתבה הראשונה תתחיל ללא עיכוב."
   selected_chunk_variant_isn_t_downloaded_yet: "גרסת הנתח שנבחרה עדיין לא הורדה. החלפה תתחיל הורדה."
+  audio_and_the_live_transcript_are_deleted_yo: "האודיו והתמליל החי נמחקים. הפתקים שהקלדתם נשארים."
+  enhanced_note_could_not_be_generated_try_aga: "לא ניתן היה ליצור את הפתק המשופר. נסו שוב."
+  enhanced_note_could_not_be_saved_try_again: "לא ניתן היה לשמור את הפתק המשופר. נסו שוב."
+  model_returned_an_empty_note_try_again: "המודל החזיר פתק ריק. נסו שוב."
+  note_enhancement_model_is_unavailable_check: "מודל שיפור הפתקים אינו זמין. בדקו אותו בהגדרות, ואז נסו שוב."
+  note_this_recording_belongs_to_could_not_be_opened: "לא ניתן היה לפתוח את הפתק שההקלטה הזאת שייכת אליו."
+  recorded_audio_could_not_be_prepared: "לא ניתן היה להכין את האודיו המוקלט לתמלול."
+  recorder_did_not_start: "המקליט לא התחיל."
+  transcript_fills_in_as_you_speak: "התמליל מתמלא בזמן שאתם מדברים."
+  transcript_starts_once_you_speak: "התמליל מתחיל ברגע שאתם מדברים."
 theme:
   _self: "נוֹשֵׂא"
   changes_apply_live_across_the_workspace_se: "שינויי ערכת נושא חלים בשידור חי על פני סביבת העבודה, ההגדרות, עורך הערות ומחוונים צפים."
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "פעולה זו תסיר לצמיתות את התמליל ואת קובץ המדיה המנוהל שלו."
   will_permanently_remove_this_note: "פעולה זו תסיר את ההערה לצמיתות."
   permanently_deletes_all_stored_text_pairs_f: "פעולה זו מוחקת לצמיתות את כל זוגות הטקסט השמורים מ-Mac זה."
+  template_could_not_be_read_pick_another_tem: "לא ניתן היה לקרוא את התבנית הזאת. בחרו תבנית אחרת ונסו שוב."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "מטא נתונים של תמלול"
   saved: "התמלול נשמר"
   update: "עדכון תמלול"
+  done: "התמלול הסתיים"
 transcriptions:
   _self: "תעתיקים"
   f0972acc: "תעתיקים"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "נסה מונח חיפוש אחר."
   a_different_search_term_in_this_folder: "נסה מונח חיפוש אחר בתיקייה זו."
   searching_for_terms_like_hotkeys_microphone: "נסה לחפש מונחים כמו מקשי קיצור, מיקרופון, עדכונים או מצב אווירה."
+  again: "נסו שוב"
 turkish:
   _self: "טוּרקִית"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "ההכתבות האחרונות שלך יופיעו כאן."
   home_streak: "רצף"
   home_subline_duration_only: "%@ של הכתבה."
-  home_subline_full: "%@ של הכתבה — כ־%@ שנחסכו בהשוואה להקלדה."
+  home_subline_full: "%@ של הכתבה. בערך %@ נחסכו לעומת הקלדה."
   home_this_week: "השבוע"
   home_welcome_tagline: "דבר. זה נכתב."
   home_words_per_min: "מילים / דק׳"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "מילים היום"
   home_you_spoke_this_week: "אמרת %@ השבוע."
   home_zero_day: "0-יום"
+  home_n_sessions_grouped: "%@ הפעלות"
+  home_no_dictations_yet: "עדיין אין הכתבות."
+  home_one_session: "הפעלה אחת"
+  home_press_hotkey_to_start: "הקישו %@ מכל מקום כדי להתחיל."
+  home_stop: "עצירה"
 u5:
   u7_add_replacement: "Add replacement"
   u7_add_word: "Add word"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "בידוד קול"
   reduce_background_noise_before_transcription: "הפחתת רעשי רקע לפני התמלול"
+  note: "פתק קולי"
 vs:
   typing: "לעומת הקלדה"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "אֶתמוֹל"
 you:
+  _self: "אתם"
   are_a_note_formatting_assistant_transform_th: "אתה עוזר עיצוב הערות. הפוך את הטקסט המתועתק להערה מובנית היטב. nnכללים: n- תקן שגיאות דקדוק, פיסוק וכתיב n- עבור תוכן ארוך יותר (3 פסקאות ומעלה), הוסף עיצוב סימון: n - השתמש בכותרות (## או ###) כדי לארגן חלקים n - השתמש בנקודות תבליטים או רשימות ממוספרות היכן שמתאים - השתמש בפורמט **מודגש קצר יותר** לפורמט מינימלי של מפתח, n שמור על המשמעות המקורית והצג- אל תוסיף תוכן שלא היה במקור- החזר רק את ההערה המעוצבת ללא כל פרשנות"
   are_a_text_enhancement_assistant_improve_the: "אתה עוזר לשיפור טקסט. שפר את הדקדוק, הפיסוק והעיצוב של הטקסט שסופק תוך שמירה על המשמעות והטון המקוריים שלו. החזר רק את הטקסט המשופר ללא כל פרשנות נוספת."
   can_change_these_anytime_from_the_menu_bar_s: "אתה יכול לשנות אותם בכל עת משורת התפריטים ← הגדרות ← מקשי קיצור"
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "אתה מוכן!"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" חרגת ממגבלת התעריף או ממכסת ה-API שלך.                                  כדי לתקן זאת: 1. המתן מספר דקות ונסה שוב 2. בדוק את מגבלות השימוש של ספק ה-API שלך 3. שקול לשדרג את תוכנית ה-API שלך התמלול נשמר ללא שיפור.                 \"\""
   re_in_control: "השליטה בידיים שלך"
+  deleted_this_transcript: "מחקתם את התמליל הזה."
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\" נראה שמפתח ה-API שלך אינו חוקי או שפג תוקפו.                                  כדי לתקן זאת: 1. פתח את הגדרות ← שיפור AI 2. ודא שמפתח ה-API שלך נכון 3. בדוק שנקודת הקצה של ה-API שלך נכונה התמלול נשמר ללא שיפור.                 \"\""
   floating_indicator_is_now_a_living_audio_re: "המחוון הצף שלך הוא עכשיו orb חי שמגיב לאודיו. הוא נושם כשהוא לא פעיל, מתרחב כשמדברים, ומשדר את המילים שלך בזמן אמת בזמן ההכתבה."
@@ -1566,6 +1639,8 @@ your:
   stats: "הסטטיסטיקה שלך"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "המילים שלך נשארות שלך"
+  enhanced_note_is_ready: "הפתק המשופר שלכם מוכן."
+  notes_and_the_enhanced_note_stay_the_transc: "הפתקים שלכם והפתק המשופר נשארים. התמליל מוסתר בפתק הזה."
 zoom:
   _self: "הגדל/הקטן"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "%@ קלט / %@ פלט אסימונים"
   in_out_thinking: "%@ קלט / %@ פלט / %@ חשיבה אסימונים"
+auto:
+  _self: "אוטומטי"
+discard:
+  recording: "השלכת ההקלטה"
+  this_recording: "להשליך את ההקלטה הזאת?"
+finalizing:
+  _self: "מסיים"
+finish:
+  _self: "סיום"
+  the_active_transcription_before_starting: "סיימו את התמלול הפעיל לפני שתתחילו אחד נוסף."
+  the_active_transcription_before_starting_another: "סיימו את התמלול הפעיל לפני שתתחילו אחד נוסף."
+generate:
+  enhanced_note: "יצירת פתק משופר"
+generated:
+  _self: "נוצר %@"
+  1_2_template: "נוצר %1$@ · תבנית %2$@"
+helpful:
+  _self: "מועיל"
+identifying:
+  speakers: "מזהה דוברים"
+jump:
+  to_live: "מעבר לחי"
+  to_this_line: "מעבר לשורה הזאת"
+mic:
+  _self: "מיקרופון"
+more:
+  note_actions: "פעולות נוספות לפתק"
+  recording_options: "אפשרויות הקלטה נוספות"
+my:
+  notes: "הפתקים שלי"
+nothing:
+  was_transcribed_yet: "עדיין לא תומלל דבר."
+playback:
+  position: "מיקום ההשמעה"
+s:
+  to_save: "⌘S לשמירה"
+sealing:
+  audio: "חותם את האודיו"
+  the_recording: "חותם את ההקלטה."
+see:
+  this_in_the_transcript: "לראות את זה בתמליל"
+template:
+  _self: "תבנית: %@"
+templates:
+  _self: "תבניות"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "אין עדיין תמליל לשפר. הקליטו קודם את הפתק הזה."
+transcribing:
+  _self: "מתמלל"
+transcript:
+  _self: "תמליל"
+  source: "מקור התמליל %@"
+was:
+  this_note_useful: "הפתק הזה עזר לכם?"
+writing:
+  note: "כותב את הפתק"
+  your_enhanced_note: "כותב את הפתק המשופר שלכם."
+  your_enhanced_note_comes_next_long_recor: "אחר כך נכתב הפתק המשופר שלכם. הקלטות ארוכות עשויות לקחת כמה דקות. אתם יכולים להמשיך להקליד."
+  your_enhanced_note_with: "כותב את הפתק המשופר שלכם עם %@."

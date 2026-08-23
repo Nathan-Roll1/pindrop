@@ -73,6 +73,9 @@ struct IconSlot: View {
             // runs out of room instead of squeezing the glyph.
             .frame(width: slot.side, height: slot.side)
             .fixedSize()
+            // The slot is a lane marker beside a label that already says what the
+            // row is. Left readable, VoiceOver announces the raw symbol name.
+            .accessibilityHidden(true)
     }
 }
 

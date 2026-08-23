@@ -9,11 +9,16 @@
   transcription: "1 bản phiên âm"
   word: "1 từ"
   year: "1 year"
+  edited_2: "%1$@ · sửa %2$@"
+  recording: "%1$@ bản ghi"
+  recording_2: "%1$@ bản ghi · %2$@"
+  result: "1 kết quả"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "Một loạt nâng cấp lớn — và hai lời cảm ơn tới cộng đồng."
   native_macos_menu_bar_dictation_app_using_loca: "Một ứng dụng đọc chính tả trên thanh menu macOS gốc sử dụng tính năng chuyển giọng nói thành văn bản cục bộ với WhisperKit. Xử lý cục bộ 100% theo mặc định với cải tiến AI tùy chọn."
+  note_capture_is_already_running: "Đã có một phiên ghi ghi chú đang chạy."
 about:
   _self: "Về"
   pindrop: "Giới thiệu về Pindrop"
@@ -79,6 +84,7 @@ an:
     Bản phiên âm gốc đã được lưu mà không cần cải tiến.
     Bạn có thể thử bật lại tính năng nâng cao AI trong Cài đặt.
   error_occurred_while_enhancing_your_transcrip_1790ad05: "Đã xảy ra lỗi khi nâng cao bản chép lại của bạn:nn%@nnBản chép lại ban đầu đã được lưu mà không nâng cao.nBạn có thể thử bật lại tính năng nâng cao AI trong Cài đặt."
+  earlier_version_of_pindrop_wrote_this_note_it: "Ghi chú này do một phiên bản Pindrop cũ hơn viết. Không thể viết lại."
 anthropic:
   _self: "nhân loại"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "Đầu vào âm thanh"
+  sealed: "Đã niêm phong âm thanh"
 automatic:
   follow_system: "Tự động (Theo hệ thống)"
   updates: "Cập nhật tự động"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "Tự động khởi động Pindrop khi bạn đăng nhập."
 available:
   models: "Các mẫu có sẵn"
+  when_the_recording_is_finished: "Dùng được khi bản ghi hoàn tất"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "Mặt sau"
   to_library: "Quay lại thư viện"
+  to_notes: "Quay lại ghi chú"
 base:
   _self: "Căn cứ"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "Hủy bỏ"
   operation: "Hủy thao tác"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "Hủy bản ghi"
 capture:
   directly_into_the_note_editor_with_a_hol: "Ghi trực tiếp vào trình chỉnh sửa ghi chú bằng quy trình giữ để ghi."
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "Bấm hoặc nhấn"
   or_set_a_hotkey_to_start_talking: "Bấm hoặc đặt phím nóng để bắt đầu nói chuyện"
   this_icon_anytime_to: "Nhấp vào biểu tượng này bất cứ lúc nào để:"
+  a_number_to_see_it_in_the_transcript: "Bấm vào một số để xem nó trong bản chép lời."
+  new_note_to_start_one: "Bấm Ghi chú mới để bắt đầu. Pindrop ghi âm trong lúc bạn gõ."
 client:
   _self: "Máy khách"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copy the most recent transcript to the clipboard."
   to_clipboard: "Sao chép vào bảng nhớ tạm"
   transcript: "Sao chép bảng điểm"
+  content: "Sao chép nội dung"
 correct:
   grammar_mistakes: "Sửa lỗi ngữ pháp"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "Tùy chỉnh / Địa phương"
   openai_compatible: "Tùy chỉnh (tương thích với OpenAI)"
   presets: "Cài đặt trước tùy chỉnh"
+  templates: "Mẫu của bạn"
 customize:
   hotkey: "Tùy chỉnh phím nóng"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d samples · %@"
   speakers: "%d người nói"
   words: "%d từ"
+  results: "%d kết quả"
 dark:
   _self: "Tối tăm"
   preview: "Xem trước tối"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "Xóa bản chép lời?"
   all_contributions: "Xóa tất cả đóng góp…"
   all_stored_text_pairs: "Xóa tất cả cặp văn bản đã lưu?"
+  this_note: "Xóa ghi chú này"
+  this_transcript: "Xóa bản chép lời này?"
+  transcript: "Xóa bản chép lời"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "chỉ có tiếng Anh"
 enhanced:
   _self: "nâng cao"
+  note: "Ghi chú nâng cao"
 enhancement:
   prompts: "Lời nhắc nâng cao"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "Tệp"
 find:
   _self: "Tìm"
+  in_transcript: "Tìm trong bản chép lời"
 fix:
   punctuation_and_capitalization: "Sửa dấu câu và viết hoa"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "Ẩn khóa API"
   this_for_1_hour: "Ẩn cái này trong 1 giờ"
+  live_transcript: "Ẩn bản chép lời trực tiếp"
 history:
   _self: "Lịch sử"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "Đang nghe…"
 live:
   streaming_refinement: "Tinh chỉnh phát trực tiếp"
+  text_stopped_the_recording_continues: "Văn bản trực tiếp đã dừng. Bản ghi vẫn tiếp tục."
+  transcript: "Bản chép lời trực tiếp"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "Quản lý cài đặt trước"
   presets_ab87986d: "Quản lý cài đặt trước..."
   presets_d5d4c2c2: "Manage Presets…"
+  templates: "Quản lý mẫu…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "Gặp Orb mới"
 meeting:
   saved: "Đã lưu cuộc họp"
+  note: "Ghi chú cuộc họp"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "Thư mục mới"
   note: "Ghi chú mới"
   preset: "Cài đặt trước mới"
+  note_with_system_audio: "Ghi chú mới kèm âm thanh hệ thống"
+  note_without_recording: "Ghi chú mới không ghi âm"
 newest:
   _self: "Mới nhất"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "Không có từ vựng"
   transcripts_audio_prompts_file_names_or_perso: "Không có bản phiên âm, âm thanh, lời nhắc, tên tệp hay nội dung cá nhân — không bao giờ."
   contributions_yet_pairs_are_stored_when_ai_en: "Chưa có đóng góp nào. Các cặp được lưu khi cải thiện bằng AI hoặc chỉnh sửa thủ công thay đổi một bản phiên âm."
+  audio_was_recorded_for_this_note: "Không có âm thanh nào được ghi cho ghi chú này."
+  enhanced_note_yet: "Chưa có ghi chú nâng cao."
+  notes_yet_sentence: "Chưa có ghi chú."
+  results_try_another_word: "Không có kết quả. Thử từ khác."
 not:
   assigned: "Chưa được chỉ định"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -748,6 +779,7 @@ not:
   set: "Chưa đặt"
   set_93039e60: "Chưa đặt"
   now: "Để sau"
+  helpful: "Không hữu ích"
 note:
   _self: "Ghi chú"
   capture_hold: "Note Capture — Hold"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "Ghi chú"
   3add7b96: "ghi chú"
+  header_meta_empty: "chưa có gì ở đây"
+  header_meta_today: "%1$@, %2$@ từ hôm nay"
+  new_note_options_label: "Tùy chọn khác cho ghi chú mới"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "Tắt"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "Mở Cài đặt"
   settings_fd7108f8: "Mở cài đặt"
   system_settings: "Mở cài đặt hệ thống"
+  in_new_window: "Mở trong cửa sổ mới"
+  note: "Mở ghi chú"
 openai:
   _self: "OpenAI"
   compatible_local_server: "Máy chủ cục bộ tương thích với OpenAI"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "Chọn nhà cung cấp và mô hình nào xử lý từng nhiệm vụ AI. Để lại là \"Chưa được chỉ định\" để bỏ qua mục đích."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
+  a_model_for_note_enhancement_in_settings_th: "Chọn mô hình nâng cao ghi chú trong Cài đặt, rồi thử lại."
 pill:
   _self: "Thuốc viên"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "Thuốc nhỏ giọt"
   theme: "Chủ đề ghim"
   can_send_anonymous_privacy_preserving_si: "Pindrop có thể gửi các tín hiệu ẩn danh, bảo vệ quyền riêng tư để lỗi được sửa nhanh hơn."
+  writes_one_from_your_notes_and_the_trans: "Pindrop viết nó từ ghi chú của bạn và bản chép lời."
 pinned:
   _self: "Đã ghim"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "Khuyến khích"
 record:
   _self: "Ghi"
+  with_system_audio: "Ghi kèm âm thanh hệ thống"
 recording:
   _self: "ghi âm"
   3f8fd48c: "🔴 Ghi âm"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "Đang ghi âm — quá trình phiên âm sẽ bắt đầu khi ghi âm kết thúc."
   stopped_with_error: "Đã dừng ghi âm: %@"
   from_external_and_bluetooth_microphone: "Ghi âm từ mic ngoài và mic Bluetooth giờ rất ổn định, ngay cả khi đầu ra âm thanh được định tuyến sang nơi khác."
+  continues_while_you_work: "Bản ghi vẫn chạy trong lúc bạn làm việc"
+  transcribed: "Đã chép lời bản ghi."
 recordings:
   _self: "bản ghi âm"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "Hiển thị chỉ báo nổi"
   in_dock: "Hiển thị trong Dock"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "Hiện bản chép lời trực tiếp"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Hiển thị dưới dạng quả cầu thủy tinh lỏng ở góc màn hình"
   as_a_pill_at_the_bottom_of_the_screen: "Hiển thị dưới dạng viên thuốc ở cuối màn hình"
@@ -1138,17 +1182,24 @@ source:
   _self: "Nguồn"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "Nguồn được cố định khi bản ghi bắt đầu."
+  d: "Nguồn (%d)"
 spanish:
   _self: "tiếng Tây Ban Nha"
 speak:
   to_append: "Nói để thêm"
 speaker:
+  _self: "Người nói"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Nhật ký loa và dấu thời gian được đính kèm để phát lại."
   diarization_is_required: "Cần phải ghi nhật ký loa"
   profile_training: "Speaker profile training"
+  d: "Người nói %d"
 speakers:
   _self: "Người nói"
+  1: "Người nói: %1$@"
+  are_set_when_the_recording_starts: "Người nói được đặt khi bản ghi bắt đầu."
+  identified: "Đã nhận diện người nói"
 speed:
   _self: "Tốc độ"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "Hệ thống"
   default: "Mặc định hệ thống"
+  audio: "Âm thanh hệ thống"
 teach:
   custom_words: "Dạy từ tùy chỉnh"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\"\" Mô hình không tải được trong vòng 60 giây. Điều này thường có nghĩa là các tệp mô hình bị hỏng hoặc không tương thích.                          Để khắc phục điều này: 1. Mở Cài đặt → Kiểu máy 2. Xóa mô hình có vấn đề 3. Tải lại mô hình xuống Nếu sự cố vẫn tiếp diễn, hãy thử một mô hình nhỏ hơn (Tiny hoặc Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "Công cụ streaming Nemotron mới hiển thị từ khi bạn nói và được làm nóng sẵn khi khởi chạy để lần đọc chính tả đầu tiên bắt đầu không chậm trễ."
   selected_chunk_variant_isn_t_downloaded_yet: "Biến thể đoạn đã chọn chưa được tải xuống. Chuyển đổi sẽ bắt đầu tải xuống."
+  audio_and_the_live_transcript_are_deleted_yo: "Âm thanh và bản chép lời trực tiếp sẽ bị xóa. Ghi chú bạn gõ vẫn còn."
+  enhanced_note_could_not_be_generated_try_aga: "Không tạo được ghi chú nâng cao. Thử lại."
+  enhanced_note_could_not_be_saved_try_again: "Không lưu được ghi chú nâng cao. Thử lại."
+  model_returned_an_empty_note_try_again: "Mô hình trả về ghi chú trống. Thử lại."
+  note_enhancement_model_is_unavailable_check: "Mô hình nâng cao ghi chú không khả dụng. Kiểm tra trong Cài đặt, rồi thử lại."
+  note_this_recording_belongs_to_could_not_be_opened: "Không mở được ghi chú mà bản ghi này thuộc về."
+  recorded_audio_could_not_be_prepared: "Không chuẩn bị được âm thanh đã ghi để chép lời."
+  recorder_did_not_start: "Trình ghi âm không khởi động."
+  transcript_fills_in_as_you_speak: "Bản chép lời được điền vào trong lúc bạn nói."
+  transcript_starts_once_you_speak: "Bản chép lời bắt đầu ngay khi bạn nói."
 theme:
   _self: "chủ đề"
   changes_apply_live_across_the_workspace_se: "Các thay đổi về chủ đề áp dụng trực tiếp trên không gian làm việc, cài đặt, trình chỉnh sửa ghi chú và chỉ báo nổi."
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "Thao tác này sẽ xóa vĩnh viễn bản ghi và tệp phương tiện được quản lý của nó."
   will_permanently_remove_this_note: "Thao tác này sẽ xóa vĩnh viễn ghi chú này."
   permanently_deletes_all_stored_text_pairs_f: "Thao tác này sẽ xóa vĩnh viễn tất cả cặp văn bản đã lưu khỏi máy Mac này."
+  template_could_not_be_read_pick_another_tem: "Không đọc được mẫu này. Chọn mẫu khác rồi thử lại."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "Siêu dữ liệu phiên mã"
   saved: "Đã lưu bản chép lời"
   update: "Cập nhật phiên âm"
+  done: "Chép lời xong"
 transcriptions:
   _self: "Phiên âm"
   f0972acc: "phiên âm"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "Hãy thử một cụm từ tìm kiếm khác."
   a_different_search_term_in_this_folder: "Hãy thử một cụm từ tìm kiếm khác trong thư mục này."
   searching_for_terms_like_hotkeys_microphone: "Hãy thử tìm kiếm các thuật ngữ như phím nóng, micrô, cập nhật hoặc chế độ rung."
+  again: "Thử lại"
 turkish:
   _self: "tiếng Thổ Nhĩ Kỳ"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "Các bản đọc chính tả mới nhất sẽ hiện ở đây."
   home_streak: "Chuỗi"
   home_subline_duration_only: "%@ đọc chính tả."
-  home_subline_full: "%@ đọc chính tả — tiết kiệm khoảng %@ so với gõ."
+  home_subline_full: "%@ đọc chính tả. Tiết kiệm khoảng %@ so với gõ phím."
   home_this_week: "Tuần này"
   home_welcome_tagline: "Nói. Đã được viết."
   home_words_per_min: "Từ / phút"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "Từ hôm nay"
   home_you_spoke_this_week: "Bạn đã nói %@ tuần này."
   home_zero_day: "0-ngày"
+  home_n_sessions_grouped: "%@ phiên"
+  home_no_dictations_yet: "Chưa có bản đọc chính tả."
+  home_one_session: "1 phiên"
+  home_press_hotkey_to_start: "Nhấn %@ ở bất cứ đâu để bắt đầu."
+  home_stop: "Dừng"
 u5:
   u7_add_replacement: "Add replacement"
   u7_add_word: "Add word"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "Tách giọng nói"
   reduce_background_noise_before_transcription: "Giảm tiếng ồn nền trước khi chép lời"
+  note: "Ghi chú thoại"
 vs:
   typing: "vs đánh máy"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "Hôm qua"
 you:
+  _self: "Bạn"
   are_a_note_formatting_assistant_transform_th: "Bạn là trợ lý định dạng ghi chú. Chuyển văn bản được chép lại thành một ghi chú có cấu trúc tốt.nnQuy tắc:n- Sửa lỗi ngữ pháp, dấu câu và chính tản- Đối với nội dung dài hơn (từ 3 đoạn trở lên), thêm định dạng đánh dấu:n - Sử dụng tiêu đề (## hoặc ###) để sắp xếp các phầnn - Sử dụng dấu đầu dòng hoặc danh sách đánh số khi thích hợp - Sử dụng **in đậm** để nhấn mạnh các thuật ngữ chínhn- Đối với nội dung ngắn hơn, hãy giữ nội dung đơn giản với định dạng tối thiểun- Giữ nguyên ý nghĩa và âm điệu ban đầu- Không thêm nội dung mà không có trong bản gốc- Chỉ trả lại ghi chú đã định dạng mà không có bất kỳ bình luận nào"
   are_a_text_enhancement_assistant_improve_the: "Bạn là một trợ lý nâng cao văn bản. Cải thiện ngữ pháp, dấu câu và định dạng của văn bản được cung cấp trong khi vẫn giữ nguyên ý nghĩa và giọng điệu ban đầu của nó. Chỉ trả lại văn bản nâng cao mà không có bất kỳ bình luận bổ sung nào."
   can_change_these_anytime_from_the_menu_bar_s: "Bạn có thể thay đổi những điều này bất cứ lúc nào từ thanh menu → Cài đặt → Phím nóng"
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "Bạn đã hoàn tất!"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Bạn đã vượt quá giới hạn hoặc hạn ngạch tốc độ API của mình.                                  Để khắc phục điều này: 1. Đợi vài phút và thử lại 2. Kiểm tra giới hạn sử dụng của nhà cung cấp API của bạn 3. Cân nhắc nâng cấp gói API của bạn Bản ghi đã được lưu mà không cần cải tiến.                 \"\""
   re_in_control: "Bạn nắm quyền kiểm soát"
+  deleted_this_transcript: "Bạn đã xóa bản chép lời này."
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\" Khóa API của bạn có vẻ không hợp lệ hoặc đã hết hạn.                                  Để khắc phục điều này: 1. Mở Cài đặt → Cải tiến AI 2. Xác minh khóa API của bạn là chính xác 3. Kiểm tra xem điểm cuối API của bạn có đúng không. Bản chép lời đã được lưu mà không cần cải tiến.                 \"\""
   floating_indicator_is_now_a_living_audio_re: "Chỉ báo nổi của bạn giờ là một orb sống động, phản ứng với âm thanh. Nó thở khi rảnh, phồng lên khi bạn nói và truyền trực tiếp lời của bạn khi bạn đọc chính tả."
@@ -1566,6 +1639,8 @@ your:
   stats: "Số liệu thống kê của bạn"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "Lời của bạn vẫn là của bạn"
+  enhanced_note_is_ready: "Ghi chú nâng cao của bạn đã sẵn sàng."
+  notes_and_the_enhanced_note_stay_the_transc: "Ghi chú của bạn và ghi chú nâng cao vẫn còn. Bản chép lời được ẩn khỏi ghi chú này."
 zoom:
   _self: "Phóng to"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "%@ token vào / %@ ra"
   in_out_thinking: "%@ token vào / %@ ra / %@ suy nghĩ"
+auto:
+  _self: "Tự động"
+discard:
+  recording: "Bỏ bản ghi"
+  this_recording: "Bỏ bản ghi này?"
+finalizing:
+  _self: "Đang hoàn tất"
+finish:
+  _self: "Hoàn tất"
+  the_active_transcription_before_starting: "Hãy hoàn tất bản chép lời đang chạy trước khi bắt đầu bản khác."
+  the_active_transcription_before_starting_another: "Hãy hoàn tất bản chép lời đang chạy trước khi bắt đầu bản khác."
+generate:
+  enhanced_note: "Tạo ghi chú nâng cao"
+generated:
+  _self: "Tạo lúc %@"
+  1_2_template: "Tạo lúc %1$@ · mẫu %2$@"
+helpful:
+  _self: "Hữu ích"
+identifying:
+  speakers: "Đang nhận diện người nói"
+jump:
+  to_live: "Nhảy tới trực tiếp"
+  to_this_line: "Nhảy tới dòng này"
+mic:
+  _self: "Micrô"
+more:
+  note_actions: "Thao tác khác với ghi chú"
+  recording_options: "Tùy chọn ghi âm khác"
+my:
+  notes: "Ghi chú của tôi"
+nothing:
+  was_transcribed_yet: "Chưa có gì được chép lời."
+playback:
+  position: "Vị trí phát"
+s:
+  to_save: "⌘S để lưu"
+sealing:
+  audio: "Đang niêm phong âm thanh"
+  the_recording: "Đang niêm phong bản ghi."
+see:
+  this_in_the_transcript: "Xem điều này trong bản chép lời"
+template:
+  _self: "Mẫu: %@"
+templates:
+  _self: "Mẫu"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "Chưa có bản chép lời để nâng cao. Hãy ghi ghi chú này trước."
+transcribing:
+  _self: "Đang chép lời"
+transcript:
+  _self: "Bản chép lời"
+  source: "Nguồn bản chép lời %@"
+was:
+  this_note_useful: "Ghi chú này có ích không?"
+writing:
+  note: "Đang viết ghi chú"
+  your_enhanced_note: "Đang viết ghi chú nâng cao của bạn."
+  your_enhanced_note_comes_next_long_recor: "Tiếp theo là viết ghi chú nâng cao của bạn. Bản ghi dài có thể mất vài phút. Bạn có thể gõ tiếp."
+  your_enhanced_note_with: "Đang viết ghi chú nâng cao của bạn bằng %@."

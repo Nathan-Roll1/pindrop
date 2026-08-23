@@ -9,11 +9,16 @@
   transcription: "1 transkriptio"
   word: "1 sana"
   year: "1 year"
+  edited_2: "%1$@ · muokattu %2$@"
+  recording: "%1$@ tallennetta"
+  recording_2: "%1$@ tallennetta · %2$@"
+  result: "1 osuma"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "Iso kierros päivityksiä — ja kaksi yhteisökiitosta."
   native_macos_menu_bar_dictation_app_using_loca: "Natiivi macOS-valikkopalkin sanelusovellus, joka käyttää paikallista puheen muuntamista tekstiksi WhisperKitin kanssa. 100 % paikallinen käsittely oletuksena valinnaisella AI-parannuksella."
+  note_capture_is_already_running: "Muistiinpanon tallennus on jo käynnissä."
 about:
   _self: "Noin"
   pindrop: "Tietoja Pindropista"
@@ -79,6 +84,7 @@ an:
     Alkuperäinen transkriptio tallennettiin ilman parannuksia.
     Voit yrittää ottaa tekoälyn parannuksen uudelleen käyttöön asetuksista.
   error_occurred_while_enhancing_your_transcrip_1790ad05: "Transkriptiota parannettaessa tapahtui virhe:nn%@nnAlkuperäinen transkriptio tallennettiin ilman parannusta.nVoit yrittää ottaa tekoälyn parannuksen uudelleen käyttöön asetuksista."
+  earlier_version_of_pindrop_wrote_this_note_it: "Tämän muistiinpanon kirjoitti Pindropin vanhempi versio. Sitä ei voi kirjoittaa uudelleen."
 anthropic:
   _self: "Antrooppinen"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "Äänitulo"
+  sealed: "Ääni sinetöity"
 automatic:
   follow_system: "Automaattinen (seuraa järjestelmää)"
   updates: "Automaattiset päivitykset"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "Käynnistä Pindrop automaattisesti, kun kirjaudut sisään."
 available:
   models: "Saatavilla olevat mallit"
+  when_the_recording_is_finished: "Käytettävissä, kun tallennus on valmis"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "Takaisin"
   to_library: "Takaisin kirjastoon"
+  to_notes: "Takaisin muistiinpanoihin"
 base:
   _self: "Pohja"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "Peruuttaa"
   operation: "Peruuta toiminto"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "Peruuta tallennus"
 capture:
   directly_into_the_note_editor_with_a_hol: "Tallenna suoraan muistiinpanoeditoriin pidä-tallenna -toiminnolla."
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "Napsauta tai paina"
   or_set_a_hotkey_to_start_talking: "Napsauta tai aseta pikanäppäin aloittaaksesi puhumisen"
   this_icon_anytime_to: "Napsauta tätä kuvaketta milloin tahansa, jos haluat:"
+  a_number_to_see_it_in_the_transcript: "Näet kohdan tekstityksessä napsauttamalla numeroa."
+  new_note_to_start_one: "Aloita napsauttamalla Uusi muistiinpano. Pindrop tallentaa samalla, kun kirjoitat."
 client:
   _self: "Asiakas"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copy the most recent transcript to the clipboard."
   to_clipboard: "Kopioi leikepöydälle"
   transcript: "Kopioi transkriptio"
+  content: "Kopioi sisältö"
 correct:
   grammar_mistakes: "Korjaa kielioppivirheet"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "Mukautettu / paikallinen"
   openai_compatible: "Mukautettu (OpenAI-yhteensopiva)"
   presets: "Mukautetut esiasetukset"
+  templates: "Omat mallit"
 customize:
   hotkey: "Mukauta pikanäppäintä"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d samples · %@"
   speakers: "%d puhujaa"
   words: "%d sanaa"
+  results: "%d osumaa"
 dark:
   _self: "Tumma"
   preview: "Tumma esikatselu"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "Poistetaanko transkriptio?"
   all_contributions: "Poista kaikki osallistumiset…"
   all_stored_text_pairs: "Poistetaanko kaikki tallennetut tekstiparit?"
+  this_note: "Poista tämä muistiinpano"
+  this_transcript: "Poistetaanko tämä tekstitys?"
+  transcript: "Poista tekstitys"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "vain englanniksi"
 enhanced:
   _self: "Tehostettu"
+  note: "Parannettu muistiinpano"
 enhancement:
   prompts: "Lisäkehotteet"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "Arkisto"
 find:
   _self: "Etsi"
+  in_transcript: "Etsi tekstityksestä"
 fix:
   punctuation_and_capitalization: "Korjaa välimerkit ja isot kirjaimet"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "Piilota API-avain"
   this_for_1_hour: "Piilota tämä 1 tunnin ajaksi"
+  live_transcript: "Piilota reaaliaikainen tekstitys"
 history:
   _self: "Historia"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "Kuunnellaan…"
 live:
   streaming_refinement: "Suoratoiston tarkennus"
+  text_stopped_the_recording_continues: "Reaaliaikainen teksti pysähtyi. Tallennus jatkuu."
+  transcript: "Reaaliaikainen tekstitys"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "Hallitse esiasetuksia"
   presets_ab87986d: "Hallitse esiasetuksia..."
   presets_d5d4c2c2: "Manage Presets…"
+  templates: "Hallitse malleja…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "Tutustu uuteen Orbiin"
 meeting:
   saved: "Kokous tallennettu"
+  note: "Kokousmuistiinpano"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "Uusi kansio"
   note: "Uusi huomautus"
   preset: "Uusi esiasetus"
+  note_with_system_audio: "Uusi muistiinpano järjestelmän äänellä"
+  note_without_recording: "Uusi muistiinpano ilman tallennusta"
 newest:
   _self: "Uusimmat"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "Ei sanastoa"
   transcripts_audio_prompts_file_names_or_perso: "Ei transkriptioita, ääntä, kehotteita, tiedostonimiä tai henkilökohtaista sisältöä — ei koskaan."
   contributions_yet_pairs_are_stored_when_ai_en: "Ei vielä osallistumisia. Parit tallennetaan, kun tekoälyparannus tai manuaaliset muokkaukset muuttavat transkriptiota."
+  audio_was_recorded_for_this_note: "Tälle muistiinpanolle ei tallennettu ääntä."
+  enhanced_note_yet: "Ei vielä parannettua muistiinpanoa."
+  notes_yet_sentence: "Ei vielä muistiinpanoja."
+  results_try_another_word: "Ei osumia. Kokeile toista sanaa."
 not:
   assigned: "Ei määrätty"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -748,6 +779,7 @@ not:
   set: "Ei asetettu"
   set_93039e60: "Ei asetettu"
   now: "Ei nyt"
+  helpful: "Ei hyödyllinen"
 note:
   _self: "Huom"
   capture_hold: "Note Capture — Hold"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "Huomautuksia"
   3add7b96: "muistiinpanoja"
+  header_meta_empty: "täällä ei ole vielä mitään"
+  header_meta_today: "%1$@, %2$@ tältä päivältä"
+  new_note_options_label: "Lisää uuden muistiinpanon vaihtoehtoja"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "Pois"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "Avaa Asetukset"
   settings_fd7108f8: "Avaa asetukset"
   system_settings: "Avaa Järjestelmäasetukset"
+  in_new_window: "Avaa uudessa ikkunassa"
+  note: "Avaa muistiinpano"
 openai:
   _self: "OpenAI"
   compatible_local_server: "OpenAI-yhteensopiva paikallinen palvelin"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "Valitse, mikä toimittaja ja malli hoitaa jokaisen tekoälytehtävän. Jätä \"Ei määritetty\" -asetukseksi ohittaaksesi tarkoituksen."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
+  a_model_for_note_enhancement_in_settings_th: "Valitse muistiinpanojen parantamisen malli Asetuksissa ja yritä uudelleen."
 pill:
   _self: "Pilleri"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "Pindrop-pilleri"
   theme: "Pindrop-teema"
   can_send_anonymous_privacy_preserving_si: "Pindrop voi lähettää anonyymejä, yksityisyyttä suojaavia signaaleja, jotta virheet korjataan nopeammin."
+  writes_one_from_your_notes_and_the_trans: "Pindrop kirjoittaa sen muistiinpanoistasi ja tekstityksestä."
 pinned:
   _self: "Kiinnitetyt"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "Suositeltava"
 record:
   _self: "Tallentaa"
+  with_system_audio: "Tallenna järjestelmän äänellä"
 recording:
   _self: "Tallennus"
   3f8fd48c: "🔴 Tallennus"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "Tallennus käynnissä — transkriptio alkaa, kun se on valmis."
   stopped_with_error: "Tallennus lopetettu: %@"
   from_external_and_bluetooth_microphone: "Tallennus ulkoisista ja Bluetooth-mikrofoneista on nyt erittäin luotettavaa, vaikka äänen ulostulo olisi ohjattu muualle."
+  continues_while_you_work: "Tallennus jatkuu, kun työskentelet"
+  transcribed: "Tallenne litteroitu."
 recordings:
   _self: "tallenteita"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "Näytä kelluva ilmaisin"
   in_dock: "Näytä Dockissa"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "Näytä reaaliaikainen tekstitys"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Näkyy nestelasisena pallona näytön kulmassa"
   as_a_pill_at_the_bottom_of_the_screen: "Näkyy pillerinä näytön alareunassa"
@@ -1138,17 +1182,24 @@ source:
   _self: "Lähde"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "Lähteet lukitaan, kun tallennus alkaa."
+  d: "Lähteet (%d)"
 spanish:
   _self: "espanja"
 speak:
   to_append: "Puhu lisätäksesi"
 speaker:
+  _self: "Puhuja"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Kaiutinpäiväkirja ja aikaleimat on liitetty toistoon."
   diarization_is_required: "Kaiutinpäiväkirja vaaditaan"
   profile_training: "Speaker profile training"
+  d: "Puhuja %d"
 speakers:
   _self: "Puhujat"
+  1: "Puhujat: %1$@"
+  are_set_when_the_recording_starts: "Puhujat määritetään, kun tallennus alkaa."
+  identified: "Puhujat tunnistettu"
 speed:
   _self: "Nopeus"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "Järjestelmä"
   default: "Järjestelmän oletusarvo"
+  audio: "Järjestelmän ääni"
 teach:
   custom_words: "Opeta mukautettuja sanoja"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\"\" Malli ei latautunut 60 sekunnissa. Tämä tarkoittaa yleensä sitä, että mallitiedostot ovat vioittuneet tai yhteensopimattomia.                          Korjaa tämä seuraavasti: 1. Avaa Asetukset → Mallit 2. Poista ongelmallinen malli 3. Lataa malli uudelleen Jos ongelma jatkuu, kokeile pienempää mallia (Tiny tai Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "Uusi Nemotron-suoratoistomoottori näyttää sanat sitä mukaa kun sanot ne, ja moottori esilämmitetään käynnistyksessä, jotta ensimmäinen sanelu alkaa viiveettä."
   selected_chunk_variant_isn_t_downloaded_yet: "Valittua kappaleversiota ei ole vielä ladattu. Vaihtaminen käynnistää latauksen."
+  audio_and_the_live_transcript_are_deleted_yo: "Ääni ja reaaliaikainen tekstitys poistetaan. Kirjoittamasi muistiinpanot säilyvät."
+  enhanced_note_could_not_be_generated_try_aga: "Parannettua muistiinpanoa ei voitu luoda. Yritä uudelleen."
+  enhanced_note_could_not_be_saved_try_again: "Parannettua muistiinpanoa ei voitu tallentaa. Yritä uudelleen."
+  model_returned_an_empty_note_try_again: "Malli palautti tyhjän muistiinpanon. Yritä uudelleen."
+  note_enhancement_model_is_unavailable_check: "Muistiinpanojen parannusmalli ei ole käytettävissä. Tarkista se Asetuksissa ja yritä uudelleen."
+  note_this_recording_belongs_to_could_not_be_opened: "Muistiinpanoa, johon tämä tallenne kuuluu, ei voitu avata."
+  recorded_audio_could_not_be_prepared: "Tallennettua ääntä ei voitu valmistella litterointia varten."
+  recorder_did_not_start: "Tallennin ei käynnistynyt."
+  transcript_fills_in_as_you_speak: "Tekstitys täydentyy, kun puhut."
+  transcript_starts_once_you_speak: "Tekstitys alkaa heti, kun puhut."
 theme:
   _self: "Teema"
   changes_apply_live_across_the_workspace_se: "Teeman muutokset ovat voimassa työtilassa, asetuksissa, muistiinpanoeditorissa ja kelluvissa ilmaisimissa."
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "Tämä poistaa pysyvästi transkription ja sen hallitun mediatiedoston."
   will_permanently_remove_this_note: "Tämä poistaa muistiinpanon pysyvästi."
   permanently_deletes_all_stored_text_pairs_f: "Tämä poistaa pysyvästi kaikki tallennetut tekstiparit tästä Macista."
+  template_could_not_be_read_pick_another_tem: "Tätä mallia ei voitu lukea. Valitse toinen malli ja yritä uudelleen."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "Transkription metatiedot"
   saved: "Transkriptio tallennettu"
   update: "Transkription päivitys"
+  done: "Litterointi valmis"
 transcriptions:
   _self: "Transkriptiot"
   f0972acc: "transkriptioita"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "Kokeile toista hakutermiä."
   a_different_search_term_in_this_folder: "Kokeile toista hakutermiä tässä kansiossa."
   searching_for_terms_like_hotkeys_microphone: "Kokeile hakea termeillä, kuten pikanäppäimet, mikrofoni, päivitykset tai tunnelmatila."
+  again: "Yritä uudelleen"
 turkish:
   _self: "turkkilainen"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "Viimeisimmät diktointisi näkyvät täällä."
   home_streak: "Putki"
   home_subline_duration_only: "%@ diktointia."
-  home_subline_full: "%@ diktointia — noin %@ säästetty kirjoittamiseen verrattuna."
+  home_subline_full: "%@ sanelua. Noin %@ säästöä kirjoittamiseen verrattuna."
   home_this_week: "Tämä viikko"
   home_welcome_tagline: "Puhu. Se on kirjoitettu."
   home_words_per_min: "Sanaa / min"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "Sanoja tänään"
   home_you_spoke_this_week: "Sanoit %@ tällä viikolla."
   home_zero_day: "0 päivän"
+  home_n_sessions_grouped: "%@ istuntoa"
+  home_no_dictations_yet: "Ei vielä sanelua."
+  home_one_session: "1 istunto"
+  home_press_hotkey_to_start: "Aloita painamalla %@ missä tahansa."
+  home_stop: "Lopeta"
 u5:
   u7_add_replacement: "Add replacement"
   u7_add_word: "Add word"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "Äänen eristys"
   reduce_background_noise_before_transcription: "Vähennä taustamelua ennen litterointia"
+  note: "Äänimuistiinpano"
 vs:
   typing: "vs kirjoittaminen"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "Eilen"
 you:
+  _self: "Sinä"
   are_a_note_formatting_assistant_transform_th: "Olet muistiinpanojen muotoiluavustaja. Muunna litteroitu teksti hyvin jäsennellyksi muistiinpanoksi.nnSäännöt:n- Korjaa kielioppi-, välimerkit ja kirjoitusvirheet avaintermien korostaminenn- Lyhyemmän sisällön pitäminen yksinkertaisena minimaalisella muotoilullan- Säilytä alkuperäinen merkitys ja sävy- Älä lisää sisältöä, joka ei ollut alkuperäisessä- Palauta vain muotoiltu huomautus ilman kommentteja"
   are_a_text_enhancement_assistant_improve_the: "Olet tekstinparannusavustaja. Paranna tarjotun tekstin kielioppia, välimerkkejä ja muotoilua säilyttäen samalla sen alkuperäinen merkitys ja sävy. Palauta vain paranneltu teksti ilman lisäkommentteja."
   can_change_these_anytime_from_the_menu_bar_s: "Voit muuttaa näitä milloin tahansa valikkoriviltä → Asetukset → Pikanäppäimet"
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "Kaikki on valmista!"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Olet ylittänyt API-nopeusrajoituksen tai -kiintiön.                                  Korjaa tämä seuraavasti: 1. Odota muutama minuutti ja yritä uudelleen 2. Tarkista API-palveluntarjoajasi käyttörajoitukset 3. Harkitse API-suunnitelmasi päivittämistä. Transkriptio tallennettiin ilman parannuksia.                 \"\""
   re_in_control: "Sinä hallitset"
+  deleted_this_transcript: "Poistit tämän tekstityksen."
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\" API-avaimesi näyttää olevan virheellinen tai vanhentunut.                                  Korjaa tämä seuraavasti: 1. Avaa Asetukset → AI Enhancement 2. Varmista, että API-avaimesi on oikea 3. Tarkista, että API-päätepiste on oikea. Transkriptio tallennettiin ilman parannuksia.                 \"\""
   floating_indicator_is_now_a_living_audio_re: "Kelluva ilmaisimesi on nyt elävä, ääneen reagoiva orb. Se hengittää levossa, kasvaa kun puhut ja näyttää sanasi suorana sanelun aikana."
@@ -1566,6 +1639,8 @@ your:
   stats: "Omat tilastot"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "Sanasi pysyvät sinun"
+  enhanced_note_is_ready: "Parannettu muistiinpanosi on valmis."
+  notes_and_the_enhanced_note_stay_the_transc: "Muistiinpanosi ja parannettu muistiinpano säilyvät. Tekstitys piilotetaan tästä muistiinpanosta."
 zoom:
   _self: "Zoomaa"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "%@ syöte- / %@ tulostokenia"
   in_out_thinking: "%@ syöte- / %@ tulos- / %@ ajattelutokenia"
+auto:
+  _self: "Automaattinen"
+discard:
+  recording: "Hylkää tallenne"
+  this_recording: "Hylätäänkö tämä tallenne?"
+finalizing:
+  _self: "Viimeistellään"
+finish:
+  _self: "Valmis"
+  the_active_transcription_before_starting: "Päätä käynnissä oleva litterointi ennen uuden aloittamista."
+  the_active_transcription_before_starting_another: "Päätä käynnissä oleva litterointi ennen uuden aloittamista."
+generate:
+  enhanced_note: "Luo parannettu muistiinpano"
+generated:
+  _self: "Luotu %@"
+  1_2_template: "Luotu %1$@ · malli %2$@"
+helpful:
+  _self: "Hyödyllinen"
+identifying:
+  speakers: "Tunnistetaan puhujia"
+jump:
+  to_live: "Siirry reaaliaikaan"
+  to_this_line: "Siirry tälle riville"
+mic:
+  _self: "Mikrofoni"
+more:
+  note_actions: "Lisää muistiinpanon toimintoja"
+  recording_options: "Lisää tallennusvaihtoehtoja"
+my:
+  notes: "Omat muistiinpanot"
+nothing:
+  was_transcribed_yet: "Mitään ei ole vielä litteroitu."
+playback:
+  position: "Toistokohta"
+s:
+  to_save: "⌘S tallentaa"
+sealing:
+  audio: "Sinetöidään ääntä"
+  the_recording: "Sinetöidään tallennetta."
+see:
+  this_in_the_transcript: "Näytä tämä tekstityksessä"
+template:
+  _self: "Malli: %@"
+templates:
+  _self: "Mallit"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "Parannettavaa tekstitystä ei ole vielä. Tallenna tämä muistiinpano ensin."
+transcribing:
+  _self: "Litteroidaan"
+transcript:
+  _self: "Tekstitys"
+  source: "Tekstityksen lähde %@"
+was:
+  this_note_useful: "Oliko tästä muistiinpanosta hyötyä?"
+writing:
+  note: "Kirjoitetaan muistiinpanoa"
+  your_enhanced_note: "Kirjoitetaan parannettua muistiinpanoasi."
+  your_enhanced_note_comes_next_long_recor: "Seuraavaksi kirjoitetaan parannettu muistiinpanosi. Pitkissä tallenteissa se voi kestää muutaman minuutin. Voit jatkaa kirjoittamista."
+  your_enhanced_note_with: "Kirjoitetaan parannettua muistiinpanoasi mallilla %@."

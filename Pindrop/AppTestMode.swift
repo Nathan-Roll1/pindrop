@@ -44,6 +44,9 @@ enum AppUITestSurface: String {
     case settings
     case noteEditorCitations
     case mainShell
+    /// The note page with all three views populated: typed notes, one enhanced
+    /// panel with citations, and a finished transcript.
+    case notePage
 }
 
 enum AppUITestFixture {
@@ -74,6 +77,8 @@ enum AppUITestFixture {
             NoteEditorCitationsFixtureRootView()
         case .mainShell:
             MainShellFixtureRootView()
+        case .notePage:
+            NotePageFixtureRootView()
         case nil:
             EmptyView()
         }
@@ -94,7 +99,7 @@ private struct SettingsFixtureRootView: View {
     /// Deterministic in-memory store so panes using @Query (e.g. Privacy) render
     /// in the fixture without touching the real persistent store.
     private static let modelContainer: ModelContainer = {
-        let schema = Schema(versionedSchema: TranscriptionRecordSchemaV14.self)
+        let schema = Schema(versionedSchema: TranscriptionRecordSchemaV15.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         do {
             return try ModelContainer(for: schema, configurations: [configuration])
@@ -122,7 +127,7 @@ private struct MainShellFixtureRootView: View {
     @State private var callbackMarker = "ready"
 
     private static let modelContainer: ModelContainer = {
-        let schema = Schema(versionedSchema: TranscriptionRecordSchemaV14.self)
+        let schema = Schema(versionedSchema: TranscriptionRecordSchemaV15.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         do {
             return try ModelContainer(for: schema, configurations: [configuration])
@@ -162,6 +167,9 @@ private struct MainShellFixtureRootView: View {
             onStartDictation: {
                 callbackMarker = "dictate"
             },
+            onStopDictation: {
+                callbackMarker = "dictate-stop"
+            },
             onStartNoteCapture: { request in
                 let sources = request.includeSystemAudio ? "mic+system" : "mic"
                 let speakers = request.expectedSpeakerCount.map(String.init) ?? "auto"
@@ -183,149 +191,230 @@ private struct MainShellFixtureRootView: View {
     }
 }
 
-private struct NoteEditorCitationsFixtureRootView: View {
+/// One recorded capture, seeded into a fresh in-memory V15 store.
+///
+/// Both note fixtures need the same thing behind the note they draw: a finished
+/// meeting capture, a human anchor note with typed content, a sealed chunk, and
+/// one diarized transcript revision. Seeding it once means the citation fixture
+/// and the note-page fixture cannot drift apart, and neither one touches the
+/// person's real notes or capture history.
+@MainActor
+enum RecordedNoteFixture {
+    static let transcriptText =
+        "We will publish the final report on Friday. The launch checklist needs legal approval."
+    static let typedContent = "Confirm the release timeline before publishing."
 
-    /// A seeded V14 store makes the real citation panel stable without accessing
-    /// the user's persistent notes or capture history.
-    private static let fixture: (modelContainer: ModelContainer, noteID: UUID) = {
-        let schema = Schema(versionedSchema: TranscriptionRecordSchemaV14.self)
+    struct Seeded {
+        let container: ModelContainer
+        let store: CaptureSessionStore
+        let handle: NoteCaptureHandle
+        let noteID: UUID
+        let createdAt: Date
+        /// The evidence a generated note cites, built from the seeded transcript.
+        let source: MeetingNoteSourceBundle
+    }
+
+    static func seed(title: String, label: String) throws -> Seeded {
+        let schema = Schema(versionedSchema: TranscriptionRecordSchemaV15.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let createdAt = Date(timeIntervalSinceReferenceDate: 0)
 
-        do {
-            let container = try ModelContainer(for: schema, configurations: [configuration])
-            let store = CaptureSessionStore(modelContext: ModelContext(container))
-            let handle = try store.startMeetingCapture(startedAt: createdAt)
-            let anchor = try store.ensureMeetingHumanAnchor(
-                handle,
-                title: "Generated meeting note",
-                at: createdAt
-            )
-            let humanAnchorContent = "Confirm the release timeline before publishing."
-            let anchorContext = ModelContext(container)
-            guard let anchorNote = try anchorContext.fetch(FetchDescriptor<NoteSchema.Note>())
-                .first(where: { $0.id == anchor.noteID })
-            else {
-                fatalError("Failed to find the seeded human anchor note.")
-            }
-            anchorNote.content = humanAnchorContent
-            try anchorContext.save()
-            guard let populatedAnchor = try store.meetingHumanAnchor(handle) else {
-                fatalError("Failed to reload the seeded human anchor note.")
-            }
-            try store.beginMeetingFinalization(handle, at: createdAt)
-            let checkpoint = MeetingChunkCheckpoint(
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let store = CaptureSessionStore(modelContext: ModelContext(container))
+        let handle = try store.startMeetingCapture(startedAt: createdAt)
+        let anchor = try store.ensureMeetingHumanAnchor(handle, title: title, at: createdAt)
+
+        let anchorContext = ModelContext(container)
+        guard let anchorNote = try anchorContext.fetch(FetchDescriptor<NoteSchema.Note>())
+            .first(where: { $0.id == anchor.noteID })
+        else {
+            throw NoteFixtureError.anchorNoteMissing
+        }
+        anchorNote.content = typedContent
+        try anchorContext.save()
+        guard let populatedAnchor = try store.meetingHumanAnchor(handle) else {
+            throw NoteFixtureError.anchorNoteMissing
+        }
+
+        try store.beginMeetingFinalization(handle, at: createdAt)
+        let checkpoint = MeetingChunkCheckpoint(
+            sourceID: handle.microphoneSourceID,
+            sequence: 0,
+            startOffset: 0,
+            duration: MeetingCaptureSpoolPlan.chunkDuration,
+            managedMediaPath: CaptureSourceArtifactPath.relativePath(
+                sessionID: handle.sessionID,
                 sourceID: handle.microphoneSourceID,
-                sequence: 0,
-                startOffset: 0,
-                duration: MeetingCaptureSpoolPlan.chunkDuration,
-                managedMediaPath: CaptureSourceArtifactPath.relativePath(
-                    sessionID: handle.sessionID,
-                    sourceID: handle.microphoneSourceID,
-                    chunkSequence: 0
+                chunkSequence: 0
+            ),
+            byteCount: MeetingCaptureSpoolPlan.defaultChunkByteCount,
+            sha256: String(repeating: "a", count: 64),
+            sealedAt: createdAt
+        )
+        try store.recordSealedMeetingChunk(handle, checkpoint: checkpoint)
+        _ = try store.resolveAssignment(
+            sessionID: handle.sessionID,
+            stage: .finalTranscription,
+            attempt: 1,
+            selecting: {
+                try CaptureStageAssignment(
+                    stage: .finalTranscription,
+                    providerKind: .batchSpeech,
+                    providerIdentifier: label,
+                    modelIdentifier: label,
+                    prompt: nil,
+                    selectedAt: createdAt,
+                    attempt: 1
+                )
+            }
+        )
+
+        let segmentsJSON = String(
+            decoding: try JSONEncoder().encode([
+                DiarizedTranscriptSegment(
+                    speakerId: "Alex",
+                    speakerLabel: "Alex",
+                    startTime: 5,
+                    endTime: 18,
+                    confidence: 1,
+                    text: "We will publish the final report on Friday."
                 ),
-                byteCount: MeetingCaptureSpoolPlan.defaultChunkByteCount,
-                sha256: String(repeating: "a", count: 64),
-                sealedAt: createdAt
-            )
-            try store.recordSealedMeetingChunk(handle, checkpoint: checkpoint)
-            _ = try store.resolveAssignment(
-                sessionID: handle.sessionID,
-                stage: .finalTranscription,
-                attempt: 1,
-                selecting: {
-                    try CaptureStageAssignment(
-                        stage: .finalTranscription,
-                        providerKind: .batchSpeech,
-                        providerIdentifier: "Generated meeting note",
-                        modelIdentifier: "Generated meeting note",
-                        prompt: nil,
-                        selectedAt: createdAt,
-                        attempt: 1
-                    )
-                }
-            )
-            let segmentsJSON = String(
-                decoding: try JSONEncoder().encode([
-                    DiarizedTranscriptSegment(
-                        speakerId: "Alex",
-                        speakerLabel: "Alex",
-                        startTime: 5,
-                        endTime: 18,
-                        confidence: 1,
-                        text: "We will publish the final report on Friday."
+                DiarizedTranscriptSegment(
+                    speakerId: "Jordan",
+                    speakerLabel: "Jordan",
+                    startTime: 22,
+                    endTime: 34,
+                    confidence: 1,
+                    text: "The launch checklist needs legal approval."
+                )
+            ]),
+            as: UTF8.self
+        )
+        let revisionID = try store.recordMeetingTranscriptionChunk(
+            handle,
+            sourceChunkSequence: checkpoint.sequence,
+            startOffset: checkpoint.startOffset,
+            duration: checkpoint.duration,
+            text: transcriptText,
+            segmentsJSON: segmentsJSON,
+            assignmentAttempt: 1
+        )
+        let historyID = try store.reserveMeetingTranscriptionRecordID(handle)
+        let context = ModelContext(container)
+        context.insert(TranscriptionRecord(
+            id: historyID,
+            text: transcriptText,
+            duration: checkpoint.duration,
+            modelUsed: label
+        ))
+        try context.save()
+        _ = try store.resolveAssignment(
+            sessionID: handle.sessionID,
+            stage: .noteGeneration,
+            attempt: 1,
+            selecting: {
+                try CaptureStageAssignment(
+                    stage: .noteGeneration,
+                    providerKind: .generativeAI,
+                    providerIdentifier: label,
+                    modelIdentifier: label,
+                    prompt: CapturePromptSnapshot(
+                        presetIdentifier: label,
+                        resolvedPrompt: label
                     ),
-                    DiarizedTranscriptSegment(
-                        speakerId: "Jordan",
-                        speakerLabel: "Jordan",
-                        startTime: 22,
-                        endTime: 34,
-                        confidence: 1,
-                        text: "The launch checklist needs legal approval."
-                    )
-                ]),
-                as: UTF8.self
+                    selectedAt: createdAt,
+                    attempt: 1
+                )
+            }
+        )
+
+        let source = try MeetingNoteDerivation.make(
+            humanNoteContent: populatedAnchor.content,
+            checkpoints: [
+                MeetingTranscriptionCheckpoint(
+                    revisionID: revisionID,
+                    providerSnapshotID: nil,
+                    sequence: checkpoint.sequence,
+                    startOffset: checkpoint.startOffset,
+                    duration: checkpoint.duration,
+                    text: transcriptText,
+                    segmentsJSON: segmentsJSON,
+                    languageCode: nil
+                )
+            ]
+        )
+
+        return Seeded(
+            container: container,
+            store: store,
+            handle: handle,
+            noteID: anchor.noteID,
+            createdAt: createdAt,
+            source: source
+        )
+    }
+
+    /// The note-page fixture: a recorded note with typed content, one enhanced
+    /// panel that cites the transcript, and the transcript itself.
+    ///
+    /// Written as a throwing function rather than inline in the view so a unit
+    /// test can seed it too. The view turns a failure into `fatalError`, which
+    /// would otherwise only surface as a crashed CI UI test.
+    static func seedNotePage() throws -> (container: ModelContainer, noteID: UUID) {
+        let seeded = try seed(title: notePageTitle, label: notePageTemplateDisplayName)
+        let provenance = MeetingGeneratedNoteProvenance(
+            humanAnchorNoteID: seeded.noteID,
+            evidenceInput: seeded.source.evidenceInput,
+            citations: seeded.source.citations,
+            sourceTranscriptRevisionIDs: seeded.source.sourceTranscriptRevisionIDs
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let provenanceJSON = String(decoding: try encoder.encode(provenance), as: UTF8.self)
+
+        _ = try seeded.store.saveEnhancedPanel(
+            sessionID: seeded.handle.sessionID,
+            noteID: seeded.noteID,
+            templatePresetIdentifier: notePageTemplateIdentifier,
+            templateDisplayName: notePageTemplateDisplayName,
+            content: notePagePanelContent,
+            assignmentAttempt: 1,
+            provenanceJSON: provenanceJSON,
+            humanAnchorContentSnapshot: typedContent,
+            at: seeded.createdAt
+        )
+        return (seeded.container, seeded.noteID)
+    }
+
+    static let notePageTitle = "Weekly planning"
+    static let notePageTemplateIdentifier = "meeting-summary"
+    static let notePageTemplateDisplayName = "Meeting summary"
+    static let notePagePanelContent =
+        "## Decisions\n\nPublish the final report on Friday. [1]\n\nComplete legal review before launch. [2]"
+
+    enum NoteFixtureError: Error {
+        case anchorNoteMissing
+    }
+}
+
+private struct NoteEditorCitationsFixtureRootView: View {
+
+    /// A seeded V15 store makes the real citation panel stable without accessing
+    /// the user's persistent notes or capture history.
+    private static let fixture: (modelContainer: ModelContainer, noteID: UUID) = {
+        do {
+            let seeded = try RecordedNoteFixture.seed(
+                title: "Generated meeting note",
+                label: "Generated meeting note"
             )
-            let revisionID = try store.recordMeetingTranscriptionChunk(
-                handle,
-                sourceChunkSequence: checkpoint.sequence,
-                startOffset: checkpoint.startOffset,
-                duration: checkpoint.duration,
-                text: "We will publish the final report on Friday. The launch checklist needs legal approval.",
-                segmentsJSON: segmentsJSON,
-                assignmentAttempt: 1
-            )
-            let historyID = try store.reserveMeetingTranscriptionRecordID(handle)
-            let context = ModelContext(container)
-            context.insert(TranscriptionRecord(
-                id: historyID,
-                text: "We will publish the final report on Friday. The launch checklist needs legal approval.",
-                duration: checkpoint.duration,
-                modelUsed: "Generated meeting note"
-            ))
-            try context.save()
-            _ = try store.resolveAssignment(
-                sessionID: handle.sessionID,
-                stage: .noteGeneration,
-                attempt: 1,
-                selecting: {
-                    try CaptureStageAssignment(
-                        stage: .noteGeneration,
-                        providerKind: .generativeAI,
-                        providerIdentifier: "Generated meeting note",
-                        modelIdentifier: "Generated meeting note",
-                        prompt: CapturePromptSnapshot(
-                            presetIdentifier: "Generated meeting note",
-                            resolvedPrompt: "Generated meeting note"
-                        ),
-                        selectedAt: createdAt,
-                        attempt: 1
-                    )
-                }
-            )
-            let source = try MeetingNoteDerivation.make(
-                humanNoteContent: populatedAnchor.content,
-                checkpoints: [
-                    MeetingTranscriptionCheckpoint(
-                        revisionID: revisionID,
-                        providerSnapshotID: nil,
-                        sequence: checkpoint.sequence,
-                        startOffset: checkpoint.startOffset,
-                        duration: checkpoint.duration,
-                        text: "We will publish the final report on Friday. The launch checklist needs legal approval.",
-                        segmentsJSON: segmentsJSON,
-                        languageCode: nil
-                    )
-                ]
-            )
-            let generated = try store.saveGeneratedMeetingNote(
-                handle,
+            let generated = try seeded.store.saveGeneratedMeetingNote(
+                seeded.handle,
                 title: "Generated meeting note",
                 content: "## Decisions\n\nPublish the final report on Friday.\n\nComplete legal review before launch.",
-                source: source,
-                at: createdAt
+                source: seeded.source,
+                at: seeded.createdAt
             )
-            return (container, generated.noteID)
+            return (seeded.container, generated.noteID)
         } catch {
             fatalError("Failed to create and seed note-editor citation UI-test fixture: \(error)")
         }
@@ -335,6 +424,27 @@ private struct NoteEditorCitationsFixtureRootView: View {
         NoteEditorCitationsFixtureContentView(noteID: Self.fixture.noteID)
             .frame(width: 480, height: 560)
             .modelContainer(Self.fixture.modelContainer)
+    }
+}
+
+/// The note page with typed notes, one enhanced panel, and a transcript.
+///
+/// Everything the page draws comes from the same seeded capture the citation
+/// fixture uses, so the three view segments, the template menu, and the citation
+/// chips all resolve against real store reads rather than stubs.
+private struct NotePageFixtureRootView: View {
+    private static let fixture: (container: ModelContainer, noteID: UUID) = {
+        do {
+            return try RecordedNoteFixture.seedNotePage()
+        } catch {
+            fatalError("Failed to create and seed note-page UI-test fixture: \(error)")
+        }
+    }()
+
+    var body: some View {
+        NotePageView(noteID: Self.fixture.noteID, onBack: {})
+            .frame(width: 900, height: 680)
+            .modelContainer(Self.fixture.container)
     }
 }
 

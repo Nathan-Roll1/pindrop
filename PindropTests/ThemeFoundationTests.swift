@@ -244,7 +244,7 @@ struct ThemeFoundationTests {
     /// Every role in the ramp is exhaustively checked, so a new role cannot land
     /// without a size, a weight, and a line box that can hold its own text.
     @Test func allRoleMetricsAreWellFormed() {
-        #expect(AppTypography.allRoleMetrics.count == 25)
+        #expect(AppTypography.allRoleMetrics.count == 26)
         for metrics in AppTypography.allRoleMetrics {
             #expect(metrics.size > 0)
             #expect(metrics.lineHeight >= metrics.size)

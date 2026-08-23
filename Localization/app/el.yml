@@ -9,11 +9,16 @@
   transcription: "1 μεταγραφή"
   word: "1 λέξη"
   year: "1 year"
+  edited_2: "%1$@ · επεξεργάστηκε %2$@"
+  recording: "%1$@ εγγραφής"
+  recording_2: "%1$@ εγγραφής · %2$@"
+  result: "1 αποτέλεσμα"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "Ένας μεγάλος γύρος αναβαθμίσεων — και δύο ευχαριστίες στην κοινότητα."
   native_macos_menu_bar_dictation_app_using_loca: "Μια εγγενής εφαρμογή υπαγόρευσης γραμμής μενού macOS που χρησιμοποιεί τοπική ομιλία σε κείμενο με το WhisperKit. 100% τοπική επεξεργασία από προεπιλογή με προαιρετική βελτίωση AI."
+  note_capture_is_already_running: "Μια εγγραφή σημείωσης βρίσκεται ήδη σε εξέλιξη."
 about:
   _self: "Για"
   pindrop: "Σχετικά με το Pindrop"
@@ -79,6 +84,7 @@ an:
     Η αρχική μεταγραφή αποθηκεύτηκε χωρίς βελτίωση.
     Μπορείτε να δοκιμάσετε να ενεργοποιήσετε ξανά τη βελτίωση AI στις Ρυθμίσεις.
   error_occurred_while_enhancing_your_transcrip_1790ad05: "Παρουσιάστηκε σφάλμα κατά τη βελτίωση της μεταγραφής σας:nn%@nnΗ αρχική μεταγραφή αποθηκεύτηκε χωρίς βελτίωση.nΜπορείτε να δοκιμάσετε να ενεργοποιήσετε ξανά τη βελτίωση τεχνητής νοημοσύνης στις Ρυθμίσεις."
+  earlier_version_of_pindrop_wrote_this_note_it: "Αυτή τη σημείωση την έγραψε παλαιότερη έκδοση του Pindrop. Δεν μπορεί να ξαναγραφτεί."
 anthropic:
   _self: "Ανθρωπικό"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "Είσοδος ήχου"
+  sealed: "Ο ήχος σφραγίστηκε"
 automatic:
   follow_system: "Αυτόματο (Ακολουθήστε το σύστημα)"
   updates: "Αυτόματες ενημερώσεις"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "Αυτόματη έναρξη του Pindrop όταν συνδέεστε."
 available:
   models: "Διαθέσιμα μοντέλα"
+  when_the_recording_is_finished: "Διαθέσιμο όταν τελειώσει η εγγραφή"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "Πίσω"
   to_library: "Επιστροφή στη βιβλιοθήκη"
+  to_notes: "Πίσω στις σημειώσεις"
 base:
   _self: "Βάση"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "Ματαίωση"
   operation: "Ακύρωση λειτουργίας"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "Ακύρωση εγγραφής"
 capture:
   directly_into_the_note_editor_with_a_hol: "Αποτυπώστε απευθείας στο πρόγραμμα επεξεργασίας σημειώσεων με μια ροή αναμονής για εγγραφή."
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "Κάντε κλικ ή πατήστε"
   or_set_a_hotkey_to_start_talking: "Κάντε κλικ ή ορίστε ένα πλήκτρο πρόσβασης για να αρχίσετε να μιλάτε"
   this_icon_anytime_to: "Κάντε κλικ σε αυτό το εικονίδιο ανά πάσα στιγμή για:"
+  a_number_to_see_it_in_the_transcript: "Κάντε κλικ σε έναν αριθμό για να τον δείτε στην απομαγνητοφώνηση."
+  new_note_to_start_one: "Κάντε κλικ στο Νέα σημείωση για να ξεκινήσετε. Το Pindrop ηχογραφεί όσο πληκτρολογείτε."
 client:
   _self: "Πελάτης"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copy the most recent transcript to the clipboard."
   to_clipboard: "Αντιγραφή στο πρόχειρο"
   transcript: "Αντιγραφή μεταγραφής"
+  content: "Αντιγραφή περιεχομένου"
 correct:
   grammar_mistakes: "Διορθώστε τα γραμματικά λάθη"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "Προσαρμοσμένο / Τοπικό"
   openai_compatible: "Προσαρμοσμένο (συμβατό με OpenAI)"
   presets: "Προσαρμοσμένες προεπιλογές"
+  templates: "Δικά σας πρότυπα"
 customize:
   hotkey: "Προσαρμογή του πλήκτρου πρόσβασης"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d samples · %@"
   speakers: "%d ομιλητές"
   words: "%d λέξεις"
+  results: "%d αποτελέσματα"
 dark:
   _self: "Σκοτάδι"
   preview: "Σκοτεινή προεπισκόπηση"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "Διαγραφή μεταγραφής;"
   all_contributions: "Διαγραφή όλων των συνεισφορών…"
   all_stored_text_pairs: "Διαγραφή όλων των αποθηκευμένων ζευγών κειμένου;"
+  this_note: "Διαγραφή αυτής της σημείωσης"
+  this_transcript: "Διαγραφή αυτής της απομαγνητοφώνησης;"
+  transcript: "Διαγραφή απομαγνητοφώνησης"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "Αγγλικά μόνο"
 enhanced:
   _self: "Ενισχυμένο"
+  note: "Βελτιωμένη σημείωση"
 enhancement:
   prompts: "Προτροπές βελτίωσης"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "Αρχείο"
 find:
   _self: "Εύρεση"
+  in_transcript: "Αναζήτηση στην απομαγνητοφώνηση"
 fix:
   punctuation_and_capitalization: "Διορθώστε τα σημεία στίξης και τα κεφαλαία"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "Απόκρυψη κλειδιού API"
   this_for_1_hour: "Κρύψτε το για 1 ώρα"
+  live_transcript: "Απόκρυψη ζωντανής απομαγνητοφώνησης"
 history:
   _self: "Ιστορία"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "Ακρόαση…"
 live:
   streaming_refinement: "Βελτιστοποίηση ζωντανής ροής"
+  text_stopped_the_recording_continues: "Το ζωντανό κείμενο σταμάτησε. Η εγγραφή συνεχίζεται."
+  transcript: "Ζωντανή απομαγνητοφώνηση"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "Διαχείριση προεπιλογών"
   presets_ab87986d: "Διαχείριση προεπιλογών..."
   presets_d5d4c2c2: "Manage Presets…"
+  templates: "Διαχείριση προτύπων…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "Γνωρίστε το νέο Orb"
 meeting:
   saved: "Η σύσκεψη αποθηκεύτηκε"
+  note: "Σημείωση σύσκεψης"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "Νέος φάκελος"
   note: "Νέα Σημείωση"
   preset: "Νέα προεπιλογή"
+  note_with_system_audio: "Νέα σημείωση με ήχο συστήματος"
+  note_without_recording: "Νέα σημείωση χωρίς εγγραφή"
 newest:
   _self: "Νεότερα"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "Χωρίς λεξιλογικές λέξεις"
   transcripts_audio_prompts_file_names_or_perso: "Καμία μεταγραφή, ήχος, προτροπή, όνομα αρχείου ή προσωπικό περιεχόμενο — ποτέ."
   contributions_yet_pairs_are_stored_when_ai_en: "Δεν υπάρχουν συνεισφορές ακόμη. Τα ζεύγη αποθηκεύονται όταν η βελτίωση με AI ή οι μη αυτόματες επεξεργασίες αλλάζουν μια μεταγραφή."
+  audio_was_recorded_for_this_note: "Δεν ηχογραφήθηκε ήχος για αυτή τη σημείωση."
+  enhanced_note_yet: "Δεν υπάρχει ακόμη βελτιωμένη σημείωση."
+  notes_yet_sentence: "Δεν υπάρχουν ακόμη σημειώσεις."
+  results_try_another_word: "Κανένα αποτέλεσμα. Δοκιμάστε άλλη λέξη."
 not:
   assigned: "Δεν έχει ανατεθεί"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -748,6 +779,7 @@ not:
   set: "Δεν έχει οριστεί"
   set_93039e60: "Δεν έχει οριστεί"
   now: "Όχι τώρα"
+  helpful: "Μη χρήσιμη"
 note:
   _self: "Σημείωμα"
   capture_hold: "Note Capture — Hold"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "Σημειώσεις"
   3add7b96: "σημειώσεις"
+  header_meta_empty: "τίποτα εδώ ακόμη"
+  header_meta_today: "%1$@, %2$@ από σήμερα"
+  new_note_options_label: "Περισσότερες επιλογές νέας σημείωσης"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "Μακριά από"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "Ανοίξτε τις Ρυθμίσεις"
   settings_fd7108f8: "Ανοίξτε τις ρυθμίσεις"
   system_settings: "Ανοίξτε τις Ρυθμίσεις συστήματος"
+  in_new_window: "Άνοιγμα σε νέο παράθυρο"
+  note: "Άνοιγμα σημείωσης"
 openai:
   _self: "OpenAI"
   compatible_local_server: "Τοπικός διακομιστής συμβατός με OpenAI"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "Επιλέξτε ποιος πάροχος και μοντέλο χειρίζεται κάθε εργασία AI. Αποχωρήστε ως \"Δεν έχει ανατεθεί\" για να παραλείψετε έναν σκοπό."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
+  a_model_for_note_enhancement_in_settings_th: "Επιλέξτε μοντέλο για τη βελτίωση σημειώσεων στις Ρυθμίσεις και δοκιμάστε ξανά."
 pill:
   _self: "Χάπι"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "Χάπι Pindrop"
   theme: "Θέμα Pindrop"
   can_send_anonymous_privacy_preserving_si: "Το Pindrop μπορεί να στέλνει ανώνυμα σήματα που προστατεύουν το απόρρητο, ώστε τα σφάλματα να διορθώνονται πιο γρήγορα."
+  writes_one_from_your_notes_and_the_trans: "Το Pindrop τη γράφει από τις σημειώσεις σας και την απομαγνητοφώνηση."
 pinned:
   _self: "Καρφιτσωμένα"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "Συνιστάται"
 record:
   _self: "Ρεκόρ"
+  with_system_audio: "Εγγραφή με ήχο συστήματος"
 recording:
   _self: "Εγγραφή"
   3f8fd48c: "🔴 Ηχογράφηση"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "Η εγγραφή σε εξέλιξη — η μεταγραφή θα ξεκινήσει μόλις ολοκληρωθεί."
   stopped_with_error: "Η εγγραφή σταμάτησε: %@"
   from_external_and_bluetooth_microphone: "Η εγγραφή από εξωτερικά μικρόφωνα και μικρόφωνα Bluetooth είναι πλέον απόλυτα αξιόπιστη, ακόμη κι όταν η έξοδος ήχου δρομολογείται αλλού."
+  continues_while_you_work: "Η εγγραφή συνεχίζεται όσο εργάζεστε"
+  transcribed: "Η εγγραφή απομαγνητοφωνήθηκε."
 recordings:
   _self: "ηχογραφήσεις"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "Εμφάνιση αιωρούμενης ένδειξης"
   in_dock: "Εμφάνιση στο Dock"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "Εμφάνιση ζωντανής απομαγνητοφώνησης"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Εμφανίζεται ως σφαίρα από υγρό γυαλί στη γωνία της οθόνης"
   as_a_pill_at_the_bottom_of_the_screen: "Εμφανίζεται ως χάπι στο κάτω μέρος της οθόνης"
@@ -1138,17 +1182,24 @@ source:
   _self: "Πηγή"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "Οι πηγές καθορίζονται όταν ξεκινά η εγγραφή."
+  d: "Πηγές (%d)"
 spanish:
   _self: "ισπανικά"
 speak:
   to_append: "Μιλήστε για προσθήκη"
 speaker:
+  _self: "Ομιλητής"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Η ένδειξη ηχείων και οι χρονικές σημάνσεις επισυνάπτονται στην αναπαραγωγή."
   diarization_is_required: "Απαιτείται διάκριση του ηχείου"
   profile_training: "Speaker profile training"
+  d: "Ομιλητής %d"
 speakers:
   _self: "Ομιλητές"
+  1: "Ομιλητές: %1$@"
+  are_set_when_the_recording_starts: "Οι ομιλητές ορίζονται όταν ξεκινά η εγγραφή."
+  identified: "Οι ομιλητές αναγνωρίστηκαν"
 speed:
   _self: "Ταχύτητα"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "Σύστημα"
   default: "Προεπιλογή συστήματος"
+  audio: "Ήχος συστήματος"
 teach:
   custom_words: "Διδάξτε προσαρμοσμένες λέξεις"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\"\" Το μοντέλο απέτυχε να φορτώσει μέσα σε 60 δευτερόλεπτα. Αυτό συνήθως σημαίνει ότι τα αρχεία του μοντέλου είναι κατεστραμμένα ή μη συμβατά.                          Για να το διορθώσετε: 1. Ανοίξτε τις Ρυθμίσεις → Μοντέλα 2. Διαγράψτε το προβληματικό μοντέλο 3. Κάντε ξανά λήψη του μοντέλου Εάν το πρόβλημα παραμένει, δοκιμάστε ένα μικρότερο μοντέλο (Tiny ή Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "Η νέα μηχανή ροής Nemotron εμφανίζει τις λέξεις καθώς τις λέτε και προθερμαίνεται κατά την εκκίνηση ώστε η πρώτη υπαγόρευση να ξεκινά χωρίς καθυστέρηση."
   selected_chunk_variant_isn_t_downloaded_yet: "Η επιλεγμένη παραλλαγή κομματιού δεν έχει γίνει ακόμη λήψη. Η εναλλαγή θα ξεκινήσει μια λήψη."
+  audio_and_the_live_transcript_are_deleted_yo: "Ο ήχος και η ζωντανή απομαγνητοφώνηση διαγράφονται. Οι σημειώσεις που πληκτρολογήσατε μένουν."
+  enhanced_note_could_not_be_generated_try_aga: "Η βελτιωμένη σημείωση δεν δημιουργήθηκε. Δοκιμάστε ξανά."
+  enhanced_note_could_not_be_saved_try_again: "Η βελτιωμένη σημείωση δεν αποθηκεύτηκε. Δοκιμάστε ξανά."
+  model_returned_an_empty_note_try_again: "Το μοντέλο επέστρεψε κενή σημείωση. Δοκιμάστε ξανά."
+  note_enhancement_model_is_unavailable_check: "Το μοντέλο βελτίωσης σημειώσεων δεν είναι διαθέσιμο. Ελέγξτε το στις Ρυθμίσεις και δοκιμάστε ξανά."
+  note_this_recording_belongs_to_could_not_be_opened: "Η σημείωση στην οποία ανήκει αυτή η εγγραφή δεν άνοιξε."
+  recorded_audio_could_not_be_prepared: "Ο ηχογραφημένος ήχος δεν ετοιμάστηκε για απομαγνητοφώνηση."
+  recorder_did_not_start: "Η συσκευή εγγραφής δεν ξεκίνησε."
+  transcript_fills_in_as_you_speak: "Η απομαγνητοφώνηση συμπληρώνεται όσο μιλάτε."
+  transcript_starts_once_you_speak: "Η απομαγνητοφώνηση ξεκινά μόλις μιλήσετε."
 theme:
   _self: "Θέμα"
   changes_apply_live_across_the_workspace_se: "Οι αλλαγές θέματος εφαρμόζονται ζωντανά στον χώρο εργασίας, τις ρυθμίσεις, το πρόγραμμα επεξεργασίας σημειώσεων και τις κινούμενες ενδείξεις."
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "Αυτό θα καταργήσει οριστικά τη μεταγραφή και το διαχειριζόμενο αρχείο πολυμέσων."
   will_permanently_remove_this_note: "Αυτό θα αφαιρέσει οριστικά αυτή τη σημείωση."
   permanently_deletes_all_stored_text_pairs_f: "Αυτό διαγράφει οριστικά όλα τα αποθηκευμένα ζεύγη κειμένου από αυτόν τον Mac."
+  template_could_not_be_read_pick_another_tem: "Αυτό το πρότυπο δεν διαβάστηκε. Επιλέξτε άλλο πρότυπο και δοκιμάστε ξανά."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "Μεταδεδομένα μεταγραφής"
   saved: "Η απομαγνητοφώνηση αποθηκεύτηκε"
   update: "Ενημέρωση μεταγραφής"
+  done: "Η απομαγνητοφώνηση ολοκληρώθηκε"
 transcriptions:
   _self: "Μεταγραφές"
   f0972acc: "μεταγραφές"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "Δοκιμάστε έναν διαφορετικό όρο αναζήτησης."
   a_different_search_term_in_this_folder: "Δοκιμάστε έναν διαφορετικό όρο αναζήτησης σε αυτόν τον φάκελο."
   searching_for_terms_like_hotkeys_microphone: "Δοκιμάστε να αναζητήσετε όρους όπως πλήκτρα πρόσβασης, μικρόφωνο, ενημερώσεις ή λειτουργία vibe."
+  again: "Δοκιμάστε ξανά"
 turkish:
   _self: "τούρκικος"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "Οι πιο πρόσφατες υπαγορεύσεις σας θα εμφανιστούν εδώ."
   home_streak: "Σερί"
   home_subline_duration_only: "%@ υπαγόρευση."
-  home_subline_full: "%@ υπαγόρευση — περίπου %@ εξοικονόμηση έναντι πληκτρολόγησης."
+  home_subline_full: "%@ υπαγόρευσης. Περίπου %@ εξοικονόμηση σε σχέση με την πληκτρολόγηση."
   home_this_week: "Αυτή την εβδομάδα"
   home_welcome_tagline: "Μίλα. Είναι γραμμένο."
   home_words_per_min: "Λέξεις / λεπ"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "Λέξεις σήμερα"
   home_you_spoke_this_week: "Μιλήσατε %@ αυτή την εβδομάδα."
   home_zero_day: "0-ημέρα"
+  home_n_sessions_grouped: "%@ συνεδρίες"
+  home_no_dictations_yet: "Δεν υπάρχουν ακόμη υπαγορεύσεις."
+  home_one_session: "1 συνεδρία"
+  home_press_hotkey_to_start: "Πατήστε %@ οπουδήποτε για να ξεκινήσετε."
+  home_stop: "Διακοπή"
 u5:
   u7_add_replacement: "Add replacement"
   u7_add_word: "Add word"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "Απομόνωση φωνής"
   reduce_background_noise_before_transcription: "Μείωση θορύβου παρασκηνίου πριν από τη μεταγραφή"
+  note: "Φωνητική σημείωση"
 vs:
   typing: "έναντι πληκτρολόγησης"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "Εχθές"
 you:
+  _self: "Εσείς"
   are_a_note_formatting_assistant_transform_th: "Είστε βοηθός μορφοποίησης σημειώσεων. Μετατρέψτε το μεταγραμμένο κείμενο σε μια καλά δομημένη σημείωση.nnΚανόνες:n- Διόρθωση γραμματικών, σημείων στίξης και ορθογραφικών σφαλμάτωνn- Για μεγαλύτερο περιεχόμενο (3+ παραγράφους), προσθέστε μορφοποίηση σήμανσης:n - Χρησιμοποιήστε κεφαλίδες (## ή ###) για να οργανώσετε ενότητεςn - Χρησιμοποιήστε **σημεία κουκκίδων ή αριθμημένες λίστες για σύντομο περιεχόμενο* κρατήστε το απλό με ελάχιστη μορφοποίησηn- Διατηρήστε το αρχικό νόημα και τον τόνο- Μην προσθέτετε περιεχόμενο που δεν υπήρχε στο πρωτότυποn- Επιστρέψτε μόνο τη μορφοποιημένη σημείωση χωρίς κανένα σχόλιο"
   are_a_text_enhancement_assistant_improve_the: "Είστε βοηθός βελτίωσης κειμένου. Βελτιώστε τη γραμματική, τα σημεία στίξης και τη μορφοποίηση του παρεχόμενου κειμένου διατηρώντας παράλληλα το αρχικό του νόημα και τον τόνο. Επιστρέψτε μόνο το βελτιωμένο κείμενο χωρίς πρόσθετο σχόλιο."
   can_change_these_anytime_from_the_menu_bar_s: "Μπορείτε να τα αλλάξετε οποιαδήποτε στιγμή από τη γραμμή μενού → Ρυθμίσεις → Πλήκτρα συντόμευσης"
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "Είστε έτοιμοι!"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Έχετε υπερβεί το όριο ή το όριο του ποσοστού API.                                  Για να το διορθώσετε: 1. Περιμένετε λίγα λεπτά και δοκιμάστε ξανά 2. Ελέγξτε τα όρια χρήσης του παρόχου API σας 3. Εξετάστε το ενδεχόμενο να αναβαθμίσετε το σχέδιο API Η μεταγραφή αποθηκεύτηκε χωρίς βελτίωση.                 \"\""
   re_in_control: "Εσείς έχετε τον έλεγχο"
+  deleted_this_transcript: "Διαγράψατε αυτή την απομαγνητοφώνηση."
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\" Το κλειδί API φαίνεται ότι δεν είναι έγκυρο ή έχει λήξει.                                  Για να το διορθώσετε: 1. Ανοίξτε τις Ρυθμίσεις → Βελτίωση AI 2. Βεβαιωθείτε ότι το κλειδί API είναι σωστό 3. Ελέγξτε ότι το τελικό σημείο του API είναι σωστό Η μεταγραφή αποθηκεύτηκε χωρίς βελτίωση.                 \"\""
   floating_indicator_is_now_a_living_audio_re: "Η αιωρούμενη ένδειξή σας είναι πλέον ένα ζωντανό orb που αντιδρά στον ήχο. Αναπνέει όταν είναι ανενεργό, μεγαλώνει όταν μιλάτε και μεταδίδει ζωντανά τις λέξεις σας καθώς υπαγορεύετε."
@@ -1566,6 +1639,8 @@ your:
   stats: "Τα στατιστικά σας"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "Τα λόγια σας παραμένουν δικά σας"
+  enhanced_note_is_ready: "Η βελτιωμένη σημείωσή σας είναι έτοιμη."
+  notes_and_the_enhanced_note_stay_the_transc: "Οι σημειώσεις σας και η βελτιωμένη σημείωση μένουν. Η απομαγνητοφώνηση κρύβεται από αυτή τη σημείωση."
 zoom:
   _self: "Ζουμ"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "%@ εισόδου / %@ εξόδου tokens"
   in_out_thinking: "%@ εισόδου / %@ εξόδου / %@ σκέψης tokens"
+auto:
+  _self: "Αυτόματα"
+discard:
+  recording: "Απόρριψη εγγραφής"
+  this_recording: "Απόρριψη αυτής της εγγραφής;"
+finalizing:
+  _self: "Ολοκλήρωση"
+finish:
+  _self: "Τέλος"
+  the_active_transcription_before_starting: "Ολοκληρώστε την ενεργή απομαγνητοφώνηση πριν ξεκινήσετε άλλη."
+  the_active_transcription_before_starting_another: "Ολοκληρώστε την ενεργή απομαγνητοφώνηση πριν ξεκινήσετε άλλη."
+generate:
+  enhanced_note: "Δημιουργία βελτιωμένης σημείωσης"
+generated:
+  _self: "Δημιουργήθηκε %@"
+  1_2_template: "Δημιουργήθηκε %1$@ · πρότυπο %2$@"
+helpful:
+  _self: "Χρήσιμη"
+identifying:
+  speakers: "Αναγνώριση ομιλητών"
+jump:
+  to_live: "Μετάβαση στο ζωντανό"
+  to_this_line: "Μετάβαση σε αυτή τη γραμμή"
+mic:
+  _self: "Μικρόφωνο"
+more:
+  note_actions: "Περισσότερες ενέργειες σημείωσης"
+  recording_options: "Περισσότερες επιλογές εγγραφής"
+my:
+  notes: "Οι σημειώσεις μου"
+nothing:
+  was_transcribed_yet: "Δεν απομαγνητοφωνήθηκε τίποτα ακόμη."
+playback:
+  position: "Θέση αναπαραγωγής"
+s:
+  to_save: "⌘S για αποθήκευση"
+sealing:
+  audio: "Σφράγιση ήχου"
+  the_recording: "Σφράγιση της εγγραφής."
+see:
+  this_in_the_transcript: "Δείτε το στην απομαγνητοφώνηση"
+template:
+  _self: "Πρότυπο: %@"
+templates:
+  _self: "Πρότυπα"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "Δεν υπάρχει ακόμη απομαγνητοφώνηση για βελτίωση. Ηχογραφήστε πρώτα αυτή τη σημείωση."
+transcribing:
+  _self: "Απομαγνητοφώνηση"
+transcript:
+  _self: "Απομαγνητοφώνηση"
+  source: "Πηγή απομαγνητοφώνησης %@"
+was:
+  this_note_useful: "Σας φάνηκε χρήσιμη αυτή η σημείωση;"
+writing:
+  note: "Γράφεται η σημείωση"
+  your_enhanced_note: "Γράφεται η βελτιωμένη σημείωσή σας."
+  your_enhanced_note_comes_next_long_recor: "Στη συνέχεια γράφεται η βελτιωμένη σημείωσή σας. Οι μεγάλες εγγραφές μπορεί να χρειαστούν μερικά λεπτά. Μπορείτε να συνεχίσετε να πληκτρολογείτε."
+  your_enhanced_note_with: "Γράφεται η βελτιωμένη σημείωσή σας με %@."

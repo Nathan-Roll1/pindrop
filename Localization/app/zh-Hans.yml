@@ -9,11 +9,16 @@
   transcription: "1 个转录"
   word: "1 个词"
   year: "1 year"
+  edited_2: "%1$@ · 编辑于 %2$@"
+  recording: "录音 %1$@"
+  recording_2: "录音 %1$@ · %2$@"
+  result: "1 条结果"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "一大波升级 — 以及两位社区贡献者致谢。"
   native_macos_menu_bar_dictation_app_using_loca: "一款使用 WhisperKit 进行本地语音转文本的原生 macOS 菜单栏听写应用。默认 100% 本地处理，可选 AI 增强。"
+  note_capture_is_already_running: "已有笔记录音在进行。"
 about:
   _self: "关于"
   pindrop: "关于 Pindrop"
@@ -79,6 +84,7 @@ an:
     原始转录已保存，未进行增强。
     您可以尝试在设置中再次启用 AI 增强。
   error_occurred_while_enhancing_your_transcrip_1790ad05: "增强您的转录时发生错误：nn%@nn原始转录已保存，未进行增强。n您可以尝试在设置中再次启用 AI 增强。"
+  earlier_version_of_pindrop_wrote_this_note_it: "这条笔记由较早版本的 Pindrop 写成，无法重新生成。"
 anthropic:
   _self: "Anthropic"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "音频输入"
+  sealed: "音频已封存"
 automatic:
   follow_system: "自动（跟随系统）"
   updates: "自动更新"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "登录时自动启动 Pindrop。"
 available:
   models: "可用模型"
+  when_the_recording_is_finished: "录音结束后可用"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "返回"
   to_library: "返回库"
+  to_notes: "返回笔记"
 base:
   _self: "基础"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "取消"
   operation: "取消操作"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "取消录音"
 capture:
   directly_into_the_note_editor_with_a_hol: "通过按住录制流程直接捕获到笔记编辑器中。"
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "点击或按下"
   or_set_a_hotkey_to_start_talking: "点击或设置快捷键开始说话"
   this_icon_anytime_to: "随时点击此图标以："
+  a_number_to_see_it_in_the_transcript: "点按编号即可在转录中查看。"
+  new_note_to_start_one: "点按“新建笔记”开始。你打字时 Pindrop 会同时录音。"
 client:
   _self: "客户端"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "将最近的转写复制到剪贴板。"
   to_clipboard: "复制到剪贴板"
   transcript: "复制转录"
+  content: "拷贝内容"
 correct:
   grammar_mistakes: "纠正语法错误"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "定制/本地"
   openai_compatible: "自定义（兼容 OpenAI）"
   presets: "自定义预设"
+  templates: "自定模板"
 customize:
   hotkey: "自定义快捷键"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d 个样本 · %@"
   speakers: "%d 位发言人"
   words: "%d 个词"
+  results: "%d 条结果"
 dark:
   _self: "深色"
   preview: "深色预览"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "删除转录？"
   all_contributions: "删除所有贡献…"
   all_stored_text_pairs: "删除所有已存储的文本对？"
+  this_note: "删除这条笔记"
+  this_transcript: "要删除这份转录吗？"
+  transcript: "删除转录"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "仅英语"
 enhanced:
   _self: "已增强"
+  note: "增强笔记"
 enhancement:
   prompts: "增强提示词"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "文件"
 find:
   _self: "查找"
+  in_transcript: "在转录中查找"
 fix:
   punctuation_and_capitalization: "修正标点和大小写"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "隐藏 API 密钥"
   this_for_1_hour: "隐藏 1 小时"
+  live_transcript: "隐藏实时转录"
 history:
   _self: "历史"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "正在聆听…"
 live:
   streaming_refinement: "直播优化"
+  text_stopped_the_recording_continues: "实时文字已停止，录音仍在继续。"
+  transcript: "实时转录"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "管理预设"
   presets_ab87986d: "管理预设..."
   presets_d5d4c2c2: "管理预设…"
+  templates: "管理模板…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "认识全新的 Orb"
 meeting:
   saved: "会议已保存"
+  note: "会议笔记"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "新建文件夹"
   note: "新建笔记"
   preset: "新建预设"
+  note_with_system_audio: "新建笔记并录制系统声音"
+  note_without_recording: "新建笔记，不录音"
 newest:
   _self: "最新"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "无词汇词"
   transcripts_audio_prompts_file_names_or_perso: "绝无转录、音频、提示词、文件名或个人内容 — 永不。"
   contributions_yet_pairs_are_stored_when_ai_en: "暂无贡献。当 AI 增强或手动编辑更改转录时，将存储文本对。"
+  audio_was_recorded_for_this_note: "这条笔记没有录到音频。"
+  enhanced_note_yet: "还没有增强笔记。"
+  notes_yet_sentence: "还没有笔记。"
+  results_try_another_word: "没有结果。换个词试试。"
 not:
   assigned: "未分配"
   enough_voice_data_yet: "语音数据尚不足"
@@ -748,6 +779,7 @@ not:
   set: "未设置"
   set_93039e60: "未设置"
   now: "暂不"
+  helpful: "没帮助"
 note:
   _self: "笔记"
   capture_hold: "笔记采集 — 按住"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "笔记"
   3add7b96: "笔记"
+  header_meta_empty: "这里还空着"
+  header_meta_today: "%1$@，其中今天 %2$@"
+  new_note_options_label: "更多新建笔记选项"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "关闭"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "打开设置"
   settings_fd7108f8: "打开设置"
   system_settings: "打开系统设置"
+  in_new_window: "在新窗口中打开"
+  note: "打开笔记"
 openai:
   _self: "OpenAI"
   compatible_local_server: "与 OpenAI 兼容的本地服务器"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "选择哪个提供商和模型来处理每个人工智能任务。保留为“未分配”以跳过目的。"
   which_provider_and_model_handles_each_ai_ta_3140fe59: "为每项 AI 任务选择提供商和模型。未分配的用途会被跳过。"
+  a_model_for_note_enhancement_in_settings_th: "先在“设置”中选择笔记增强模型，然后重试。"
 pill:
   _self: "胶囊"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "Pindrop 胶囊"
   theme: "Pindrop 主题"
   can_send_anonymous_privacy_preserving_si: "Pindrop 可以发送匿名且保护隐私的信号，以便更快修复错误。"
+  writes_one_from_your_notes_and_the_trans: "Pindrop 会根据你的笔记和转录写一份。"
 pinned:
   _self: "已置顶"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "推荐"
 record:
   _self: "录制"
+  with_system_audio: "录音时包含系统声音"
 recording:
   _self: "录音中"
   3f8fd48c: "🔴 录音中"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "正在录音 — 转录将在录音结束后开始。"
   stopped_with_error: "录音已停止：%@"
   from_external_and_bluetooth_microphone: "现在即使音频输出被路由到其他位置，外接和 Bluetooth 麦克风录音也能稳定工作。"
+  continues_while_you_work: "你继续工作时录音不会中断"
+  transcribed: "录音已转录。"
 recordings:
   _self: "录音"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "显示悬浮指示器"
   in_dock: "在 Dock 中显示"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "显示实时转录"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "以液态玻璃光球的形式显示在屏幕角落"
   as_a_pill_at_the_bottom_of_the_screen: "在屏幕底部显示为胶囊"
@@ -1138,17 +1182,24 @@ source:
   _self: "来源"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "录音开始时音源就已确定。"
+  d: "来源 (%d)"
 spanish:
   _self: "西班牙语"
 speak:
   to_append: "说话追加"
 speaker:
+  _self: "说话人"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "说话人分离和时间戳附加到播放。"
   diarization_is_required: "需要说话人分离"
   profile_training: "Speaker profile training"
+  d: "说话人 %d"
 speakers:
   _self: "说话人"
+  1: "说话人：%1$@"
+  are_set_when_the_recording_starts: "说话人在录音开始时设定。"
+  identified: "说话人已识别"
 speed:
   _self: "速度"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "系统"
   default: "系统默认"
+  audio: "系统声音"
 teach:
   custom_words: "教授自定义词汇"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\"\"             模型在 60 秒内未能加载。这通常意味着模型文件已损坏或不兼容。                          解决方法：             1. 打开设置 → 模型             2. 删除有问题的模型             3. 重新下载模型                          如果问题仍然存在，请尝试使用较小的模型（Tiny 或 Base）。             \"\""
   new_nemotron_streaming_engine_shows_words_as: "新的 Nemotron 流式引擎会在你说话时显示文字，并在启动时预热，让第一次听写也能无延迟开始。"
   selected_chunk_variant_isn_t_downloaded_yet: "所选的分块变体尚未下载。切换将开始下载。"
+  audio_and_the_live_transcript_are_deleted_yo: "音频和实时转录会被删除。你打的笔记会保留。"
+  enhanced_note_could_not_be_generated_try_aga: "增强笔记生成失败。请重试。"
+  enhanced_note_could_not_be_saved_try_again: "增强笔记保存失败。请重试。"
+  model_returned_an_empty_note_try_again: "模型返回了空笔记。请重试。"
+  note_enhancement_model_is_unavailable_check: "笔记增强模型不可用。请在“设置”中检查后重试。"
+  note_this_recording_belongs_to_could_not_be_opened: "无法打开这段录音所属的笔记。"
+  recorded_audio_could_not_be_prepared: "录下的音频无法准备用于转录。"
+  recorder_did_not_start: "录音器没有启动。"
+  transcript_fills_in_as_you_speak: "你说话时转录会随之填入。"
+  transcript_starts_once_you_speak: "你一开口，转录就开始。"
 theme:
   _self: "主题"
   changes_apply_live_across_the_workspace_se: "主题更改实时应用于整个工作区、设置、笔记编辑器和浮动指示器。"
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "这将永久删除转录及其托管的媒体文件。"
   will_permanently_remove_this_note: "这将永久删除此笔记。"
   permanently_deletes_all_stored_text_pairs_f: "此操作将从此 Mac 永久删除所有已存储的文本对。"
+  template_could_not_be_read_pick_another_tem: "无法读取这个模板。请换一个模板后重试。"
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "转录元数据"
   saved: "转录已保存"
   update: "转录更新"
+  done: "转录完成"
 transcriptions:
   _self: "转录"
   f0972acc: "转录"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "尝试不同的搜索词。"
   a_different_search_term_in_this_folder: "在此文件夹中尝试不同的搜索词。"
   searching_for_terms_like_hotkeys_microphone: "尝试搜索快捷键、麦克风、更新或 vibe 模式等术语。"
+  again: "重试"
 turkish:
   _self: "土耳其语"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "最近的听写会显示在这里。"
   home_streak: "连续"
   home_subline_duration_only: "听写 %@。"
-  home_subline_full: "听写 %@ — 比打字大约节省 %@。"
+  home_subline_full: "听写 %@。比打字大约节省 %@。"
   home_this_week: "本周"
   home_welcome_tagline: "开口即成文。"
   home_words_per_min: "词 / 分钟"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "今日词数"
   home_you_spoke_this_week: "本周你说了%@。"
   home_zero_day: "0 天"
+  home_n_sessions_grouped: "%@ 次会话"
+  home_no_dictations_yet: "还没有听写。"
+  home_one_session: "1 次会话"
+  home_press_hotkey_to_start: "在任何地方按 %@ 即可开始。"
+  home_stop: "停止"
 u5:
   u7_add_replacement: "添加替换"
   u7_add_word: "添加单词"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "语音隔离"
   reduce_background_noise_before_transcription: "转写前减少背景噪音"
+  note: "语音笔记"
 vs:
   typing: "对比输入"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "昨天"
 you:
+  _self: "你"
   are_a_note_formatting_assistant_transform_th: "您是一名笔记格式化助手。将转录的文本转换为结构良好的笔记。nn规则：n- 修正语法、标点和拼写错误n- 对于较长的内容（3 段以上），添加 Markdown 格式：n  - 使用标题（## 或 ###）组织章节n  - 在适当的地方使用项目符号或编号列表n  - 使用 **粗体** 强调关键术语n- 对于较短的内容，保持简单，尽量减少格式n- 保留原始含义和语气n- 不要添加原始内容中没有的内容n- 仅返回格式化后的笔记，不加任何评论"
   are_a_text_enhancement_assistant_improve_the: "您是一名文本增强助手。改进所提供文本的语法、标点和格式，同时保留其原始含义和语气。仅返回增强后的文本，不加任何额外评论。"
   can_change_these_anytime_from_the_menu_bar_s: "您可以随时从菜单栏 → 设置 → 快捷键更改这些"
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "一切就绪！"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\"                 您已超出 API 速率限制或配额。                                  解决方法：                 1. 等待几分钟后重试                 2. 检查您的 API 提供商的使用限制                 3. 考虑升级您的 API 计划                                  转录已保存，未进行增强。                 \"\""
   re_in_control: "你掌握控制权"
+  deleted_this_transcript: "你删除了这份转录。"
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\"                 您的 API 密钥似乎无效或已过期。                                  解决方法：                 1. 打开设置 → AI 增强                 2. 验证您的 API 密钥是否正确                 3. 检查您的 API 端点是否正确                                  转录已保存，未进行增强。                 \"\""
   floating_indicator_is_now_a_living_audio_re: "你的浮动指示器现在是会对音频作出反应的活体 orb。闲置时会呼吸，说话时会膨胀，并在你听写时实时流式显示文字。"
@@ -1566,6 +1639,8 @@ your:
   stats: "您的统计"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "你的文字始终属于你"
+  enhanced_note_is_ready: "你的增强笔记已就绪。"
+  notes_and_the_enhanced_note_stay_the_transc: "你的笔记和增强笔记会保留。转录会在这条笔记中隐藏。"
 zoom:
   _self: "缩放"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "输入 %@ / 输出 %@ 个 Token"
   in_out_thinking: "输入 %@ / 输出 %@ / 思考 %@ 个 Token"
+auto:
+  _self: "自动"
+discard:
+  recording: "丢弃录音"
+  this_recording: "要丢弃这段录音吗？"
+finalizing:
+  _self: "收尾中"
+finish:
+  _self: "完成"
+  the_active_transcription_before_starting: "先完成进行中的转录，再开始下一个。"
+  the_active_transcription_before_starting_another: "先完成进行中的转录，再开始下一个。"
+generate:
+  enhanced_note: "生成增强笔记"
+generated:
+  _self: "生成于 %@"
+  1_2_template: "生成于 %1$@ · %2$@ 模板"
+helpful:
+  _self: "有帮助"
+identifying:
+  speakers: "正在识别说话人"
+jump:
+  to_live: "跳到实时"
+  to_this_line: "跳到这一行"
+mic:
+  _self: "麦克风"
+more:
+  note_actions: "更多笔记操作"
+  recording_options: "更多录音选项"
+my:
+  notes: "我的笔记"
+nothing:
+  was_transcribed_yet: "还没有转录出任何内容。"
+playback:
+  position: "播放位置"
+s:
+  to_save: "⌘S 保存"
+sealing:
+  audio: "正在封存音频"
+  the_recording: "正在封存录音。"
+see:
+  this_in_the_transcript: "在转录中查看"
+template:
+  _self: "模板：%@"
+templates:
+  _self: "模板"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "还没有可增强的转录。请先录制这条笔记。"
+transcribing:
+  _self: "转录中"
+transcript:
+  _self: "转录"
+  source: "转录来源 %@"
+was:
+  this_note_useful: "这条笔记有用吗？"
+writing:
+  note: "正在写笔记"
+  your_enhanced_note: "正在写你的增强笔记。"
+  your_enhanced_note_comes_next_long_recor: "接下来会写你的增强笔记。录音较长时可能需要几分钟。你可以继续打字。"
+  your_enhanced_note_with: "正在用 %@ 写你的增强笔记。"

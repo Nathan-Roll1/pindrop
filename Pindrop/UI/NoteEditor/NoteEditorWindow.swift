@@ -282,12 +282,16 @@ struct NoteEditorView: View {
         return String(format: format, locale: locale, count)
     }
 
+    /// Built from `NotesDateFormatting.editedLabel` on purpose. Composing this
+    /// from a bare `localized("edited")` resolved to the "Edited" stat label,
+    /// because that slug is already taken; the format key carries the lowercase
+    /// running copy.
     private var footerMetaLabel: String {
-        let relative = NotesDateFormatting.compactRelative(
-            from: lastEditedAt,
+        let edited = NotesDateFormatting.editedLabel(
+            date: lastEditedAt,
             locale: locale
         )
-        return "\(wordCountLabel) · \(localized("edited", locale: locale)) \(relative)"
+        return "\(wordCountLabel) · \(edited)"
     }
 
     var body: some View {

@@ -187,6 +187,7 @@ struct LiveTranscriptSheet: View {
                 Image(systemName: "mic")
                     .font(.system(size: 13))
                     .foregroundStyle(AppColors.textTertiary)
+                    .accessibilityHidden(true)
 
                 Text(TranscriptSegmentPresentation.collapsedLine(
                     committed: state?.liveTranscript ?? "",

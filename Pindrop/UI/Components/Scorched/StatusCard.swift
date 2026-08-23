@@ -217,6 +217,8 @@ struct StatusCard: View {
                 Text(hotkeyHint)
                     .font(AppTypography.monoSmall)
                     .foregroundStyle(AppColors.textSecondary)
+                    // Key order is the shortcut; it does not mirror with the UI.
+                    .environment(\.layoutDirection, .leftToRight)
             }
         }
         .padding(12)

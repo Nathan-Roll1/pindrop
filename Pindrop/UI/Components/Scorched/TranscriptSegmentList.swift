@@ -440,11 +440,13 @@ struct TranscriptSegmentBubble: View {
 
     private var header: some View {
         HStack(spacing: 8) {
+            // The dot only repeats the speaker the name beside it already gives.
             Circle()
                 .fill(turn.isCurrentUser
                       ? AppColors.accent
                       : LibrarySpeakerColor.color(for: turn.speakerKey))
                 .frame(width: 8, height: 8)
+                .accessibilityHidden(true)
 
             Text(turn.displayName)
                 .font(AppTypography.labelSemibold)

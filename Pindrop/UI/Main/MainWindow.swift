@@ -234,6 +234,7 @@ struct MainWindow: View {
     let onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?
     let onDownloadDiarizationModel: (() -> Void)?
     let onStartDictation: (() -> Void)?
+    let onStopDictation: (() -> Void)?
     let onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
     /// The one live note capture, so the note page can draw its own recording.
     let noteCaptureState: NoteCaptureState?
@@ -253,6 +254,7 @@ struct MainWindow: View {
         onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?,
         onDownloadDiarizationModel: (() -> Void)?,
         onStartDictation: (() -> Void)?,
+        onStopDictation: (() -> Void)? = nil,
         onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?,
         noteCaptureState: NoteCaptureState? = nil,
         onFinishNoteCapture: (() -> Void)? = nil,
@@ -270,6 +272,7 @@ struct MainWindow: View {
         self.onSubmitMediaLink = onSubmitMediaLink
         self.onDownloadDiarizationModel = onDownloadDiarizationModel
         self.onStartDictation = onStartDictation
+        self.onStopDictation = onStopDictation
         self.onStartNoteCapture = onStartNoteCapture
         self.noteCaptureState = noteCaptureState
         self.onFinishNoteCapture = onFinishNoteCapture
@@ -421,8 +424,11 @@ struct MainWindow: View {
             DictateView(
                 settingsStore: settingsStore,
                 recordingState: recordingState,
+                dictationState: floatingIndicatorState,
                 isCaptureBusy: isCaptureBusy,
+                isNoteCaptureActive: noteCaptureStatus != nil,
                 onStartDictation: onStartDictation,
+                onStopDictation: onStopDictation,
                 onOpenLibrary: { routeState.navigate(to: .library) },
                 onShowMoreStats: { routeState.navigate(to: .stats) },
                 onOpenLibraryRecord: routeState.openLibrary,
@@ -941,6 +947,7 @@ final class MainWindowController {
     var onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?
     var onDownloadDiarizationModel: (() -> Void)?
     var onStartDictation: (() -> Void)?
+    var onStopDictation: (() -> Void)?
     var onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
     var onFinishNoteCapture: (() -> Void)?
     var onCancelNoteCapture: (() -> Void)?
@@ -970,6 +977,7 @@ final class MainWindowController {
         recordingState: RecordingFeatureState? = nil,
         noteCaptureState: NoteCaptureState? = nil,
         onStartDictation: @escaping () -> Void,
+        onStopDictation: (() -> Void)? = nil,
         onStartNoteCapture: @escaping (NoteCaptureRequest) -> Bool,
         onFinishNoteCapture: (() -> Void)? = nil,
         onCancelNoteCapture: (() -> Void)? = nil,
@@ -979,6 +987,7 @@ final class MainWindowController {
         self.recordingState = recordingState
         self.noteCaptureState = noteCaptureState
         self.onStartDictation = onStartDictation
+        self.onStopDictation = onStopDictation
         self.onStartNoteCapture = onStartNoteCapture
         self.onFinishNoteCapture = onFinishNoteCapture
         self.onCancelNoteCapture = onCancelNoteCapture
@@ -1067,6 +1076,7 @@ final class MainWindowController {
                 onSubmitMediaLink: onSubmitMediaLink,
                 onDownloadDiarizationModel: onDownloadDiarizationModel,
                 onStartDictation: onStartDictation,
+                onStopDictation: onStopDictation,
                 onStartNoteCapture: onStartNoteCapture,
                 noteCaptureState: noteCaptureState,
                 onFinishNoteCapture: onFinishNoteCapture,

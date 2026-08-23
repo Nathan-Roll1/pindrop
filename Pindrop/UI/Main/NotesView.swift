@@ -156,6 +156,7 @@ struct NotesView: View {
                     }
                 )
                 .frame(width: 200)
+                .accessibilityIdentifier("notes.list.search")
 
                 NewNoteSplitButton(onSelect: startNewNote)
             }
@@ -225,6 +226,7 @@ struct NotesView: View {
                         .foregroundStyle(AppColors.accent)
                 }
                 .padding(.bottom, 2)
+                .accessibilityHidden(true)
 
                 Text(localized("No notes yet.", locale: locale))
                     .font(AppTypography.labelStrongSelected)
@@ -337,6 +339,16 @@ struct NotesView: View {
             .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("notes.list.pinned")
+        .accessibilityLabel(NoteRowPresentation.accessibilityLabel(
+            title: title,
+            facts: rowFacts[note.id] ?? .none,
+            isPinned: true,
+            dateText: edited,
+            locale: locale
+        ))
+        .accessibilityAddTraits(.isButton)
         .contextMenu { noteContextMenu(note) }
     }
 
@@ -451,6 +463,18 @@ struct NotesView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // One element, one sentence: read as lanes, the row would speak a title,
+        // a preview, and then three unlabelled numbers.
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("notes.list.row")
+        .accessibilityLabel(NoteRowPresentation.accessibilityLabel(
+            title: title,
+            facts: facts,
+            liveElapsed: live?.elapsed,
+            dateText: dateText,
+            locale: locale
+        ))
+        .accessibilityAddTraits(.isButton)
         .contextMenu { noteContextMenu(note) }
     }
 

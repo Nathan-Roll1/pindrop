@@ -109,6 +109,74 @@ final class PindropUITests: XCTestCase {
     }
 
     @MainActor
+    func testNotePageFixtureShowsAllThreeViews() throws {
+        try skipIfTargetAppIsAlreadyRunning()
+
+        let defaultsSuite = "tech.watzon.pindrop.ui-tests.note-page.\(UUID().uuidString)"
+        launchedDefaultsSuite = defaultsSuite
+
+        let app = configuredApplication(surface: "notePage", defaultsSuite: defaultsSuite)
+        launchedApplication = app
+        app.launch()
+
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5))
+
+        let page = app.descendants(matching: .any)["note.page"]
+        XCTAssertTrue(page.waitForExistence(timeout: 10))
+
+        // Header rail and title, in focus order.
+        for identifier in ["note.page.back", "note.page.title", "note.page.overflow"] {
+            XCTAssertTrue(
+                app.descendants(matching: .any)[identifier].waitForExistence(timeout: 5),
+                "Expected \(identifier)"
+            )
+        }
+
+        // A recorded note offers all three views.
+        let toggle = app.descendants(matching: .any)["note.page.viewToggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        for identifier in [
+            "note.page.view.humanNotes",
+            "note.page.view.enhanced",
+            "note.page.view.transcript"
+        ] {
+            XCTAssertTrue(
+                app.descendants(matching: .any)[identifier].waitForExistence(timeout: 5),
+                "Expected view segment \(identifier)"
+            )
+        }
+
+        // My notes is the landing view: the typed content is editable.
+        XCTAssertTrue(
+            app.descendants(matching: .any)["note.page.editor"].waitForExistence(timeout: 5)
+        )
+
+        // Enhanced: the generated body plus its citation chips and source list.
+        app.descendants(matching: .any)["note.page.view.enhanced"].click()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["note.page.enhanced"].waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["note.page.enhanced.template"].waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["note.page.enhanced.sources"].waitForExistence(timeout: 5)
+        )
+
+        // Transcript: speaker turns and the find field.
+        app.descendants(matching: .any)["note.page.view.transcript"].click()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["note.page.transcript"].waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["note.page.transcript.search"].waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["transcript.turn"].waitForExistence(timeout: 5)
+        )
+    }
+
+    @MainActor
     func testMainShellFixtureRoutesAndStartsCapturePillars() throws {
         try skipIfTargetAppIsAlreadyRunning()
 

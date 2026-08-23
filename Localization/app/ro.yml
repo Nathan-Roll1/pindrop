@@ -9,11 +9,16 @@
   transcription: "1 transcriere"
   word: "1 cuvânt"
   year: "1 year"
+  edited_2: "%1$@ · editată %2$@"
+  recording: "%1$@ de înregistrare"
+  recording_2: "%1$@ de înregistrare · %2$@"
+  result: "1 rezultat"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "O rundă mare de îmbunătățiri — și două mulțumiri pentru comunitate."
   native_macos_menu_bar_dictation_app_using_loca: "O aplicație nativă de dictare a barei de meniu macOS care folosește conversia vocală în text local cu WhisperKit. Procesare 100% locală în mod implicit, cu îmbunătățire opțională AI."
+  note_capture_is_already_running: "O înregistrare de notiță este deja în curs."
 about:
   _self: "Despre"
   pindrop: "Despre Pindrop"
@@ -79,6 +84,7 @@ an:
     Transcrierea originală a fost salvată fără îmbunătățire.
     Puteți încerca să activați din nou îmbunătățirea AI în Setări.
   error_occurred_while_enhancing_your_transcrip_1790ad05: "A apărut o eroare la îmbunătățirea transcripției: nn%@nnTranscrierea originală a fost salvată fără îmbunătățire.nPuteți încerca să activați din nou îmbunătățirea AI în Setări."
+  earlier_version_of_pindrop_wrote_this_note_it: "O versiune anterioară a Pindrop a scris această notiță. Nu poate fi scrisă din nou."
 anthropic:
   _self: "antropică"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "Intrare audio"
+  sealed: "Audio sigilat"
 automatic:
   follow_system: "Automat (sistem de urmărire)"
   updates: "Actualizări automate"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "Porniți automat Pindrop când vă conectați."
 available:
   models: "Modele disponibile"
+  when_the_recording_is_finished: "Disponibil când se termină înregistrarea"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "Spate"
   to_library: "Înapoi la bibliotecă"
+  to_notes: "Înapoi la notițe"
 base:
   _self: "Baza"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "Anula"
   operation: "Anulați operațiunea"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "Anulează înregistrarea"
 capture:
   directly_into_the_note_editor_with_a_hol: "Capturați direct în editorul de note cu un flux hold-to-record."
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "Faceți clic sau apăsați"
   or_set_a_hotkey_to_start_talking: "Faceți clic sau setați o tastă rapidă pentru a începe să vorbiți"
   this_icon_anytime_to: "Faceți clic oricând pe această pictogramă pentru a:"
+  a_number_to_see_it_in_the_transcript: "Faceți clic pe un număr ca să îl vedeți în transcriere."
+  new_note_to_start_one: "Faceți clic pe Notiță nouă ca să începeți una. Pindrop înregistrează în timp ce scrieți."
 client:
   _self: "Client"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copy the most recent transcript to the clipboard."
   to_clipboard: "Copiați în clipboard"
   transcript: "Copiați transcrierea"
+  content: "Copiază conținutul"
 correct:
   grammar_mistakes: "Corectați greșelile gramaticale"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "Personalizat / Local"
   openai_compatible: "Personalizat (compatibil cu OpenAI)"
   presets: "Presetări personalizate"
+  templates: "Șabloane proprii"
 customize:
   hotkey: "Personalizați tastele rapide"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d samples · %@"
   speakers: "%d vorbitori"
   words: "%d cuvinte"
+  results: "%d rezultate"
 dark:
   _self: "Întuneric"
   preview: "Previzualizare întunecată"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "Ștergeți transcrierea?"
   all_contributions: "Șterge toate contribuțiile…"
   all_stored_text_pairs: "Ștergi toate perechile de text stocate?"
+  this_note: "Șterge această notiță"
+  this_transcript: "Ștergeți această transcriere?"
+  transcript: "Șterge transcrierea"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "Numai în engleză"
 enhanced:
   _self: "Îmbunătățit"
+  note: "Notiță îmbunătățită"
 enhancement:
   prompts: "Solicitări de îmbunătățire"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "Fișier"
 find:
   _self: "Găsește"
+  in_transcript: "Caută în transcriere"
 fix:
   punctuation_and_capitalization: "Remediați semnele de punctuație și scrierea cu majuscule"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "Ascunde cheia API"
   this_for_1_hour: "Ascunde asta timp de 1 oră"
+  live_transcript: "Ascunde transcrierea în direct"
 history:
   _self: "Istorie"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "Se ascultă…"
 live:
   streaming_refinement: "Rafinamentul transmisiunii în direct"
+  text_stopped_the_recording_continues: "Textul în direct s-a oprit. Înregistrarea continuă."
+  transcript: "Transcriere în direct"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "Gestionați presetări"
   presets_ab87986d: "Gestionați presetări..."
   presets_d5d4c2c2: "Manage Presets…"
+  templates: "Gestionează șabloanele…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "Faceți cunoștință cu noul Orb"
 meeting:
   saved: "Ședință salvată"
+  note: "Notiță de ședință"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "Dosar nou"
   note: "Notă nouă"
   preset: "Preset nou"
+  note_with_system_audio: "Notiță nouă cu sunetul sistemului"
+  note_without_recording: "Notiță nouă fără înregistrare"
 newest:
   _self: "Cele mai noi"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "Fără cuvinte de vocabular"
   transcripts_audio_prompts_file_names_or_perso: "Nicio transcriere, audio, prompt, nume de fișier sau conținut personal — niciodată."
   contributions_yet_pairs_are_stored_when_ai_en: "Nicio contribuție încă. Perechile sunt stocate când îmbunătățirea prin AI sau modificările manuale schimbă o transcriere."
+  audio_was_recorded_for_this_note: "Pentru această notiță nu s-a înregistrat audio."
+  enhanced_note_yet: "Încă nu există o notiță îmbunătățită."
+  notes_yet_sentence: "Încă nu există notițe."
+  results_try_another_word: "Niciun rezultat. Încercați alt cuvânt."
 not:
   assigned: "Nu este atribuit"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -748,6 +779,7 @@ not:
   set: "Nu setat"
   set_93039e60: "Nu setat"
   now: "Nu acum"
+  helpful: "Nu este utilă"
 note:
   _self: "Nota"
   capture_hold: "Note Capture — Hold"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "Note"
   3add7b96: "note"
+  header_meta_empty: "încă nimic aici"
+  header_meta_today: "%1$@, %2$@ de azi"
+  new_note_options_label: "Mai multe opțiuni pentru notiță nouă"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "Oprit"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "Deschide Setări"
   settings_fd7108f8: "Deschideți setările"
   system_settings: "Deschide Setări sistem"
+  in_new_window: "Deschide într-o fereastră nouă"
+  note: "Deschide notița"
 openai:
   _self: "OpenAI"
   compatible_local_server: "Server local compatibil cu OpenAI"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "Alegeți ce furnizor și model se ocupă de fiecare sarcină AI. Lăsați „Nealocat” pentru a omite un scop."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
+  a_model_for_note_enhancement_in_settings_th: "Alegeți un model pentru îmbunătățirea notițelor în Setări, apoi încercați din nou."
 pill:
   _self: "pilula"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "Pilula Pindrop"
   theme: "Tema Pindrop"
   can_send_anonymous_privacy_preserving_si: "Pindrop poate trimite semnale anonime, care protejează confidențialitatea, pentru ca erorile să fie remediate mai rapid."
+  writes_one_from_your_notes_and_the_trans: "Pindrop o scrie din notițele dvs. și din transcriere."
 pinned:
   _self: "Fixate"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "Recomandat"
 record:
   _self: "Înregistra"
+  with_system_audio: "Înregistrează cu sunetul sistemului"
 recording:
   _self: "Înregistrare"
   3f8fd48c: "🔴 Înregistrare"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "Înregistrare în curs — transcrierea va începe când se termină."
   stopped_with_error: "Înregistrare oprită: %@"
   from_external_and_bluetooth_microphone: "Înregistrarea de pe microfoane externe și Bluetooth este acum foarte stabilă, chiar și când ieșirea audio este rutată în altă parte."
+  continues_while_you_work: "Înregistrarea continuă în timp ce lucrați"
+  transcribed: "Înregistrare transcrisă."
 recordings:
   _self: "înregistrări"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "Afișează indicatorul plutitor"
   in_dock: "Afișați în Dock"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "Arată transcrierea în direct"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Se afișează ca o sferă de sticlă lichidă în colțul ecranului"
   as_a_pill_at_the_bottom_of_the_screen: "Se afișează ca o pastilă în partea de jos a ecranului"
@@ -1138,17 +1182,24 @@ source:
   _self: "Sursă"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "Sursele se fixează când începe înregistrarea."
+  d: "Surse (%d)"
 spanish:
   _self: "spaniolă"
 speak:
   to_append: "Vorbiți pentru a adăuga"
 speaker:
+  _self: "Vorbitor"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Diarizarea difuzorului și marcajele de timp sunt atașate la redare."
   diarization_is_required: "Diarizarea vorbitorului este necesară"
   profile_training: "Speaker profile training"
+  d: "Vorbitorul %d"
 speakers:
   _self: "Vorbitori"
+  1: "Vorbitori: %1$@"
+  are_set_when_the_recording_starts: "Vorbitorii se stabilesc când începe înregistrarea."
+  identified: "Vorbitori identificați"
 speed:
   _self: "Viteză"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "Sistem"
   default: "Implicit sistem"
+  audio: "Sunetul sistemului"
 teach:
   custom_words: "Învață cuvinte personalizate"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\"\" Modelul nu s-a încărcat în 60 de secunde. Aceasta înseamnă de obicei că fișierele model sunt corupte sau incompatibile.                          Pentru a remedia acest lucru: 1. Deschideți Setări → Modele 2. Ștergeți modelul problematic 3. Descărcați din nou modelul Dacă problema persistă, încercați un model mai mic (Tiny sau Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "Noul motor de streaming Nemotron afișează cuvintele pe măsură ce le rostești și se preîncălzește la lansare, astfel încât prima dictare pornește fără întârziere."
   selected_chunk_variant_isn_t_downloaded_yet: "Varianta de bucată selectată nu este încă descărcată. Comutarea va începe o descărcare."
+  audio_and_the_live_transcript_are_deleted_yo: "Audio și transcrierea în direct se șterg. Notițele scrise de dvs. rămân."
+  enhanced_note_could_not_be_generated_try_aga: "Notița îmbunătățită nu a putut fi generată. Încercați din nou."
+  enhanced_note_could_not_be_saved_try_again: "Notița îmbunătățită nu a putut fi salvată. Încercați din nou."
+  model_returned_an_empty_note_try_again: "Modelul a returnat o notiță goală. Încercați din nou."
+  note_enhancement_model_is_unavailable_check: "Modelul de îmbunătățire a notițelor nu este disponibil. Verificați-l în Setări, apoi încercați din nou."
+  note_this_recording_belongs_to_could_not_be_opened: "Notița căreia îi aparține această înregistrare nu a putut fi deschisă."
+  recorded_audio_could_not_be_prepared: "Sunetul înregistrat nu a putut fi pregătit pentru transcriere."
+  recorder_did_not_start: "Reportofonul nu a pornit."
+  transcript_fills_in_as_you_speak: "Transcrierea se completează în timp ce vorbiți."
+  transcript_starts_once_you_speak: "Transcrierea începe imediat ce vorbiți."
 theme:
   _self: "Temă"
   changes_apply_live_across_the_workspace_se: "Modificările temei se aplică live în spațiul de lucru, setări, editor de note și indicatori flotanți."
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "Aceasta va elimina definitiv transcrierea și fișierul media gestionat."
   will_permanently_remove_this_note: "Aceasta va elimina permanent această notă."
   permanently_deletes_all_stored_text_pairs_f: "Aceasta șterge definitiv toate perechile de text stocate de pe acest Mac."
+  template_could_not_be_read_pick_another_tem: "Acest șablon nu a putut fi citit. Alegeți alt șablon și încercați din nou."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "Metadate de transcriere"
   saved: "Transcriere salvată"
   update: "Actualizare transcriere"
+  done: "Transcriere gata"
 transcriptions:
   _self: "Trancrieri"
   f0972acc: "transcrieri"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "Încercați un alt termen de căutare."
   a_different_search_term_in_this_folder: "Încercați un alt termen de căutare în acest dosar."
   searching_for_terms_like_hotkeys_microphone: "Încercați să căutați termeni precum taste rapide, microfon, actualizări sau modul vibrație."
+  again: "Încercați din nou"
 turkish:
   _self: "turc"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "Cele mai recente dictări vor apărea aici."
   home_streak: "Serie"
   home_subline_duration_only: "%@ de dictare."
-  home_subline_full: "%@ de dictare — aproximativ %@ economisite față de tastare."
+  home_subline_full: "%@ de dictare. Aproximativ %@ economisite față de scrierea la tastatură."
   home_this_week: "Săptămâna aceasta"
   home_welcome_tagline: "Vorbește. E scris."
   home_words_per_min: "Cuvinte / min"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "Cuvinte azi"
   home_you_spoke_this_week: "Ai rostit %@ săptămâna aceasta."
   home_zero_day: "0 zile"
+  home_n_sessions_grouped: "%@ sesiuni"
+  home_no_dictations_yet: "Încă nu există dictări."
+  home_one_session: "1 sesiune"
+  home_press_hotkey_to_start: "Apăsați %@ oriunde pentru a începe."
+  home_stop: "Oprește"
 u5:
   u7_add_replacement: "Add replacement"
   u7_add_word: "Add word"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "Izolarea vocii"
   reduce_background_noise_before_transcription: "Reduceți zgomotul de fundal înainte de transcriere"
+  note: "Notiță vocală"
 vs:
   typing: "vs tastarea"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "Ieri"
 you:
+  _self: "Dvs."
   are_a_note_formatting_assistant_transform_th: "Sunteți un asistent de formatare a notelor. Transformați textul transcris într-o notă bine structurată.nnReguli:n-Remediați greșelile de gramatică, punctuație și ortografien-Pentru conținut mai lung (3+ paragrafe), adăugați formatare de reducere:n - Folosiți anteturi (## sau ###) pentru a organiza secțiunin - Folosiți marcatori sau liste numerotate acolo unde este cazul - Folosiți **aldine** pentru conținutul cheie mai scurt, pentru a menține formarea simplă a termenilor cheie, Păstrați semnificația și tonul original- Nu adăugați conținut care nu a fost în originaln- Returnați numai nota formatată fără niciun comentariu"
   are_a_text_enhancement_assistant_improve_the: "Sunteți un asistent pentru îmbunătățirea textului. Îmbunătățiți gramatica, punctuația și formatarea textului furnizat, păstrând în același timp sensul și tonul original. Returnați numai textul îmbunătățit fără niciun comentariu suplimentar."
   can_change_these_anytime_from_the_menu_bar_s: "Le puteți modifica oricând din bara de meniu → Setări → Taste rapide"
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "Sunteți gata!"
   ve_exceeded_your_api_rate_limit_or_quota_to: "„” Ați depășit limita sau cota de rată API.                                  Pentru a remedia acest lucru: 1. Așteptați câteva minute și încercați din nou 2. Verificați limitele de utilizare ale furnizorului dvs. API 3. Luați în considerare actualizarea planului API Transcrierea a fost salvată fără îmbunătățiri.                 \"\""
   re_in_control: "Tu deții controlul"
+  deleted_this_transcript: "Ați șters această transcriere."
 your:
   api_key_appears_to_be_invalid_or_expired_to: "„” Cheia dvs. API pare a fi nevalidă sau a expirat.                                  Pentru a remedia acest lucru: 1. Deschideți Setări → Îmbunătățire AI 2. Verificați cheia dvs. API este corectă 3. Verificați dacă punctul final API este corect Transcrierea a fost salvată fără îmbunătățire.                 \"\""
   floating_indicator_is_now_a_living_audio_re: "Indicatorul tău plutitor este acum un orb viu, reactiv la audio. Respiră când este inactiv, se umflă când vorbești și transmite cuvintele în direct în timp ce dictezi."
@@ -1566,6 +1639,8 @@ your:
   stats: "Statisticile tale"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "Cuvintele tale rămân ale tale"
+  enhanced_note_is_ready: "Notița dvs. îmbunătățită este gata."
+  notes_and_the_enhanced_note_stay_the_transc: "Notițele dvs. și notița îmbunătățită rămân. Transcrierea este ascunsă în această notiță."
 zoom:
   _self: "Zoom"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "%@ tokenuri de intrare / %@ de ieșire"
   in_out_thinking: "%@ tokenuri de intrare / %@ de ieșire / %@ de gândire"
+auto:
+  _self: "Automat"
+discard:
+  recording: "Renunță la înregistrare"
+  this_recording: "Renunțați la această înregistrare?"
+finalizing:
+  _self: "Se finalizează"
+finish:
+  _self: "Finalizează"
+  the_active_transcription_before_starting: "Finalizați transcrierea în curs înainte de a începe alta."
+  the_active_transcription_before_starting_another: "Finalizați transcrierea în curs înainte de a începe alta."
+generate:
+  enhanced_note: "Generează notița îmbunătățită"
+generated:
+  _self: "Generată %@"
+  1_2_template: "Generată %1$@ · șablonul %2$@"
+helpful:
+  _self: "Utilă"
+identifying:
+  speakers: "Se identifică vorbitorii"
+jump:
+  to_live: "Sari la direct"
+  to_this_line: "Sari la această linie"
+mic:
+  _self: "Microfon"
+more:
+  note_actions: "Mai multe acțiuni pentru notiță"
+  recording_options: "Mai multe opțiuni de înregistrare"
+my:
+  notes: "Notițele mele"
+nothing:
+  was_transcribed_yet: "Încă nu s-a transcris nimic."
+playback:
+  position: "Poziția redării"
+s:
+  to_save: "⌘S pentru salvare"
+sealing:
+  audio: "Se sigilează audio"
+  the_recording: "Se sigilează înregistrarea."
+see:
+  this_in_the_transcript: "Vezi asta în transcriere"
+template:
+  _self: "Șablon: %@"
+templates:
+  _self: "Șabloane"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "Încă nu există o transcriere de îmbunătățit. Înregistrați mai întâi această notiță."
+transcribing:
+  _self: "Se transcrie"
+transcript:
+  _self: "Transcriere"
+  source: "Sursa transcrierii %@"
+was:
+  this_note_useful: "V-a fost utilă această notiță?"
+writing:
+  note: "Se scrie notița"
+  your_enhanced_note: "Se scrie notița dvs. îmbunătățită."
+  your_enhanced_note_comes_next_long_recor: "Urmează scrierea notiței dvs. îmbunătățite. Înregistrările lungi pot dura câteva minute. Puteți continua să scrieți."
+  your_enhanced_note_with: "Se scrie notița dvs. îmbunătățită cu %@."

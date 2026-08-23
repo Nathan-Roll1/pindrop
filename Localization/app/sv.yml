@@ -9,11 +9,16 @@
   transcription: "1 transkription"
   word: "1 ord"
   year: "1 year"
+  edited_2: "%1$@ · ändrad %2$@"
+  recording: "%1$@ inspelning"
+  recording_2: "%1$@ inspelning · %2$@"
+  result: "1 träff"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "En stor omgång uppgraderingar — och två tack till communityn."
   native_macos_menu_bar_dictation_app_using_loca: "En inbyggd macOS-menyradsdikteringsapp som använder lokalt tal-till-text med WhisperKit. 100 % lokal bearbetning som standard med valfri AI-förbättring."
+  note_capture_is_already_running: "En anteckningsinspelning pågår redan."
 about:
   _self: "Om"
   pindrop: "Om Pindrop"
@@ -79,6 +84,7 @@ an:
     Den ursprungliga transkriptionen sparades utan förbättring.
     Du kan försöka aktivera AI-förbättring igen i Inställningar.
   error_occurred_while_enhancing_your_transcrip_1790ad05: "Ett fel uppstod när din transkription förbättrades:nn%@nnDen ursprungliga transkriptionen sparades utan förbättring.nDu kan försöka aktivera AI-förbättring igen i Inställningar."
+  earlier_version_of_pindrop_wrote_this_note_it: "En tidigare version av Pindrop skrev den här anteckningen. Den kan inte skrivas om."
 anthropic:
   _self: "Antropisk"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "Ljudingång"
+  sealed: "Ljudet är förseglat"
 automatic:
   follow_system: "Automatisk (följ systemet)"
   updates: "Automatiska uppdateringar"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "Starta Pindrop automatiskt när du loggar in."
 available:
   models: "Tillgängliga modeller"
+  when_the_recording_is_finished: "Tillgängligt när inspelningen är klar"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "Tillbaka"
   to_library: "Tillbaka till biblioteket"
+  to_notes: "Tillbaka till anteckningar"
 base:
   _self: "Bas"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "Avboka"
   operation: "Avbryt operation"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "Avbryt inspelningen"
 capture:
   directly_into_the_note_editor_with_a_hol: "Fånga direkt i anteckningsredigeraren med ett håll-till-spela-flöde."
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "Klicka eller tryck"
   or_set_a_hotkey_to_start_talking: "Klicka eller ställ in en snabbtangent för att börja prata"
   this_icon_anytime_to: "Klicka på den här ikonen när som helst för att:"
+  a_number_to_see_it_in_the_transcript: "Klicka på en siffra för att se den i transkriptet."
+  new_note_to_start_one: "Klicka på Ny anteckning för att börja en. Pindrop spelar in medan du skriver."
 client:
   _self: "Klient"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copy the most recent transcript to the clipboard."
   to_clipboard: "Kopiera till urklipp"
   transcript: "Kopiera avskrift"
+  content: "Kopiera innehållet"
 correct:
   grammar_mistakes: "Rätta grammatikfel"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "Anpassad / Lokal"
   openai_compatible: "Anpassad (OpenAI-kompatibel)"
   presets: "Anpassade förinställningar"
+  templates: "Egna mallar"
 customize:
   hotkey: "Anpassa snabbtangent"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d samples · %@"
   speakers: "%d talare"
   words: "%d ord"
+  results: "%d träffar"
 dark:
   _self: "Mörk"
   preview: "Mörk förhandsgranskning"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "Ta bort transkription?"
   all_contributions: "Radera alla bidrag…"
   all_stored_text_pairs: "Radera alla lagrade textpar?"
+  this_note: "Radera den här anteckningen"
+  this_transcript: "Radera det här transkriptet?"
+  transcript: "Radera transkriptet"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "Endast engelska"
 enhanced:
   _self: "Förbättrad"
+  note: "Förbättrad anteckning"
 enhancement:
   prompts: "Förbättringsmeddelanden"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "Arkiv"
 find:
   _self: "Sök"
+  in_transcript: "Sök i transkriptet"
 fix:
   punctuation_and_capitalization: "Fixa skiljetecken och versaler"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "Dölj API-nyckel"
   this_for_1_hour: "Göm detta i 1 timme"
+  live_transcript: "Dölj livetranskriptet"
 history:
   _self: "Historia"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "Lyssnar…"
 live:
   streaming_refinement: "Förfining av livestreaming"
+  text_stopped_the_recording_continues: "Livetexten stoppade. Inspelningen fortsätter."
+  transcript: "Livetranskript"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "Hantera förinställningar"
   presets_ab87986d: "Hantera förinställningar..."
   presets_d5d4c2c2: "Manage Presets…"
+  templates: "Hantera mallar…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "Möt den nya Orb"
 meeting:
   saved: "Möte sparat"
+  note: "Mötesanteckning"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "Ny mapp"
   note: "Ny anteckning"
   preset: "Ny förinställning"
+  note_with_system_audio: "Ny anteckning med systemljud"
+  note_without_recording: "Ny anteckning utan inspelning"
 newest:
   _self: "Nyaste"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "Inga ordförråd"
   transcripts_audio_prompts_file_names_or_perso: "Inga transkriptioner, ljud, prompter, filnamn eller personligt innehåll — aldrig."
   contributions_yet_pairs_are_stored_when_ai_en: "Inga bidrag ännu. Par lagras när AI-förbättring eller manuella redigeringar ändrar en transkription."
+  audio_was_recorded_for_this_note: "Inget ljud spelades in för den här anteckningen."
+  enhanced_note_yet: "Ingen förbättrad anteckning än."
+  notes_yet_sentence: "Inga anteckningar än."
+  results_try_another_word: "Inga träffar. Prova ett annat ord."
 not:
   assigned: "Ej tilldelad"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -748,6 +779,7 @@ not:
   set: "Ej inställd"
   set_93039e60: "Inte inställt"
   now: "Inte nu"
+  helpful: "Inte bra"
 note:
   _self: "Notera"
   capture_hold: "Note Capture — Hold"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "Anteckningar"
   3add7b96: "anteckningar"
+  header_meta_empty: "inget här än"
+  header_meta_today: "%1$@, %2$@ från i dag"
+  new_note_options_label: "Fler alternativ för ny anteckning"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "Av"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "Öppna Inställningar"
   settings_fd7108f8: "Öppna inställningar"
   system_settings: "Öppna Systeminställningar"
+  in_new_window: "Öppna i ett nytt fönster"
+  note: "Öppna anteckningen"
 openai:
   _self: "OpenAI"
   compatible_local_server: "OpenAI-kompatibel lokal server"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "Välj vilken leverantör och modell som hanterar varje AI-uppgift. Lämna som \"Inte tilldelad\" för att hoppa över ett syfte."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
+  a_model_for_note_enhancement_in_settings_th: "Välj en modell för anteckningsförbättring i Inställningar och försök igen."
 pill:
   _self: "Piller"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "Pindrop piller"
   theme: "Pindrop-tema"
   can_send_anonymous_privacy_preserving_si: "Pindrop kan skicka anonyma, integritetsbevarande signaler så att buggar åtgärdas snabbare."
+  writes_one_from_your_notes_and_the_trans: "Pindrop skriver en utifrån dina anteckningar och transkriptet."
 pinned:
   _self: "Fästa"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "Rekommenderad"
 record:
   _self: "Spela in"
+  with_system_audio: "Spela in med systemljud"
 recording:
   _self: "Inspelning"
   3f8fd48c: "🔴 Inspelning"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "Inspelning pågår — transkriptionen börjar när den är klar."
   stopped_with_error: "Inspelningen stoppades: %@"
   from_external_and_bluetooth_microphone: "Inspelning från externa och Bluetooth-mikrofoner är nu mycket stabil, även när ljudutgången dirigeras någon annanstans."
+  continues_while_you_work: "Inspelningen fortsätter medan du arbetar"
+  transcribed: "Inspelningen är transkriberad."
 recordings:
   _self: "inspelningar"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "Visa flytande indikator"
   in_dock: "Visa i Dock"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "Visa livetranskriptet"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Visas som en kula av flytande glas i hörnet av skärmen"
   as_a_pill_at_the_bottom_of_the_screen: "Visas som ett piller längst ner på skärmen"
@@ -1138,17 +1182,24 @@ source:
   _self: "Källa"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "Källorna låses när inspelningen startar."
+  d: "Källor (%d)"
 spanish:
   _self: "spanska"
 speak:
   to_append: "Tala för att lägga till"
 speaker:
+  _self: "Talare"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Högtalardiarisering och tidsstämplar är fästa vid uppspelning."
   diarization_is_required: "Högtalarens diaarisering krävs"
   profile_training: "Speaker profile training"
+  d: "Talare %d"
 speakers:
   _self: "Talare"
+  1: "Talare: %1$@"
+  are_set_when_the_recording_starts: "Talarna ställs in när inspelningen startar."
+  identified: "Talare identifierade"
 speed:
   _self: "Hastighet"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "System"
   default: "System Standard"
+  audio: "Systemljud"
 teach:
   custom_words: "Lär ut anpassade ord"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\"\" Modellen kunde inte laddas inom 60 sekunder. Detta betyder vanligtvis att modellfilerna är skadade eller inkompatibla.                          För att åtgärda detta: 1. Öppna Inställningar → Modeller 2. Ta bort den problematiska modellen 3. Ladda ner modellen igen Om problemet kvarstår, prova en mindre modell (Tiny eller Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "Den nya Nemotron-strömningsmotorn visar orden medan du säger dem och förvärms vid start så att din första diktering börjar utan fördröjning."
   selected_chunk_variant_isn_t_downloaded_yet: "Den valda chunkvarianten har inte laddats ner ännu. Växling startar en nedladdning."
+  audio_and_the_live_transcript_are_deleted_yo: "Ljudet och livetranskriptet raderas. Dina skrivna anteckningar blir kvar."
+  enhanced_note_could_not_be_generated_try_aga: "Den förbättrade anteckningen kunde inte skapas. Försök igen."
+  enhanced_note_could_not_be_saved_try_again: "Den förbättrade anteckningen kunde inte sparas. Försök igen."
+  model_returned_an_empty_note_try_again: "Modellen returnerade en tom anteckning. Försök igen."
+  note_enhancement_model_is_unavailable_check: "Modellen för anteckningsförbättring är inte tillgänglig. Kontrollera den i Inställningar och försök igen."
+  note_this_recording_belongs_to_could_not_be_opened: "Anteckningen som den här inspelningen hör till kunde inte öppnas."
+  recorded_audio_could_not_be_prepared: "Det inspelade ljudet kunde inte förberedas för transkribering."
+  recorder_did_not_start: "Inspelaren startade inte."
+  transcript_fills_in_as_you_speak: "Transkriptet fylls på medan du pratar."
+  transcript_starts_once_you_speak: "Transkriptet börjar så snart du pratar."
 theme:
   _self: "Tema"
   changes_apply_live_across_the_workspace_se: "Temaändringar gäller direkt i arbetsytan, inställningarna, anteckningsredigeraren och flytande indikatorer."
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "Detta tar permanent bort transkriptionen och dess hanterade mediefil."
   will_permanently_remove_this_note: "Detta tar bort anteckningen permanent."
   permanently_deletes_all_stored_text_pairs_f: "Detta raderar permanent alla lagrade textpar från den här Mac-datorn."
+  template_could_not_be_read_pick_another_tem: "Den här mallen kunde inte läsas. Välj en annan mall och försök igen."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "Transkriptionsmetadata"
   saved: "Transkription sparad"
   update: "Uppdatering av transkription"
+  done: "Transkriberingen är klar"
 transcriptions:
   _self: "Transkriptioner"
   f0972acc: "transkriptioner"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "Prova en annan sökterm."
   a_different_search_term_in_this_folder: "Försök med en annan sökterm i den här mappen."
   searching_for_terms_like_hotkeys_microphone: "Testa att söka efter termer som snabbtangenter, mikrofon, uppdateringar eller vibbläge."
+  again: "Försök igen"
 turkish:
   _self: "turkiska"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "Dina senaste diktat visas här."
   home_streak: "Svans"
   home_subline_duration_only: "%@ diktering."
-  home_subline_full: "%@ diktering — ungefär %@ sparat jämfört med att skriva det."
+  home_subline_full: "%@ diktering. Ungefär %@ sparade jämfört med att skriva."
   home_this_week: "Denna vecka"
   home_welcome_tagline: "Tala. Det är skrivet."
   home_words_per_min: "Ord / min"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "Ord i dag"
   home_you_spoke_this_week: "Du sa %@ den här veckan."
   home_zero_day: "0-dagars"
+  home_n_sessions_grouped: "%@ sessioner"
+  home_no_dictations_yet: "Inga dikteringar än."
+  home_one_session: "1 session"
+  home_press_hotkey_to_start: "Tryck på %@ var som helst för att börja."
+  home_stop: "Stoppa"
 u5:
   u7_add_replacement: "Lägg till ersättning"
   u7_add_word: "Lägg till ord"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "Röstisolering"
   reduce_background_noise_before_transcription: "Minska bakgrundsbrus före transkribering"
+  note: "Röstanteckning"
 vs:
   typing: "vs att skriva"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "I går"
 you:
+  _self: "Du"
   are_a_note_formatting_assistant_transform_th: "Du är en anteckningsformateringsassistent. Förvandla den transkriberade texten till en välstrukturerad anteckning.nnRegler:n- Åtgärda grammatik, skiljetecken och stavfel.n- För längre innehåll (3+ stycken), lägg till markdown-formatering:n - Använd rubriker (## eller ###) för att organisera sektionern - Använd punktlistor eller numrerade listor där det är lämpligtn - Använd **kortare nyckelord** för enklare format** för att betona det. Bevara den ursprungliga betydelsen och visa - Lägg inte till innehåll som inte fanns i originalet - Returnera endast den formaterade anteckningen utan någon kommentar"
   are_a_text_enhancement_assistant_improve_the: "Du är en textförbättringsassistent. Förbättra grammatiken, skiljetecken och formateringen av den angivna texten samtidigt som dess ursprungliga betydelse och ton bevaras. Returnera endast den förbättrade texten utan ytterligare kommentarer."
   can_change_these_anytime_from_the_menu_bar_s: "Du kan ändra dessa när som helst från menyraden → Inställningar → Snabbtangenter"
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "Du är redo!"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Du har överskridit din API-hastighetsgräns eller -kvot.                                  För att åtgärda detta: 1. Vänta några minuter och försök igen 2. Kontrollera din API-leverantörs användningsgränser 3. Överväg att uppgradera din API-plan. Transkriptionen sparades utan förbättring.                 \"\""
   re_in_control: "Du har kontrollen"
+  deleted_this_transcript: "Du raderade det här transkriptet."
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\" Din API-nyckel verkar vara ogiltig eller har upphört att gälla.                                  För att åtgärda detta: 1. Öppna Inställningar → AI Enhancement 2. Kontrollera att din API-nyckel är korrekt 3. Kontrollera att din API-slutpunkt är korrekt. Transkriptionen sparades utan förbättring.                 \"\""
   floating_indicator_is_now_a_living_audio_re: "Din flytande indikator är nu en levande, ljudreaktiv orb. Den andas i vila, växer när du pratar och strömmar dina ord live medan du dikterar."
@@ -1566,6 +1639,8 @@ your:
   stats: "Din statistik"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "Dina ord förblir dina"
+  enhanced_note_is_ready: "Din förbättrade anteckning är klar."
+  notes_and_the_enhanced_note_stay_the_transc: "Dina anteckningar och den förbättrade anteckningen blir kvar. Transkriptet döljs i den här anteckningen."
 zoom:
   _self: "Zooma"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "%@ in / %@ ut tokens"
   in_out_thinking: "%@ in / %@ ut / %@ tanke-tokens"
+auto:
+  _self: "Automatiskt"
+discard:
+  recording: "Släng inspelningen"
+  this_recording: "Släng den här inspelningen?"
+finalizing:
+  _self: "Slutför"
+finish:
+  _self: "Slutför"
+  the_active_transcription_before_starting: "Slutför den pågående transkriberingen innan du startar en ny."
+  the_active_transcription_before_starting_another: "Slutför den pågående transkriberingen innan du startar en ny."
+generate:
+  enhanced_note: "Skapa förbättrad anteckning"
+generated:
+  _self: "Skapad %@"
+  1_2_template: "Skapad %1$@ · mallen %2$@"
+helpful:
+  _self: "Bra"
+identifying:
+  speakers: "Identifierar talare"
+jump:
+  to_live: "Hoppa till livetexten"
+  to_this_line: "Hoppa till den här raden"
+mic:
+  _self: "Mikrofon"
+more:
+  note_actions: "Fler åtgärder för anteckningen"
+  recording_options: "Fler inspelningsalternativ"
+my:
+  notes: "Mina anteckningar"
+nothing:
+  was_transcribed_yet: "Inget har transkriberats än."
+playback:
+  position: "Uppspelningsposition"
+s:
+  to_save: "⌘S för att spara"
+sealing:
+  audio: "Förseglar ljudet"
+  the_recording: "Förseglar inspelningen."
+see:
+  this_in_the_transcript: "Se det här i transkriptet"
+template:
+  _self: "Mall: %@"
+templates:
+  _self: "Mallar"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "Det finns inget transkript att förbättra än. Spela in den här anteckningen först."
+transcribing:
+  _self: "Transkriberar"
+transcript:
+  _self: "Transkript"
+  source: "Transkriptkälla %@"
+was:
+  this_note_useful: "Var den här anteckningen till nytta?"
+writing:
+  note: "Skriver anteckningen"
+  your_enhanced_note: "Skriver din förbättrade anteckning."
+  your_enhanced_note_comes_next_long_recor: "Sedan skrivs din förbättrade anteckning. Långa inspelningar kan ta några minuter. Du kan fortsätta skriva."
+  your_enhanced_note_with: "Skriver din förbättrade anteckning med %@."

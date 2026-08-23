@@ -9,11 +9,16 @@
   transcription: "1 transcriptie"
   word: "1 woord"
   year: "1 year"
+  edited_2: "%1$@ · bewerkt %2$@"
+  recording: "%1$@ opname"
+  recording_2: "%1$@ opname · %2$@"
+  result: "1 resultaat"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "Een grote ronde upgrades — en twee bedankjes aan de community."
   native_macos_menu_bar_dictation_app_using_loca: "Een native macOS-dicteerapp voor de menubalk die lokale spraak-naar-tekst gebruikt met WhisperKit. Standaard 100% lokale verwerking met optionele AI-verbetering."
+  note_capture_is_already_running: "Er loopt al een notitieopname."
 about:
   _self: "Over"
   pindrop: "Over Pindrop"
@@ -79,6 +84,7 @@ an:
     De originele transcriptie is zonder verbeteringen opgeslagen.
     U kunt proberen AI-verbetering opnieuw in te schakelen in Instellingen.
   error_occurred_while_enhancing_your_transcrip_1790ad05: "Er is een fout opgetreden bij het verbeteren van uw transcriptie:nn%@nnDe oorspronkelijke transcriptie is zonder verbeteringen opgeslagen.nU kunt proberen AI-verbetering opnieuw in te schakelen in Instellingen."
+  earlier_version_of_pindrop_wrote_this_note_it: "Een eerdere versie van Pindrop heeft deze notitie geschreven. Hij kan niet opnieuw worden geschreven."
 anthropic:
   _self: "Anthropic"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "Audio-invoer"
+  sealed: "Audio verzegeld"
 automatic:
   follow_system: "Automatisch (volgsysteem)"
   updates: "Automatische updates"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "Start Pindrop automatisch wanneer u zich aanmeldt."
 available:
   models: "Beschikbare modellen"
+  when_the_recording_is_finished: "Beschikbaar zodra de opname klaar is"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "Rug"
   to_library: "Terug naar bibliotheek"
+  to_notes: "Terug naar notities"
 base:
   _self: "Baseren"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "Annuleren"
   operation: "Annuleer bewerking"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "Opname annuleren"
 capture:
   directly_into_the_note_editor_with_a_hol: "Leg direct vast in de notitie-editor met een hold-to-record-stroom."
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "Klik of druk"
   or_set_a_hotkey_to_start_talking: "Klik of stel een sneltoets in om te beginnen met praten"
   this_icon_anytime_to: "Klik op elk gewenst moment op dit pictogram om:"
+  a_number_to_see_it_in_the_transcript: "Klik op een nummer om het in het transcript te zien."
+  new_note_to_start_one: "Klik op Nieuwe notitie om er een te beginnen. Pindrop neemt op terwijl je typt."
 client:
   _self: "Client"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copy the most recent transcript to the clipboard."
   to_clipboard: "Kopiëren naar klembord"
   transcript: "Kopieer transcript"
+  content: "Inhoud kopiëren"
 correct:
   grammar_mistakes: "Corrigeer grammaticafouten"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "Aangepast / Lokaal"
   openai_compatible: "Aangepast (OpenAI-compatibel)"
   presets: "Aangepaste voorinstellingen"
+  templates: "Eigen sjablonen"
 customize:
   hotkey: "Sneltoets aanpassen"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d samples · %@"
   speakers: "%d sprekers"
   words: "%d woorden"
+  results: "%d resultaten"
 dark:
   _self: "Donker"
   preview: "Donker voorbeeld"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "Transcriptie verwijderen?"
   all_contributions: "Alle bijdragen verwijderen…"
   all_stored_text_pairs: "Alle opgeslagen tekstparen verwijderen?"
+  this_note: "Deze notitie verwijderen"
+  this_transcript: "Dit transcript verwijderen?"
+  transcript: "Transcript verwijderen"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "Alleen Engels"
 enhanced:
   _self: "Versterkt"
+  note: "Verbeterde notitie"
 enhancement:
   prompts: "Verbeteringsprompts"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "Archief"
 find:
   _self: "Zoek"
+  in_transcript: "Zoeken in transcript"
 fix:
   punctuation_and_capitalization: "Corrigeer interpunctie en hoofdlettergebruik"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "API-sleutel verbergen"
   this_for_1_hour: "Verberg dit gedurende 1 uur"
+  live_transcript: "Live transcript verbergen"
 history:
   _self: "Geschiedenis"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "Luisteren…"
 live:
   streaming_refinement: "Verfijning van livestreaming"
+  text_stopped_the_recording_continues: "De live tekst is gestopt. De opname loopt door."
+  transcript: "Live transcript"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "Beheer voorinstellingen"
   presets_ab87986d: "Voorinstellingen beheren..."
   presets_d5d4c2c2: "Manage Presets…"
+  templates: "Sjablonen beheren…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "Maak kennis met de nieuwe Orb"
 meeting:
   saved: "Vergadering opgeslagen"
+  note: "Vergadernotitie"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "Nieuwe map"
   note: "Nieuwe notitie"
   preset: "Nieuwe voorinstelling"
+  note_with_system_audio: "Nieuwe notitie met systeemgeluid"
+  note_without_recording: "Nieuwe notitie zonder opname"
 newest:
   _self: "Nieuwste"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "Geen woordenschatwoorden"
   transcripts_audio_prompts_file_names_or_perso: "Geen transcripties, audio, prompts, bestandsnamen of persoonlijke inhoud — nooit."
   contributions_yet_pairs_are_stored_when_ai_en: "Nog geen bijdragen. Paren worden opgeslagen wanneer AI-verbetering of handmatige bewerkingen een transcriptie wijzigen."
+  audio_was_recorded_for_this_note: "Voor deze notitie is geen audio opgenomen."
+  enhanced_note_yet: "Nog geen verbeterde notitie."
+  notes_yet_sentence: "Nog geen notities."
+  results_try_another_word: "Geen resultaten. Probeer een ander woord."
 not:
   assigned: "Niet toegewezen"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -748,6 +779,7 @@ not:
   set: "Niet ingesteld"
   set_93039e60: "Niet ingesteld"
   now: "Niet nu"
+  helpful: "Niet nuttig"
 note:
   _self: "Opmerking"
   capture_hold: "Note Capture — Hold"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "Opmerkingen"
   3add7b96: "notities"
+  header_meta_empty: "hier staat nog niets"
+  header_meta_today: "%1$@, %2$@ van vandaag"
+  new_note_options_label: "Meer opties voor een nieuwe notitie"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "Uit"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "Instellingen openen"
   settings_fd7108f8: "Instellingen openen"
   system_settings: "Open Systeeminstellingen"
+  in_new_window: "In een nieuw venster openen"
+  note: "Notitie openen"
 openai:
   _self: "OpenAI"
   compatible_local_server: "OpenAI-compatibele lokale server"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "Kies welke provider en welk model elke AI-taak afhandelt. Laat het staan ​​op 'Niet toegewezen' om een ​​doel over te slaan."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
+  a_model_for_note_enhancement_in_settings_th: "Kies bij Instellingen een model voor notitieverbetering en probeer het opnieuw."
 pill:
   _self: "Pil"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "Pindrop-pil"
   theme: "Pindrop-thema"
   can_send_anonymous_privacy_preserving_si: "Pindrop kan anonieme, privacyvriendelijke signalen versturen zodat bugs sneller worden opgelost."
+  writes_one_from_your_notes_and_the_trans: "Pindrop schrijft er een uit je notities en het transcript."
 pinned:
   _self: "Vastgezet"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "Aanbevolen"
 record:
   _self: "Dossier"
+  with_system_audio: "Opnemen met systeemgeluid"
 recording:
   _self: "Opname"
   3f8fd48c: "🔴Opname"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "Opname bezig — transcriptie begint zodra deze is voltooid."
   stopped_with_error: "Opname gestopt: %@"
   from_external_and_bluetooth_microphone: "Opnemen via externe en Bluetooth-microfoons is nu rotsvast, zelfs wanneer je audio-uitvoer ergens anders naartoe wordt geleid."
+  continues_while_you_work: "De opname loopt door terwijl je werkt"
+  transcribed: "Opname getranscribeerd."
 recordings:
   _self: "opnames"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "Zwevende indicator tonen"
   in_dock: "Weergeven in Dock"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "Live transcript tonen"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Wordt weergegeven als een orb van vloeibaar glas in de hoek van het scherm"
   as_a_pill_at_the_bottom_of_the_screen: "Wordt weergegeven als een pil onder aan het scherm"
@@ -1138,17 +1182,24 @@ source:
   _self: "Bron"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "De bronnen liggen vast zodra de opname start."
+  d: "Bronnen (%d)"
 spanish:
   _self: "Spaans"
 speak:
   to_append: "Spreek om toe te voegen"
 speaker:
+  _self: "Spreker"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Sprekersdialoog en tijdstempels zijn aan het afspelen gekoppeld."
   diarization_is_required: "Sprekersdagboek is vereist"
   profile_training: "Speaker profile training"
+  d: "Spreker %d"
 speakers:
   _self: "Sprekers"
+  1: "Sprekers: %1$@"
+  are_set_when_the_recording_starts: "De sprekers worden ingesteld zodra de opname start."
+  identified: "Sprekers herkend"
 speed:
   _self: "Snelheid"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "Systeem"
   default: "Systeemstandaard"
+  audio: "Systeemgeluid"
 teach:
   custom_words: "Leer aangepaste woorden"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\"\" Het model kon niet binnen 60 seconden worden geladen. Dit betekent meestal dat de modelbestanden beschadigd of incompatibel zijn.                          Om dit op te lossen: 1. Open Instellingen → Modellen 2. Verwijder het problematische model 3. Download het model opnieuw. Als het probleem zich blijft voordoen, probeer dan een kleiner model (Tiny of Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "De nieuwe Nemotron-streamingengine toont woorden terwijl je ze uitspreekt en warmt op bij het starten, zodat je eerste dictaat zonder vertraging begint."
   selected_chunk_variant_isn_t_downloaded_yet: "De geselecteerde chunk-variant is nog niet gedownload. Omschakelen start een download."
+  audio_and_the_live_transcript_are_deleted_yo: "De audio en het live transcript worden verwijderd. Je getypte notities blijven."
+  enhanced_note_could_not_be_generated_try_aga: "De verbeterde notitie kon niet worden gemaakt. Probeer het opnieuw."
+  enhanced_note_could_not_be_saved_try_again: "De verbeterde notitie kon niet worden opgeslagen. Probeer het opnieuw."
+  model_returned_an_empty_note_try_again: "Het model gaf een lege notitie terug. Probeer het opnieuw."
+  note_enhancement_model_is_unavailable_check: "Het model voor notitieverbetering is niet beschikbaar. Controleer het bij Instellingen en probeer het opnieuw."
+  note_this_recording_belongs_to_could_not_be_opened: "De notitie waar deze opname bij hoort, kon niet worden geopend."
+  recorded_audio_could_not_be_prepared: "De opgenomen audio kon niet worden voorbereid voor transcriptie."
+  recorder_did_not_start: "De recorder is niet gestart."
+  transcript_fills_in_as_you_speak: "Het transcript vult zich terwijl je praat."
+  transcript_starts_once_you_speak: "Het transcript begint zodra je praat."
 theme:
   _self: "Thema"
   changes_apply_live_across_the_workspace_se: "Themawijzigingen zijn live van toepassing op de werkruimte, instellingen, notitie-editor en zwevende indicatoren."
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "Hierdoor worden het transcript en het beheerde mediabestand permanent verwijderd."
   will_permanently_remove_this_note: "Dit verwijdert deze notitie permanent."
   permanently_deletes_all_stored_text_pairs_f: "Hiermee worden alle opgeslagen tekstparen permanent van deze Mac verwijderd."
+  template_could_not_be_read_pick_another_tem: "Dit sjabloon kon niet worden gelezen. Kies een ander sjabloon en probeer het opnieuw."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "Metagegevens van transcriptie"
   saved: "Transcriptie opgeslagen"
   update: "Transcriptie-update"
+  done: "Transcriptie klaar"
 transcriptions:
   _self: "Transcripties"
   f0972acc: "transcripties"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "Probeer een andere zoekterm."
   a_different_search_term_in_this_folder: "Probeer een andere zoekterm in deze map."
   searching_for_terms_like_hotkeys_microphone: "Probeer te zoeken naar termen als sneltoetsen, microfoon, updates of sfeermodus."
+  again: "Opnieuw proberen"
 turkish:
   _self: "Turks"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "Je nieuwste dictaten verschijnen hier."
   home_streak: "Reeks"
   home_subline_duration_only: "%@ dicteren."
-  home_subline_full: "%@ dicteren — ongeveer %@ bespaard ten opzichte van typen."
+  home_subline_full: "%@ dicteren. Ongeveer %@ bespaard ten opzichte van typen."
   home_this_week: "Deze week"
   home_welcome_tagline: "Spreek. Het is geschreven."
   home_words_per_min: "Woorden / min"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "Woorden vandaag"
   home_you_spoke_this_week: "Je zei %@ deze week."
   home_zero_day: "0-dag"
+  home_n_sessions_grouped: "%@ sessies"
+  home_no_dictations_yet: "Nog geen dictaten."
+  home_one_session: "1 sessie"
+  home_press_hotkey_to_start: "Druk overal op %@ om te beginnen."
+  home_stop: "Stoppen"
 u5:
   u7_add_replacement: "Vervanging toevoegen"
   u7_add_word: "Woord toevoegen"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "Stemisolatie"
   reduce_background_noise_before_transcription: "Verminder achtergrondgeluid vóór transcriptie"
+  note: "Spraaknotitie"
 vs:
   typing: "versus typen"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "Gisteren"
 you:
+  _self: "Jij"
   are_a_note_formatting_assistant_transform_th: "Je bent een assistent voor het opmaken van notities. Transformeer de getranscribeerde tekst in een goed gestructureerde notitie.nnRegels:n- Corrigeer grammatica-, interpunctie- en spelfoutenn- Voeg voor langere inhoud (3+ paragrafen) markdown-opmaak toe:n - Gebruik kopteksten (## of ###) om secties te ordenenn - Gebruik waar nodig opsommingstekens of genummerde lijstenn - Gebruik **vet** om de nadruk te leggen op belangrijke termenn- Houd het voor kortere inhoud simpel met minimale opmaakn- Behoud de oorspronkelijke betekenis en toon- Voeg geen inhoud toe die stond niet in het origineel. Geef alleen de opgemaakte notitie terug zonder enig commentaar"
   are_a_text_enhancement_assistant_improve_the: "Je bent een tekstverbeteringsassistent. Verbeter de grammatica, interpunctie en opmaak van de aangeboden tekst met behoud van de oorspronkelijke betekenis en toon. Geef alleen de verbeterde tekst terug, zonder aanvullend commentaar."
   can_change_these_anytime_from_the_menu_bar_s: "U kunt deze op elk gewenst moment wijzigen via de menubalk → Instellingen → Sneltoetsen"
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "Je bent helemaal klaar!"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" U heeft uw API-limiet of quotum overschreden.                                  Om dit op te lossen: 1. Wacht een paar minuten en probeer het opnieuw 2. Controleer de gebruikslimieten van uw API-provider 3. Overweeg een upgrade van uw API-abonnement De transcriptie is zonder verbeteringen opgeslagen.                 \"\""
   re_in_control: "Jij hebt de controle"
+  deleted_this_transcript: "Je hebt dit transcript verwijderd."
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\" Uw API-sleutel lijkt ongeldig of verlopen te zijn.                                  Om dit op te lossen: 1. Open Instellingen → AI-verbetering 2. Controleer of uw API-sleutel correct is 3. Controleer of uw API-eindpunt correct is De transcriptie is zonder verbeteringen opgeslagen.                 \"\""
   floating_indicator_is_now_a_living_audio_re: "Je zwevende indicator is nu een levende, audio-reactieve orb. Hij ademt wanneer hij inactief is, zwelt op wanneer je spreekt en streamt je woorden live terwijl je dicteert."
@@ -1566,6 +1639,8 @@ your:
   stats: "Jouw statistieken"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "Jouw woorden blijven van jou"
+  enhanced_note_is_ready: "Je verbeterde notitie is klaar."
+  notes_and_the_enhanced_note_stay_the_transc: "Je notities en de verbeterde notitie blijven. Het transcript wordt in deze notitie verborgen."
 zoom:
   _self: "Zoom"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "%@ invoer- / %@ uitvoertokens"
   in_out_thinking: "%@ invoer- / %@ uitvoer- / %@ denktokens"
+auto:
+  _self: "Automatisch"
+discard:
+  recording: "Opname weggooien"
+  this_recording: "Deze opname weggooien?"
+finalizing:
+  _self: "Afronden"
+finish:
+  _self: "Afronden"
+  the_active_transcription_before_starting: "Rond de lopende transcriptie af voordat je een nieuwe start."
+  the_active_transcription_before_starting_another: "Rond de lopende transcriptie af voordat je een nieuwe start."
+generate:
+  enhanced_note: "Verbeterde notitie maken"
+generated:
+  _self: "Gemaakt %@"
+  1_2_template: "Gemaakt %1$@ · sjabloon %2$@"
+helpful:
+  _self: "Nuttig"
+identifying:
+  speakers: "Sprekers herkennen"
+jump:
+  to_live: "Naar live springen"
+  to_this_line: "Naar deze regel springen"
+mic:
+  _self: "Microfoon"
+more:
+  note_actions: "Meer notitieacties"
+  recording_options: "Meer opnameopties"
+my:
+  notes: "Mijn notities"
+nothing:
+  was_transcribed_yet: "Er is nog niets getranscribeerd."
+playback:
+  position: "Afspeelpositie"
+s:
+  to_save: "⌘S om op te slaan"
+sealing:
+  audio: "Audio verzegelen"
+  the_recording: "De opname wordt verzegeld."
+see:
+  this_in_the_transcript: "Dit in het transcript bekijken"
+template:
+  _self: "Sjabloon: %@"
+templates:
+  _self: "Sjablonen"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "Er is nog geen transcript om te verbeteren. Neem deze notitie eerst op."
+transcribing:
+  _self: "Transcriberen"
+transcript:
+  _self: "Transcript"
+  source: "Transcriptbron %@"
+was:
+  this_note_useful: "Was deze notitie nuttig?"
+writing:
+  note: "Notitie schrijven"
+  your_enhanced_note: "Je verbeterde notitie wordt geschreven."
+  your_enhanced_note_comes_next_long_recor: "Daarna wordt je verbeterde notitie geschreven. Bij lange opnames kan dat een paar minuten duren. Je kunt gewoon doortypen."
+  your_enhanced_note_with: "Je verbeterde notitie wordt geschreven met %@."

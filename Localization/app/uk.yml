@@ -9,11 +9,16 @@
   transcription: "1 транскрипція"
   word: "1 слово"
   year: "1 year"
+  edited_2: "%1$@ · змінено %2$@"
+  recording: "%1$@ запису"
+  recording_2: "%1$@ запису · %2$@"
+  result: "1 результат"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "Велика порція оновлень — і дві подяки спільноті."
   native_macos_menu_bar_dictation_app_using_loca: "Рідна програма для диктування панелі меню macOS, яка використовує локальне перетворення мовлення в текст за допомогою WhisperKit. 100% локальна обробка за замовчуванням із додатковим покращенням ШІ."
+  note_capture_is_already_running: "Запис нотатки вже триває."
 about:
   _self: "про"
   pindrop: "Про Pindrop"
@@ -79,6 +84,7 @@ an:
     Оригінальна транскрипція була збережена без покращення.
     Ви можете спробувати знову ввімкнути покращення ШІ в налаштуваннях.
   error_occurred_while_enhancing_your_transcrip_1790ad05: "Під час покращення вашої транскрипції сталася помилка:nn%@nnОригінальна транскрипція була збережена без покращення.nВи можете спробувати знову ввімкнути покращення ШІ в налаштуваннях."
+  earlier_version_of_pindrop_wrote_this_note_it: "Цю нотатку написала давніша версія Pindrop. Її не можна написати знову."
 anthropic:
   _self: "Антропний"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "Аудіо вхід"
+  sealed: "Аудіо збережено"
 automatic:
   follow_system: "Автоматично (за системою)"
   updates: "Автоматичні оновлення"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "Автоматично запускати Pindrop під час входу."
 available:
   models: "Доступні моделі"
+  when_the_recording_is_finished: "Доступно, коли запис завершиться"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "Назад"
   to_library: "Назад до бібліотеки"
+  to_notes: "Назад до нотаток"
 base:
   _self: "База"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "Скасувати"
   operation: "Скасувати операцію"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "Скасувати запис"
 capture:
   directly_into_the_note_editor_with_a_hol: "Записуйте безпосередньо в редактор нотаток за допомогою потоку утримання для запису."
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "Клацніть або натисніть"
   or_set_a_hotkey_to_start_talking: "Натисніть або встановіть гарячу клавішу, щоб почати розмову"
   this_icon_anytime_to: "Клацніть цей значок будь-коли, щоб:"
+  a_number_to_see_it_in_the_transcript: "Натисніть номер, щоб побачити його в транскрипті."
+  new_note_to_start_one: "Натисніть Нова нотатка, щоб почати. Pindrop записує, поки ви пишете."
 client:
   _self: "Клієнт"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copy the most recent transcript to the clipboard."
   to_clipboard: "Копіювати в буфер обміну"
   transcript: "Копіювати стенограму"
+  content: "Копіювати вміст"
 correct:
   grammar_mistakes: "Виправте граматичні помилки"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "Custom / Local"
   openai_compatible: "Спеціальний (сумісний з OpenAI)"
   presets: "Користувацькі пресети"
+  templates: "Власні шаблони"
 customize:
   hotkey: "Налаштувати гарячу клавішу"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d samples · %@"
   speakers: "%d спікерів"
   words: "%d слів"
+  results: "%d результатів"
 dark:
   _self: "Темний"
   preview: "Темний попередній перегляд"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "Видалити транскрипцію?"
   all_contributions: "Видалити всі внески…"
   all_stored_text_pairs: "Видалити всі збережені пари тексту?"
+  this_note: "Видалити цю нотатку"
+  this_transcript: "Видалити цей транскрипт?"
+  transcript: "Видалити транскрипт"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "Лише англійською мовою"
 enhanced:
   _self: "Покращений"
+  note: "Покращена нотатка"
 enhancement:
   prompts: "Підказки щодо покращення"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "Файл"
 find:
   _self: "Знайти"
+  in_transcript: "Пошук у транскрипті"
 fix:
   punctuation_and_capitalization: "Виправити розділові знаки та великі літери"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "Сховати API-ключ"
   this_for_1_hour: "Сховайте це на 1 годину"
+  live_transcript: "Сховати живий транскрипт"
 history:
   _self: "історія"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "Слухаю…"
 live:
   streaming_refinement: "Покращення прямої трансляції"
+  text_stopped_the_recording_continues: "Живий текст зупинився. Запис триває."
+  transcript: "Живий транскрипт"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "Керування пресетами"
   presets_ab87986d: "Керувати попередніми налаштуваннями..."
   presets_d5d4c2c2: "Manage Presets…"
+  templates: "Керувати шаблонами…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "Знайомтеся з новим Orb"
 meeting:
   saved: "Зустріч збережено"
+  note: "Нотатка зустрічі"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "Нова папка"
   note: "Нова примітка"
   preset: "Нове налаштування"
+  note_with_system_audio: "Нова нотатка зі звуком системи"
+  note_without_recording: "Нова нотатка без запису"
 newest:
   _self: "Найновіші"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "Немає словникових слів"
   transcripts_audio_prompts_file_names_or_perso: "Жодних транскрипцій, аудіо, промптів, імен файлів чи особистого вмісту — ніколи."
   contributions_yet_pairs_are_stored_when_ai_en: "Ще немає внесків. Пари зберігаються, коли покращення за допомогою AI або ручні редагування змінюють транскрипцію."
+  audio_was_recorded_for_this_note: "Для цієї нотатки не записано аудіо."
+  enhanced_note_yet: "Покращеної нотатки ще немає."
+  notes_yet_sentence: "Нотаток ще немає."
+  results_try_another_word: "Нічого не знайдено. Спробуйте інше слово."
 not:
   assigned: "Не призначено"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -748,6 +779,7 @@ not:
   set: "Не встановлено"
   set_93039e60: "Не встановлено"
   now: "Не зараз"
+  helpful: "Не корисно"
 note:
   _self: "Примітка"
   capture_hold: "Note Capture — Hold"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "Примітки"
   3add7b96: "примітки"
+  header_meta_empty: "тут поки нічого немає"
+  header_meta_today: "%1$@, %2$@ за сьогодні"
+  new_note_options_label: "Більше параметрів нової нотатки"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "Вимкнено"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "Відкрийте налаштування"
   settings_fd7108f8: "Відкрийте налаштування"
   system_settings: "Відкрийте налаштування системи"
+  in_new_window: "Відкрити в новому вікні"
+  note: "Відкрити нотатку"
 openai:
   _self: "OpenAI"
   compatible_local_server: "Локальний сервер, сумісний з OpenAI"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "Виберіть, який постачальник і модель обробляє кожне завдання ШІ. Залиште як «Не призначено», щоб пропустити мету."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
+  a_model_for_note_enhancement_in_settings_th: "Виберіть модель для покращення нотаток у Параметрах і спробуйте ще раз."
 pill:
   _self: "таблетки"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "Pindrop Pill"
   theme: "Тема Pindrop"
   can_send_anonymous_privacy_preserving_si: "Pindrop може надсилати анонімні сигнали, що зберігають конфіденційність, щоб помилки виправлялися швидше."
+  writes_one_from_your_notes_and_the_trans: "Pindrop напише її з ваших нотаток і транскрипта."
 pinned:
   _self: "Закріплені"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "Рекомендовано"
 record:
   _self: "запис"
+  with_system_audio: "Записувати зі звуком системи"
 recording:
   _self: "Запис"
   3f8fd48c: "🔴 Запис"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "Триває запис — транскрипція розпочнеться після завершення."
   stopped_with_error: "Запис зупинено: %@"
   from_external_and_bluetooth_microphone: "Запис із зовнішніх і Bluetooth-мікрофонів тепер дуже стабільний, навіть коли аудіовихід спрямовано в інше місце."
+  continues_while_you_work: "Запис триває, поки ви працюєте"
+  transcribed: "Запис розшифровано."
 recordings:
   _self: "записи"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "Показувати плаваючий індикатор"
   in_dock: "Показати в Dock"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "Показати живий транскрипт"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Відображається як сфера з рідкого скла в куті екрана"
   as_a_pill_at_the_bottom_of_the_screen: "Відображається як таблетка внизу екрана"
@@ -1138,17 +1182,24 @@ source:
   _self: "Джерело"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "Джерела фіксуються на початку запису."
+  d: "Джерела (%d)"
 spanish:
   _self: "Іспанська"
 speak:
   to_append: "Говоріть, щоб додати"
 speaker:
+  _self: "Мовець"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Щоденник доповідача та часові мітки додаються до відтворення."
   diarization_is_required: "Потрібен щоденник доповідача"
   profile_training: "Speaker profile training"
+  d: "Мовець %d"
 speakers:
   _self: "Мовці"
+  1: "Мовці: %1$@"
+  are_set_when_the_recording_starts: "Мовців визначають на початку запису."
+  identified: "Мовців розпізнано"
 speed:
   _self: "швидкість"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "система"
   default: "Системне за замовчуванням"
+  audio: "Звук системи"
 teach:
   custom_words: "Навчіть спеціальні слова"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\"\" Модель не вдалося завантажити протягом 60 секунд. Зазвичай це означає, що файли моделі пошкоджені або несумісні.                          Щоб виправити це: 1. Відкрийте «Параметри» → «Моделі» 2. Видаліть проблемну модель 3. Повторно завантажте модель. Якщо проблема не зникає, спробуйте меншу модель (Tiny або Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "Новий потоковий рушій Nemotron показує слова під час мовлення та прогрівається під час запуску, щоб перше диктування починалося без затримки."
   selected_chunk_variant_isn_t_downloaded_yet: "Вибраний варіант блоку ще не завантажено. Перемикання почне завантаження."
+  audio_and_the_live_transcript_are_deleted_yo: "Аудіо та живий транскрипт буде видалено. Ваші набрані нотатки залишаться."
+  enhanced_note_could_not_be_generated_try_aga: "Не вдалося створити покращену нотатку. Спробуйте ще раз."
+  enhanced_note_could_not_be_saved_try_again: "Не вдалося зберегти покращену нотатку. Спробуйте ще раз."
+  model_returned_an_empty_note_try_again: "Модель повернула порожню нотатку. Спробуйте ще раз."
+  note_enhancement_model_is_unavailable_check: "Модель покращення нотаток недоступна. Перевірте її в Параметрах і спробуйте ще раз."
+  note_this_recording_belongs_to_could_not_be_opened: "Не вдалося відкрити нотатку, якій належить цей запис."
+  recorded_audio_could_not_be_prepared: "Не вдалося підготувати записане аудіо до транскрипції."
+  recorder_did_not_start: "Записувач не запустився."
+  transcript_fills_in_as_you_speak: "Транскрипт заповнюється, поки ви говорите."
+  transcript_starts_once_you_speak: "Транскрипт починається, щойно ви заговорите."
 theme:
   _self: "Тема"
   changes_apply_live_across_the_workspace_se: "Зміни теми застосовуються в робочій області, налаштуваннях, редакторі нотаток і плаваючих індикаторах."
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "Це назавжди видалить стенограму та її керований медіафайл."
   will_permanently_remove_this_note: "Це назавжди видалить цю нотатку."
   permanently_deletes_all_stored_text_pairs_f: "Це назавжди видалить усі збережені пари тексту з цього Mac."
+  template_could_not_be_read_pick_another_tem: "Не вдалося прочитати цей шаблон. Виберіть інший шаблон і спробуйте ще раз."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "Метадані транскрипції"
   saved: "Розшифровку збережено"
   update: "Оновлення транскрипції"
+  done: "Транскрипцію завершено"
 transcriptions:
   _self: "транскрипції"
   f0972acc: "транскрипції"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "Спробуйте інший термін пошуку."
   a_different_search_term_in_this_folder: "Спробуйте інший термін пошуку в цій папці."
   searching_for_terms_like_hotkeys_microphone: "Спробуйте шукати такі терміни, як гарячі клавіші, мікрофон, оновлення або режим Vibe."
+  again: "Спробувати ще раз"
 turkish:
   _self: "турецька"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "Ваші останні диктування з’являться тут."
   home_streak: "Серія"
   home_subline_duration_only: "%@ диктування."
-  home_subline_full: "%@ диктування — приблизно %@ зекономлено порівняно з набором."
+  home_subline_full: "%@ диктування. Приблизно %@ заощаджено порівняно з набором."
   home_this_week: "Цього тижня"
   home_welcome_tagline: "Говоріть. Це записано."
   home_words_per_min: "Слів / хв"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "Слів сьогодні"
   home_you_spoke_this_week: "Цього тижня ви вимовили %@."
   home_zero_day: "0 дн."
+  home_n_sessions_grouped: "%@ сеансів"
+  home_no_dictations_yet: "Диктувань ще немає."
+  home_one_session: "1 сеанс"
+  home_press_hotkey_to_start: "Натисніть %@ будь-де, щоб почати."
+  home_stop: "Зупинити"
 u5:
   u7_add_replacement: "Add replacement"
   u7_add_word: "Add word"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "Ізоляція голосу"
   reduce_background_noise_before_transcription: "Зменшувати фоновий шум перед транскрибуванням"
+  note: "Голосова нотатка"
 vs:
   typing: "проти набору тексту"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "вчора"
 you:
+  _self: "Ви"
   are_a_note_formatting_assistant_transform_th: "Ви помічник форматування нотаток. Перетворіть транскрибований текст на добре структуровану примітку.nnПравила:n- Виправте граматичні, пунктуаційні та орфографічні помилкиn- Для довшого вмісту (3+ абзаців) додайте форматування розмітки:n - Використовуйте заголовки (## або ###), щоб упорядкувати розділиn - Використовуйте маркери або нумеровані списки, де це доречноn - Використовуйте **жирний шрифт** для виділення ключових термінівn- Для коротшого вмісту зберігайте це просто з мінімальним форматуваннямn- Зберігайте оригінальне значення та тон- Не додавайте вміст, якого не було в оригіналіn- Повертайте лише відформатовану примітку без будь-яких коментарів"
   are_a_text_enhancement_assistant_improve_the: "Ви помічник із покращення тексту. Покращте граматику, пунктуацію та форматування наданого тексту, зберігаючи його оригінальний зміст і тон. Повернути лише розширений текст без додаткових коментарів."
   can_change_these_anytime_from_the_menu_bar_s: "Ви можете будь-коли змінити їх у рядку меню → Налаштування → Гарячі клавіші"
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "Усе готово!"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Ви перевищили ліміт або квоту швидкості API.                                  Щоб виправити це: 1. Зачекайте кілька хвилин і повторіть спробу 2. Перевірте обмеження на використання вашого постачальника API 3. Розгляньте можливість оновлення вашого плану API. Транскрипцію збережено без покращення.                 \"\""
   re_in_control: "Ви все контролюєте"
+  deleted_this_transcript: "Ви видалили цей транскрипт."
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\" Схоже, ваш ключ API недійсний або прострочений.                                  Щоб виправити це: 1. Відкрийте «Параметри» → «Покращення штучного інтелекту» 2. Переконайтеся, що ваш ключ API правильний 3. Переконайтеся, що ваша кінцева точка API правильна. Транскрипцію збережено без покращення.                 \"\""
   floating_indicator_is_now_a_living_audio_re: "Ваш плаваючий індикатор тепер живий orb, що реагує на звук. Він дихає в режимі очікування, збільшується, коли ви говорите, і наживо показує ваші слова під час диктування."
@@ -1566,6 +1639,8 @@ your:
   stats: "Ваша статистика"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "Ваші слова залишаються вашими"
+  enhanced_note_is_ready: "Ваша покращена нотатка готова."
+  notes_and_the_enhanced_note_stay_the_transc: "Ваші нотатки й покращена нотатка залишаються. Транскрипт сховано в цій нотатці."
 zoom:
   _self: "Масштаб"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "%@ вхідних / %@ вихідних токенів"
   in_out_thinking: "%@ вхідних / %@ вихідних / %@ токенів міркування"
+auto:
+  _self: "Автоматично"
+discard:
+  recording: "Відкинути запис"
+  this_recording: "Відкинути цей запис?"
+finalizing:
+  _self: "Завершення"
+finish:
+  _self: "Завершити"
+  the_active_transcription_before_starting: "Завершіть поточну транскрипцію, перш ніж почати іншу."
+  the_active_transcription_before_starting_another: "Завершіть поточну транскрипцію, перш ніж почати іншу."
+generate:
+  enhanced_note: "Створити покращену нотатку"
+generated:
+  _self: "Створено %@"
+  1_2_template: "Створено %1$@ · шаблон %2$@"
+helpful:
+  _self: "Корисно"
+identifying:
+  speakers: "Розпізнавання мовців"
+jump:
+  to_live: "Перейти до живого тексту"
+  to_this_line: "Перейти до цього рядка"
+mic:
+  _self: "Мікрофон"
+more:
+  note_actions: "Більше дій із нотаткою"
+  recording_options: "Більше параметрів запису"
+my:
+  notes: "Мої нотатки"
+nothing:
+  was_transcribed_yet: "Ще нічого не розшифровано."
+playback:
+  position: "Позиція відтворення"
+s:
+  to_save: "⌘S зберігає"
+sealing:
+  audio: "Збереження аудіо"
+  the_recording: "Збереження запису."
+see:
+  this_in_the_transcript: "Побачити це в транскрипті"
+template:
+  _self: "Шаблон: %@"
+templates:
+  _self: "Шаблони"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "Транскрипта для покращення ще немає. Спершу запишіть цю нотатку."
+transcribing:
+  _self: "Розшифрування"
+transcript:
+  _self: "Транскрипт"
+  source: "Джерело транскрипта %@"
+was:
+  this_note_useful: "Ця нотатка була корисною?"
+writing:
+  note: "Написання нотатки"
+  your_enhanced_note: "Пишемо вашу покращену нотатку."
+  your_enhanced_note_comes_next_long_recor: "Далі пишемо вашу покращену нотатку. Довгі записи можуть зайняти кілька хвилин. Ви можете писати далі."
+  your_enhanced_note_with: "Пишемо вашу покращену нотатку за допомогою %@."

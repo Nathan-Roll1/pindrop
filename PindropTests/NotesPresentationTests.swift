@@ -288,6 +288,70 @@ struct NotesPresentationTests {
         #expect(label == "edited just now")
     }
 
+    // MARK: - Row accessibility (WP9)
+
+    @Test func rowAccessibilityLabelNamesTheGlyphLane() {
+        let typed = NoteRowPresentation.accessibilityLabel(
+            title: "Weekly planning",
+            facts: .none,
+            dateText: "09:41",
+            locale: en
+        )
+        #expect(typed == "Note, Weekly planning, 09:41")
+
+        let meeting = NoteRowPresentation.accessibilityLabel(
+            title: "Standup",
+            facts: NoteRowCaptureFacts(
+                hasCaptureLink: true,
+                isMeetingCapture: true,
+                hasEnhancedArtifact: true,
+                duration: 2538
+            ),
+            dateText: "Yesterday",
+            locale: en
+        )
+        #expect(meeting == "Meeting note, Standup, Enhanced, 42:18, Yesterday")
+
+        let voice = NoteRowPresentation.accessibilityLabel(
+            title: "Ideas",
+            facts: NoteRowCaptureFacts(
+                hasCaptureLink: true,
+                isMeetingCapture: false,
+                hasEnhancedArtifact: false,
+                duration: nil
+            ),
+            locale: en
+        )
+        #expect(voice == "Voice note, Ideas")
+    }
+
+    @Test func rowAccessibilityLabelSaysRecordingInsteadOfEmptyLanes() {
+        let label = NoteRowPresentation.accessibilityLabel(
+            title: "Weekly planning",
+            facts: NoteRowCaptureFacts(
+                hasCaptureLink: true,
+                isMeetingCapture: false,
+                hasEnhancedArtifact: false,
+                duration: nil
+            ),
+            liveElapsed: 243,
+            dateText: "09:41",
+            locale: en
+        )
+        #expect(label == "Voice note, Weekly planning, Recording, 04:03")
+    }
+
+    @Test func pinnedRowAccessibilityLabelSaysItIsPinned() {
+        let label = NoteRowPresentation.accessibilityLabel(
+            title: "Weekly planning",
+            facts: .none,
+            isPinned: true,
+            dateText: "edited just now",
+            locale: en
+        )
+        #expect(label == "Note, Weekly planning, Pinned, edited just now")
+    }
+
     // MARK: - List presentation
 
     @Test func displayTitleFallsBackToContentThenEmpty() {

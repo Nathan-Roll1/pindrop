@@ -363,7 +363,9 @@ struct NotePageView: View {
     private var backChip: some View {
         Button(action: onBack) {
             HStack(spacing: 4) {
-                Image(systemName: "chevron.left")
+                // `.backward`, not `.left`: the back chip has to point at the
+                // list, and the list is on the right in a right-to-left locale.
+                Image(systemName: "chevron.backward")
                     .font(.system(size: 11, weight: .medium))
                 Text(localized("Notes", locale: locale))
                     .font(AppTypography.labelStrong)
@@ -384,6 +386,7 @@ struct NotePageView: View {
                     Circle()
                         .fill(AppColors.recording)
                         .frame(width: 8, height: 8)
+                        .accessibilityHidden(true)
                     Text(localized("Record", locale: locale))
                         .font(AppTypography.labelSemibold)
                         .foregroundStyle(AppColors.textPrimary)
@@ -1051,11 +1054,20 @@ struct NotePageView: View {
             }
 
             if let trailing = line.trailing {
-                Text(trailing)
-                    .font(AppTypography.monoSmall)
-                    .foregroundStyle(AppColors.textTertiary)
-                    .onTapGesture { saveNow() }
-                    .help(localized("Save now (⌘S)", locale: locale))
+                Button(action: saveNow) {
+                    Text(trailing)
+                        .font(AppTypography.monoSmall)
+                        .foregroundStyle(AppColors.textTertiary)
+                        // A shortcut is read key by key, so it keeps its
+                        // left-to-right order in a right-to-left locale.
+                        .environment(\.layoutDirection, .leftToRight)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .focusRing(.rounded(.sm))
+                .help(localized("Save now (⌘S)", locale: locale))
+                .accessibilityIdentifier("note.page.footer.save")
+                .accessibilityLabel(localized("Save now (⌘S)", locale: locale))
             }
         }
         .padding(.horizontal, 40)
@@ -1107,6 +1119,14 @@ struct NotePageView: View {
         }
         lastSeenPanelID = views?.panels.first?.id
         hasUnreadEnhanced = false
+
+        // Focus order on this page is title, then the view toggle, then the
+        // canvas: the order the controls are declared in. A page opened on an
+        // untitled note starts at the top of that order instead of nowhere, so
+        // the first Tab lands on the toggle and the second on the editor.
+        if title.isEmpty, content.isEmpty {
+            titleFieldFocused = true
+        }
     }
 
     private func refreshViews() async {

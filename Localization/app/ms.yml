@@ -9,11 +9,16 @@
   transcription: "1 transkripsi"
   word: "1 perkataan"
   year: "1 year"
+  edited_2: "%1$@ · disunting %2$@"
+  recording: "%1$@ rakaman"
+  recording_2: "%1$@ rakaman · %2$@"
+  result: "1 hasil"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "Satu pusingan besar peningkatan — dan dua penghargaan komuniti."
   native_macos_menu_bar_dictation_app_using_loca: "Apl imlak bar menu macOS asli menggunakan pertuturan-ke-teks tempatan dengan WhisperKit. 100% pemprosesan tempatan secara lalai dengan peningkatan AI pilihan."
+  note_capture_is_already_running: "Rakaman nota sedang berjalan."
 about:
   _self: "Tentang"
   pindrop: "Mengenai Pindrop"
@@ -79,6 +84,7 @@ an:
     Transkripsi asal telah disimpan tanpa penambahan.
     Anda boleh cuba mendayakan peningkatan AI sekali lagi dalam Tetapan.
   error_occurred_while_enhancing_your_transcrip_1790ad05: "Ralat berlaku semasa mempertingkatkan transkripsi anda:nn%@nnTranskripsi asal telah disimpan tanpa penambahan.nAnda boleh cuba mendayakan peningkatan AI sekali lagi dalam Tetapan."
+  earlier_version_of_pindrop_wrote_this_note_it: "Nota ini ditulis oleh Pindrop versi lama. Ia tidak boleh ditulis semula."
 anthropic:
   _self: "Antropik"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "Input Audio"
+  sealed: "Audio dimeterai"
 automatic:
   follow_system: "Automatik (Ikuti Sistem)"
   updates: "Kemas kini automatik"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "Mulakan Pindrop secara automatik apabila anda log masuk."
 available:
   models: "Model Tersedia"
+  when_the_recording_is_finished: "Tersedia apabila rakaman selesai"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "belakang"
   to_library: "Kembali ke perpustakaan"
+  to_notes: "Kembali ke nota"
 base:
   _self: "Pangkalan"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "Batal"
   operation: "Batalkan Operasi"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "Batalkan rakaman"
 capture:
   directly_into_the_note_editor_with_a_hol: "Tangkap terus ke dalam editor nota dengan aliran tahan untuk rekod."
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "Klik atau tekan"
   or_set_a_hotkey_to_start_talking: "Klik atau tetapkan kekunci pintas untuk mula bercakap"
   this_icon_anytime_to: "Klik ikon ini pada bila-bila masa untuk:"
+  a_number_to_see_it_in_the_transcript: "Klik nombor untuk melihatnya dalam transkrip."
+  new_note_to_start_one: "Klik Nota baharu untuk bermula. Pindrop merakam sambil anda menaip."
 client:
   _self: "Klien"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copy the most recent transcript to the clipboard."
   to_clipboard: "Salin ke papan keratan"
   transcript: "Salin Transkrip"
+  content: "Salin kandungan"
 correct:
   grammar_mistakes: "Betulkan kesalahan tatabahasa"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "Tersuai / Setempat"
   openai_compatible: "Tersuai (serasi OpenAI)"
   presets: "Pratetap Tersuai"
+  templates: "Templat anda"
 customize:
   hotkey: "Sesuaikan kekunci pintas"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d samples · %@"
   speakers: "%d penutur"
   words: "%d perkataan"
+  results: "%d hasil"
 dark:
   _self: "Gelap"
   preview: "Pratonton Gelap"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "Padamkan transkripsi?"
   all_contributions: "Padam semua sumbangan…"
   all_stored_text_pairs: "Padam semua pasangan teks tersimpan?"
+  this_note: "Padam nota ini"
+  this_transcript: "Padam transkrip ini?"
+  transcript: "Padam transkrip"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "Bahasa Inggeris sahaja"
 enhanced:
   _self: "Dipertingkatkan"
+  note: "Nota dipertingkat"
 enhancement:
   prompts: "Gesaan Peningkatan"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "Fail"
 find:
   _self: "Cari"
+  in_transcript: "Cari dalam transkrip"
 fix:
   punctuation_and_capitalization: "Betulkan tanda baca dan huruf besar"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "Sembunyikan kunci API"
   this_for_1_hour: "Sembunyikan ini selama 1 jam"
+  live_transcript: "Sembunyikan transkrip langsung"
 history:
   _self: "Sejarah"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "Mendengar…"
 live:
   streaming_refinement: "Penapisan Penstriman Langsung"
+  text_stopped_the_recording_continues: "Teks langsung berhenti. Rakaman diteruskan."
+  transcript: "Transkrip langsung"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "Urus Pratetap"
   presets_ab87986d: "Urus Pratetap..."
   presets_d5d4c2c2: "Manage Presets…"
+  templates: "Urus templat…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "Kenali Orb baharu"
 meeting:
   saved: "Mesyuarat disimpan"
+  note: "Nota mesyuarat"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "Folder Baharu"
   note: "Nota Baharu"
   preset: "Pratetap Baharu"
+  note_with_system_audio: "Nota baharu dengan audio sistem"
+  note_without_recording: "Nota baharu tanpa rakaman"
 newest:
   _self: "Terbaru"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "Tiada Perbendaharaan Kata"
   transcripts_audio_prompts_file_names_or_perso: "Tiada transkripsi, audio, gesaan, nama fail, atau kandungan peribadi — tidak sekali-kali."
   contributions_yet_pairs_are_stored_when_ai_en: "Belum ada sumbangan. Pasangan disimpan apabila penambahbaikan AI atau suntingan manual mengubah transkripsi."
+  audio_was_recorded_for_this_note: "Tiada audio dirakam untuk nota ini."
+  enhanced_note_yet: "Belum ada nota dipertingkat."
+  notes_yet_sentence: "Belum ada nota."
+  results_try_another_word: "Tiada hasil. Cuba perkataan lain."
 not:
   assigned: "Tidak ditugaskan"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -748,6 +779,7 @@ not:
   set: "Tidak Ditetapkan"
   set_93039e60: "Tidak ditetapkan"
   now: "Bukan sekarang"
+  helpful: "Tidak berguna"
 note:
   _self: "Nota"
   capture_hold: "Note Capture — Hold"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "Nota"
   3add7b96: "nota"
+  header_meta_empty: "belum ada apa-apa di sini"
+  header_meta_today: "%1$@, %2$@ daripada hari ini"
+  new_note_options_label: "Pilihan nota baharu yang lain"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "Mati"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "Buka Tetapan"
   settings_fd7108f8: "Buka tetapan"
   system_settings: "Buka Tetapan Sistem"
+  in_new_window: "Buka dalam tetingkap baharu"
+  note: "Buka nota"
 openai:
   _self: "OpenAI"
   compatible_local_server: "Pelayan tempatan serasi OpenAI"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "Pilih penyedia dan model yang mengendalikan setiap tugas AI. Biarkan sebagai \"Tidak ditetapkan\" untuk melangkau tujuan."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
+  a_model_for_note_enhancement_in_settings_th: "Pilih model peningkatan nota dalam Tetapan, kemudian cuba lagi."
 pill:
   _self: "Pil"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "Pil Pindrop"
   theme: "Tema Pindrop"
   can_send_anonymous_privacy_preserving_si: "Pindrop boleh menghantar isyarat tanpa nama yang melindungi privasi supaya pepijat diperbaiki dengan lebih cepat."
+  writes_one_from_your_notes_and_the_trans: "Pindrop menulisnya daripada nota anda dan transkrip."
 pinned:
   _self: "Disemat"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "Disyorkan"
 record:
   _self: "Rekod"
+  with_system_audio: "Rakam dengan audio sistem"
 recording:
   _self: "Rakaman"
   3f8fd48c: "🔴 Rakaman"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "Rakaman sedang dijalankan — transkripsi akan bermula apabila selesai."
   stopped_with_error: "Rakaman dihentikan: %@"
   from_external_and_bluetooth_microphone: "Rakaman daripada mikrofon luaran dan Bluetooth kini sangat stabil, walaupun output audio dihalakan ke tempat lain."
+  continues_while_you_work: "Rakaman diteruskan sambil anda bekerja"
+  transcribed: "Rakaman ditranskrip."
 recordings:
   _self: "rakaman"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "Tunjukkan penunjuk terapung"
   in_dock: "Tunjukkan dalam Dok"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "Tunjukkan transkrip langsung"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Dipaparkan sebagai orb kaca cecair di penjuru skrin"
   as_a_pill_at_the_bottom_of_the_screen: "Ditunjukkan sebagai pil di bahagian bawah skrin"
@@ -1138,17 +1182,24 @@ source:
   _self: "Sumber"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "Sumber ditetapkan apabila rakaman bermula."
+  d: "Sumber (%d)"
 spanish:
   _self: "bahasa Sepanyol"
 speak:
   to_append: "Cakap untuk tambah"
 speaker:
+  _self: "Penutur"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Diarisasi pembesar suara dan cap masa dilampirkan pada main semula."
   diarization_is_required: "Diarisasi pembesar suara diperlukan"
   profile_training: "Speaker profile training"
+  d: "Penutur %d"
 speakers:
   _self: "Penceramah"
+  1: "Penutur: %1$@"
+  are_set_when_the_recording_starts: "Penutur ditetapkan apabila rakaman bermula."
+  identified: "Penutur dikenal pasti"
 speed:
   _self: "Kelajuan"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "Sistem"
   default: "Lalai Sistem"
+  audio: "Audio sistem"
 teach:
   custom_words: "Ajar perkataan tersuai"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\"\" Model gagal dimuatkan dalam masa 60 saat. Ini biasanya bermakna fail model rosak atau tidak serasi.                          Untuk membetulkannya: 1. Buka Tetapan → Model 2. Padamkan model yang bermasalah 3. Muat turun semula model Jika masalah berterusan, cuba model yang lebih kecil (Tiny atau Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "Enjin penstriman Nemotron baharu memaparkan perkataan semasa anda menyebutnya, dan enjin diprapanaskan semasa pelancaran supaya imlak pertama bermula tanpa lengah."
   selected_chunk_variant_isn_t_downloaded_yet: "Varian bahagian yang dipilih belum dimuat turun lagi. Togol akan memulakan muat turun."
+  audio_and_the_live_transcript_are_deleted_yo: "Audio dan transkrip langsung dipadam. Nota yang anda taip kekal."
+  enhanced_note_could_not_be_generated_try_aga: "Nota dipertingkat tidak dapat dijana. Cuba lagi."
+  enhanced_note_could_not_be_saved_try_again: "Nota dipertingkat tidak dapat disimpan. Cuba lagi."
+  model_returned_an_empty_note_try_again: "Model mengembalikan nota kosong. Cuba lagi."
+  note_enhancement_model_is_unavailable_check: "Model peningkatan nota tidak tersedia. Semak dalam Tetapan, kemudian cuba lagi."
+  note_this_recording_belongs_to_could_not_be_opened: "Nota yang memiliki rakaman ini tidak dapat dibuka."
+  recorded_audio_could_not_be_prepared: "Audio yang dirakam tidak dapat disediakan untuk transkripsi."
+  recorder_did_not_start: "Perakam tidak bermula."
+  transcript_fills_in_as_you_speak: "Transkrip terisi sambil anda bercakap."
+  transcript_starts_once_you_speak: "Transkrip bermula sebaik anda bercakap."
 theme:
   _self: "Tema"
   changes_apply_live_across_the_workspace_se: "Perubahan tema digunakan secara langsung merentas ruang kerja, tetapan, editor nota dan penunjuk terapung."
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "Ini akan mengalih keluar transkrip dan fail media terurusnya secara kekal."
   will_permanently_remove_this_note: "Ini akan membuang nota ini secara kekal."
   permanently_deletes_all_stored_text_pairs_f: "Ini memadamkan secara kekal semua pasangan teks tersimpan daripada Mac ini."
+  template_could_not_be_read_pick_another_tem: "Templat ini tidak dapat dibaca. Pilih templat lain dan cuba lagi."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "Metadata Transkripsi"
   saved: "Transkripsi disimpan"
   update: "Kemas kini transkripsi"
+  done: "Transkripsi selesai"
 transcriptions:
   _self: "Transkripsi"
   f0972acc: "transkripsi"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "Cuba istilah carian yang berbeza."
   a_different_search_term_in_this_folder: "Cuba istilah carian lain dalam folder ini."
   searching_for_terms_like_hotkeys_microphone: "Cuba cari istilah seperti kekunci pintas, mikrofon, kemas kini atau mod getaran."
+  again: "Cuba lagi"
 turkish:
   _self: "bahasa Turki"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "Pendiktean terkini anda akan dipaparkan di sini."
   home_streak: "Berturut-turut"
   home_subline_duration_only: "%@ pendiktean."
-  home_subline_full: "%@ pendiktean — kira-kira %@ dijimatkan berbanding menaip."
+  home_subline_full: "%@ imlak. Kira-kira %@ dijimatkan berbanding menaip."
   home_this_week: "Minggu ini"
   home_welcome_tagline: "Bercakap. Ia ditulis."
   home_words_per_min: "Perkataan / min"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "Perkataan hari ini"
   home_you_spoke_this_week: "Anda menyebut %@ minggu ini."
   home_zero_day: "0-hari"
+  home_n_sessions_grouped: "%@ sesi"
+  home_no_dictations_yet: "Belum ada imlak."
+  home_one_session: "1 sesi"
+  home_press_hotkey_to_start: "Tekan %@ di mana-mana untuk bermula."
+  home_stop: "Henti"
 u5:
   u7_add_replacement: "Add replacement"
   u7_add_word: "Add word"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "Pengasingan suara"
   reduce_background_noise_before_transcription: "Kurangkan bunyi latar sebelum transkripsi"
+  note: "Nota suara"
 vs:
   typing: "vs menaip"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "Semalam"
 you:
+  _self: "Anda"
   are_a_note_formatting_assistant_transform_th: "Anda ialah pembantu pemformatan nota. Ubah teks yang ditranskripsikan kepada nota yang tersusun dengan baik.nnPeraturan:n- Betulkan kesilapan tatabahasa, tanda baca dan ejaann- Untuk kandungan yang lebih panjang (3+ perenggan), tambahkan pemformatan markdown:n - Gunakan pengepala (## atau ###) untuk menyusun bahagiann - Gunakan titik tumpu atau senarai bernombor yang sesuain - Gunakan **bold** untuk penegasan kandungan yang lebih ringkas dengan format P yang lebih pendek maksud dan nada asal- Jangan tambahkan kandungan yang tiada dalam asal- Kembalikan nota berformat sahaja tanpa sebarang ulasan"
   are_a_text_enhancement_assistant_improve_the: "Anda ialah pembantu peningkatan teks. Tingkatkan tatabahasa, tanda baca dan pemformatan teks yang disediakan sambil mengekalkan makna dan nada asalnya. Kembalikan hanya teks yang dipertingkatkan tanpa sebarang ulasan tambahan."
   can_change_these_anytime_from_the_menu_bar_s: "Anda boleh menukarnya pada bila-bila masa dari bar menu → Tetapan → Hotkeys"
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "Anda sudah bersedia!"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Anda telah melebihi had kadar API atau kuota anda.                                  Untuk membetulkannya: 1. Tunggu beberapa minit dan cuba lagi 2. Semak had penggunaan penyedia API anda 3. Pertimbangkan untuk menaik taraf pelan API anda Transkripsi telah disimpan tanpa peningkatan.                 \"\""
   re_in_control: "Anda yang mengawal"
+  deleted_this_transcript: "Anda memadam transkrip ini."
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\" Kunci API anda nampaknya tidak sah atau tamat tempoh.                                  Untuk membetulkannya: 1. Buka Tetapan → Peningkatan AI 2. Sahkan kunci API anda betul 3. Semak sama ada titik akhir API anda betul Transkripsi telah disimpan tanpa peningkatan.                 \"\""
   floating_indicator_is_now_a_living_audio_re: "Penunjuk terapung anda kini orb hidup yang bertindak balas kepada audio. Ia bernafas ketika melahu, mengembang apabila anda bercakap, dan menstrim perkataan anda secara langsung semasa imlak."
@@ -1566,6 +1639,8 @@ your:
   stats: "Statistik anda"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "Kata-kata anda kekal milik anda"
+  enhanced_note_is_ready: "Nota dipertingkat anda sudah sedia."
+  notes_and_the_enhanced_note_stay_the_transc: "Nota anda dan nota dipertingkat kekal. Transkrip disembunyikan daripada nota ini."
 zoom:
   _self: "Zum"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "%@ token masuk / %@ keluar"
   in_out_thinking: "%@ token masuk / %@ keluar / %@ pemikiran"
+auto:
+  _self: "Automatik"
+discard:
+  recording: "Buang rakaman"
+  this_recording: "Buang rakaman ini?"
+finalizing:
+  _self: "Memuktamadkan"
+finish:
+  _self: "Selesai"
+  the_active_transcription_before_starting: "Selesaikan transkripsi yang sedang berjalan sebelum memulakan yang lain."
+  the_active_transcription_before_starting_another: "Selesaikan transkripsi yang sedang berjalan sebelum memulakan yang lain."
+generate:
+  enhanced_note: "Jana nota dipertingkat"
+generated:
+  _self: "Dijana %@"
+  1_2_template: "Dijana %1$@ · templat %2$@"
+helpful:
+  _self: "Berguna"
+identifying:
+  speakers: "Mengenal pasti penutur"
+jump:
+  to_live: "Lompat ke langsung"
+  to_this_line: "Lompat ke baris ini"
+mic:
+  _self: "Mikrofon"
+more:
+  note_actions: "Tindakan nota lain"
+  recording_options: "Pilihan rakaman lain"
+my:
+  notes: "Nota saya"
+nothing:
+  was_transcribed_yet: "Belum ada apa-apa ditranskrip."
+playback:
+  position: "Kedudukan main balik"
+s:
+  to_save: "⌘S untuk simpan"
+sealing:
+  audio: "Memeterai audio"
+  the_recording: "Memeterai rakaman."
+see:
+  this_in_the_transcript: "Lihat ini dalam transkrip"
+template:
+  _self: "Templat: %@"
+templates:
+  _self: "Templat"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "Belum ada transkrip untuk dipertingkat. Rakam nota ini dahulu."
+transcribing:
+  _self: "Mentranskrip"
+transcript:
+  _self: "Transkrip"
+  source: "Sumber transkrip %@"
+was:
+  this_note_useful: "Adakah nota ini berguna?"
+writing:
+  note: "Menulis nota"
+  your_enhanced_note: "Menulis nota dipertingkat anda."
+  your_enhanced_note_comes_next_long_recor: "Seterusnya nota dipertingkat anda ditulis. Rakaman panjang boleh mengambil beberapa minit. Anda boleh terus menaip."
+  your_enhanced_note_with: "Menulis nota dipertingkat anda dengan %@."

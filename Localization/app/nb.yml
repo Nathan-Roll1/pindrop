@@ -9,11 +9,16 @@
   transcription: "1 transkripsjon"
   word: "1 ord"
   year: "1 year"
+  edited_2: "%1$@ · endret %2$@"
+  recording: "%1$@ opptak"
+  recording_2: "%1$@ opptak · %2$@"
+  result: "1 treff"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "En stor runde med oppgraderinger — og to takk til fellesskapet."
   native_macos_menu_bar_dictation_app_using_loca: "En innebygd macOS-menylinjedikteringsapp som bruker lokal tale-til-tekst med WhisperKit. 100 % lokal behandling som standard med valgfri AI-forbedring."
+  note_capture_is_already_running: "Et notatopptak pågår allerede."
 about:
   _self: "Om"
   pindrop: "Om Pindrop"
@@ -79,6 +84,7 @@ an:
     Den originale transkripsjonen ble lagret uten forbedring.
     Du kan prøve å aktivere AI-forbedring igjen i Innstillinger.
   error_occurred_while_enhancing_your_transcrip_1790ad05: "Det oppstod en feil under forbedring av transkripsjonen din:nn%@nnDen originale transkripsjonen ble lagret uten forbedring.nDu kan prøve å aktivere AI-forbedring igjen i Innstillinger."
+  earlier_version_of_pindrop_wrote_this_note_it: "En tidligere versjon av Pindrop skrev dette notatet. Det kan ikke skrives på nytt."
 anthropic:
   _self: "Antropisk"
 api:
@@ -110,6 +116,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "Lydinngang"
+  sealed: "Lyden er forseglet"
 automatic:
   follow_system: "Automatisk (følg systemet)"
   updates: "Automatiske oppdateringer"
@@ -119,6 +126,7 @@ automatically:
   start_pindrop_when_you_sign_in: "Start Pindrop automatisk når du logger på."
 available:
   models: "Tilgjengelige modeller"
+  when_the_recording_is_finished: "Tilgjengelig når opptaket er ferdig"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +138,7 @@ avg:
 back:
   _self: "Tilbake"
   to_library: "Tilbake til biblioteket"
+  to_notes: "Tilbake til notater"
 base:
   _self: "Base"
 bearer:
@@ -150,6 +159,7 @@ cancel:
   _self: "Kansellere"
   operation: "Avbryt operasjon"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "Avbryt opptaket"
 capture:
   directly_into_the_note_editor_with_a_hol: "Ta direkte inn i notatredigeringsprogrammet med en hold-til-opptak-flyt."
 change:
@@ -204,6 +214,8 @@ click:
   or_press: "Klikk eller trykk"
   or_set_a_hotkey_to_start_talking: "Klikk eller angi en hurtigtast for å begynne å snakke"
   this_icon_anytime_to: "Klikk på dette ikonet når som helst for å:"
+  a_number_to_see_it_in_the_transcript: "Klikk på et tall for å se det i transkriptet."
+  new_note_to_start_one: "Klikk på Nytt notat for å starte ett. Pindrop tar opp mens du skriver."
 client:
   _self: "Klient"
 clipboard:
@@ -254,6 +266,7 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copy the most recent transcript to the clipboard."
   to_clipboard: "Kopier til utklippstavlen"
   transcript: "Kopier transkripsjon"
+  content: "Kopier innholdet"
 correct:
   grammar_mistakes: "Rett grammatikkfeil"
 could:
@@ -279,6 +292,7 @@ custom:
   local: "Egendefinert / lokal"
   openai_compatible: "Egendefinert (OpenAI-kompatibel)"
   presets: "Egendefinerte forhåndsinnstillinger"
+  templates: "Egne maler"
 customize:
   hotkey: "Tilpass hurtigtast"
 cut:
@@ -288,6 +302,7 @@ d:
   samples: "%d samples · %@"
   speakers: "%d talere"
   words: "%d ord"
+  results: "%d treff"
 dark:
   _self: "Mørk"
   preview: "Mørk forhåndsvisning"
@@ -319,6 +334,9 @@ delete:
   transcription_f82187c4: "Vil du slette transkripsjonen?"
   all_contributions: "Slett alle bidrag…"
   all_stored_text_pairs: "Slette alle lagrede tekstpar?"
+  this_note: "Slett dette notatet"
+  this_transcript: "Slette dette transkriptet?"
+  transcript: "Slett transkriptet"
 destinations:
   _self: "Destinations"
 diarization:
@@ -399,6 +417,7 @@ english:
   only: "Kun engelsk"
 enhanced:
   _self: "Forbedret"
+  note: "Forbedret notat"
 enhancement:
   prompts: "Forbedringsspørsmål"
 enhancing:
@@ -458,6 +477,7 @@ file:
   _self: "Arkiv"
 find:
   _self: "Søk"
+  in_transcript: "Søk i transkriptet"
 fix:
   punctuation_and_capitalization: "Rett opp tegnsetting og store bokstaver"
 floating:
@@ -506,6 +526,7 @@ help:
 hide:
   api_key: "Skjul API-nøkkel"
   this_for_1_hour: "Skjul dette i 1 time"
+  live_transcript: "Skjul direktetranskriptet"
 history:
   _self: "Historie"
 hold:
@@ -603,6 +624,8 @@ listening:
   _self: "Lytter…"
 live:
   streaming_refinement: "Forbedring av direktestrømming"
+  text_stopped_the_recording_continues: "Direkteteksten stoppet. Opptaket fortsetter."
+  transcript: "Direktetranskript"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +666,7 @@ manage:
   presets: "Administrer forhåndsinnstillinger"
   presets_ab87986d: "Administrer forhåndsinnstillinger..."
   presets_d5d4c2c2: "Manage Presets…"
+  templates: "Administrer maler…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +691,7 @@ meet:
   the_new_orb: "Møt den nye Orb"
 meeting:
   saved: "Møte lagret"
+  note: "Møtenotat"
 metric:
   _self: "Metric"
 microphone:
@@ -703,6 +728,8 @@ new:
   folder: "Ny mappe"
   note: "Ny merknad"
   preset: "Ny forhåndsinnstilling"
+  note_with_system_audio: "Nytt notat med systemlyd"
+  note_without_recording: "Nytt notat uten opptak"
 newest:
   _self: "Nyeste"
 next:
@@ -739,6 +766,10 @@ no:
   vocabulary_words: "Ingen ordforråd"
   transcripts_audio_prompts_file_names_or_perso: "Ingen transkripsjoner, lyd, ledetekster, filnavn eller personlig innhold — aldri."
   contributions_yet_pairs_are_stored_when_ai_en: "Ingen bidrag ennå. Par lagres når AI-forbedring eller manuelle redigeringer endrer en transkripsjon."
+  audio_was_recorded_for_this_note: "Det ble ikke tatt opp lyd for dette notatet."
+  enhanced_note_yet: "Ingen forbedret notat ennå."
+  notes_yet_sentence: "Ingen notater ennå."
+  results_try_another_word: "Ingen treff. Prøv et annet ord."
 not:
   assigned: "Ikke tildelt"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -748,6 +779,7 @@ not:
   set: "Ikke satt"
   set_93039e60: "Ikke satt"
   now: "Ikke nå"
+  helpful: "Ikke nyttig"
 note:
   _self: "Note"
   capture_hold: "Note Capture — Hold"
@@ -762,6 +794,10 @@ note:
 notes:
   _self: "Notater"
   3add7b96: "notater"
+  header_meta_empty: "ingenting her ennå"
+  header_meta_today: "%1$@, %2$@ fra i dag"
+  new_note_options_label: "Flere valg for nytt notat"
+  row_recording_elapsed: "REC %@"
 off:
   _self: "Av"
 ok:
@@ -784,6 +820,8 @@ open:
   settings: "Åpne Innstillinger"
   settings_fd7108f8: "Åpne innstillinger"
   system_settings: "Åpne Systeminnstillinger"
+  in_new_window: "Åpne i nytt vindu"
+  note: "Åpne notatet"
 openai:
   _self: "OpenAI"
   compatible_local_server: "OpenAI-kompatibel lokal server"
@@ -830,6 +868,7 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "Velg hvilken leverandør og modell som håndterer hver AI-oppgave. La stå som «Ikke tildelt» for å hoppe over et formål."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
+  a_model_for_note_enhancement_in_settings_th: "Velg en modell for notatforbedring i Innstillinger, og prøv igjen."
 pill:
   _self: "Pille"
 pillars:
@@ -883,6 +922,7 @@ pindrop:
   pill: "Pindrop pille"
   theme: "Pindrop-tema"
   can_send_anonymous_privacy_preserving_si: "Pindrop kan sende anonyme, personvernbevarende signaler slik at feil rettes raskere."
+  writes_one_from_your_notes_and_the_trans: "Pindrop skriver ett ut fra notatene dine og transkriptet."
 pinned:
   _self: "Festet"
 plain:
@@ -981,6 +1021,7 @@ recommended:
   _self: "Anbefalt"
 record:
   _self: "Rekord"
+  with_system_audio: "Ta opp med systemlyd"
 recording:
   _self: "Innspilling"
   3f8fd48c: "🔴 Opptak"
@@ -988,6 +1029,8 @@ recording:
   in_progress_transcription_will_start: "Opptak pågår — transkripsjon starter når det er ferdig."
   stopped_with_error: "Opptak stoppet: %@"
   from_external_and_bluetooth_microphone: "Opptak fra eksterne og Bluetooth-mikrofoner er nå svært stabilt, selv når lydutgangen rutes et annet sted."
+  continues_while_you_work: "Opptaket fortsetter mens du jobber"
+  transcribed: "Opptaket er transkribert."
 recordings:
   _self: "opptak"
 redo:
@@ -1101,6 +1144,7 @@ show:
   floating_indicator: "Vis flytende indikator"
   in_dock: "Vis i Dock"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "Vis direktetranskriptet"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Vises som en kule av flytende glass i hjørnet av skjermen"
   as_a_pill_at_the_bottom_of_the_screen: "Vises som en pille nederst på skjermen"
@@ -1138,17 +1182,24 @@ source:
   _self: "Kilde"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "Kildene låses når opptaket starter."
+  d: "Kilder (%d)"
 spanish:
   _self: "spansk"
 speak:
   to_append: "Snakk for å legge til"
 speaker:
+  _self: "Taler"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Høyttalerdiarisering og tidsstempler er festet til avspilling."
   diarization_is_required: "Høyttalerdiarisering er nødvendig"
   profile_training: "Speaker profile training"
+  d: "Taler %d"
 speakers:
   _self: "Talere"
+  1: "Talere: %1$@"
+  are_set_when_the_recording_starts: "Talerne settes når opptaket starter."
+  identified: "Talere funnet"
 speed:
   _self: "Fart"
 start:
@@ -1189,6 +1240,7 @@ switching:
 system:
   _self: "System"
   default: "Systemstandard"
+  audio: "Systemlyd"
 teach:
   custom_words: "Lær tilpassede ord"
 temporarily:
@@ -1205,6 +1257,16 @@ the:
   model_failed_to_load_within_60_seconds_this: "\"\" Modellen kunne ikke lastes innen 60 sekunder. Dette betyr vanligvis at modellfilene er ødelagte eller inkompatible.                          For å fikse dette: 1. Åpne Innstillinger → Modeller 2. Slett den problematiske modellen 3. Last ned modellen på nytt Hvis problemet vedvarer, prøv en mindre modell (Tiny eller Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "Den nye Nemotron-strømmemotoren viser ordene mens du sier dem, og motoren forvarmes ved oppstart slik at første diktering starter uten forsinkelse."
   selected_chunk_variant_isn_t_downloaded_yet: "Den valgte delvarianten er ikke lastet ned ennå. Bytte vil starte en nedlasting."
+  audio_and_the_live_transcript_are_deleted_yo: "Lyden og direktetranskriptet slettes. Notatene du skrev, blir værende."
+  enhanced_note_could_not_be_generated_try_aga: "Det forbedrede notatet kunne ikke lages. Prøv igjen."
+  enhanced_note_could_not_be_saved_try_again: "Det forbedrede notatet kunne ikke lagres. Prøv igjen."
+  model_returned_an_empty_note_try_again: "Modellen returnerte et tomt notat. Prøv igjen."
+  note_enhancement_model_is_unavailable_check: "Modellen for notatforbedring er utilgjengelig. Sjekk den i Innstillinger, og prøv igjen."
+  note_this_recording_belongs_to_could_not_be_opened: "Notatet dette opptaket hører til kunne ikke åpnes."
+  recorded_audio_could_not_be_prepared: "Lyden som ble tatt opp kunne ikke klargjøres for transkribering."
+  recorder_did_not_start: "Opptakeren startet ikke."
+  transcript_fills_in_as_you_speak: "Transkriptet fylles ut mens du snakker."
+  transcript_starts_once_you_speak: "Transkriptet starter så snart du snakker."
 theme:
   _self: "Tema"
   changes_apply_live_across_the_workspace_se: "Temaendringer gjelder direkte på tvers av arbeidsområdet, innstillinger, notatredigering og flytende indikatorer."
@@ -1229,6 +1291,7 @@ this:
   will_permanently_remove_the_transcript_and: "Dette vil permanent fjerne transkripsjonen og dens administrerte mediefil."
   will_permanently_remove_this_note: "Dette fjerner dette notatet permanent."
   permanently_deletes_all_stored_text_pairs_f: "Dette sletter alle lagrede tekstpar permanent fra denne Mac-en."
+  template_could_not_be_read_pick_another_tem: "Denne malen kunne ikke leses. Velg en annen mal og prøv igjen."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1264,6 +1327,7 @@ transcription:
   metadata: "Transkripsjonsmetadata"
   saved: "Transkripsjon lagret"
   update: "Transkripsjonsoppdatering"
+  done: "Transkriberingen er ferdig"
 transcriptions:
   _self: "Transkripsjoner"
   f0972acc: "transkripsjoner"
@@ -1275,6 +1339,7 @@ try:
   a_different_search_term_0ba628a3: "Prøv et annet søkeord."
   a_different_search_term_in_this_folder: "Prøv et annet søkeord i denne mappen."
   searching_for_terms_like_hotkeys_microphone: "Prøv å søke etter termer som hurtigtaster, mikrofon, oppdateringer eller vibe-modus."
+  again: "Prøv igjen"
 turkish:
   _self: "tyrkisk"
 two:
@@ -1351,7 +1416,7 @@ u4:
   home_recent_empty_hint: "De siste dikteringene dine vises her."
   home_streak: "Streak"
   home_subline_duration_only: "%@ diktering."
-  home_subline_full: "%@ diktering — omtrent %@ spart sammenlignet med å skrive det."
+  home_subline_full: "%@ diktering. Omtrent %@ spart mot å skrive."
   home_this_week: "Denne uken"
   home_welcome_tagline: "Snakk. Det er skrevet."
   home_words_per_min: "Ord / min"
@@ -1359,6 +1424,11 @@ u4:
   home_words_today: "Ord i dag"
   home_you_spoke_this_week: "Du sa %@ denne uken."
   home_zero_day: "0-dagers"
+  home_n_sessions_grouped: "%@ økter"
+  home_no_dictations_yet: "Ingen dikteringer ennå."
+  home_one_session: "1 økt"
+  home_press_hotkey_to_start: "Trykk %@ hvor som helst for å starte."
+  home_stop: "Stopp"
 u5:
   u7_add_replacement: "Add replacement"
   u7_add_word: "Add word"
@@ -1519,6 +1589,7 @@ voice:
   _self: "Voice"
   isolation: "Stemmeisolering"
   reduce_background_noise_before_transcription: "Reduser bakgrunnsstøy før transkripsjon"
+  note: "Talenotat"
 vs:
   typing: "kontra skriving"
 web:
@@ -1548,6 +1619,7 @@ wpm:
 yesterday:
   _self: "I går"
 you:
+  _self: "Du"
   are_a_note_formatting_assistant_transform_th: "Du er en notatformateringsassistent. Forvandle den transkriberte teksten til et godt strukturert notat.nnRegler:n- Rett opp grammatikk-, tegnsettings- og stavefeiln- For lengre innhold (3+ avsnitt), legg til markdown-formatering:n - Bruk overskrifter (## eller ###) for å organisere seksjoner. minimal formateringn- Behold den opprinnelige betydningen og vis- Ikke legg til innhold som ikke var i originalen- Returner bare det formaterte notatet uten kommentarer"
   are_a_text_enhancement_assistant_improve_the: "Du er en tekstforbedringsassistent. Forbedre grammatikken, tegnsettingen og formateringen av den angitte teksten samtidig som dens opprinnelige betydning og tone bevares. Returner bare den forbedrede teksten uten ytterligere kommentarer."
   can_change_these_anytime_from_the_menu_bar_s: "Du kan endre disse når som helst fra menylinjen → Innstillinger → Hurtigtaster"
@@ -1555,6 +1627,7 @@ you:
   re_all_set_058a8130: "Du er klar!"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Du har overskredet API-hastighetsgrensen eller -kvoten.                                  For å fikse dette: 1. Vent noen minutter og prøv igjen 2. Sjekk API-leverandørens bruksgrenser 3. Vurder å oppgradere API-planen. Transkripsjonen ble lagret uten forbedring.                 \"\""
   re_in_control: "Du har kontrollen"
+  deleted_this_transcript: "Du slettet dette transkriptet."
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\" API-nøkkelen din ser ut til å være ugyldig eller utløpt.                                  For å fikse dette: 1. Åpne Innstillinger → AI-forbedring 2. Bekreft at API-nøkkelen er riktig 3. Sjekk at API-endepunktet er riktig. Transkripsjonen ble lagret uten forbedring.                 \"\""
   floating_indicator_is_now_a_living_audio_re: "Den flytende indikatoren er nå en levende, lydreaktiv orb. Den puster når den er inaktiv, sveller når du snakker, og strømmer ordene dine direkte mens du dikterer."
@@ -1566,6 +1639,8 @@ your:
   stats: "Din statistikk"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "Ordene dine forblir dine"
+  enhanced_note_is_ready: "Det forbedrede notatet ditt er klart."
+  notes_and_the_enhanced_note_stay_the_transc: "Notatene dine og det forbedrede notatet blir værende. Transkriptet skjules i dette notatet."
 zoom:
   _self: "Zoom"
 polish:
@@ -1611,3 +1686,62 @@ total:
 tokens:
   in_out: "%@ inn / %@ ut tokens"
   in_out_thinking: "%@ inn / %@ ut / %@ tenke-tokens"
+auto:
+  _self: "Automatisk"
+discard:
+  recording: "Forkast opptaket"
+  this_recording: "Forkaste dette opptaket?"
+finalizing:
+  _self: "Fullfører"
+finish:
+  _self: "Fullfør"
+  the_active_transcription_before_starting: "Fullfør transkriberingen som pågår før du starter en ny."
+  the_active_transcription_before_starting_another: "Fullfør transkriberingen som pågår før du starter en ny."
+generate:
+  enhanced_note: "Lag forbedret notat"
+generated:
+  _self: "Laget %@"
+  1_2_template: "Laget %1$@ · malen %2$@"
+helpful:
+  _self: "Nyttig"
+identifying:
+  speakers: "Finner talere"
+jump:
+  to_live: "Hopp til direkte"
+  to_this_line: "Hopp til denne linjen"
+mic:
+  _self: "Mikrofon"
+more:
+  note_actions: "Flere handlinger for notatet"
+  recording_options: "Flere opptaksvalg"
+my:
+  notes: "Mine notater"
+nothing:
+  was_transcribed_yet: "Ingenting er transkribert ennå."
+playback:
+  position: "Avspillingsposisjon"
+s:
+  to_save: "⌘S for å lagre"
+sealing:
+  audio: "Forsegler lyden"
+  the_recording: "Forsegler opptaket."
+see:
+  this_in_the_transcript: "Se dette i transkriptet"
+template:
+  _self: "Mal: %@"
+templates:
+  _self: "Maler"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "Det finnes ikke noe transkript å forbedre ennå. Ta opp dette notatet først."
+transcribing:
+  _self: "Transkriberer"
+transcript:
+  _self: "Transkript"
+  source: "Transkriptkilde %@"
+was:
+  this_note_useful: "Var dette notatet nyttig?"
+writing:
+  note: "Skriver notatet"
+  your_enhanced_note: "Skriver det forbedrede notatet ditt."
+  your_enhanced_note_comes_next_long_recor: "Deretter skrives det forbedrede notatet ditt. Lange opptak kan ta noen minutter. Du kan skrive videre."
+  your_enhanced_note_with: "Skriver det forbedrede notatet ditt med %@."
