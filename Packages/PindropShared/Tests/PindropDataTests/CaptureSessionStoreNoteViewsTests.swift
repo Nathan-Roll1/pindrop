@@ -515,6 +515,19 @@ struct CaptureSessionStoreNoteViewsTests {
         #expect(views.availableViews == [.humanNotes])
     }
 
+    // MARK: - Library cross-link
+
+    @Test func aLibraryRecordResolvesBackToTheNoteItsCaptureWroteInto() throws {
+        let recorded = try makeRecordedNote(segments: twoSpeakerSegments)
+        let recordID = try recorded.store.reserveMeetingTranscriptionRecordID(recorded.handle)
+
+        #expect(
+            try recorded.store.noteID(forTranscriptionRecordID: recordID) == recorded.noteID
+        )
+        // A record no capture owns has no note page behind it.
+        #expect(try recorded.store.noteID(forTranscriptionRecordID: UUID()) == nil)
+    }
+
     // MARK: - View-state round trip
 
     @Test func theSelectedViewRoundTripsAndFallsBackWhenItCannotBeShown() throws {

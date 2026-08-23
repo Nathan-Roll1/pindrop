@@ -7486,10 +7486,10 @@ extension AppCoordinator: CaptureArbiter {
             )
         )
         updateRecentTranscriptsMenu()
-        // Quick capture's payoff is the note it just wrote, so that is what it
-        // opens. Every other capture is already showing its note and lands on
-        // the archive row instead.
-        if noteCaptureState.origin == .hotkey, let noteID = noteCaptureState.noteID {
+        // A capture that wrote into a note lands on that note: the note page is
+        // where the transcript and the enhanced note live. The library detail
+        // is only for records with no note behind them.
+        if let noteID = noteCaptureState.noteID {
             mainWindowController.openNote(id: noteID)
         } else {
             mainWindowController.openLibrary(recordID: id)

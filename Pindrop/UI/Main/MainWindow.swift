@@ -450,7 +450,8 @@ struct MainWindow: View {
                 settingsStore: settingsStore,
                 onImportMediaFiles: onImportMediaFiles,
                 onSubmitMediaLink: onSubmitMediaLink,
-                onDownloadDiarizationModel: onDownloadDiarizationModel
+                onDownloadDiarizationModel: onDownloadDiarizationModel,
+                onOpenNote: { routeState.openNote(id: $0) }
             )
             .accessibilityIdentifier("main.destination.library")
         case .notes:

@@ -84,6 +84,36 @@ extension CaptureSessionStore {
         )
     }
 
+    // MARK: - Library cross-link
+
+    /// The note a library record belongs to, when the record came out of a note
+    /// capture. Nil for dictations, imports, and links: they have no note page.
+    public func noteID(forTranscriptionRecordID recordID: UUID) throws -> UUID? {
+        let context = ModelContext(modelContainer)
+        var sessionDescriptor = FetchDescriptor<CaptureSessionModel>(
+            predicate: #Predicate<CaptureSessionModel> {
+                $0.transcriptionRecordID == recordID
+            }
+        )
+        sessionDescriptor.fetchLimit = 1
+        do {
+            guard let session = try context.fetch(sessionDescriptor).first else {
+                return nil
+            }
+            let sessionID = session.id
+            let references = try context.fetch(
+                FetchDescriptor<CaptureNoteReferenceModel>(
+                    predicate: #Predicate<CaptureNoteReferenceModel> {
+                        $0.sessionID == sessionID
+                    }
+                )
+            )
+            return references.first { (try? $0.resolvedRole()) == .humanAnchor }?.noteID
+        } catch {
+            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
+        }
+    }
+
     // MARK: - View state
 
     /// The view this note was last left in, or nil when nothing is stored and

@@ -44,6 +44,10 @@ struct HistoryView: View {
     var onImportMediaFiles: (([URL], TranscriptionJobOptions) -> Void)?
     var onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?
     var onDownloadDiarizationModel: (() -> Void)?
+    /// Opens a note page in the shell. A record that came out of a note capture
+    /// routes there instead of the transcript detail: the note page already
+    /// shows the transcript, the enhanced note, and the typed notes.
+    var onOpenNote: ((UUID) -> Void)?
 
     // MARK: - State
 
@@ -714,10 +718,28 @@ struct HistoryView: View {
         }
     }
 
-    /// Play chip and row agree: detail-page kinds → detail; dictations with audio → expand.
+    /// The note behind this record, when it came out of a note capture and the
+    /// shell gave this view a way to open one. Resolved on activation, not per
+    /// row: it is one indexed fetch, and only clicks pay for it.
+    private func noteDestination(for record: TranscriptionRecord) -> UUID? {
+        guard onOpenNote != nil, record.resolvedSourceKind == .manualCapture else {
+            return nil
+        }
+        return try? CaptureSessionStore(modelContext: modelContext)
+            .noteID(forTranscriptionRecordID: record.id)
+    }
+
+    /// Play chip and row agree: note-backed records → their note page;
+    /// detail-page kinds → detail; dictations with audio → expand.
     private func playChipAction(for record: TranscriptionRecord, hasAudio: Bool) -> (() -> Void)? {
         if opensDetailPage(record) {
-            return { openDetail(record) }
+            return {
+                if let noteID = noteDestination(for: record) {
+                    onOpenNote?(noteID)
+                } else {
+                    openDetail(record)
+                }
+            }
         }
         guard hasAudio else { return nil }
         return { toggleExpansion(for: record) }
@@ -726,6 +748,10 @@ struct HistoryView: View {
     private func handleRowTap(_ record: TranscriptionRecord) {
         selectedTranscriptionID = record.persistentModelID
 
+        if let noteID = noteDestination(for: record) {
+            onOpenNote?(noteID)
+            return
+        }
         if opensDetailPage(record) {
             openDetail(record)
             return
@@ -738,6 +764,10 @@ struct HistoryView: View {
     private func openLibraryRecord(_ record: TranscriptionRecord) {
         selectedTranscriptionID = record.persistentModelID
 
+        if let noteID = noteDestination(for: record) {
+            onOpenNote?(noteID)
+            return
+        }
         if opensDetailPage(record) {
             openDetail(record)
             return
