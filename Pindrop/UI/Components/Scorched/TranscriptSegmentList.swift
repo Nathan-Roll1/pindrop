@@ -91,6 +91,17 @@ struct TranscriptTextRun: Identifiable, Equatable, Sendable {
     let id: Int
     let text: String
     let isMatch: Bool
+    /// Where this match sits in the whole transcript, counted from zero in
+    /// reading order. Nil for plain text. The number is what lets one match out
+    /// of many be the current one, so the steppers and the scroll agree.
+    let matchIndex: Int?
+
+    init(id: Int, text: String, isMatch: Bool, matchIndex: Int? = nil) {
+        self.id = id
+        self.text = text
+        self.isMatch = isMatch
+        self.matchIndex = matchIndex
+    }
 }
 
 /// One span inside a turn.
@@ -148,6 +159,40 @@ struct TranscriptListPresentation: Equatable, Sendable {
     let resultsText: String?
     /// What to say instead of a list. Nil when there is something to read.
     let emptyMessage: String?
+    /// Which match the reader is standing on. It wears the stronger treatment.
+    let currentMatchIndex: Int?
+    /// The span each match lives in, indexed the same way the matches are. It is
+    /// what the page scrolls to when the reader steps to the next one.
+    let matchSegmentIDs: [String]
+
+    init(
+        turns: [TranscriptTurnPresentation],
+        isSearching: Bool,
+        matchCount: Int,
+        resultsText: String?,
+        emptyMessage: String?,
+        currentMatchIndex: Int? = nil,
+        matchSegmentIDs: [String] = []
+    ) {
+        self.turns = turns
+        self.isSearching = isSearching
+        self.matchCount = matchCount
+        self.resultsText = resultsText
+        self.emptyMessage = emptyMessage
+        self.currentMatchIndex = currentMatchIndex
+        self.matchSegmentIDs = matchSegmentIDs
+    }
+
+    /// The span holding the current match, when there is one.
+    var currentMatchSegmentID: String? {
+        guard let currentMatchIndex,
+              currentMatchIndex >= 0,
+              currentMatchIndex < matchSegmentIDs.count
+        else {
+            return nil
+        }
+        return matchSegmentIDs[currentMatchIndex]
+    }
 
     static let empty = TranscriptListPresentation(
         turns: [],
@@ -183,6 +228,7 @@ enum TranscriptSegmentPresentation {
     static func make(
         segments: [TranscriptSegmentSnapshot],
         query: String = "",
+        currentMatchIndex: Int? = nil,
         locale: Locale
     ) -> TranscriptListPresentation {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -215,7 +261,7 @@ enum TranscriptSegmentPresentation {
 
         // A searched list keeps only the paragraphs that matched, so the count
         // beside the field and the lines on screen are the same fact.
-        let presented = turns
+        let matched = turns
             .map {
                 presentation(
                     for: $0,
@@ -226,16 +272,70 @@ enum TranscriptSegmentPresentation {
                 )
             }
             .filter { $0.matchCount > 0 }
-        let matchCount = presented.reduce(0) { $0 + $1.matchCount }
+        // Numbering happens after the filter, over exactly the lines on screen:
+        // "3 of 12" has to count the matches the reader can actually step to.
+        let numbered = numbered(matched)
+        let matchCount = numbered.targets.count
         return TranscriptListPresentation(
-            turns: presented,
+            turns: numbered.turns,
             isSearching: true,
             matchCount: matchCount,
             resultsText: resultsText(matchCount, locale: locale),
-            emptyMessage: presented.isEmpty
+            emptyMessage: numbered.turns.isEmpty
                 ? localized("No results. Try another word.", locale: locale)
-                : nil
+                : nil,
+            currentMatchIndex: clampedMatchIndex(currentMatchIndex, total: matchCount),
+            matchSegmentIDs: numbered.targets
         )
+    }
+
+    /// A match number that no longer exists is no match at all, so a stale index
+    /// leaves the list unmarked instead of ringing an arbitrary word.
+    static func clampedMatchIndex(_ index: Int?, total: Int) -> Int? {
+        guard let index, total > 0, index >= 0, index < total else { return nil }
+        return index
+    }
+
+    /// Numbers every match in reading order and records which span each one is
+    /// in. One pass over the presented turns, so the numbers and the scroll
+    /// targets can never disagree.
+    private static func numbered(
+        _ turns: [TranscriptTurnPresentation]
+    ) -> (turns: [TranscriptTurnPresentation], targets: [String]) {
+        var counter = 0
+        var targets: [String] = []
+        let renumbered = turns.map { turn in
+            TranscriptTurnPresentation(
+                id: turn.id,
+                speakerKey: turn.speakerKey,
+                displayName: turn.displayName,
+                isCurrentUser: turn.isCurrentUser,
+                startOffset: turn.startOffset,
+                timestampText: turn.timestampText,
+                isSolo: turn.isSolo,
+                paragraphs: turn.paragraphs.map { paragraph in
+                    TranscriptParagraph(
+                        id: paragraph.id,
+                        text: paragraph.text,
+                        startOffset: paragraph.startOffset,
+                        timestampText: paragraph.timestampText,
+                        runs: paragraph.runs.map { run in
+                            guard run.isMatch else { return run }
+                            let index = counter
+                            counter += 1
+                            targets.append(paragraph.id)
+                            return TranscriptTextRun(
+                                id: run.id,
+                                text: run.text,
+                                isMatch: true,
+                                matchIndex: index
+                            )
+                        }
+                    )
+                }
+            )
+        }
+        return (renumbered, targets)
     }
 
     /// The name to show for one speaker. One rule, so a turn header, a citation
@@ -466,6 +566,8 @@ struct TranscriptSegmentBubble: View {
     /// The span a citation was just followed to. It wears the accent wash for a
     /// moment so the reader can find the line they were sent to.
     var flashingSegmentID: String?
+    /// The match the reader is standing on. It reads stronger than the rest.
+    var currentMatchIndex: Int?
 
     /// The timestamp gutter of a solo note. Wide enough for h:mm:ss, so a long
     /// recording never pushes its blocks out of line.
@@ -567,13 +669,31 @@ struct TranscriptSegmentBubble: View {
         .id(paragraph.id)
     }
 
-    /// Matched words take the accent ink. A custom font cannot be restyled to a
-    /// heavier weight, so color is what a highlight has to be here.
+    /// Matched words take the accent wash; the match the reader is standing on
+    /// takes a stronger one and the primary ink, so one match out of twelve is
+    /// findable at a glance.
+    ///
+    /// The runs are attributes of one string rather than separate views: a
+    /// paragraph has to wrap as a paragraph, and a row of views would break the
+    /// line wherever a match happened to fall.
     private func paragraphText(_ paragraph: TranscriptParagraph) -> Text {
         paragraph.runs.reduce(Text("")) { accumulated, run in
-            accumulated + Text(run.text)
-                .foregroundStyle(run.isMatch ? AppColors.accent : AppColors.textSecondary)
+            accumulated + Text(styled(run))
         }
+    }
+
+    private func styled(_ run: TranscriptTextRun) -> AttributedString {
+        var string = AttributedString(run.text)
+        guard run.isMatch else {
+            string.foregroundColor = AppColors.textSecondary
+            return string
+        }
+        let isCurrent = run.matchIndex != nil && run.matchIndex == currentMatchIndex
+        string.foregroundColor = isCurrent ? AppColors.textPrimary : AppColors.accent
+        string.backgroundColor = isCurrent
+            ? AppColors.accent.opacity(0.28)
+            : AppColors.accentBackground
+        return string
     }
 }
 
@@ -607,7 +727,8 @@ struct TranscriptSegmentList: View {
                         isActive: turn.id == activeTurnID,
                         canSeek: canSeek,
                         onSeek: onSeek,
-                        flashingSegmentID: flashingSegmentID
+                        flashingSegmentID: flashingSegmentID,
+                        currentMatchIndex: presentation.currentMatchIndex
                     )
                 }
             }

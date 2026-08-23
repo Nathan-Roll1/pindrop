@@ -452,13 +452,11 @@ enum NotePagePresentation {
         selection == .transcript && state.hasTranscript && !isTranscriptLive(state: state)
     }
 
-    /// The playback bar needs a finished transcript and a file to play.
-    static func showsPlaybackBar(
-        state: NotePageState,
-        selection: CaptureNoteViewKind,
-        hasPlayableAudio: Bool
-    ) -> Bool {
-        hasPlayableAudio && showsTranscriptSearch(state: state, selection: selection)
+    /// The recording can be played from any view of the note, as long as the file
+    /// is still on disk and no capture owns the note: a recording being made is
+    /// not a recording to replay yet.
+    static func showsPlayAction(state: NotePageState, hasPlayableAudio: Bool) -> Bool {
+        hasPlayableAudio && !state.capture.isActive
     }
 
     // MARK: Footer

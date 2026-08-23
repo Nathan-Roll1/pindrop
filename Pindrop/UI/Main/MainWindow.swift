@@ -470,6 +470,10 @@ struct MainWindow: View {
                     onFinishNoteCapture: onFinishNoteCapture,
                     onCancelNoteCapture: onCancelNoteCapture,
                     onGenerateEnhancedPanel: onGenerateEnhancedPanel
+                    // `onOpenAsk` and `isAskSurfaceOpen` stay unwired until the
+                    // Ask surface lands. Until then the note page hides the Ask
+                    // satellite rather than offering a button that answers
+                    // nothing.
                 )
                 .accessibilityIdentifier("main.destination.note")
             }

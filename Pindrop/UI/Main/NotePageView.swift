@@ -61,6 +61,12 @@ struct NotePageView: View {
     /// notes stay.
     let onCancelNoteCapture: (() -> Void)?
     let onGenerateEnhancedPanel: NoteEnhancementHandler?
+    /// Opens the Ask surface. Nil while the shell has none, which is what keeps
+    /// the Ask satellite off a build that cannot answer it.
+    let onOpenAsk: (() -> Void)?
+    /// True while the Ask surface is up. It owns the bottom-right corner, so the
+    /// floating control stands down.
+    let isAskSurfaceOpen: Bool
 
     init(
         noteID: UUID,
@@ -69,7 +75,9 @@ struct NotePageView: View {
         onStartNoteCapture: ((NoteCaptureRequest) -> Bool)? = nil,
         onFinishNoteCapture: (() -> Void)? = nil,
         onCancelNoteCapture: (() -> Void)? = nil,
-        onGenerateEnhancedPanel: NoteEnhancementHandler? = nil
+        onGenerateEnhancedPanel: NoteEnhancementHandler? = nil,
+        onOpenAsk: (() -> Void)? = nil,
+        isAskSurfaceOpen: Bool = false
     ) {
         self.noteID = noteID
         self.onBack = onBack
@@ -78,6 +86,8 @@ struct NotePageView: View {
         self.onFinishNoteCapture = onFinishNoteCapture
         self.onCancelNoteCapture = onCancelNoteCapture
         self.onGenerateEnhancedPanel = onGenerateEnhancedPanel
+        self.onOpenAsk = onOpenAsk
+        self.isAskSurfaceOpen = isAskSurfaceOpen
         _notes = Query(
             filter: #Predicate<NoteSchema.Note> { $0.id == noteID },
             sort: \NoteSchema.Note.updatedAt
@@ -103,8 +113,10 @@ struct NotePageView: View {
     @State private var autosaveTask: Task<Void, Never>?
     @State private var displayedWordCount = 0
     @State private var wordCountTask: Task<Void, Never>?
-    @State private var showSavedConfirmation = false
-    @State private var savedConfirmationTask: Task<Void, Never>?
+    /// The word the footer flashes after a save or a copy. One slot: two
+    /// confirmations in one corner would only compete.
+    @State private var confirmationMessage: String?
+    @State private var confirmationTask: Task<Void, Never>?
 
     // MARK: Page state
 
@@ -144,6 +156,10 @@ struct NotePageView: View {
     // MARK: Transcript view state
 
     @State private var transcriptQuery = ""
+    /// Which shape the floating control is in.
+    @State private var fabState: NoteFABState = .resting
+    /// The match the reader is standing on, counted from zero across the view.
+    @State private var currentMatchIndex: Int?
     /// How far the live transcript sheet is pulled open.
     @State private var liveSheetDetent: TranscriptSheetDetent = .collapsed
     @State private var playbackController = MediaPlaybackController()
@@ -235,41 +251,16 @@ struct NotePageView: View {
 
     private func pageBody(canvasHeight: CGFloat) -> some View {
         VStack(spacing: 0) {
-            ScrollView(.vertical, showsIndicators: true) {
-                ScrollViewReader { scrollProxy in
-                    // The header rail spans the pane like the mock; only the
-                    // text surfaces cap at the 720pt reading measure.
-                    VStack(alignment: .leading, spacing: 24) {
-                        headerRail
-                        // Paper board 52: title and meta form one block with a
-                        // 14 gap; 24 separates the blocks around it.
-                        VStack(alignment: .leading, spacing: 14) {
-                            titleField
-                            metaChipRow
-                        }
-                        .frame(maxWidth: canvasMaxWidth, alignment: .leading)
-                        canvas
-                            .frame(maxWidth: canvasMaxWidth, alignment: .leading)
-                    }
-                    .padding(.horizontal, 40)
-                    .padding(.top, 40)
-                    .padding(.bottom, 16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    // A citation was followed: put its line on screen. Every
-                    // span carries its own identifier, so this lands on the
-                    // words that were quoted and not on the turn around them.
-                    .onChange(of: citationJump) { _, jump in
-                        guard let jump else { return }
-                        withAnimation(reduceMotion ? nil : AppTheme.Animation.normal) {
-                            scrollProxy.scrollTo(jump.segmentID, anchor: .center)
-                        }
-                    }
-                }
-            }
+            // The floating control sits over the reading area and nowhere else:
+            // it is 20 above the footer hairline, and the capture dock, when it
+            // is up, fills the same band (which is why the two never share it).
+            ZStack(alignment: .bottomTrailing) {
+                pageContent(canvasHeight: canvasHeight)
 
-            bottomDock(canvasHeight: canvasHeight)
-                .padding(.horizontal, 40)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                noteFAB
+                    .padding(.trailing, NoteFABPresentation.trailingInset)
+                    .padding(.bottom, NoteFABPresentation.bottomInset)
+            }
 
             footer
         }
@@ -296,11 +287,19 @@ struct NotePageView: View {
         }
         .onChange(of: tags) { _, _ in noteDidChange() }
         .onChange(of: mediaURL) { _, url in loadPlayableAudio(url) }
+        // Another letter renumbers the matches, so the reader is put back on the
+        // first one rather than on a number that now means another word.
+        .onChange(of: transcriptQuery) { _, _ in
+            currentMatchIndex = NoteFABPresentation.resetMatch(total: transcriptMatchTotal)
+        }
+        .onChange(of: resolvedSelection) { _, _ in
+            currentMatchIndex = NoteFABPresentation.resetMatch(total: transcriptMatchTotal)
+        }
         .onDisappear {
             playbackController.teardownPlayback()
             autosaveTask?.cancel()
             wordCountTask?.cancel()
-            savedConfirmationTask?.cancel()
+            confirmationTask?.cancel()
             citationFlashTask?.cancel()
             flushOnLeaving()
         }
@@ -352,7 +351,100 @@ struct NotePageView: View {
                 .opacity(0)
                 .frame(width: 0, height: 0)
                 .allowsHitTesting(false)
+
+            Button(action: openSearch) { EmptyView() }
+                .keyboardShortcut("f", modifiers: .command)
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .allowsHitTesting(false)
         }
+    }
+
+    private func pageContent(canvasHeight: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            ScrollView(.vertical, showsIndicators: true) {
+                ScrollViewReader { scrollProxy in
+                    // The header rail spans the pane like the mock; only the
+                    // text surfaces cap at the 720pt reading measure.
+                    VStack(alignment: .leading, spacing: 24) {
+                        headerRail
+                        // Paper board 52: title and meta form one block with a
+                        // 14 gap; 24 separates the blocks around it.
+                        VStack(alignment: .leading, spacing: 14) {
+                            titleField
+                            metaChipRow
+                        }
+                        .frame(maxWidth: canvasMaxWidth, alignment: .leading)
+                        canvas
+                            .frame(maxWidth: canvasMaxWidth, alignment: .leading)
+                    }
+                    .padding(.horizontal, 40)
+                    .padding(.top, 40)
+                    .padding(.bottom, 16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // A citation was followed: put its line on screen. Every
+                    // span carries its own identifier, so this lands on the
+                    // words that were quoted and not on the turn around them.
+                    .onChange(of: citationJump) { _, jump in
+                        guard let jump else { return }
+                        withAnimation(reduceMotion ? nil : AppTheme.Animation.normal) {
+                            scrollProxy.scrollTo(jump.segmentID, anchor: .center)
+                        }
+                    }
+                    // Stepping through the matches walks the page: the same
+                    // scroll a citation uses, pointed at the span the current
+                    // match is in.
+                    .onChange(of: transcriptPresentation.currentMatchSegmentID) { _, segmentID in
+                        guard let segmentID else { return }
+                        withAnimation(reduceMotion ? nil : AppTheme.Animation.normal) {
+                            scrollProxy.scrollTo(segmentID, anchor: .center)
+                        }
+                    }
+                }
+            }
+
+            bottomDock(canvasHeight: canvasHeight)
+                .padding(.horizontal, 40)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: - Floating control
+
+    private var fabContext: NoteFABContext {
+        NoteFABContext(
+            hasAudio: NotePagePresentation.showsPlayAction(
+                state: pageState,
+                hasPlayableAudio: mediaURL != nil
+            ),
+            canAsk: onOpenAsk != nil,
+            canSearch: NotePagePresentation.showsTranscriptSearch(
+                state: pageState,
+                selection: resolvedSelection
+            ),
+            isAskSurfaceOpen: isAskSurfaceOpen,
+            isCaptureDockVisible: NotePagePresentation.showsCaptureStrip(state: pageState)
+        )
+    }
+
+    private var transcriptMatchTotal: Int {
+        transcriptPresentation.matchCount
+    }
+
+    private var noteFAB: some View {
+        NoteFAB(
+            context: fabContext,
+            state: $fabState,
+            query: $transcriptQuery,
+            matchTotal: transcriptMatchTotal,
+            currentMatch: $currentMatchIndex,
+            controller: playbackController,
+            fallbackDuration: mediaDuration,
+            onAsk: { onOpenAsk?() },
+            onCopy: copyCurrentView,
+            onPlay: startPlayback,
+            onStepMatch: stepMatch
+        )
     }
 
     // MARK: - Header rail
@@ -466,10 +558,7 @@ struct NotePageView: View {
                 Button(localized("Save as Note", locale: locale), action: saveEnhancedPanelAsNote)
             }
 
-            Button(localized("Copy Content", locale: locale)) {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(currentViewText(), forType: .string)
-            }
+            Button(localized("Copy Content", locale: locale), action: copyCurrentView)
 
             Divider()
 
@@ -566,35 +655,8 @@ struct NotePageView: View {
             tagChips
 
             Spacer(minLength: 0)
-
-            if NotePagePresentation.showsTranscriptSearch(
-                state: pageState,
-                selection: resolvedSelection
-            ) {
-                transcriptSearchField
-            }
         }
         .padding(.leading, textColumnInset)
-    }
-
-    private var transcriptSearchField: some View {
-        HStack(spacing: 8) {
-            if let results = transcriptPresentation.resultsText {
-                Text(results)
-                    .font(AppTypography.monoSmall)
-                    .foregroundStyle(AppColors.textTertiary)
-                    .monospacedDigit()
-                    .accessibilityIdentifier("note.page.transcript.results")
-            }
-
-            SearchFieldChrome(
-                text: $transcriptQuery,
-                placeholder: localized("Find in transcript", locale: locale),
-                showsKeyboardHint: false
-            )
-            .frame(width: 200)
-            .accessibilityIdentifier("note.page.transcript.search")
-        }
     }
 
     /// The Enhanced chip's dropdown is only offered where it can be honored: a
@@ -950,7 +1012,8 @@ struct NotePageView: View {
                 presentation: transcriptPresentation,
                 controller: playbackController,
                 canSeek: mediaURL != nil,
-                flashingSegmentID: citationJump?.segmentID
+                flashingSegmentID: citationJump?.segmentID,
+                onSeek: seekPlayback
             )
             .padding(.leading, textColumnInset)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -962,6 +1025,7 @@ struct NotePageView: View {
         TranscriptSegmentPresentation.make(
             segments: views?.transcript?.segments ?? [],
             query: transcriptQuery,
+            currentMatchIndex: currentMatchIndex,
             locale: locale
         )
     }
@@ -969,23 +1033,12 @@ struct NotePageView: View {
     // MARK: - Bottom dock
 
     /// The band between the page and the footer: the capture dock while a
-    /// capture runs, the playback bar while a finished transcript is being read,
-    /// and nothing otherwise. Never both: a recording is not a recording to
-    /// replay yet.
+    /// capture runs, and nothing otherwise. Playback moved into the floating
+    /// control, which is why nothing else claims this band any more.
     @ViewBuilder
     private func bottomDock(canvasHeight: CGFloat) -> some View {
         if NotePagePresentation.showsCaptureStrip(state: pageState) {
             captureDock(canvasHeight: canvasHeight)
-        } else if NotePagePresentation.showsPlaybackBar(
-            state: pageState,
-            selection: resolvedSelection,
-            hasPlayableAudio: mediaURL != nil
-        ) {
-            TranscriptPlaybackBar(
-                controller: playbackController,
-                fallbackDuration: mediaDuration
-            )
-            .padding(.bottom, 12)
         }
     }
 
@@ -1106,11 +1159,12 @@ struct NotePageView: View {
 
             Spacer(minLength: 0)
 
-            if showSavedConfirmation {
-                Text(localized("Saved", locale: locale))
+            if let confirmationMessage {
+                Text(confirmationMessage)
                     .font(AppTypography.caption)
                     .foregroundStyle(AppColors.accent)
                     .transition(.opacity)
+                    .accessibilityIdentifier("note.page.footer.confirmation")
             }
 
             if let trailing = line.trailing {
@@ -1137,7 +1191,7 @@ struct NotePageView: View {
                 .fill(AppColors.border)
                 .frame(height: 1)
         }
-        .appAnimation(.fast, value: showSavedConfirmation)
+        .appAnimation(.fast, value: confirmationMessage)
     }
 
     private var footerFacts: NotePageFooterFacts {
@@ -1340,6 +1394,49 @@ struct NotePageView: View {
                 selectedTemplateIdentifier = previous
             }
         }
+    }
+
+    // MARK: Floating control actions
+
+    /// ⌘F. It opens the search wherever a search can be answered, and leaves the
+    /// control alone where one cannot.
+    private func openSearch() {
+        guard fabContext.canSearch else { return }
+        fabState = .search
+    }
+
+    /// Steps to the next or previous match and lets the canvas follow.
+    private func stepMatch(_ step: NoteFABMatchStep) {
+        currentMatchIndex = NoteFABPresentation.steppedMatch(
+            from: currentMatchIndex,
+            total: transcriptMatchTotal,
+            step: step
+        )
+    }
+
+    /// Copies what is on screen, in the shape it is read in.
+    private func copyCurrentView() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(currentViewText(), forType: .string)
+        flashConfirmation(NoteFABPresentation.copyConfirmation(locale: locale))
+    }
+
+    /// Plays the recording from wherever it stands.
+    private func startPlayback() {
+        guard mediaURL != nil else { return }
+        if !playbackController.isPlaying {
+            playbackController.togglePlayback()
+        }
+    }
+
+    /// A click on a transcript line: seek there, start playing, and put the
+    /// control in the shape that says so.
+    private func seekPlayback(to time: TimeInterval) {
+        playbackController.seek(to: time)
+        if !playbackController.isPlaying {
+            playbackController.togglePlayback()
+        }
+        fabState = .playing
     }
 
     /// Follows a citation to the words behind it.
@@ -1638,7 +1735,7 @@ struct NotePageView: View {
     private func saveNow() {
         autosaveTask?.cancel()
         saveNote(immediate: true)
-        showSavedFlash()
+        flashConfirmation(localized("Saved", locale: locale))
     }
 
     /// Navigating away is a close: enqueue the newest draft, then await it.
@@ -1676,16 +1773,18 @@ struct NotePageView: View {
         }
     }
 
-    private func showSavedFlash() {
-        savedConfirmationTask?.cancel()
+    /// One word in the footer, for a second and a half. Saving and copying both
+    /// use it, so a confirmation always lands in the same place.
+    private func flashConfirmation(_ message: String) {
+        confirmationTask?.cancel()
         withAnimation(reduceMotion ? nil : AppTheme.Animation.fast) {
-            showSavedConfirmation = true
+            confirmationMessage = message
         }
-        savedConfirmationTask = Task { @MainActor in
+        confirmationTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(1.5))
             guard !Task.isCancelled else { return }
             withAnimation(reduceMotion ? nil : AppTheme.Animation.fast) {
-                showSavedConfirmation = false
+                confirmationMessage = nil
             }
         }
     }
@@ -1703,6 +1802,9 @@ private struct NoteTranscriptTurns: View {
     let canSeek: Bool
     /// The span a citation was followed to, if one was.
     var flashingSegmentID: String?
+    /// Seeking is the page's job: a click has to start playback and change the
+    /// shape of the floating control, not only move the clock.
+    var onSeek: ((TimeInterval) -> Void)?
 
     /// One linear scan per playback tick. Spans can overlap when people talk
     /// over each other, so "the first turn containing t" is the right pick.
@@ -1718,7 +1820,7 @@ private struct NoteTranscriptTurns: View {
             presentation: presentation,
             activeTurnID: activeTurnID,
             canSeek: canSeek,
-            onSeek: { controller.seek(to: $0) },
+            onSeek: onSeek,
             flashingSegmentID: flashingSegmentID
         )
     }

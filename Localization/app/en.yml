@@ -3,6 +3,7 @@
 100:
   local_processing: "100% local processing"
 1:
+  d_of_2_d: "%1$d of %2$d"
   edited_2: "%1$@ · edited %2$@"
   folder: "1 folder"
   note: "1 note"
@@ -110,6 +111,8 @@ apple:
   speechtranscriber_unavailable_using_nemotr: "Apple SpeechTranscriber unavailable — using Nemotron"
 are:
   you_sure_you_want_to_delete_this_action_cann: "Are you sure you want to delete '%@'? This action cannot be undone."
+ask:
+  this_note: "Ask this note"
 assignments:
   _self: "Assignments"
 attach:
@@ -262,6 +265,7 @@ copy:
   content: "Copy Content"
   enhanced: "Copy Enhanced"
   last_transcript: "Copy Last Transcript"
+  note: "Copy note"
   original: "Copy Original"
   system_info: "Copy System Info"
   system_info_for_bug_report: "Copy System Info for Bug Report"
@@ -488,6 +492,7 @@ file:
   _self: "File"
 find:
   _self: "Find"
+  in_this_note: "Find in this note"
   in_transcript: "Find in transcript"
 fix:
   punctuation_and_capitalization: "Fix punctuation and capitalization"
@@ -702,6 +707,8 @@ manually:
   check_for_new_versions_now: "Manually check for new versions now."
 markdown:
   md: "Markdown (.md)"
+match:
+  1_d_of_2_d: "Match %1$d of %2$d"
 may:
   conflict_with_a_system_shortcut: "May conflict with a system shortcut (%@)"
 mcp:
@@ -770,6 +777,7 @@ newest:
   _self: "Newest"
 next:
   _self: "Next"
+  match: "Next match"
 no:
   activity_in_this_period: "No activity in this period"
   api_key: "No API key"
@@ -784,6 +792,7 @@ no:
   folders_yet: "No folders yet"
   items_in: "No items in %@"
   learned_participants_yet: "No learned participants yet"
+  matches: "No matches"
   media_transcriptions_yet: "No media transcriptions yet"
   model_loaded: "No Model Loaded"
   model_loaded_please_download_a_model: "No model loaded. Please download a model in Settings."
@@ -818,6 +827,7 @@ not:
   now: "Not now"
 note:
   _self: "Note"
+  actions: "Note actions"
   capture_hold: "Note Capture — Hold"
   capture_push_to_talk: "Note Capture (Push-to-Talk)"
   capture_toggle: "Note Capture (Toggle)"
@@ -969,6 +979,7 @@ plain:
   text_txt: "Plain Text (.txt)"
 play:
   _self: "Play"
+  recording: "Play recording"
 playback:
   position: "Playback position"
 please:
@@ -1034,6 +1045,8 @@ press:
   once_to_start_recording_then_again_to_open: "Press once to start recording, then again to open the note editor."
   once_to_start_recording_then_press_again_t: "Press once to start recording, then press again to stop and transcribe."
   to_start_recording_press_again_to_open_not: "Press to start recording, press again to open note editor"
+previous:
+  match: "Previous match"
 primary:
   text: "Primary Text"
 processing:
@@ -1321,10 +1334,13 @@ thanks:
 that:
   speaker_profile_no_longer_exists_try_reopen: "That speaker profile no longer exists. Try reopening this note."
 the:
+  answer_came_back_in_a_form_pindrop_could_not: "The answer came back in a form Pindrop could not read. Ask again."
+  answer_could_not_be_generated_check_your_con: "The answer could not be generated. Check your connection, then ask again."
   audio_and_the_live_transcript_are_deleted_yo: "The audio and the live transcript are deleted. Your typed notes stay."
   enhanced_note_could_not_be_generated_try_aga: "The enhanced note could not be generated. Try again."
   enhanced_note_could_not_be_saved_try_again: "The enhanced note could not be saved. Try again."
   floating_indicator_is_hidden: "The floating indicator is hidden."
+  model_returned_an_empty_answer_ask_again: "The model returned an empty answer. Ask again."
   model_returned_an_empty_note_try_again: "The model returned an empty note. Try again."
   new_nemotron_streaming_engine_shows_words_as: "The new Nemotron streaming engine shows words as you say them, and the engine prewarms at launch so your first dictation starts without a delay."
   note_enhancement_model_is_unavailable_check: "The note enhancement model is unavailable. Check it in Settings, then try again."
@@ -1341,10 +1357,12 @@ theme:
   mode_bb6b0b3d: "Theme Mode"
 there:
   is_no_transcript_to_enhance_yet_record_thi: "There is no transcript to enhance yet. Record this note first."
+  is_nothing_to_ask_about_yet_record_or_writ: "There is nothing to ask about yet. Record or write something first."
 these:
   options_are_mutually_exclusive_enabling_on: "These options are mutually exclusive. Enabling one turns the other off."
 this:
   preset_name_is_already_in_use: "This preset name is already in use."
+  note_could_not_be_opened_close_it_and_open: "This note could not be opened. Close it and open it again."
   template_could_not_be_read_pick_another_tem: "This template could not be read. Pick another template and try again."
   provider_will_be_available_in_a_future_upda: |-
     This provider will be available in a future update.
@@ -1419,6 +1437,7 @@ turkish:
 two:
   new_dictation_languages_fully_wired_into_mod: "Two new dictation languages, fully wired into model recommendations."
 type:
+  a_question_about_this_note_then_send_it_aga: "Type a question about this note, then send it again."
   text_directly_into_the_active_app_when_poss: "Type text directly into the active app when possible"
 u10:
   floating_inserted_into: "Inserted into %@"

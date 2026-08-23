@@ -1794,6 +1794,86 @@ public final class AIEnhancementService {
         }
     }
 
+    // MARK: - Direct completion
+
+    /// One completion with exactly the system prompt and user content the caller
+    /// wrote, and nothing added.
+    ///
+    /// `enhance()` wraps its input in the transcription enhancement contract,
+    /// which tells the model to clean dictated speech and never answer it. A
+    /// caller that carries its own contract, such as a question to answer or a
+    /// strict JSON envelope to fill in, needs the plain transport instead. The
+    /// metadata generators already use it privately; this is the same transport
+    /// with the prompt left to the caller.
+    public func complete(
+        systemPrompt: String,
+        userContent: String,
+        assignment: ResolvedAssignment
+    ) async throws -> String {
+        guard !userContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw EnhancementError.invalidResponse
+        }
+
+        if assignment.kind == .apple {
+#if canImport(FoundationModels)
+            guard #available(macOS 26.0, iOS 26.0, *) else {
+                throw EnhancementError.apiError("Apple Intelligence requires macOS 26 or iOS 26 or later.")
+            }
+            return try await appleEnhancer.enhance(text: userContent, systemPrompt: systemPrompt)
+#else
+            throw EnhancementError.apiError("Apple Intelligence is not supported on this device.")
+#endif
+        }
+
+        guard let url = URL(string: assignment.endpoint ?? "") else {
+            throw EnhancementError.invalidEndpoint
+        }
+
+        do {
+            let request = buildAPIRequest(
+                url: url,
+                apiKey: assignment.apiKey,
+                model: assignment.modelID,
+                systemPrompt: systemPrompt,
+                userContent: userContent,
+                provider: assignment.kind
+            )
+
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw EnhancementError.invalidResponse
+            }
+
+            guard httpResponse.statusCode == 200 else {
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let error = json["error"] as? [String: Any],
+                   let message = error["message"] as? String {
+                    Self.logAPIError(statusCode: httpResponse.statusCode)
+                    throw EnhancementError.apiError(message)
+                }
+                Self.logAPIError(statusCode: httpResponse.statusCode)
+                throw EnhancementError.apiError("HTTP \(httpResponse.statusCode)")
+            }
+
+            return try parseAPIResponse(data: data, provider: assignment.kind)
+        } catch let error as EnhancementError {
+            throw error
+        } catch {
+            if error is CancellationError {
+                throw error
+            }
+            if let urlError = error as? URLError, urlError.code == .cancelled {
+                throw CancellationError()
+            }
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                throw CancellationError()
+            }
+            throw EnhancementError.apiError(error.localizedDescription)
+        }
+    }
+
     public func generateNoteMetadata(
         content: String,
         apiEndpoint: String,

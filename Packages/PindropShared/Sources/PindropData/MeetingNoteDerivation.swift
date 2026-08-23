@@ -384,7 +384,13 @@ public enum MeetingNoteDerivation {
         }
     }
 
-    private static func escapingEvidenceContent(_ source: String) -> String {
+    /// Escapes untrusted text so it cannot close, open, or forge one of the
+    /// `<untrusted-...>` tags that mark evidence as data.
+    ///
+    /// Every envelope this app sends a model relies on it, so it is public: a
+    /// second envelope that escaped its content differently would be a second
+    /// defense to keep correct.
+    public static func escapingEvidenceContent(_ source: String) -> String {
         source
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")

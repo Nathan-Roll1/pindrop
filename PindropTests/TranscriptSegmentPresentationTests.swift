@@ -302,6 +302,83 @@ struct TranscriptSegmentPresentationTests {
         #expect(TranscriptSegmentPresentation.runs(in: "", query: nil).isEmpty)
     }
 
+    // MARK: - Stepping through the matches
+
+    @Test func everyMatchIsNumberedInReadingOrder() throws {
+        let presentation = TranscriptSegmentPresentation.make(
+            segments: conversation,
+            query: "the",
+            locale: locale
+        )
+        let indices = presentation.turns
+            .flatMap(\.paragraphs)
+            .flatMap(\.runs)
+            .filter(\.isMatch)
+            .map(\.matchIndex)
+        #expect(indices == Array(0..<presentation.matchCount).map { Optional($0) })
+        // Every match knows the span it lives in, so the page can scroll to it.
+        #expect(presentation.matchSegmentIDs.count == presentation.matchCount)
+    }
+
+    @Test func plainRunsCarryNoMatchNumber() throws {
+        let presentation = TranscriptSegmentPresentation.make(
+            segments: [
+                segment(id: "a", speakerKey: "s1", label: "You", isCurrentUser: true,
+                        text: "Plan the plan before the plan.", start: 0)
+            ],
+            query: "plan",
+            currentMatchIndex: 1,
+            locale: locale
+        )
+        let runs = try #require(presentation.turns.first?.paragraphs.first?.runs)
+        #expect(runs.filter { !$0.isMatch }.allSatisfy { $0.matchIndex == nil })
+        #expect(runs.filter(\.isMatch).map(\.matchIndex) == [0, 1, 2])
+        #expect(presentation.currentMatchIndex == 1)
+    }
+
+    @Test func theCurrentMatchNamesTheSpanToScrollTo() throws {
+        let presentation = TranscriptSegmentPresentation.make(
+            segments: conversation,
+            query: "the",
+            currentMatchIndex: 0,
+            locale: locale
+        )
+        let first = try #require(presentation.matchSegmentIDs.first)
+        #expect(presentation.currentMatchSegmentID == first)
+    }
+
+    @Test func aMatchNumberThatNoLongerExistsMarksNothing() {
+        // The reader was on match 8 and then typed another letter.
+        let presentation = TranscriptSegmentPresentation.make(
+            segments: conversation,
+            query: "rebuild",
+            currentMatchIndex: 8,
+            locale: locale
+        )
+        #expect(presentation.matchCount == 1)
+        #expect(presentation.currentMatchIndex == nil)
+        #expect(presentation.currentMatchSegmentID == nil)
+    }
+
+    @Test func anUnsearchedTranscriptStandsOnNoMatch() {
+        let presentation = TranscriptSegmentPresentation.make(
+            segments: conversation,
+            currentMatchIndex: 0,
+            locale: locale
+        )
+        #expect(presentation.currentMatchIndex == nil)
+        #expect(presentation.matchSegmentIDs.isEmpty)
+        #expect(presentation.currentMatchSegmentID == nil)
+    }
+
+    @Test func stalePositionsAreClampedAwayRatherThanRingingAnArbitraryWord() {
+        #expect(TranscriptSegmentPresentation.clampedMatchIndex(2, total: 5) == 2)
+        #expect(TranscriptSegmentPresentation.clampedMatchIndex(5, total: 5) == nil)
+        #expect(TranscriptSegmentPresentation.clampedMatchIndex(-1, total: 5) == nil)
+        #expect(TranscriptSegmentPresentation.clampedMatchIndex(0, total: 0) == nil)
+        #expect(TranscriptSegmentPresentation.clampedMatchIndex(nil, total: 5) == nil)
+    }
+
     // MARK: - Live text
 
     @Test func committedTextSplitsIntoSentencesAndTheLastOneIsCurrent() throws {

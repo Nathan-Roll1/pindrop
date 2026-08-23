@@ -141,35 +141,35 @@ struct NotePagePresentationTests {
         ))
     }
 
-    @Test func searchAndPlaybackWaitForAFinishedTranscript() {
+    @Test func searchWaitsForAFinishedTranscript() {
         let recording = NotePageState(capture: .capturing, hasLiveText: true)
         #expect(!NotePagePresentation.showsTranscriptSearch(state: recording, selection: .transcript))
-        #expect(!NotePagePresentation.showsPlaybackBar(
-            state: recording,
-            selection: .transcript,
-            hasPlayableAudio: true
-        ))
 
         let finished = NotePageState(hasTranscript: true, isRecorded: true)
         #expect(NotePagePresentation.showsTranscriptSearch(state: finished, selection: .transcript))
-        #expect(NotePagePresentation.showsPlaybackBar(
-            state: finished,
-            selection: .transcript,
-            hasPlayableAudio: true
-        ))
-        // Nothing to play, nothing to draw.
-        #expect(!NotePagePresentation.showsPlaybackBar(
-            state: finished,
-            selection: .transcript,
-            hasPlayableAudio: false
-        ))
-        // Neither belongs to the other two views.
+        // Only the transcript can answer a search: the other two views have no
+        // spans to narrow.
         #expect(!NotePagePresentation.showsTranscriptSearch(state: finished, selection: .humanNotes))
-        #expect(!NotePagePresentation.showsPlaybackBar(
-            state: finished,
-            selection: .enhanced,
-            hasPlayableAudio: true
-        ))
+        #expect(!NotePagePresentation.showsTranscriptSearch(state: finished, selection: .enhanced))
+    }
+
+    /// Round B moved playback out of the docked bar and into the floating
+    /// control, so playing is no longer tied to the transcript view: the
+    /// recording can be played from wherever the note is being read.
+    @Test func playingNeedsAFileAndNoRunningCapture() {
+        let finished = NotePageState(hasTranscript: true, isRecorded: true)
+        #expect(NotePagePresentation.showsPlayAction(state: finished, hasPlayableAudio: true))
+        // Nothing to play, nothing to offer.
+        #expect(!NotePagePresentation.showsPlayAction(state: finished, hasPlayableAudio: false))
+
+        // A recording being made is not a recording to replay yet.
+        let recording = NotePageState(capture: .capturing, hasLiveText: true)
+        #expect(!NotePagePresentation.showsPlayAction(state: recording, hasPlayableAudio: true))
+        let finalizing = NotePageState(
+            isRecorded: true,
+            capture: .finalizing(.transcribing, progress: nil)
+        )
+        #expect(!NotePagePresentation.showsPlayAction(state: finalizing, hasPlayableAudio: true))
     }
 
     @Test func finalizingIsStillAnActiveCapture() {
