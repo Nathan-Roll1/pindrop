@@ -94,3 +94,58 @@ Pinned to the bottom of the content pane, full pane width, reserves layout heigh
 ## Copy rules
 
 Verbs people say (Finish, Try again, View, Record, Open note, Start dictating). Errors name the cause and next action. Empty states name the situation and next action. No slogans. No em or en dashes as sentence dashes anywhere in UI copy.
+
+## Round B (2026-08-22): note page interaction rework
+
+Source: Paper boards 52, 55, 56, 65, 70, 71 and crops 66-69 on the "Notes that record" page. Where this section conflicts with the sections above, Round B wins.
+
+### View chips (replace the SegmentedViewToggle container style)
+
+- The three views are individual chips in the meta row, gap 6, no shared container: radius 8, padding 5/12, gap 7 inside. Unselected: transparent, icon + label Inter 12/500 textSecondary. Selected: contentBackground fill + 1px border, label Inter 12/600 textPrimary.
+- Icons 12pt: My notes = three text lines; Enhanced = sparkle (accent when selected, textSecondary otherwise); Transcript = mic.
+- The Enhanced chip carries a 9pt chevron when selected. Clicking the selected Enhanced chip opens the merged dropdown; clicking an unselected chip switches views. The ready-dot and live-dot rules from Round A carry over onto the chips.
+
+### Enhanced dropdown (replaces the separate TemplateMenuButton)
+
+Anchored under the Enhanced chip: width 236, contentBackground, 1px border, radius 10, padding 6, shadow 0 8 24 at 12% ink.
+- Header row (padding 7/10): sparkle accent + "Enhanced notes" Inter 13/600 + spacer + regenerate glyph (arrow-circle) + accent check.
+- Hairline. "TEMPLATES" overline (11/600 +0.08em textTertiary, padding 8/10/4).
+- Template rows (padding 7/10, radius 6, gap 8): 13pt glyph slot + name Inter 13/500 textSecondary. Selected: accentBackground fill, name 13/600 textPrimary, trailing accent check.
+- Hairline. "All templates…" row (grid glyph; opens the manage sheet) and "New template" row (plus glyph).
+
+### Source peek (replaces citation chips AND the Sources disclosure)
+
+- Enhanced bullets show no numeric chips. Hovering a bullet washes it windowBackground (radius 6, padding 4/8) and reveals a trailing magnifier glyph (13pt, textSecondary).
+- Clicking opens a popover (width 520, contentBackground, border, radius 10, padding 14/16, shadow): "FROM THE TRANSCRIPT" overline + mono timestamp right; the quoted span Newsreader 15/22 textSecondary in quotes; footer row speaker dot + name Inter 12/600 + "Show in transcript" accent 12/600 (switches view, scrolls, flashes).
+- Resolution uses the stored provenance span mapping (the same one the chip path used).
+
+### Note FAB (new; replaces the playback bar and any persistent ask/search chrome)
+
+One floating control, bottom-right of the content pane: optically on the 40pt content edge, 20pt above the footer hairline. Expanded pills grow leftward from the same anchor.
+- Resting: 36pt circle, contentBackground + border + shadow 0 4 14 at 10%, magnifier 14pt.
+- Hover: satellites fan upward, gap 8: 32pt circles with 11/500 label chips to their left. Top to bottom: Ask this note (sparkle), Copy note (copy glyph), Play recording (only when the note has audio), then the 36pt search FAB (windowBackground fill while open).
+- Search active: pill radius 999 (26pt inner glyph circle + field ~150 Inter 13 + mono "n of m" + 22pt prev/next chevron buttons). Matches highlight in the canvas: accentBackground wash radius 3 padding 0/3; the CURRENT match adds a 1px accent ring and text goes textPrimary. Works on every view (search searches the visible view's text).
+- Playing: pill (26pt pause circle on windowBackground + 130pt progress 3px accent/line + mono 11 "cur / total"). Click a transcript line to seek; seeking starts playback.
+- Esc collapses any expanded state to the resting button. While the Ask surface is open the FAB is hidden (the surface owns the corner). ⌘F opens the search state directly.
+
+### Ask this note (new)
+
+- Opened from the FAB (Ask satellite). A dock above the footer, full content width: windowBackground, border, radius 10.
+- Header (padding 10/16/6): sparkle accent + "ASK THIS NOTE" overline + collapse chevron.
+- Exchanges: question chips right-aligned (contentBackground + border, radius 10, padding 6/12, Inter 13); answers left with a 12pt accent sparkle marker + Inter 13/20 textPrimary (max 560) + source link "From the transcript · mm:ss" accent 12/600 (jumps to the span like source peek).
+- Input row (hairline top, padding 10/16): sparkle textTertiary + placeholder "Ask about this note" / "Ask a follow-up" + quick-action chip (secondary chrome, e.g. "List action items").
+- Below the dock, centered caption Inter 11 textTertiary: "Answers come from this note's transcript and your AI provider. Check anything important."
+- Conversation is per-note and session-scoped (not persisted in v1).
+
+### Transcript: solo-note pause breaks (board 67)
+
+- A single-speaker note renders ONE turn header (dot + "You" + mono total duration), then time-coded paragraph blocks: 44pt right-aligned mono 11 timestamp gutter, 12 gap, body Newsreader 15/22 (max 560), 14 between blocks.
+- Blocks come from VAD pause segmentation of the microphone audio at finalization. Meeting notes keep the Round A speaker-turn layout.
+
+### Speakers popover (board 68)
+
+- The "n speakers" meta chip opens a popover (width 280, contentBackground, border, radius 10, padding 6, shadow): "SPEAKERS" overline + mono total duration; rows (padding 7/10, radius 6): 8pt speaker dot + name Inter 13/500 + trailing "you" caption or a "Rename" accent action on hover; hairline; caption Inter 11 textTertiary: "Detected from the recording. Click a name to change it. Renames apply to the transcript and future notes."
+
+### Title affordance (board 52)
+
+- Hovering the note title reveals a 15pt pencil glyph at 45% opacity, gap 10 after the text, signaling editability. Empty titles show placeholder styling as today.
