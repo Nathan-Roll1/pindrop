@@ -1451,6 +1451,11 @@ final class NoteCaptureController {
                 }
             )
             deliverQuickCaptureTranscript(handle, text: finalText)
+        // Unstructured on purpose: naming is post-completion enrichment and
+        // must never delay or fail the finished capture.
+        Task { [weak self] in
+            await self?.autoNameNoteIfUntitled(handle, finalText: finalText)
+        }
         } catch is CancellationError {
             throw CancellationError()
         } catch let failure as MeetingNoteGenerationFailure {
@@ -1548,6 +1553,11 @@ final class NoteCaptureController {
             }
         )
         deliverQuickCaptureTranscript(handle, text: finalText)
+        // Unstructured on purpose: naming is post-completion enrichment and
+        // must never delay or fail the finished capture.
+        Task { [weak self] in
+            await self?.autoNameNoteIfUntitled(handle, finalText: finalText)
+        }
     }
 
     private func transcribeWorkItem(
@@ -1823,13 +1833,70 @@ final class NoteCaptureController {
             let note = try notesStore.fetch(id: anchor.noteID)
             guard Self.normalizedText(note.content).isEmpty else { return }
             note.content = text
-            if note.title == untitledNoteTitle {
-                note.title = aiEnhancementService.generateFallbackTitle(from: text)
-            }
+            // Titling is `autoNameNoteIfUntitled`'s job for every capture, so a
+            // quick capture gets the same AI-first name as a main-window note.
             try notesStore.update(note)
         } catch {
             Log.app.warning(
                 "Quick-capture transcript could not be written into its note: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    /// Names a recorded note that is still untitled after its capture finished.
+    ///
+    /// AI first through the `.noteMetadata` assignment (the same seam the notes
+    /// store's metadata generator uses), the deterministic fallback title
+    /// otherwise. Best-effort by design: the capture's outcome never depends on
+    /// it, and a title the person typed while the model ran always wins.
+    func autoNameNoteIfUntitled(
+        _ handle: PindropCore.NoteCaptureHandle,
+        finalText: String
+    ) async {
+        let sourceText = Self.normalizedText(finalText)
+        guard !sourceText.isEmpty else { return }
+        do {
+            guard let anchor = try captureSessionStore.meetingHumanAnchor(handle) else { return }
+            let note = try notesStore.fetch(id: anchor.noteID)
+            guard note.title == untitledNoteTitle else { return }
+
+            var generatedTitle: String?
+            if let assignment = settingsStore.resolveAssignment(for: .noteMetadata) {
+                do {
+                    let metadata = try await aiEnhancementService.generateNoteMetadata(
+                        content: sourceText,
+                        apiEndpoint: assignment.endpoint ?? "",
+                        apiKey: assignment.apiKey,
+                        model: assignment.modelID,
+                        existingTags: [],
+                        provider: assignment.kind
+                    )
+                    let candidate = Self.normalizedText(metadata.title)
+                    if !candidate.isEmpty, candidate != untitledNoteTitle {
+                        generatedTitle = candidate
+                    }
+                } catch is CancellationError {
+                    return
+                } catch {
+                    Log.app.warning(
+                        "AI note naming fell back to the derived title: \(error.localizedDescription)"
+                    )
+                }
+            }
+
+            let resolvedTitle = generatedTitle
+                ?? aiEnhancementService.generateFallbackTitle(from: sourceText)
+            guard !Self.normalizedText(resolvedTitle).isEmpty else { return }
+
+            // Re-fetch before writing: the person may have named the note
+            // while the model ran, and their title wins.
+            let current = try notesStore.fetch(id: anchor.noteID)
+            guard current.title == untitledNoteTitle else { return }
+            current.title = resolvedTitle
+            try notesStore.update(current)
+        } catch {
+            Log.app.warning(
+                "Recorded note could not be auto-named: \(error.localizedDescription)"
             )
         }
     }

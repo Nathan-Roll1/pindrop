@@ -11,8 +11,9 @@ import SwiftUI
 /// (spec §6). Every quiet button and menu in the page chrome wears it, so they
 /// keep the same shape when one of them changes.
 struct MenuButtonChrome: ViewModifier {
-    var verticalPadding: CGFloat = 6
-    var horizontalPadding: CGFloat = 12
+    // Paper: secondary chrome pads 7/13.
+    var verticalPadding: CGFloat = 7
+    var horizontalPadding: CGFloat = 13
 
     func body(content: Content) -> some View {
         content
@@ -32,8 +33,8 @@ struct MenuButtonChrome: ViewModifier {
 extension View {
     /// Wraps a label in the secondary chrome.
     func menuButtonChrome(
-        verticalPadding: CGFloat = 6,
-        horizontalPadding: CGFloat = 12
+        verticalPadding: CGFloat = 7,
+        horizontalPadding: CGFloat = 13
     ) -> some View {
         modifier(
             MenuButtonChrome(

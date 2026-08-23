@@ -18,6 +18,13 @@ enum HomeLayoutMetrics {
     // `statNumberMetrics`, stats and chart labels `statLabelMetrics`,
     // date kicker `overlineMetrics`.
 
+    /// Page frame. Paper board 58: content padding 56 top and sides, 40 bottom.
+    static let pagePadding: CGFloat = 56
+    static let pageBottomPadding: CGFloat = 40
+
+    /// Date kicker row. Paper board 58: 18 below the row before the hero.
+    static let kickerBottomPadding: CGFloat = 18
+
     /// Hero sentence
     static let heroBottomPadding: CGFloat = 10
 

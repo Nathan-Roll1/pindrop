@@ -20,6 +20,7 @@
 		WP0INLINENOTICEBUILD01A2 /* InlineNotice.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP0INLINENOTICEFILE01A2B /* InlineNotice.swift */; };
 		WP0STAGEPROGBUILD01A2B3C /* StageProgressRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP0STAGEPROGFILE01A2B3C4 /* StageProgressRow.swift */; };
 		WP4CAPTUREBARBUILD0000001 /* CaptureBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP4CAPTUREBARFILE00000001 /* CaptureBar.swift */; };
+		CLNCTABTNBUILD00000000001 /* CapturePrimaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLNCTABTNFILE00000000001 /* CapturePrimaryButton.swift */; };
 		WP5TRSEGLISTBUILD00000001 /* TranscriptSegmentList.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP5TRSEGLISTFILE000000001 /* TranscriptSegmentList.swift */; };
 		WP6ENHPRESBUILD000000001 /* EnhancedViewPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP6ENHPRESFILE0000000001 /* EnhancedViewPresentation.swift */; };
 		WP6ENHBODYBUILD000000001 /* EnhancedNoteBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP6ENHBODYFILE0000000001 /* EnhancedNoteBody.swift */; };
@@ -297,6 +298,7 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		WP0INLINENOTICEFILE01A2B /* InlineNotice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineNotice.swift; sourceTree = "<group>"; };
 		WP0STAGEPROGFILE01A2B3C4 /* StageProgressRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageProgressRow.swift; sourceTree = "<group>"; };
 		WP4CAPTUREBARFILE00000001 /* CaptureBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureBar.swift; sourceTree = "<group>"; };
+		CLNCTABTNFILE00000000001 /* CapturePrimaryButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePrimaryButton.swift; sourceTree = "<group>"; };
 		WP5TRSEGLISTFILE000000001 /* TranscriptSegmentList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptSegmentList.swift; sourceTree = "<group>"; };
 		WP6ENHPRESFILE0000000001 /* EnhancedViewPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedViewPresentation.swift; sourceTree = "<group>"; };
 		WP6ENHBODYFILE0000000001 /* EnhancedNoteBody.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedNoteBody.swift; sourceTree = "<group>"; };
@@ -922,6 +924,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				WP0INLINENOTICEFILE01A2B /* InlineNotice.swift */,
 				WP0STAGEPROGFILE01A2B3C4 /* StageProgressRow.swift */,
 				WP4CAPTUREBARFILE00000001 /* CaptureBar.swift */,
+				CLNCTABTNFILE00000000001 /* CapturePrimaryButton.swift */,
 				WP5TRSEGLISTFILE000000001 /* TranscriptSegmentList.swift */,
 				WP6ENHBODYFILE0000000001 /* EnhancedNoteBody.swift */,
 				WP5LIVESHEETFILE000000001 /* LiveTranscriptSheet.swift */,
@@ -1358,6 +1361,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				WP0INLINENOTICEBUILD01A2 /* InlineNotice.swift in Sources */,
 				WP0STAGEPROGBUILD01A2B3C /* StageProgressRow.swift in Sources */,
 				WP4CAPTUREBARBUILD0000001 /* CaptureBar.swift in Sources */,
+				CLNCTABTNBUILD00000000001 /* CapturePrimaryButton.swift in Sources */,
 				WP5TRSEGLISTBUILD00000001 /* TranscriptSegmentList.swift in Sources */,
 				WP6ENHBODYBUILD000000001 /* EnhancedNoteBody.swift in Sources */,
 				WP5LIVESHEETBUILD00000001 /* LiveTranscriptSheet.swift in Sources */,

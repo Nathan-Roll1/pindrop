@@ -128,9 +128,9 @@ struct DictateView: View {
                 chartRowWidthProbe
                 thisWeekChart(now: now, stats: dashboardStats)
             }
-            .padding(.horizontal, 40)
-            .padding(.top, 40)
-            .padding(.bottom, 40)
+            .padding(.horizontal, HomeLayoutMetrics.pagePadding)
+            .padding(.top, HomeLayoutMetrics.pagePadding)
+            .padding(.bottom, HomeLayoutMetrics.pageBottomPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(AppColors.contentBackground)
@@ -164,6 +164,7 @@ struct DictateView: View {
                 onStop: { onStopDictation?() }
             )
         }
+        .padding(.bottom, HomeLayoutMetrics.kickerBottomPadding)
     }
 
     // MARK: - Hero
@@ -172,11 +173,9 @@ struct DictateView: View {
         VStack(alignment: .leading, spacing: 0) {
             if isFirstRun {
                 DictateEmptyHero(settingsStore: settingsStore)
-                    .padding(.top, 8)
                     .padding(.bottom, HomeLayoutMetrics.heroBottomPadding)
             } else {
                 heroSentence(stats: stats)
-                    .padding(.top, 6)
                     .padding(.bottom, HomeLayoutMetrics.heroBottomPadding)
 
                 let sub = HomePresentation.subLine(
@@ -429,7 +428,6 @@ private enum DictateActionFrameMetrics {
     static let cornerRadius: CGFloat = 8
     static let contentGap: CGFloat = 8
     static let dotSize: CGFloat = 8
-    static let startHorizontalPadding: CGFloat = 16
     static let recordingHorizontalPadding: CGFloat = 14
     static let recordingGap: CGFloat = 12
 }
@@ -551,41 +549,15 @@ private struct DictateActionFrameFace: View {
     // MARK: Start
 
     private var startButton: some View {
-        Button(action: onStart) {
-            HStack(spacing: DictateActionFrameMetrics.contentGap) {
-                Circle()
-                    .fill(AppColors.contentBackground)
-                    .frame(
-                        width: DictateActionFrameMetrics.dotSize,
-                        height: DictateActionFrameMetrics.dotSize
-                    )
-
-                Text(control.startTitle)
-                    .font(AppTypography.labelStrongSelected)
-                    .foregroundStyle(AppColors.contentBackground)
-
-                Text(control.shortcut)
-                    .font(AppTypography.monoSmall)
-                    .foregroundStyle(AppColors.contentBackground.opacity(0.72))
-                    .environment(\.layoutDirection, .leftToRight)
-            }
-            .padding(.horizontal, DictateActionFrameMetrics.startHorizontalPadding)
-            .frame(height: DictateActionFrameMetrics.height)
-            .background(
-                RoundedRectangle(
-                    cornerRadius: DictateActionFrameMetrics.cornerRadius,
-                    style: .continuous
-                )
-                .fill(control.isStartEnabled ? AppColors.accent : AppColors.accent.opacity(0.4))
-            )
-        }
-        .buttonStyle(.plain)
-        .focusRing(.rounded(.sm))
-        .disabled(!control.isStartEnabled)
-        .help(control.disabledReason ?? "")
-        .accessibilityIdentifier("main.capture.dictate.start")
-        .accessibilityLabel(control.startTitle)
-        .accessibilityHint(control.disabledReason ?? "")
+        CapturePrimaryButton(
+            glyph: .dot,
+            title: control.startTitle,
+            keyboardHint: control.shortcut,
+            isEnabled: control.isStartEnabled,
+            disabledReason: control.disabledReason,
+            accessibilityIdentifier: "main.capture.dictate.start",
+            action: onStart
+        )
     }
 
     // MARK: Recording

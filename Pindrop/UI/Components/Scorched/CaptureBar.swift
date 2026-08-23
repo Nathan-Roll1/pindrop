@@ -269,7 +269,8 @@ struct CaptureBar: View {
         HStack(spacing: 12) {
             recordingDot
 
-            elapsedLabel(font: AppTypography.monoTime)
+            // Spec: mono 13/500 on the page density, 12 on the global strip.
+            elapsedLabel(font: AppTypography.monoTimeLarge)
 
             if presentation.showsLevelBars, let levels {
                 CaptureLevelBars(sample: levels)

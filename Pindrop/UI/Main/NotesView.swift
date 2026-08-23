@@ -77,7 +77,8 @@ struct NotesView: View {
             headerSection(snapshot: snapshot)
                 .padding(.horizontal, 40)
                 .padding(.top, 40)
-                .padding(.bottom, 18)
+                // Paper board 50: 24 between the header and the list.
+                .padding(.bottom, 24)
                 .background(AppColors.contentBackground)
 
             contentArea(snapshot: snapshot)
@@ -622,63 +623,28 @@ struct NotesView: View {
 
 /// Accent-filled split button: the primary segment starts a microphone note
 /// (⌘N), the menu segment offers the system-audio and no-recording variants.
+/// One face shared with the Dictate CTA via `CapturePrimaryButton`.
 private struct NewNoteSplitButton: View {
     @Environment(\.locale) private var locale
     let onSelect: (NewNoteAction) -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
-            Button { onSelect(.recordMicrophone) } label: {
-                HStack(spacing: 7) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .semibold))
-                    Text(NewNoteAction.recordMicrophone.title(locale: locale))
-                        .font(AppTypography.labelStrongSelected)
-                    Text("⌘N")
-                        .font(AppTypography.monoSmall)
-                        .opacity(0.72)
-                        .environment(\.layoutDirection, .leftToRight)
-                }
-                .padding(.vertical, 8)
-                .padding(.leading, 14)
-                .padding(.trailing, 12)
-                .contentShape(Rectangle())
+        CapturePrimaryButton(
+            glyph: .plus,
+            title: NewNoteAction.recordMicrophone.title(locale: locale),
+            keyboardHint: "⌘N",
+            accessibilityIdentifier: "notes.list.newNote",
+            action: { onSelect(.recordMicrophone) },
+            menuAccessibilityLabel: localized("More new note options", locale: locale),
+            menuAccessibilityIdentifier: "notes.list.newNoteOptions"
+        ) {
+            Button(NewNoteAction.recordWithSystemAudio.title(locale: locale)) {
+                onSelect(.recordWithSystemAudio)
             }
-            .buttonStyle(.plain)
-            .focusRing(.rounded(.sm))
-            .accessibilityIdentifier("notes.list.newNote")
-
-            Rectangle()
-                .fill(AppColors.contentBackground.opacity(0.28))
-                .frame(width: 1)
-                .frame(maxHeight: .infinity)
-
-            Menu {
-                Button(NewNoteAction.recordWithSystemAudio.title(locale: locale)) {
-                    onSelect(.recordWithSystemAudio)
-                }
-                Button(NewNoteAction.withoutRecording.title(locale: locale)) {
-                    onSelect(.withoutRecording)
-                }
-            } label: {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 10)
-                    .contentShape(Rectangle())
+            Button(NewNoteAction.withoutRecording.title(locale: locale)) {
+                onSelect(.withoutRecording)
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .accessibilityIdentifier("notes.list.newNoteOptions")
-            .accessibilityLabel(localized("More new note options", locale: locale))
         }
-        .fixedSize(horizontal: true, vertical: false)
-        .foregroundStyle(AppColors.contentBackground)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(AppColors.accent)
-        )
     }
 }
 

@@ -230,13 +230,20 @@ struct NotePageView: View {
         VStack(spacing: 0) {
             ScrollView(.vertical, showsIndicators: true) {
                 ScrollViewReader { scrollProxy in
+                    // The header rail spans the pane like the mock; only the
+                    // text surfaces cap at the 720pt reading measure.
                     VStack(alignment: .leading, spacing: 24) {
                         headerRail
-                        titleField
-                        metaChipRow
+                        // Paper board 52: title and meta form one block with a
+                        // 14 gap; 24 separates the blocks around it.
+                        VStack(alignment: .leading, spacing: 14) {
+                            titleField
+                            metaChipRow
+                        }
+                        .frame(maxWidth: canvasMaxWidth, alignment: .leading)
                         canvas
+                            .frame(maxWidth: canvasMaxWidth, alignment: .leading)
                     }
-                    .frame(maxWidth: canvasMaxWidth, alignment: .leading)
                     .padding(.horizontal, 40)
                     .padding(.top, 40)
                     .padding(.bottom, 16)
@@ -254,7 +261,6 @@ struct NotePageView: View {
             }
 
             bottomDock(canvasHeight: canvasHeight)
-                .frame(maxWidth: canvasMaxWidth, alignment: .leading)
                 .padding(.horizontal, 40)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -345,7 +351,8 @@ struct NotePageView: View {
     // MARK: - Header rail
 
     private var headerRail: some View {
-        HStack(spacing: 10) {
+        // Paper board 52: 8 between the rail's controls.
+        HStack(spacing: 8) {
             backChip
 
             Spacer(minLength: 12)

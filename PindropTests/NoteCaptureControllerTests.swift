@@ -93,6 +93,114 @@ struct NoteCaptureControllerTests {
 
     // MARK: - Fixture
 
+
+    // MARK: - Auto naming
+
+    private func configureNoteMetadataAssignment(in settings: SettingsStore) throws {
+        let provider = ProviderConfig(kind: .openai, displayName: "Test OpenAI")
+        settings.upsertProvider(provider)
+        try settings.saveProviderAPIKey("metadata-secret", forProviderID: provider.id)
+        try settings.saveProviderEndpoint(
+            "https://api.example.invalid/v1/chat/completions",
+            forProviderID: provider.id
+        )
+        settings.setAssignment(
+            ModelAssignment(providerID: provider.id, modelID: "gpt-4o-mini"),
+            for: .noteMetadata
+        )
+    }
+
+    private func makeUntitledAnchoredHandle(
+        in fixture: Fixture
+    ) throws -> (PindropCore.NoteCaptureHandle, UUID) {
+        let handle = try fixture.captureSessionStore.startNoteCapture(
+            includeSystemAudio: false,
+            intent: CaptureIntentRequest(destination: .newNote, origin: .mainWindow)
+        )
+        let anchor = try fixture.captureSessionStore.ensureMeetingHumanAnchor(
+            handle,
+            title: "Untitled Note"
+        )
+        return (handle, anchor.noteID)
+    }
+
+    @Test func autoNamingUsesTheAIMetadataTitleWhenTheAssignmentResolves() async throws {
+        let fixture = try makeFixture()
+        let (handle, noteID) = try makeUntitledAnchoredHandle(in: fixture)
+        try configureNoteMetadataAssignment(in: fixture.settingsStore)
+        fixture.enhancementSession.responseContent =
+            #"{"title": "Roof repair plan", "tags": []}"#
+
+        await fixture.controller.autoNameNoteIfUntitled(
+            handle,
+            finalText: "the roof needs replacing before winter"
+        )
+
+        let note = try fixture.notesStore.fetch(id: noteID)
+        #expect(note.title == "Roof repair plan")
+        #expect(fixture.enhancementSession.requestCount == 1)
+    }
+
+    @Test func autoNamingFallsBackToTheDerivedTitleWithoutAnAssignment() async throws {
+        let fixture = try makeFixture()
+        let (handle, noteID) = try makeUntitledAnchoredHandle(in: fixture)
+        let text = "the roof needs replacing before winter"
+
+        await fixture.controller.autoNameNoteIfUntitled(handle, finalText: text)
+
+        let expected = AIEnhancementService(session: StubEnhancementProviderSession())
+            .generateFallbackTitle(from: text)
+        let note = try fixture.notesStore.fetch(id: noteID)
+        #expect(note.title == expected)
+        #expect(note.title != "Untitled Note")
+        #expect(fixture.enhancementSession.requestCount == 0)
+    }
+
+    @Test func autoNamingFallsBackToTheDerivedTitleWhenTheProviderFails() async throws {
+        let fixture = try makeFixture()
+        let (handle, noteID) = try makeUntitledAnchoredHandle(in: fixture)
+        try configureNoteMetadataAssignment(in: fixture.settingsStore)
+        fixture.enhancementSession.error = URLError(.timedOut)
+        let text = "the roof needs replacing before winter"
+
+        await fixture.controller.autoNameNoteIfUntitled(handle, finalText: text)
+
+        let expected = AIEnhancementService(session: StubEnhancementProviderSession())
+            .generateFallbackTitle(from: text)
+        let note = try fixture.notesStore.fetch(id: noteID)
+        #expect(note.title == expected)
+    }
+
+    @Test func autoNamingNeverTouchesATitleThePersonTyped() async throws {
+        let fixture = try makeFixture()
+        let (handle, noteID) = try makeUntitledAnchoredHandle(in: fixture)
+        let note = try fixture.notesStore.fetch(id: noteID)
+        note.title = "Winter prep"
+        try fixture.notesStore.update(note)
+        try configureNoteMetadataAssignment(in: fixture.settingsStore)
+
+        await fixture.controller.autoNameNoteIfUntitled(
+            handle,
+            finalText: "the roof needs replacing before winter"
+        )
+
+        let after = try fixture.notesStore.fetch(id: noteID)
+        #expect(after.title == "Winter prep")
+        #expect(fixture.enhancementSession.requestCount == 0)
+    }
+
+    @Test func autoNamingIgnoresAnEmptyTranscript() async throws {
+        let fixture = try makeFixture()
+        let (handle, noteID) = try makeUntitledAnchoredHandle(in: fixture)
+        try configureNoteMetadataAssignment(in: fixture.settingsStore)
+
+        await fixture.controller.autoNameNoteIfUntitled(handle, finalText: "   ")
+
+        let note = try fixture.notesStore.fetch(id: noteID)
+        #expect(note.title == "Untitled Note")
+        #expect(fixture.enhancementSession.requestCount == 0)
+    }
+
     private struct Fixture {
         let controller: NoteCaptureController
         let arbiter: StubCaptureArbiter
@@ -658,6 +766,12 @@ struct NoteCaptureControllerTests {
             spoolPlan: makeSpoolPlan(fixture, handle: handle),
             expectedSpeakerCount: nil,
             operationGuard: {}
+        )
+        // At runtime naming runs as a detached follow-up so it cannot delay
+        // completion; run it to completion here to assert the end state.
+        await fixture.controller.autoNameNoteIfUntitled(
+            handle,
+            finalText: "call the roofer back on Tuesday"
         )
 
         let note = try fixture.notesStore.fetch(id: anchor.noteID)
