@@ -108,6 +108,13 @@ extension DiarizedTranscriptSegment {
     /// stable while the label can be rewritten for display. An empty pair falls
     /// back to one shared key so un-attributed spans group with each other.
     public var canonicalSpeakerKey: String {
+        Self.canonicalSpeakerKey(speakerId: speakerId, speakerLabel: speakerLabel)
+    }
+
+    /// The same key from a loose identifier and label, for the interfaces that
+    /// hold the two halves without a segment around them (speaker colors, turn
+    /// headers). One rule, so a color and a footer can never disagree.
+    public static func canonicalSpeakerKey(speakerId: String, speakerLabel: String) -> String {
         let trimmedIdentifier = speakerId.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedIdentifier.isEmpty {
             return trimmedIdentifier

@@ -124,6 +124,60 @@ struct NotesPresentationTests {
         #expect(NoteRowPresentation.liveLabel(elapsed: 243, locale: en) == "REC 04:03")
     }
 
+    // MARK: - Live row wiring (WP4)
+
+    @Test func aRecordingNoteProducesTheLiveRow() {
+        let noteID = UUID()
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let row = NoteCaptureLiveRow.active(
+            noteID: noteID,
+            isRecording: true,
+            startedAt: now.addingTimeInterval(-243),
+            now: now
+        )
+        #expect(row?.noteID == noteID)
+        #expect(row?.elapsed == 243)
+        #expect(row?.startedAt == now.addingTimeInterval(-243))
+    }
+
+    @Test func nothingRecordingLeavesEveryRowAlone() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        // Not recording (finalizing, failed, idle): the row is a normal row again.
+        #expect(NoteCaptureLiveRow.active(
+            noteID: UUID(),
+            isRecording: false,
+            startedAt: now,
+            now: now
+        ) == nil)
+        // A capture with no note bound yet has no row to light up.
+        #expect(NoteCaptureLiveRow.active(
+            noteID: nil,
+            isRecording: true,
+            startedAt: now,
+            now: now
+        ) == nil)
+        // A capture that has not begun recording has no clock to show.
+        #expect(NoteCaptureLiveRow.active(
+            noteID: UUID(),
+            isRecording: true,
+            startedAt: nil,
+            now: now
+        ) == nil)
+    }
+
+    @Test func theRowCountsFromTheStartInsteadOfItsOwnAge() {
+        let started = Date(timeIntervalSince1970: 1_000_000)
+        let row = NoteCaptureLiveRow(noteID: UUID(), elapsed: 0, startedAt: started)
+        #expect(row.elapsed(now: started.addingTimeInterval(90)) == 90)
+        // The clock never runs backwards when the tick lands early.
+        #expect(row.elapsed(now: started.addingTimeInterval(-5)) == 0)
+    }
+
+    @Test func aRowWithoutAStartClockKeepsTheElapsedItWasGiven() {
+        let row = NoteCaptureLiveRow(noteID: UUID(), elapsed: 42)
+        #expect(row.elapsed(now: Date()) == 42)
+    }
+
     // MARK: - Split button actions
 
     @Test func newNoteActionsMapToCaptureRequests() {

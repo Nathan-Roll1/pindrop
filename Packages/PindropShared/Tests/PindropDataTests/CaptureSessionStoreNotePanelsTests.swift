@@ -401,6 +401,118 @@ struct CaptureSessionStoreNotePanelsTests {
         #expect(try noteContent(fixture.noteID, in: fixture.container) == typed)
     }
 
+    // MARK: - Panel sources
+
+    private func provenanceJSON(
+        noteID: UUID,
+        citations: [MeetingNoteCitation]
+    ) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let provenance = MeetingGeneratedNoteProvenance(
+            humanAnchorNoteID: noteID,
+            evidenceInput: "frozen evidence",
+            citations: citations,
+            sourceTranscriptRevisionIDs: citations.map(\.transcriptRevisionID)
+        )
+        return String(decoding: try encoder.encode(provenance), as: UTF8.self)
+    }
+
+    private func citation(_ identifier: String, revisionID: UUID) -> MeetingNoteCitation {
+        MeetingNoteCitation(
+            identifier: identifier,
+            transcriptRevisionID: revisionID,
+            startTime: 10,
+            endTime: 14,
+            speakerLabel: "Speaker 1",
+            text: "The release candidate ships on Friday."
+        )
+    }
+
+    @Test func panelSourcesComeBackFromTheFrozenProvenance() throws {
+        let fixture = try makeFixture()
+        let revisionID = UUID()
+        let citations = [
+            citation("C1", revisionID: revisionID),
+            citation("C2", revisionID: revisionID)
+        ]
+        let panel = try fixture.store.saveEnhancedPanel(
+            sessionID: fixture.handle.sessionID,
+            noteID: fixture.noteID,
+            templatePresetIdentifier: "summary",
+            templateDisplayName: "Summary",
+            content: "Ships Friday.",
+            assignmentAttempt: 1,
+            provenanceJSON: try provenanceJSON(noteID: fixture.noteID, citations: citations),
+            humanAnchorContentSnapshot: fixture.typedContent
+        )
+
+        #expect(try fixture.store.enhancedPanelCitations(panelID: panel.id) == citations)
+    }
+
+    @Test func aPanelWithNoProvenanceHasNoSources() throws {
+        let fixture = try makeFixture()
+        let panel = try fixture.store.saveEnhancedPanel(
+            sessionID: fixture.handle.sessionID,
+            noteID: fixture.noteID,
+            templatePresetIdentifier: "summary",
+            templateDisplayName: "Summary",
+            content: "Ships Friday.",
+            assignmentAttempt: 1
+        )
+
+        #expect(try fixture.store.enhancedPanelCitations(panelID: panel.id).isEmpty)
+    }
+
+    @Test func provenanceThatIsNotByteIdenticalToItselfCitesNothing() throws {
+        // A blob somebody rewrote decodes fine and describes nothing this build
+        // wrote, so it must not be presented as evidence.
+        let fixture = try makeFixture()
+        let revisionID = UUID()
+        let rewritten = try provenanceJSON(
+            noteID: fixture.noteID,
+            citations: [citation("C1", revisionID: revisionID)]
+        ) + " "
+        let panel = try fixture.store.saveEnhancedPanel(
+            sessionID: fixture.handle.sessionID,
+            noteID: fixture.noteID,
+            templatePresetIdentifier: "summary",
+            templateDisplayName: "Summary",
+            content: "Ships Friday.",
+            assignmentAttempt: 1,
+            provenanceJSON: rewritten
+        )
+
+        #expect(try fixture.store.enhancedPanelCitations(panelID: panel.id).isEmpty)
+    }
+
+    @Test func provenanceAnchoredToAnotherNoteCitesNothing() throws {
+        let fixture = try makeFixture()
+        let panel = try fixture.store.saveEnhancedPanel(
+            sessionID: fixture.handle.sessionID,
+            noteID: fixture.noteID,
+            templatePresetIdentifier: "summary",
+            templateDisplayName: "Summary",
+            content: "Ships Friday.",
+            assignmentAttempt: 1,
+            provenanceJSON: try provenanceJSON(
+                noteID: UUID(),
+                citations: [citation("C1", revisionID: UUID())]
+            )
+        )
+
+        #expect(try fixture.store.enhancedPanelCitations(panelID: panel.id).isEmpty)
+    }
+
+    @Test func readingSourcesOfAPanelThatDoesNotExistFails() throws {
+        let fixture = try makeFixture()
+        let panelID = UUID()
+
+        #expect(throws: CaptureSessionStoreError.enhancedPanelNotFound(panelID)) {
+            try fixture.store.enhancedPanelCitations(panelID: panelID)
+        }
+    }
+
     // MARK: - Feedback
 
     @Test func panelFeedbackRoundTripsAndClears() throws {

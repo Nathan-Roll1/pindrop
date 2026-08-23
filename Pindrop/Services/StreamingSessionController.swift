@@ -132,6 +132,8 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     }
 
     private var artifactCaptureHandle: NoteCaptureHandle?
+    /// Retains the artifact display sink: the coordinator holds its sink weakly.
+    private var artifactDisplaySink: ArtifactDisplaySink?
     private var artifactAssignment: CaptureStageAssignment?
     private var artifactPersistenceDisabled = false
     private var artifactFailureRecorded = false
@@ -141,10 +143,15 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     private(set) var isArtifactLiveTranscriptionStopped = false
     private var artifactLiveTranscriptionLimitTask: Task<Void, Never>?
 
-    /// Observer for the cumulative committed text of an artifact capture.
-    /// Artifact capture has no display sink, so this is the only way the note
-    /// UI can show what the live engine has decided so far.
+    /// Observer for the cumulative committed text of an artifact capture. This
+    /// is how the note UI sees what the live engine has decided so far, and it
+    /// reports exactly what the durable checkpoints record.
     var onArtifactLiveTextChanged: ((String) -> Void)?
+
+    /// Observer for the tail the engine has not settled on yet. The note page
+    /// draws it in a quieter ink, so a person can tell a guess from a decision.
+    /// Nothing else consumes it: artifact capture still inserts no text anywhere.
+    var onArtifactTentativeTextChanged: ((String) -> Void)?
 
     /// True when live transcription for the active artifact capture stopped
     /// growing: the duration bound elapsed, or checkpoint persistence failed.
@@ -303,7 +310,14 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
             }
 
             let coordinator = StreamingRefinementCoordinator()
-            coordinator.beginSession(commitObserver: self)
+            // The sink exists only to carry the unsettled tail to the note page.
+            // Committed text still arrives through the commit observer, which is
+            // the path the durable checkpoints follow.
+            let displaySink = ArtifactDisplaySink { [weak self] tentative in
+                self?.onArtifactTentativeTextChanged?(tentative)
+            }
+            artifactDisplaySink = displaySink
+            coordinator.beginSession(outputSink: displaySink, commitObserver: self)
             refinementCoordinator = coordinator
             pumpEngine = transcriptionService.activeStreamingEngine
             attachAudioForwarding()
@@ -933,6 +947,8 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         artifactPersistenceDisabled = false
         artifactFailureRecorded = false
         isArtifactLiveTranscriptionStopped = false
+        artifactDisplaySink = nil
+        onArtifactTentativeTextChanged?("")
     }
 
     /// Arms the live-transcription duration bound for one durable capture.
@@ -1200,5 +1216,38 @@ private final class FinalizeTimeoutState<Output>: @unchecked Sendable {
         operationTask?.cancel()
         timeoutTask?.cancel()
         continuation?.resume(with: result)
+    }
+}
+
+// MARK: - Artifact display sink
+
+/// The display half of an artifact capture.
+///
+/// A note capture inserts text nowhere, so this sink types nothing and outputs
+/// nothing. It exists for one fact the commit observer cannot carry: the tail
+/// the engine has not settled on yet, which the note page draws in a quieter ink.
+@MainActor
+final class ArtifactDisplaySink: StreamingRefinementOutputSink {
+
+    private let onTentativeChanged: (String) -> Void
+
+    init(onTentativeChanged: @escaping (String) -> Void) {
+        self.onTentativeChanged = onTentativeChanged
+    }
+
+    func beginStreamingInsertion() {
+        onTentativeChanged("")
+    }
+
+    func updateStreamingInsertion(committed: String, tentative: String) async throws {
+        onTentativeChanged(tentative)
+    }
+
+    func finishStreamingInsertion(finalText: String, appendTrailingSpace: Bool) async throws {
+        onTentativeChanged("")
+    }
+
+    func cancelStreamingInsertion() async {
+        onTentativeChanged("")
     }
 }

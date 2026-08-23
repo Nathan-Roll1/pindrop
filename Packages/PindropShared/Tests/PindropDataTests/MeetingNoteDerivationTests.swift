@@ -451,6 +451,44 @@ struct MeetingNoteDerivationTests {
         #expect(roundTripped == first.citations[0])
     }
 
+    // MARK: - Citation markers
+
+    @Test func readsTheCitationMarkersItWouldOtherwiseStrip() {
+        let content = "Ships Friday. [C1] Owner is Avery. [C12]"
+        let markers = MeetingNoteDerivation.citationMarkers(in: content)
+
+        #expect(markers.map(\.identifier) == ["C1", "C12"])
+        #expect(markers.map(\.text) == ["[C1]", "[C12]"])
+        // The ranges are the ones a caller has to cut out to get the sanitized
+        // text, so they must name exactly the marker.
+        #expect(markers.map { (content as NSString).substring(with: $0.range) } == ["[C1]", "[C12]"])
+    }
+
+    @Test func foldsLookalikeMarkersOntoTheIdentityTheyImitate() {
+        // Same alphabets the sanitizer's pattern accepts: a marker that would be
+        // stripped is a marker that can be read, or the two would disagree.
+        let markers = MeetingNoteDerivation.citationMarkers(in: "Ships Friday. [Сl] [ C 2 ]")
+
+        #expect(markers.map(\.identifier) == ["C1", "C2"])
+        #expect(markers.allSatisfy { !$0.text.isEmpty })
+    }
+
+    @Test func everyMarkerItFindsIsOneSanitizingRemoves() {
+        let content = "Ships Friday. [C1] Owner is Avery. [Сl]"
+        let markers = MeetingNoteDerivation.citationMarkers(in: content)
+        let sanitized = MeetingNoteDerivation.sanitizingGeneratedContent(content)
+
+        #expect(markers.count == 2)
+        #expect(!sanitized.contains("[C1]"))
+        #expect(!sanitized.contains("[Сl]"))
+    }
+
+    @Test func textWithNoMarkersReadsAsNoMarkers() {
+        #expect(MeetingNoteDerivation.citationMarkers(in: "Ships Friday.").isEmpty)
+        #expect(MeetingNoteDerivation.citationMarkers(in: "").isEmpty)
+        #expect(MeetingNoteDerivation.citationMarkers(in: "let flags = [ok]").isEmpty)
+    }
+
     private func checkpoint(
         sequence: Int,
         startOffset: TimeInterval = 0,

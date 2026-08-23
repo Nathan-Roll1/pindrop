@@ -65,7 +65,8 @@ extension CaptureSessionStore {
             mode: session.mode,
             state: session.state,
             startedAt: session.startedAt,
-            endedAt: session.endedAt
+            endedAt: session.endedAt,
+            transcriptionRecordID: sessionModel.transcriptionRecordID
         )
 
         let transcript = transcriptDeletedAt == nil

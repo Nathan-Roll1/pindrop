@@ -389,13 +389,20 @@ struct NotesView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if let live {
-                    Text(NoteRowPresentation.liveLabel(elapsed: live.elapsed, locale: locale))
+                    // The clock ticks inside the row, so a running recording
+                    // never re-renders the rest of the list once a second.
+                    TimelineView(.periodic(from: live.startedAt ?? .now, by: 1)) { context in
+                        Text(NoteRowPresentation.liveLabel(
+                            elapsed: live.elapsed(now: context.date),
+                            locale: locale
+                        ))
                         .font(AppTypography.monoSmall)
                         .foregroundStyle(AppColors.recording)
                         .monospacedDigit()
                         .lineLimit(1)
-                        .frame(width: 118, alignment: .trailing)
                         .environment(\.layoutDirection, .leftToRight)
+                    }
+                    .frame(width: 118, alignment: .trailing)
                 } else {
                     Group {
                         if NoteRowPresentation.showsEnhancedBadge(facts: facts) {

@@ -1055,6 +1055,9 @@ final class AppCoordinator {
             onFinishNoteCapture: { [weak self] in
                 self?.handleFinishNoteCapture()
             },
+            onCancelNoteCapture: { [weak self] in
+                self?.handleCancelNoteCapture()
+            },
             onGenerateEnhancedPanel: { [weak self] request in
                 guard let self else { return nil }
                 return await self.handleGenerateEnhancedPanel(request)
@@ -4156,6 +4159,15 @@ final class AppCoordinator {
                 Log.app.error("Failed to finish note capture: \(error)")
             }
         }
+    }
+
+    /// Throws the note capture away from the note page's overflow menu.
+    ///
+    /// It goes through the one cancel path the hotkey and the menu bar use, so
+    /// the recorder teardown, the pending-start sweep, and the terminal capture
+    /// cancellation are the ones that were already proven.
+    private func handleCancelNoteCapture() {
+        cancelCurrentOperation(source: "note-page")
     }
 
     /// Generates one enhanced panel for a note. Returns nil when it worked, or

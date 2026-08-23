@@ -108,6 +108,70 @@ struct NotePagePresentationTests {
         #expect(transcript.helpText == "The transcript starts once you speak.")
     }
 
+    @Test func aRecordingThatHasBeenHeardCanBeReadBeforeAnythingIsDurable() throws {
+        // WP5: the live text is enough to open the Transcript view on, so a
+        // person can follow along while the recording is still running.
+        let state = NotePageState(capture: .capturing, hasLiveText: true)
+        let transcript = try #require(segment(.transcript, in: state))
+        #expect(transcript.isEnabled)
+        #expect(transcript.indicator == .live)
+        #expect(transcript.helpText == nil)
+    }
+
+    @Test func liveTextDoesNotResurrectADeletedTranscript() {
+        let state = NotePageState(
+            isTranscriptDeleted: true,
+            capture: .capturing,
+            hasLiveText: true
+        )
+        #expect(segment(.transcript, in: state) == nil)
+    }
+
+    // MARK: - Reading the transcript
+
+    @Test func theTranscriptViewIsLiveOnlyWhileAudioIsBeingRecorded() {
+        #expect(NotePagePresentation.isTranscriptLive(
+            state: NotePageState(capture: .capturing, hasLiveText: true)
+        ))
+        #expect(!NotePagePresentation.isTranscriptLive(
+            state: NotePageState(hasTranscript: true, capture: .finalizing(.transcribing, progress: nil))
+        ))
+        #expect(!NotePagePresentation.isTranscriptLive(
+            state: NotePageState(hasTranscript: true, isRecorded: true)
+        ))
+    }
+
+    @Test func searchAndPlaybackWaitForAFinishedTranscript() {
+        let recording = NotePageState(capture: .capturing, hasLiveText: true)
+        #expect(!NotePagePresentation.showsTranscriptSearch(state: recording, selection: .transcript))
+        #expect(!NotePagePresentation.showsPlaybackBar(
+            state: recording,
+            selection: .transcript,
+            hasPlayableAudio: true
+        ))
+
+        let finished = NotePageState(hasTranscript: true, isRecorded: true)
+        #expect(NotePagePresentation.showsTranscriptSearch(state: finished, selection: .transcript))
+        #expect(NotePagePresentation.showsPlaybackBar(
+            state: finished,
+            selection: .transcript,
+            hasPlayableAudio: true
+        ))
+        // Nothing to play, nothing to draw.
+        #expect(!NotePagePresentation.showsPlaybackBar(
+            state: finished,
+            selection: .transcript,
+            hasPlayableAudio: false
+        ))
+        // Neither belongs to the other two views.
+        #expect(!NotePagePresentation.showsTranscriptSearch(state: finished, selection: .humanNotes))
+        #expect(!NotePagePresentation.showsPlaybackBar(
+            state: finished,
+            selection: .enhanced,
+            hasPlayableAudio: true
+        ))
+    }
+
     @Test func finalizingIsStillAnActiveCapture() {
         let phase = NotePageCapturePhase.finalizing(.transcribing, progress: 0.4)
         #expect(phase.isActive)
@@ -264,6 +328,36 @@ struct NotePagePresentationTests {
         #expect(!plain.canOpenInNewWindow)
     }
 
+    @Test func cancelIsOfferedOnlyWhileAudioIsStillBeingRecorded() {
+        for phase in [NotePageCapturePhase.starting, .capturing] {
+            let actions = NotePagePresentation.headerActions(
+                state: NotePageState(capture: phase),
+                selection: .humanNotes
+            )
+            #expect(actions.canCancelCapture)
+        }
+
+        // Past the recording there is nothing left to cancel: Finish already
+        // happened and the audio is durable.
+        for phase in [
+            NotePageCapturePhase.none,
+            .finalizing(.transcribing, progress: 0.5),
+            .enhancing,
+            .failed
+        ] {
+            let actions = NotePagePresentation.headerActions(
+                state: NotePageState(capture: phase),
+                selection: .humanNotes
+            )
+            #expect(!actions.canCancelCapture)
+        }
+    }
+
+    @Test func cancelSaysWhatItThrowsAwayAndWhatItKeeps() {
+        #expect(NotePagePresentation.cancelCaptureMessage(locale: locale)
+            == "The audio and the live transcript are deleted. Your typed notes stay.")
+    }
+
     // MARK: - Footer
 
     @Test func theTypedNotesFooterCountsWordsAndOffersTheSaveHint() {
@@ -345,6 +439,18 @@ struct NotePagePresentationTests {
             kind: .transcript,
             state: NotePageState(hasTranscript: true, isRecorded: true, capture: .capturing),
             facts: NotePageFooterFacts(isTranscriptLive: true),
+            locale: locale
+        )
+        #expect(footer.leading == "The transcript fills in as you speak.")
+    }
+
+    @Test func aRunningRecordingIsLiveEvenBeforeTheStoreCatchesUp() {
+        // WP5: the live view draws from the capture, so the footer must not
+        // report a finished length for a transcript that is still growing.
+        let footer = NotePagePresentation.footer(
+            kind: .transcript,
+            state: NotePageState(capture: .capturing, hasLiveText: true),
+            facts: NotePageFooterFacts(isTranscriptLive: false),
             locale: locale
         )
         #expect(footer.leading == "The transcript fills in as you speak.")

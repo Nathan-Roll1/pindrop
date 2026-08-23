@@ -155,6 +155,86 @@ struct WaveformView: View {
     }
 }
 
+// MARK: - Live level bars
+
+/// One reading of the live meters.
+struct CaptureLevelSample: Equatable, Sendable {
+    var level: Float
+    var bands: AudioBandLevels
+
+    static let silent = CaptureLevelSample(level: 0, bands: .zero)
+}
+
+/// Geometry for the small live level meter on the capture bar (spec: "level bars
+/// (WaveformView, ~46×16)"). Pure, so the mapping from meters to bar heights is
+/// testable without a window.
+enum CaptureLevelGeometry {
+    static let barCount = 5
+    static let barWidth: CGFloat = 4
+    static let spacing: CGFloat = 6.5
+    static let height: CGFloat = 16
+    static let cornerRadius: CGFloat = 2
+    /// Silence still shows a resting line rather than an empty gap.
+    static let restingFraction: Double = 0.12
+
+    /// Total width at the design metrics (46 pt at 5 bars).
+    static var width: CGFloat {
+        CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * spacing
+    }
+
+    /// Bar heights in 0…1, quietest at the edges.
+    ///
+    /// The three bands give the meter its shape and the overall level gives it
+    /// its amplitude, so a loud low voice and a quiet bright one do not draw the
+    /// same picture.
+    static func bars(level: Float, bands: AudioBandLevels) -> [Double] {
+        let amplitude = clamp(Double(level))
+        let shape = [bands.low, bands.mid, bands.high, bands.mid, bands.low]
+            .map { clamp(Double($0)) }
+        return shape.map { band in
+            max(restingFraction, clamp(band * (0.4 + 0.6 * amplitude)))
+        }
+    }
+
+    private static func clamp(_ value: Double) -> Double {
+        min(1, max(0, value))
+    }
+}
+
+/// The live level meter on the capture bar.
+///
+/// `sample` is a closure on purpose: the meters update per audio buffer, and
+/// reading them here keeps the invalidation inside this leaf instead of the page
+/// that hosts the bar.
+struct CaptureLevelBars: View {
+    let sample: @MainActor () -> CaptureLevelSample
+
+    var body: some View {
+        let reading = sample()
+        let bars = CaptureLevelGeometry.bars(level: reading.level, bands: reading.bands)
+        return HStack(alignment: .center, spacing: CaptureLevelGeometry.spacing) {
+            ForEach(Array(bars.enumerated()), id: \.offset) { _, fraction in
+                RoundedRectangle(
+                    cornerRadius: CaptureLevelGeometry.cornerRadius,
+                    style: .continuous
+                )
+                .fill(AppColors.recording)
+                .frame(
+                    width: CaptureLevelGeometry.barWidth,
+                    height: max(2, CGFloat(fraction) * CaptureLevelGeometry.height)
+                )
+            }
+        }
+        .frame(
+            width: CaptureLevelGeometry.width,
+            height: CaptureLevelGeometry.height,
+            alignment: .center
+        )
+        // Decorative: the elapsed clock beside it already announces the recording.
+        .accessibilityHidden(true)
+    }
+}
+
 #Preview("WaveformView") {
     WaveformView(
         peaks: (0..<48).map { i in Float(0.2 + 0.7 * abs(sin(Double(i) * 0.35))) },

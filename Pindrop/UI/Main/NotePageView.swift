@@ -34,6 +34,16 @@ struct NoteEnhancementRequest: Equatable, Sendable {
     let templatePresetIdentifier: String?
 }
 
+/// One trip from a citation to the span it quotes.
+///
+/// The sequence number is what makes following the same citation twice a new
+/// trip: the page scrolls and flashes on a change, and two identical spans
+/// would otherwise be no change at all.
+struct NoteCitationJump: Equatable, Sendable {
+    let sequence: Int
+    let segmentID: String
+}
+
 struct NotePageView: View {
 
     // MARK: Inputs
@@ -47,6 +57,9 @@ struct NotePageView: View {
     let onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
     /// Finishes the capture attached to this note.
     let onFinishNoteCapture: (() -> Void)?
+    /// Throws the capture away: the audio and the live transcript go, the typed
+    /// notes stay.
+    let onCancelNoteCapture: (() -> Void)?
     let onGenerateEnhancedPanel: NoteEnhancementHandler?
 
     init(
@@ -55,6 +68,7 @@ struct NotePageView: View {
         noteCaptureState: NoteCaptureState? = nil,
         onStartNoteCapture: ((NoteCaptureRequest) -> Bool)? = nil,
         onFinishNoteCapture: (() -> Void)? = nil,
+        onCancelNoteCapture: (() -> Void)? = nil,
         onGenerateEnhancedPanel: NoteEnhancementHandler? = nil
     ) {
         self.noteID = noteID
@@ -62,6 +76,7 @@ struct NotePageView: View {
         self.noteCaptureState = noteCaptureState
         self.onStartNoteCapture = onStartNoteCapture
         self.onFinishNoteCapture = onFinishNoteCapture
+        self.onCancelNoteCapture = onCancelNoteCapture
         self.onGenerateEnhancedPanel = onGenerateEnhancedPanel
         _notes = Query(
             filter: #Predicate<NoteSchema.Note> { $0.id == noteID },
@@ -107,7 +122,32 @@ struct NotePageView: View {
     @State private var expectedSpeakerCount: Int?
     @State private var pendingTranscriptDeletion = false
     @State private var pendingNoteDeletion = false
+    @State private var pendingCaptureCancellation = false
     @State private var errorMessage: String?
+
+    // MARK: Enhanced view state
+
+    /// The sources behind each panel, read once per store refresh. A panel with
+    /// no readable provenance keeps an empty list rather than disappearing.
+    @State private var panelCitations: [UUID: [MeetingNoteCitation]] = [:]
+    /// The templates the menu offers, in their stored order.
+    @State private var templatePresets: [TemplateMenuPreset] = []
+    @State private var isPresetSheetPresented = false
+
+    // MARK: Transcript view state
+
+    @State private var transcriptQuery = ""
+    /// How far the live transcript sheet is pulled open.
+    @State private var liveSheetDetent: TranscriptSheetDetent = .collapsed
+    @State private var playbackController = MediaPlaybackController()
+    /// The recorded audio of this note, when the capture kept one.
+    @State private var mediaURL: URL?
+    @State private var mediaDuration: TimeInterval = 0
+    /// The span a citation was followed to. It is carried with a sequence
+    /// number so following the same citation twice still scrolls and flashes.
+    @State private var citationJump: NoteCitationJump?
+    @State private var citationJumpCount = 0
+    @State private var citationFlashTask: Task<Void, Never>?
 
     @FocusState private var titleFieldFocused: Bool
 
@@ -140,8 +180,17 @@ struct NotePageView: View {
             isTranscriptDeleted: views?.isTranscriptDeleted ?? false,
             isRecorded: views?.isRecorded ?? false,
             capture: capturePhase,
-            hasUnreadEnhanced: hasUnreadEnhanced
+            hasUnreadEnhanced: hasUnreadEnhanced,
+            hasLiveText: hasLiveText
         )
+    }
+
+    /// True once the running capture has heard something. Reading the live text
+    /// here costs this page one invalidation per committed sentence, which is
+    /// what it takes to offer the Transcript view during the recording.
+    private var hasLiveText: Bool {
+        guard capturePhase.isRecording, let noteCaptureState else { return false }
+        return !noteCaptureState.liveTranscript.isEmpty
     }
 
     private var resolvedSelection: CaptureNoteViewKind {
@@ -170,22 +219,41 @@ struct NotePageView: View {
     // MARK: Body
 
     var body: some View {
+        // The live sheet snaps to fractions of the page, so the page has to know
+        // how tall it is.
+        GeometryReader { proxy in
+            pageBody(canvasHeight: proxy.size.height)
+        }
+    }
+
+    private func pageBody(canvasHeight: CGFloat) -> some View {
         VStack(spacing: 0) {
             ScrollView(.vertical, showsIndicators: true) {
-                VStack(alignment: .leading, spacing: 24) {
-                    headerRail
-                    titleField
-                    metaChipRow
-                    canvas
+                ScrollViewReader { scrollProxy in
+                    VStack(alignment: .leading, spacing: 24) {
+                        headerRail
+                        titleField
+                        metaChipRow
+                        canvas
+                    }
+                    .frame(maxWidth: canvasMaxWidth, alignment: .leading)
+                    .padding(.horizontal, 40)
+                    .padding(.top, 40)
+                    .padding(.bottom, 16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // A citation was followed: put its line on screen. Every
+                    // span carries its own identifier, so this lands on the
+                    // words that were quoted and not on the turn around them.
+                    .onChange(of: citationJump) { _, jump in
+                        guard let jump else { return }
+                        withAnimation(reduceMotion ? nil : AppTheme.Animation.normal) {
+                            scrollProxy.scrollTo(jump.segmentID, anchor: .center)
+                        }
+                    }
                 }
-                .frame(maxWidth: canvasMaxWidth, alignment: .leading)
-                .padding(.horizontal, 40)
-                .padding(.top, 40)
-                .padding(.bottom, 16)
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            captureDock
+            bottomDock(canvasHeight: canvasHeight)
                 .frame(maxWidth: canvasMaxWidth, alignment: .leading)
                 .padding(.horizontal, 40)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -202,6 +270,11 @@ struct NotePageView: View {
             if newValue == .none {
                 isEnhancedNoticeDismissed = false
             }
+            // A sheet of live text has nothing left to show once the microphone
+            // closes, and it must not keep the finalizing bar off screen.
+            if !newValue.isRecording {
+                liveSheetDetent = .collapsed
+            }
         }
         .onChange(of: title) { _, _ in noteDidChange() }
         .onChange(of: content) { _, newValue in
@@ -209,11 +282,17 @@ struct NotePageView: View {
             noteDidChange()
         }
         .onChange(of: tags) { _, _ in noteDidChange() }
+        .onChange(of: mediaURL) { _, url in loadPlayableAudio(url) }
         .onDisappear {
+            playbackController.teardownPlayback()
             autosaveTask?.cancel()
             wordCountTask?.cancel()
             savedConfirmationTask?.cancel()
+            citationFlashTask?.cancel()
             flushOnLeaving()
+        }
+        .sheet(isPresented: $isPresetSheetPresented, onDismiss: refreshTemplatePresets) {
+            PresetManagementSheet()
         }
         .confirmationDialog(
             localized("Delete this transcript?", locale: locale),
@@ -241,6 +320,18 @@ struct NotePageView: View {
             Button(localized("Cancel", locale: locale), role: .cancel) {}
         } message: {
             Text(localized("This will permanently remove this note.", locale: locale))
+        }
+        .confirmationDialog(
+            localized("Discard this recording?", locale: locale),
+            isPresented: $pendingCaptureCancellation,
+            titleVisibility: .visible
+        ) {
+            Button(localized("Discard recording", locale: locale), role: .destructive) {
+                onCancelNoteCapture?()
+            }
+            Button(localized("Cancel", locale: locale), role: .cancel) {}
+        } message: {
+            Text(NotePagePresentation.cancelCaptureMessage(locale: locale))
         }
         .background {
             Button(action: saveNow) { EmptyView() }
@@ -365,6 +456,13 @@ struct NotePageView: View {
 
             Divider()
 
+            if headerActions.canCancelCapture, onCancelNoteCapture != nil {
+                Button(localized("Cancel recording", locale: locale), role: .destructive) {
+                    pendingCaptureCancellation = true
+                }
+                .accessibilityIdentifier("note.page.capture.cancel")
+            }
+
             if headerActions.canDeleteTranscript {
                 Button(localized("Delete transcript", locale: locale), role: .destructive) {
                     pendingTranscriptDeletion = true
@@ -413,6 +511,16 @@ struct NotePageView: View {
                 viewToggle
             }
 
+            if EnhancedViewPresentation.showsTemplateMenu(
+                panel: currentPanel,
+                selection: resolvedSelection
+            ) {
+                templateMenu
+            } else if resolvedSelection == .enhanced,
+                      let label = enhancedPresentation.readOnlyLabel {
+                readOnlyTemplateChip(label)
+            }
+
             dateChip
 
             if showsSpeakersChip {
@@ -422,8 +530,67 @@ struct NotePageView: View {
             tagChips
 
             Spacer(minLength: 0)
+
+            if NotePagePresentation.showsTranscriptSearch(
+                state: pageState,
+                selection: resolvedSelection
+            ) {
+                transcriptSearchField
+            }
         }
         .padding(.leading, textColumnInset)
+    }
+
+    private var transcriptSearchField: some View {
+        HStack(spacing: 8) {
+            if let results = transcriptPresentation.resultsText {
+                Text(results)
+                    .font(AppTypography.monoSmall)
+                    .foregroundStyle(AppColors.textTertiary)
+                    .monospacedDigit()
+                    .accessibilityIdentifier("note.page.transcript.results")
+            }
+
+            SearchFieldChrome(
+                text: $transcriptQuery,
+                placeholder: localized("Find in transcript", locale: locale),
+                showsKeyboardHint: false
+            )
+            .frame(width: 200)
+            .accessibilityIdentifier("note.page.transcript.search")
+        }
+    }
+
+    private var templateMenu: some View {
+        TemplateMenuButton(
+            templateName: currentPanel?.templateDisplayName
+                ?? localized("Enhanced note", locale: locale),
+            items: EnhancedViewPresentation.templateMenuItems(
+                presets: templatePresets,
+                selected: currentPanel?.templatePresetIdentifier
+            ),
+            isBusy: isGeneratingPanel,
+            onSelect: selectTemplate,
+            onManage: { isPresetSheetPresented = true }
+        )
+    }
+
+    /// A panel an older build wrote says so instead of offering a menu it
+    /// cannot honor.
+    private func readOnlyTemplateChip(_ label: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 11))
+                .foregroundStyle(AppColors.textTertiary)
+            Text(label)
+                .font(AppTypography.badge)
+                .foregroundStyle(AppColors.textTertiary)
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .overlay(Capsule(style: .continuous).strokeBorder(AppColors.border, lineWidth: 1))
+        .help(EnhancedViewPresentation.readOnlyHelpText(locale: locale))
+        .accessibilityIdentifier("note.page.enhanced.readOnly")
     }
 
     private var viewToggle: some View {
@@ -610,15 +777,44 @@ struct NotePageView: View {
         }
     }
 
+    /// The generated note: its sections, its citations, and where they came from.
+    ///
+    /// A regeneration is drawn above the panel it is replacing rather than in
+    /// place of it: the note that already exists stays readable until the new
+    /// one lands.
     @ViewBuilder
     private var enhancedCanvas: some View {
         if let panel = currentPanel {
-            VStack(alignment: .leading, spacing: 0) {
-                RenderedMarkdownText(markdown: panel.content)
+            VStack(alignment: .leading, spacing: 16) {
+                if isGeneratingPanel {
+                    generatingRow
+                }
+
+                EnhancedNoteBody(
+                    presentation: enhancedPresentation,
+                    onFollowCitation: { followCitation(segmentID: $0.segmentID) }
+                )
+
+                if let sourcesTitle = enhancedPresentation.sourcesTitle {
+                    EnhancedSourcesDisclosure(
+                        title: sourcesTitle,
+                        hint: enhancedPresentation.sourcesHint,
+                        sources: enhancedPresentation.sources,
+                        onFollow: { followCitation(segmentID: $0.segmentID) }
+                    )
+                }
+
+                if !enhancedPresentation.isReadOnly {
+                    EnhancedPanelFeedbackRow(feedback: panel.feedback, onRate: ratePanel)
+                }
             }
             .padding(.leading, textColumnInset)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityIdentifier("note.page.enhanced")
+        } else if isGeneratingPanel {
+            generatingRow
+                .padding(.leading, textColumnInset)
+                .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 Text(localized("No enhanced note yet.", locale: locale))
@@ -634,13 +830,10 @@ struct NotePageView: View {
 
                 if views?.captureState != nil {
                     SecondaryButton(
-                        title: isGeneratingPanel
-                            ? localized("Writing note", locale: locale)
-                            : localized("Generate enhanced note", locale: locale),
+                        title: localized("Generate enhanced note", locale: locale),
                         systemImage: "sparkles",
                         action: { regeneratePanel(templatePresetIdentifier: nil) }
                     )
-                    .disabled(isGeneratingPanel)
                     .accessibilityIdentifier("note.page.enhanced.generate")
                 }
             }
@@ -649,72 +842,102 @@ struct NotePageView: View {
         }
     }
 
+    /// The enhanced view, resolved against the transcript that is on screen.
+    private var enhancedPresentation: EnhancedNotePresentation {
+        EnhancedViewPresentation.make(
+            panel: currentPanel,
+            citations: currentPanel.flatMap { panelCitations[$0.id] } ?? [],
+            segments: views?.transcript?.segments ?? [],
+            locale: locale
+        )
+    }
+
+    /// What the page shows while it writes a panel.
+    private var generatingRow: some View {
+        StageProgressRow(
+            stage: NotePagePresentation.stageTitle(.assembling, locale: locale),
+            caption: EnhancedViewPresentation.generatingMessage(
+                templateName: generatingTemplateName,
+                locale: locale
+            )
+        )
+        .accessibilityIdentifier("note.page.enhanced.writing")
+    }
+
+    /// The template the running generation was asked for, when it has a name.
+    private var generatingTemplateName: String? {
+        guard let selectedTemplateIdentifier else { return nil }
+        return templatePresets.first { $0.identifier == selectedTemplateIdentifier }?.name
+    }
+
+    /// The transcript, live or finished.
+    ///
+    /// While the recording runs there are no durable spans to draw, so the view
+    /// shows the same live lines the capture sheet does, updated as they arrive
+    /// rather than at the next phase change.
     @ViewBuilder
     private var transcriptCanvas: some View {
-        if let transcript = views?.transcript, !transcript.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(TranscriptTurn.turns(in: transcript.segments)) { turn in
-                    transcriptTurnView(turn)
-                }
-            }
+        if NotePagePresentation.isTranscriptLive(state: pageState) {
+            LiveTranscriptLines(state: noteCaptureState)
+                .padding(.leading, textColumnInset)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("note.page.transcript.live")
+        } else {
+            NoteTranscriptTurns(
+                presentation: transcriptPresentation,
+                controller: playbackController,
+                canSeek: mediaURL != nil,
+                flashingSegmentID: citationJump?.segmentID
+            )
             .padding(.leading, textColumnInset)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityIdentifier("note.page.transcript")
-        } else {
-            Text(localized("Nothing was transcribed yet.", locale: locale))
-                .font(AppTypography.body)
-                .foregroundStyle(AppColors.textSecondary)
-                .padding(.leading, textColumnInset)
         }
     }
 
-    private func transcriptTurnView(_ turn: TranscriptTurn) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(turn.isCurrentUser
-                          ? AppColors.accent
-                          : LibrarySpeakerColor.color(for: turn.speakerKey))
-                    .frame(width: 8, height: 8)
-
-                Text(turn.displayName(locale: locale))
-                    .font(AppTypography.labelSemibold)
-                    .foregroundStyle(AppColors.textPrimary)
-
-                Text(NoteRowPresentation.elapsedText(turn.startOffset))
-                    .font(AppTypography.monoSmall)
-                    .foregroundStyle(AppColors.textTertiary)
-                    .monospacedDigit()
-                    .environment(\.layoutDirection, .leftToRight)
-            }
-
-            Text(turn.text)
-                .font(FontLoader.font(family: .newsreader, size: 15))
-                .lineSpacing(7)
-                .foregroundStyle(AppColors.textSecondary)
-                .textSelection(.enabled)
-                .frame(maxWidth: 640, alignment: .leading)
-                .padding(.leading, 16)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    private var transcriptPresentation: TranscriptListPresentation {
+        TranscriptSegmentPresentation.make(
+            segments: views?.transcript?.segments ?? [],
+            query: transcriptQuery,
+            locale: locale
+        )
     }
 
-    // MARK: - Capture dock
+    // MARK: - Bottom dock
 
+    /// The band between the page and the footer: the capture dock while a
+    /// capture runs, the playback bar while a finished transcript is being read,
+    /// and nothing otherwise. Never both: a recording is not a recording to
+    /// replay yet.
     @ViewBuilder
-    private var captureDock: some View {
+    private func bottomDock(canvasHeight: CGFloat) -> some View {
         if NotePagePresentation.showsCaptureStrip(state: pageState) {
-            // One second-by-second tick drives both the capture bar's clock and
-            // the finalizing row's, so neither shows a frozen time.
-            TimelineView(.periodic(from: noteCaptureState?.startedAt ?? .now, by: 1)) { context in
-                captureDockContent(now: context.date)
-            }
+            captureDock(canvasHeight: canvasHeight)
+        } else if NotePagePresentation.showsPlaybackBar(
+            state: pageState,
+            selection: resolvedSelection,
+            hasPlayableAudio: mediaURL != nil
+        ) {
+            TranscriptPlaybackBar(
+                controller: playbackController,
+                fallbackDuration: mediaDuration
+            )
             .padding(.bottom, 12)
         }
     }
 
     @ViewBuilder
-    private func captureDockContent(now: Date) -> some View {
+    private func captureDock(canvasHeight: CGFloat) -> some View {
+        // One second-by-second tick drives both the capture bar's clock and
+        // the finalizing row's, so neither shows a frozen time.
+        TimelineView(.periodic(from: noteCaptureState?.startedAt ?? .now, by: 1)) { context in
+            captureDockContent(now: context.date, canvasHeight: canvasHeight)
+        }
+        .padding(.bottom, 12)
+    }
+
+    @ViewBuilder
+    private func captureDockContent(now: Date, canvasHeight: CGFloat) -> some View {
         let elapsed = elapsedText(now: now)
         if let stage = capturePhase.finalizationStage {
             StageProgressRow(
@@ -740,60 +963,61 @@ struct NotePageView: View {
             )
             .accessibilityIdentifier("note.page.capture.enhancing")
         } else {
-            captureBar(elapsed: elapsed ?? "00:00")
+            captureDockBlock(now: now, canvasHeight: canvasHeight)
         }
     }
 
-    private func captureBar(elapsed: String) -> some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(AppColors.recording)
-                .frame(width: 8, height: 8)
-
-            Text(elapsed)
-                .font(AppTypography.monoTime)
-                .foregroundStyle(AppColors.textPrimary)
-                .monospacedDigit()
-                .environment(\.layoutDirection, .leftToRight)
-
-            Text(liveTranscriptLine)
-                .font(FontLoader.font(family: .newsreader, size: 14))
-                .foregroundStyle(AppColors.textSecondary)
-                .lineLimit(1)
-                .truncationMode(.head)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            PrimaryButton(
-                title: localized("Finish", locale: locale),
-                action: { onFinishNoteCapture?() }
+    /// The dock is one connected block: the live transcript sheet on top, the
+    /// capture bar below it, a shared hairline between. The sheet is collapsed to
+    /// one line until the person pulls it open.
+    private func captureDockBlock(now: Date, canvasHeight: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            LiveTranscriptSheet(
+                state: noteCaptureState,
+                detent: $liveSheetDetent,
+                canvasHeight: canvasHeight
             )
-            .accessibilityIdentifier("note.page.capture.finish")
+
+            Rectangle()
+                .fill(AppColors.border)
+                .frame(height: 1)
+
+            CaptureBar(
+                presentation: CaptureBarPresentation.make(
+                    state: captureBarState(now: now),
+                    density: .page,
+                    locale: locale
+                ),
+                // Closure, not values: the meters change per audio buffer and must
+                // not invalidate this page (the editor lives in it).
+                levels: { [weak noteCaptureState] in
+                    guard let noteCaptureState else { return .silent }
+                    return CaptureLevelSample(
+                        level: noteCaptureState.audioLevel,
+                        bands: noteCaptureState.bandLevels
+                    )
+                },
+                onAction: { kind in
+                    if kind == .finish { onFinishNoteCapture?() }
+                }
+            )
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(AppColors.windowBackground)
-        )
+        .background(AppColors.windowBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(AppColors.border, lineWidth: 1)
         )
-        .accessibilityIdentifier("note.page.capture.bar")
+        .accessibilityIdentifier("note.page.capture.dock")
     }
 
-    private var liveTranscriptLine: String {
-        guard let noteCaptureState else { return "" }
-        if noteCaptureState.isLiveTranscriptDegraded {
-            return localized(
-                "Live text stopped. The recording continues.",
-                locale: locale
-            )
-        }
-        let text = noteCaptureState.liveTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
-        return text.isEmpty
-            ? localized("Listening…", locale: locale)
-            : text
+    private func captureBarState(now: Date) -> CaptureBarState {
+        CaptureBarState(
+            phase: capturePhase == .starting ? .starting : .recording,
+            elapsed: noteCaptureState?.startedAt.map { max(0, now.timeIntervalSince($0)) } ?? 0,
+            noteTitle: title,
+            includesSystemAudio: noteCaptureState?.includesSystemAudio ?? false
+        )
     }
 
     private func elapsedText(now: Date) -> String? {
@@ -875,6 +1099,7 @@ struct NotePageView: View {
         displayedWordCount = refreshed.content.wordCount
 
         await refreshViews()
+        refreshTemplatePresets()
 
         if let stored = views?.selectedView {
             selection = stored.kind
@@ -899,9 +1124,84 @@ struct NotePageView: View {
             if newestPanelID == nil {
                 hasUnreadEnhanced = false
             }
+            refreshPlayableAudio()
+            refreshPanelCitations(resolved.panels)
         } catch {
             Log.ui.error("Failed to read note views: \(error.localizedDescription)")
         }
+    }
+
+    /// Reads the sources behind every panel of this note.
+    ///
+    /// A panel whose provenance cannot be read keeps an empty list: the note it
+    /// generated is still worth reading, it simply cites nothing.
+    private func refreshPanelCitations(_ panels: [CaptureEnhancedPanelSnapshot]) {
+        let store = captureSessionStore
+        var loaded: [UUID: [MeetingNoteCitation]] = [:]
+        for panel in panels {
+            do {
+                if panel.isLegacy {
+                    loaded[panel.id] = try store.generatedMeetingNote(noteID: panel.id)?.citations
+                        ?? []
+                } else {
+                    loaded[panel.id] = try store.enhancedPanelCitations(panelID: panel.id)
+                }
+            } catch {
+                Log.ui.warning(
+                    "Panel sources could not be read: \(error.localizedDescription)"
+                )
+                loaded[panel.id] = []
+            }
+        }
+        panelCitations = loaded
+    }
+
+    /// Reads the templates the menu offers.
+    private func refreshTemplatePresets() {
+        do {
+            templatePresets = try PromptPresetStore(modelContext: modelContext)
+                .fetchAll()
+                .map { preset in
+                    TemplateMenuPreset(
+                        // The same identity the settings picker writes, so a
+                        // template picked here and one picked there agree.
+                        identifier: preset.builtInIdentifier ?? preset.id.uuidString,
+                        name: preset.name,
+                        isBuiltIn: preset.isBuiltIn,
+                        sortOrder: preset.sortOrder
+                    )
+                }
+        } catch {
+            Log.ui.error("Failed to read templates: \(error.localizedDescription)")
+            templatePresets = []
+        }
+    }
+
+    /// Finds the recording behind this note, if the capture kept one.
+    ///
+    /// The audio belongs to the history record the capture produced, so the
+    /// transcript can only be played once that record exists. A note whose audio
+    /// was never kept, or has since been swept, simply has no playback bar.
+    private func refreshPlayableAudio() {
+        guard let recordID = views?.captureState?.transcriptionRecordID else {
+            mediaURL = nil
+            mediaDuration = 0
+            return
+        }
+        var descriptor = FetchDescriptor<TranscriptionRecord>(
+            predicate: #Predicate<TranscriptionRecord> { $0.id == recordID }
+        )
+        descriptor.fetchLimit = 1
+        let record = try? modelContext.fetch(descriptor).first
+        let url = record?.managedMediaURL
+        mediaDuration = record?.duration ?? 0
+        mediaURL = url.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
+    }
+
+    private func loadPlayableAudio(_ url: URL?) {
+        playbackController.teardownPlayback()
+        guard let url else { return }
+        playbackController.load(url: url)
     }
 
     // MARK: - Actions
@@ -920,10 +1220,84 @@ struct NotePageView: View {
                 templatePresetIdentifier: selectedTemplateIdentifier
             )
             : CaptureNoteViewSelection(kind: kind)
+        rememberSelection(stored)
+    }
+
+    private func rememberSelection(_ selection: CaptureNoteViewSelection) {
         do {
-            try captureSessionStore.selectView(noteID: noteID, selection: stored)
+            try captureSessionStore.selectView(noteID: noteID, selection: selection)
         } catch {
             Log.ui.error("Failed to remember the note view: \(error.localizedDescription)")
+        }
+    }
+
+    /// Picks a template from the menu.
+    ///
+    /// A template that already has a panel is a read: the panel is on disk and
+    /// switching back to it must never spend a generation.
+    private func selectTemplate(_ identifier: String) {
+        switch EnhancedViewPresentation.selection(
+            of: identifier,
+            panels: views?.panels ?? [],
+            showing: currentPanel?.templatePresetIdentifier
+        ) {
+        case .alreadyShowing:
+            return
+
+        case .showExisting(_, let templatePresetIdentifier):
+            selectedTemplateIdentifier = templatePresetIdentifier
+            rememberSelection(
+                .enhanced(templatePresetIdentifier: templatePresetIdentifier)
+            )
+
+        case .generate(let templatePresetIdentifier):
+            // The picked template only becomes the selected one if a generation
+            // actually starts. Otherwise the menu would check a template that
+            // has no panel and never will.
+            let previous = selectedTemplateIdentifier
+            selectedTemplateIdentifier = templatePresetIdentifier
+            if !regeneratePanel(templatePresetIdentifier: templatePresetIdentifier) {
+                selectedTemplateIdentifier = previous
+            }
+        }
+    }
+
+    /// Follows a citation to the words behind it.
+    ///
+    /// A search narrows the transcript to what it matched, so it is cleared
+    /// first: a citation must land on its own line and not on an empty list.
+    private func followCitation(segmentID: String) {
+        transcriptQuery = ""
+        select(.transcript)
+        citationJumpCount += 1
+        let jump = NoteCitationJump(sequence: citationJumpCount, segmentID: segmentID)
+
+        citationFlashTask?.cancel()
+        citationFlashTask = Task { @MainActor in
+            // The transcript has to be on screen before a line inside it can be
+            // scrolled to, and switching to it is what this call just asked for.
+            try? await Task.sleep(for: .milliseconds(60))
+            guard !Task.isCancelled else { return }
+            citationJump = jump
+
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            withAnimation(reduceMotion ? nil : AppTheme.Animation.normal) {
+                citationJump = nil
+            }
+        }
+    }
+
+    private func ratePanel(_ feedback: CaptureNotePanelFeedback?) {
+        guard let panel = currentPanel, panel.isRegenerable else { return }
+        do {
+            try captureSessionStore.setEnhancedPanelFeedback(
+                panelID: panel.id,
+                feedback: feedback
+            )
+            Task { await refreshViews() }
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -944,12 +1318,15 @@ struct NotePageView: View {
         }
     }
 
-    private func regeneratePanel(templatePresetIdentifier: String?) {
+    /// Starts one generation. `false` means nothing was started: there is no
+    /// capture behind this note, or one generation is already running.
+    @discardableResult
+    private func regeneratePanel(templatePresetIdentifier: String?) -> Bool {
         guard let onGenerateEnhancedPanel,
               let sessionID = views?.captureState?.handle.sessionID,
               !isGeneratingPanel
         else {
-            return
+            return false
         }
         isGeneratingPanel = true
         enhancementFailureMessage = nil
@@ -965,6 +1342,7 @@ struct NotePageView: View {
             enhancementFailureMessage = failure
             await refreshViews()
         }
+        return true
     }
 
     private func saveEnhancedPanelAsNote() {
@@ -1209,163 +1587,69 @@ struct NotePageView: View {
     }
 }
 
-// MARK: - Transcript turns
+// MARK: - Transcript views
 
-/// Consecutive spans of one speaker, read as one turn.
-struct TranscriptTurn: Identifiable, Equatable {
-    let id: String
-    let speakerKey: String
-    let speakerLabel: String?
-    let speakerNumber: Int?
-    let isCurrentUser: Bool
-    let startOffset: TimeInterval
-    let text: String
+/// The finished transcript, with the turn playback is inside marked.
+///
+/// The active turn is derived here and not on the page: the playback clock ticks
+/// four times a second, and the page around this view holds a text editor.
+private struct NoteTranscriptTurns: View {
+    let presentation: TranscriptListPresentation
+    let controller: MediaPlaybackController
+    let canSeek: Bool
+    /// The span a citation was followed to, if one was.
+    var flashingSegmentID: String?
 
-    func displayName(locale: Locale) -> String {
-        if isCurrentUser {
-            return localized("You", locale: locale)
-        }
-        if let speakerNumber {
-            return String(format: localized("Speaker %d", locale: locale), speakerNumber)
-        }
-        if let speakerLabel, !speakerLabel.isEmpty {
-            return speakerLabel
-        }
-        return localized("Speaker", locale: locale)
+    /// One linear scan per playback tick. Spans can overlap when people talk
+    /// over each other, so "the first turn containing t" is the right pick.
+    private var activeTurnID: String? {
+        let time = controller.currentTime
+        // Nothing is "playing now" at a standstill at zero, so nothing is marked.
+        guard canSeek, time > 0 else { return nil }
+        return presentation.turns.last { $0.startOffset <= time }?.id
     }
 
-    /// Groups a transcript into turns. Same speaker back to back reads as one
-    /// person talking, not as several disconnected lines.
-    static func turns(in segments: [TranscriptSegmentSnapshot]) -> [TranscriptTurn] {
-        var turns: [TranscriptTurn] = []
-        for segment in segments {
-            let key = segment.speakerKey ?? "_"
-            if var last = turns.last, last.speakerKey == key {
-                last = TranscriptTurn(
-                    id: last.id,
-                    speakerKey: last.speakerKey,
-                    speakerLabel: last.speakerLabel,
-                    speakerNumber: last.speakerNumber,
-                    isCurrentUser: last.isCurrentUser,
-                    startOffset: last.startOffset,
-                    text: last.text + "\n" + segment.text
-                )
-                turns[turns.count - 1] = last
-                continue
-            }
-            turns.append(
-                TranscriptTurn(
-                    id: segment.id,
-                    speakerKey: key,
-                    speakerLabel: segment.speakerLabel,
-                    speakerNumber: segment.speakerNumber,
-                    isCurrentUser: segment.isCurrentUser,
-                    startOffset: segment.startOffset,
-                    text: segment.text
-                )
-            )
-        }
-        return turns
+    var body: some View {
+        TranscriptSegmentList(
+            presentation: presentation,
+            activeTurnID: activeTurnID,
+            canSeek: canSeek,
+            onSeek: { controller.seek(to: $0) },
+            flashingSegmentID: flashingSegmentID
+        )
     }
 }
 
-// MARK: - Read-only markdown
+/// The live transcript, in the page's own column.
+///
+/// Its own view so the live text, which changes several times a second,
+/// invalidates these lines instead of the whole page.
+private struct LiveTranscriptLines: View {
+    @Environment(\.locale) private var locale
 
-/// Minimal read-only rendering of generated markdown: headings, bullets, and
-/// paragraphs. WP6 replaces this with the citation-aware enhanced view.
-struct RenderedMarkdownText: View {
-    let markdown: String
+    let state: NoteCaptureState?
+
+    private var lines: [TranscriptLiveLine] {
+        TranscriptSegmentPresentation.liveLines(
+            committed: state?.liveTranscript ?? "",
+            tentative: state?.liveTentativeTranscript ?? ""
+        )
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                block.view
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private struct Block: Identifiable {
-        let id = UUID()
-        let line: MarkdownLine
-        let text: String
-
-        @ViewBuilder
-        var view: some View {
-            switch line.kind {
-            case .blank:
-                Color.clear.frame(height: 10)
-            case .heading:
-                Text(text)
-                    .font(FontLoader.font(family: .newsreader, size: 20, weight: .medium))
-                    .lineSpacing(6)
-                    .foregroundStyle(AppColors.textPrimary)
-                    .padding(.top, 10)
-                    .padding(.bottom, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            case .bullet(let level), .task(let level, _):
-                HStack(alignment: .firstTextBaseline, spacing: 0) {
-                    Text(level.isMultiple(of: 2) ? "◦" : "•")
-                        .font(AppTypography.body)
-                        .foregroundStyle(AppColors.textTertiary)
-                        .frame(width: 14, alignment: .leading)
-                    Text(text)
-                        .font(AppTypography.body)
-                        .lineSpacing(8)
-                        .foregroundStyle(AppColors.textPrimary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(.leading, CGFloat(level - 1) * 20)
-                .padding(.bottom, 4)
-            case .ordered(let level, let marker):
-                HStack(alignment: .firstTextBaseline, spacing: 0) {
-                    Text(marker)
-                        .font(AppTypography.body)
-                        .foregroundStyle(AppColors.textTertiary)
-                        .frame(width: 20, alignment: .leading)
-                    Text(text)
-                        .font(AppTypography.body)
-                        .lineSpacing(8)
-                        .foregroundStyle(AppColors.textPrimary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(.leading, CGFloat(level - 1) * 20)
-                .padding(.bottom, 4)
-            case .quote:
-                Text(text)
-                    .font(FontLoader.font(family: .newsreader, size: 15, italic: true))
-                    .lineSpacing(7)
-                    .foregroundStyle(AppColors.textSecondary)
-                    .padding(.leading, 14)
-                    .padding(.bottom, 8)
-                    .overlay(alignment: .leading) {
-                        Capsule().fill(AppColors.border).frame(width: 2)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            case .code:
-                Text(text)
-                    .font(AppTypography.monoSmall)
-                    .foregroundStyle(AppColors.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            case .paragraph:
-                Text(text)
+        VStack(alignment: .leading, spacing: 10) {
+            if lines.isEmpty {
+                Text(localized("The transcript starts once you speak.", locale: locale))
                     .font(AppTypography.body)
-                    .lineSpacing(8)
-                    .foregroundStyle(AppColors.textPrimary)
-                    .textSelection(.enabled)
-                    .padding(.bottom, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .foregroundStyle(AppColors.textSecondary)
+            } else {
+                ForEach(lines) { line in
+                    TranscriptLiveLineText(line: line)
+                }
             }
         }
-    }
-
-    private var blocks: [Block] {
-        let nsText = markdown as NSString
-        return MarkdownBlockGrammar.lines(in: markdown).map { line in
-            Block(line: line, text: nsText.substring(with: line.contentRange))
-        }
+        .frame(maxWidth: 640, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

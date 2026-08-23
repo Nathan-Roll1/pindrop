@@ -86,6 +86,9 @@ struct NotePageState: Equatable, Sendable {
     var capture: NotePageCapturePhase
     /// An enhanced panel finished and has not been opened yet.
     var hasUnreadEnhanced: Bool
+    /// The running capture has heard words. The transcript view can be opened on
+    /// them before any of it is durable.
+    var hasLiveText: Bool
 
     init(
         hasPanels: Bool = false,
@@ -93,7 +96,8 @@ struct NotePageState: Equatable, Sendable {
         isTranscriptDeleted: Bool = false,
         isRecorded: Bool = false,
         capture: NotePageCapturePhase = .none,
-        hasUnreadEnhanced: Bool = false
+        hasUnreadEnhanced: Bool = false,
+        hasLiveText: Bool = false
     ) {
         self.hasPanels = hasPanels
         self.hasTranscript = hasTranscript
@@ -101,6 +105,7 @@ struct NotePageState: Equatable, Sendable {
         self.isRecorded = isRecorded
         self.capture = capture
         self.hasUnreadEnhanced = hasUnreadEnhanced
+        self.hasLiveText = hasLiveText
     }
 
     /// A plain typed note: nothing was ever recorded into it.
@@ -135,6 +140,10 @@ struct NotePageHeaderActions: Equatable, Sendable {
     var canSaveAsNote: Bool
     var canDeleteTranscript: Bool
     var canDeleteNote: Bool
+    /// The recording can still be thrown away. There is no pause in v1, so Cancel
+    /// is the only other way out of a capture besides Finish, and it lives in the
+    /// overflow menu where it cannot be hit by accident.
+    var canCancelCapture: Bool
 }
 
 /// The footer line under the canvas.
@@ -199,12 +208,16 @@ enum NotePagePresentation {
         }
 
         if !state.isTranscriptDeleted, state.hasTranscript || state.capture.isRecording {
+            // A recording that has already been heard can be read live, before
+            // any of it is durable. Nothing said yet means nothing to open.
+            let isReadable = state.hasTranscript
+                || (state.capture.isRecording && state.hasLiveText)
             segments.append(
                 NotePageSegment(
                     kind: .transcript,
-                    isEnabled: state.hasTranscript,
+                    isEnabled: isReadable,
                     indicator: state.capture.isRecording ? .live : nil,
-                    helpText: state.hasTranscript
+                    helpText: isReadable
                         ? nil
                         : localized("The transcript starts once you speak.", locale: locale)
                 )
@@ -256,13 +269,50 @@ enum NotePagePresentation {
             canOpenInNewWindow: false,
             canSaveAsNote: state.hasPanels && selection == .enhanced,
             canDeleteTranscript: state.hasTranscript && !state.isTranscriptDeleted,
-            canDeleteNote: true
+            canDeleteNote: true,
+            // Only while audio is still being recorded: once finalization owns
+            // the capture, the recording exists and Finish already happened.
+            canCancelCapture: state.capture.isRecording
+        )
+    }
+
+    /// What Cancel throws away, said plainly enough to decide by.
+    static func cancelCaptureMessage(locale: Locale) -> String {
+        localized(
+            "The audio and the live transcript are deleted. Your typed notes stay.",
+            locale: locale
         )
     }
 
     /// The capture strip is drawn only while a capture is running for this note.
     static func showsCaptureStrip(state: NotePageState) -> Bool {
         state.capture.isActive
+    }
+
+    // MARK: Transcript view
+
+    /// While the recording runs, the transcript view draws the live text. The
+    /// durable spans, with their timings and speakers, only exist afterwards.
+    static func isTranscriptLive(state: NotePageState) -> Bool {
+        state.capture.isRecording
+    }
+
+    /// Searching needs a finished transcript: live text has no spans to filter
+    /// and grows under the reader's hands.
+    static func showsTranscriptSearch(
+        state: NotePageState,
+        selection: CaptureNoteViewKind
+    ) -> Bool {
+        selection == .transcript && state.hasTranscript && !isTranscriptLive(state: state)
+    }
+
+    /// The playback bar needs a finished transcript and a file to play.
+    static func showsPlaybackBar(
+        state: NotePageState,
+        selection: CaptureNoteViewKind,
+        hasPlayableAudio: Bool
+    ) -> Bool {
+        hasPlayableAudio && showsTranscriptSearch(state: state, selection: selection)
     }
 
     // MARK: Footer
@@ -322,7 +372,10 @@ enum NotePagePresentation {
             )
 
         case .transcript:
-            if facts.isTranscriptLive {
+            // A running recording is live whether or not the store has caught up
+            // with it, so the footer never claims a length for a transcript that
+            // is still growing.
+            if facts.isTranscriptLive || isTranscriptLive(state: state) {
                 return NotePageFooter(
                     leading: localized("The transcript fills in as you speak.", locale: locale),
                     trailing: nil

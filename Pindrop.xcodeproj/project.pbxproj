@@ -19,6 +19,15 @@
 		WP0ICONSLOTBUILD01A2B3C4 /* IconSlot.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP0ICONSLOTFILE01A2B3C4D /* IconSlot.swift */; };
 		WP0INLINENOTICEBUILD01A2 /* InlineNotice.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP0INLINENOTICEFILE01A2B /* InlineNotice.swift */; };
 		WP0STAGEPROGBUILD01A2B3C /* StageProgressRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP0STAGEPROGFILE01A2B3C4 /* StageProgressRow.swift */; };
+		WP4CAPTUREBARBUILD0000001 /* CaptureBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP4CAPTUREBARFILE00000001 /* CaptureBar.swift */; };
+		WP5TRSEGLISTBUILD00000001 /* TranscriptSegmentList.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP5TRSEGLISTFILE000000001 /* TranscriptSegmentList.swift */; };
+		WP6ENHPRESBUILD000000001 /* EnhancedViewPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP6ENHPRESFILE0000000001 /* EnhancedViewPresentation.swift */; };
+		WP6ENHBODYBUILD000000001 /* EnhancedNoteBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP6ENHBODYFILE0000000001 /* EnhancedNoteBody.swift */; };
+		WP6ENHTESTBUILD000000001 /* EnhancedViewPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP6ENHTESTFILE0000000001 /* EnhancedViewPresentationTests.swift */; };
+		WP5LIVESHEETBUILD00000001 /* LiveTranscriptSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP5LIVESHEETFILE000000001 /* LiveTranscriptSheet.swift */; };
+		WP5PLAYBARBUILD000000001 /* TranscriptPlaybackBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP5PLAYBARFILE00000000001 /* TranscriptPlaybackBar.swift */; };
+		WP5TRSEGTESTBUILD00000001 /* TranscriptSegmentPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP5TRSEGTESTFILE000000001 /* TranscriptSegmentPresentationTests.swift */; };
+		WP4CAPTUREBARTESTBUILD001 /* CaptureBarPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP4CAPTUREBARTESTFILE0001 /* CaptureBarPresentationTests.swift */; };
 		WP3NOTEPAGEPRESBUILD01A2 /* NotePagePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP3NOTEPAGEPRESFILE01A2B /* NotePagePresentation.swift */; };
 		WP3MDGRAMMARBUILD01A2B3 /* MarkdownBlockGrammar.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP3MDGRAMMARFILE01A2B3C4 /* MarkdownBlockGrammar.swift */; };
 		WP3SEGTOGGLEBUILD01A2B3 /* SegmentedViewToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP3SEGTOGGLEFILE01A2B3C4 /* SegmentedViewToggle.swift */; };
@@ -283,6 +292,15 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		WP0ICONSLOTFILE01A2B3C4D /* IconSlot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconSlot.swift; sourceTree = "<group>"; };
 		WP0INLINENOTICEFILE01A2B /* InlineNotice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineNotice.swift; sourceTree = "<group>"; };
 		WP0STAGEPROGFILE01A2B3C4 /* StageProgressRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageProgressRow.swift; sourceTree = "<group>"; };
+		WP4CAPTUREBARFILE00000001 /* CaptureBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureBar.swift; sourceTree = "<group>"; };
+		WP5TRSEGLISTFILE000000001 /* TranscriptSegmentList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptSegmentList.swift; sourceTree = "<group>"; };
+		WP6ENHPRESFILE0000000001 /* EnhancedViewPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedViewPresentation.swift; sourceTree = "<group>"; };
+		WP6ENHBODYFILE0000000001 /* EnhancedNoteBody.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedNoteBody.swift; sourceTree = "<group>"; };
+		WP6ENHTESTFILE0000000001 /* EnhancedViewPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedViewPresentationTests.swift; sourceTree = "<group>"; };
+		WP5LIVESHEETFILE000000001 /* LiveTranscriptSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTranscriptSheet.swift; sourceTree = "<group>"; };
+		WP5PLAYBARFILE00000000001 /* TranscriptPlaybackBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptPlaybackBar.swift; sourceTree = "<group>"; };
+		WP5TRSEGTESTFILE000000001 /* TranscriptSegmentPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptSegmentPresentationTests.swift; sourceTree = "<group>"; };
+		WP4CAPTUREBARTESTFILE0001 /* CaptureBarPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureBarPresentationTests.swift; sourceTree = "<group>"; };
 		WP3NOTEPAGEPRESFILE01A2B /* NotePagePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotePagePresentation.swift; sourceTree = "<group>"; };
 		WP3MDGRAMMARFILE01A2B3C4 /* MarkdownBlockGrammar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlockGrammar.swift; sourceTree = "<group>"; };
 		WP3SEGTOGGLEFILE01A2B3C4 /* SegmentedViewToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedViewToggle.swift; sourceTree = "<group>"; };
@@ -816,6 +834,9 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				NOTECAPCTRLTESTFILE01 /* NoteCaptureControllerTests.swift */,
 				WP3MDGRAMMARTESTFILE01A /* MarkdownBlockGrammarTests.swift */,
 				WP3NOTEPAGEPRESTESTFILE0 /* NotePagePresentationTests.swift */,
+				WP4CAPTUREBARTESTFILE0001 /* CaptureBarPresentationTests.swift */,
+				WP5TRSEGTESTFILE000000001 /* TranscriptSegmentPresentationTests.swift */,
+				WP6ENHTESTFILE0000000001 /* EnhancedViewPresentationTests.swift */,
 				NOTEENHSVCTESTFILE01 /* NoteEnhancementServiceTests.swift */,
 				MNTFMTTEST02A2B3C4D5E6F /* MentionFormatterTests.swift */,
 				LISTSELNAVTESTFILE01A2B3C4 /* ListSelectionNavigationTests.swift */,
@@ -888,6 +909,11 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				WP0ICONSLOTFILE01A2B3C4D /* IconSlot.swift */,
 				WP0INLINENOTICEFILE01A2B /* InlineNotice.swift */,
 				WP0STAGEPROGFILE01A2B3C4 /* StageProgressRow.swift */,
+				WP4CAPTUREBARFILE00000001 /* CaptureBar.swift */,
+				WP5TRSEGLISTFILE000000001 /* TranscriptSegmentList.swift */,
+				WP6ENHBODYFILE0000000001 /* EnhancedNoteBody.swift */,
+				WP5LIVESHEETFILE000000001 /* LiveTranscriptSheet.swift */,
+				WP5PLAYBARFILE00000000001 /* TranscriptPlaybackBar.swift */,
 				WP3SEGTOGGLEFILE01A2B3C4 /* SegmentedViewToggle.swift */,
 			);
 			path = Scorched;
@@ -918,6 +944,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				NOTESVIEW1A2B3C4D5E6F71 /* NotesView.swift */,
 				NOTEPAGEVIEW1A2B3C4D5E71 /* NotePageView.swift */,
 				WP3NOTEPAGEPRESFILE01A2B /* NotePagePresentation.swift */,
+				WP6ENHPRESFILE0000000001 /* EnhancedViewPresentation.swift */,
 				DASHBRD1A2B3C4D5E6F71 /* CapturePillarViews.swift */,
 				STATSVIEWFILE01A2B3C4D5E6 /* StatsView.swift */,
 				STATSPRESFILE01A2B3C4D5E6 /* StatsPresentation.swift */,
@@ -1217,6 +1244,9 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				NOTECAPCTRLTESTBUILD01 /* NoteCaptureControllerTests.swift in Sources */,
 				WP3MDGRAMMARTESTBUILD01 /* MarkdownBlockGrammarTests.swift in Sources */,
 				WP3NOTEPAGEPRESTESTBUILD /* NotePagePresentationTests.swift in Sources */,
+				WP4CAPTUREBARTESTBUILD001 /* CaptureBarPresentationTests.swift in Sources */,
+				WP5TRSEGTESTBUILD00000001 /* TranscriptSegmentPresentationTests.swift in Sources */,
+				WP6ENHTESTBUILD000000001 /* EnhancedViewPresentationTests.swift in Sources */,
 				NOTEENHSVCTESTBUILD01 /* NoteEnhancementServiceTests.swift in Sources */,
 				MNTFMTTEST01A2B3C4D5E6F /* MentionFormatterTests.swift in Sources */,
 				LISTSELNAVTESTBUILD01A2B3C4 /* ListSelectionNavigationTests.swift in Sources */,
@@ -1311,7 +1341,13 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				WP0ICONSLOTBUILD01A2B3C4 /* IconSlot.swift in Sources */,
 				WP0INLINENOTICEBUILD01A2 /* InlineNotice.swift in Sources */,
 				WP0STAGEPROGBUILD01A2B3C /* StageProgressRow.swift in Sources */,
+				WP4CAPTUREBARBUILD0000001 /* CaptureBar.swift in Sources */,
+				WP5TRSEGLISTBUILD00000001 /* TranscriptSegmentList.swift in Sources */,
+				WP6ENHBODYBUILD000000001 /* EnhancedNoteBody.swift in Sources */,
+				WP5LIVESHEETBUILD00000001 /* LiveTranscriptSheet.swift in Sources */,
+				WP5PLAYBARBUILD000000001 /* TranscriptPlaybackBar.swift in Sources */,
 				WP3NOTEPAGEPRESBUILD01A2 /* NotePagePresentation.swift in Sources */,
+				WP6ENHPRESBUILD000000001 /* EnhancedViewPresentation.swift in Sources */,
 				WP3MDGRAMMARBUILD01A2B3 /* MarkdownBlockGrammar.swift in Sources */,
 				WP3SEGTOGGLEBUILD01A2B3 /* SegmentedViewToggle.swift in Sources */,
 				WP0DIARNOTICEBUILD01A2B3 /* DiarizationSetupNotice.swift in Sources */,

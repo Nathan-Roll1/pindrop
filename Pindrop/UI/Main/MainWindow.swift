@@ -102,6 +102,21 @@ enum MainNavItem: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// What a sidebar row shows in its count slot.
+///
+/// Only one row ever has anything to say: Notes wears a recording dot while a
+/// note capture is running, so the sidebar answers "where is that recording?"
+/// without the person opening anything.
+enum MainNavAccessory {
+    static func accessory(
+        for item: MainNavItem,
+        captureStatus: SidebarCaptureStatus?
+    ) -> SidebarItemAccessory? {
+        guard item == .notes, captureStatus?.kind == .recording else { return nil }
+        return .recordingDot
+    }
+}
+
 /// Sub-route inside the Notes destination. The sidebar stays on `.notes`
 /// whichever leg is showing.
 enum NotesRoute: Equatable, Sendable {
@@ -223,6 +238,7 @@ struct MainWindow: View {
     /// The one live note capture, so the note page can draw its own recording.
     let noteCaptureState: NoteCaptureState?
     let onFinishNoteCapture: (() -> Void)?
+    let onCancelNoteCapture: (() -> Void)?
     let onGenerateEnhancedPanel: NoteEnhancementHandler?
     let onOpenSettings: (SettingsTab) -> Void
 
@@ -240,6 +256,7 @@ struct MainWindow: View {
         onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?,
         noteCaptureState: NoteCaptureState? = nil,
         onFinishNoteCapture: (() -> Void)? = nil,
+        onCancelNoteCapture: (() -> Void)? = nil,
         onGenerateEnhancedPanel: NoteEnhancementHandler? = nil,
         onOpenSettings: @escaping (SettingsTab) -> Void
     ) {
@@ -256,12 +273,47 @@ struct MainWindow: View {
         self.onStartNoteCapture = onStartNoteCapture
         self.noteCaptureState = noteCaptureState
         self.onFinishNoteCapture = onFinishNoteCapture
+        self.onCancelNoteCapture = onCancelNoteCapture
         self.onGenerateEnhancedPanel = onGenerateEnhancedPanel
         self.onOpenSettings = onOpenSettings
     }
 
     private var isCaptureBusy: Bool {
         recordingState?.isCaptureBusy == true
+    }
+
+    // MARK: - Live note capture
+
+    /// The one note capture, reduced to what the shell chrome draws. `nil` when
+    /// nothing is recording into a note.
+    private var noteCaptureStatus: SidebarCaptureStatus? {
+        guard let noteCaptureState else { return nil }
+        switch noteCaptureState.phase {
+        case .starting, .capturing:
+            return SidebarCaptureStatus(
+                kind: .recording,
+                startedAt: noteCaptureState.startedAt,
+                noteID: noteCaptureState.noteID
+            )
+        case .finalizing, .enhancing:
+            return SidebarCaptureStatus(
+                kind: .finalizing,
+                startedAt: noteCaptureState.startedAt,
+                noteID: noteCaptureState.noteID
+            )
+        case .idle, .completed, .failed:
+            return nil
+        }
+    }
+
+    /// The note page currently on screen, if any. The global capture bar stays
+    /// away from the note that is doing the recording.
+    private var openNoteID: UUID? {
+        routeState.selectedItem == .notes ? routeState.notesRoute.openNoteID : nil
+    }
+
+    private var isNoteCaptureRecording: Bool {
+        noteCaptureStatus?.kind == .recording
     }
 
     var body: some View {
@@ -303,9 +355,11 @@ struct MainWindow: View {
             position: settingsStore.selectedSidebarPosition,
             selectedNav: routeState.selectedItem,
             floatingIndicatorState: floatingIndicatorState,
+            noteCaptureStatus: noteCaptureStatus,
             /// Leading sidebar owns top-left → clear traffic lights; trailing does not.
             reservesTrafficLightClearance: isLeadingSidebar,
             onSelect: routeState.navigate,
+            onOpenCapturingNote: { routeState.openNote(id: $0) },
             onOpenSettings: { onOpenSettings(.general) }
         )
         .frame(maxHeight: .infinity, alignment: .top)
@@ -319,11 +373,34 @@ struct MainWindow: View {
             }
             detailContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // Below the content, never over it: the strip takes its own 44 pt so
+            // no page ever hides its last row behind it.
+            globalCaptureBar
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppColors.contentBackground)
         .layoutPriority(1)
         .zIndex(1)
+    }
+
+    /// The capture bar every destination shows while a note records elsewhere.
+    @ViewBuilder
+    private var globalCaptureBar: some View {
+        if let noteCaptureState,
+           let capturingNoteID = noteCaptureStatus?.noteID,
+           GlobalCaptureBarVisibility.isVisible(
+               isRecording: isNoteCaptureRecording,
+               capturingNoteID: capturingNoteID,
+               openNoteID: openNoteID
+           ) {
+            GlobalCaptureBarHost(
+                noteID: capturingNoteID,
+                startedAt: noteCaptureState.startedAt,
+                onOpenNote: { routeState.openNote(id: capturingNoteID) },
+                onFinish: { onFinishNoteCapture?() }
+            )
+        }
     }
 
     /// Clear strip that stays window-draggable via `isMovableByWindowBackground`
@@ -370,7 +447,12 @@ struct MainWindow: View {
             case .list:
                 NotesView(
                     onOpenNote: { routeState.openNote(id: $0) },
-                    onStartNoteCapture: onStartNoteCapture
+                    onStartNoteCapture: onStartNoteCapture,
+                    liveCapture: NoteCaptureLiveRow.active(
+                        noteID: noteCaptureStatus?.noteID,
+                        isRecording: isNoteCaptureRecording,
+                        startedAt: noteCaptureState?.startedAt
+                    )
                 )
                 .accessibilityIdentifier("main.destination.notes")
             case .note(let noteID):
@@ -380,6 +462,7 @@ struct MainWindow: View {
                     noteCaptureState: noteCaptureState,
                     onStartNoteCapture: onStartNoteCapture,
                     onFinishNoteCapture: onFinishNoteCapture,
+                    onCancelNoteCapture: onCancelNoteCapture,
                     onGenerateEnhancedPanel: onGenerateEnhancedPanel
                 )
                 .accessibilityIdentifier("main.destination.note")
@@ -422,6 +505,73 @@ struct MainWindow: View {
 
 
 
+// MARK: - Capturing note title
+
+/// Reads the title of the note being recorded, live.
+///
+/// The shell chrome (global bar, sidebar status card) has to name the note, and
+/// the title changes while the person types into it. A scoped query keeps that
+/// one string current without handing the whole store to the chrome.
+private struct CapturingNoteTitle<Content: View>: View {
+    @Environment(\.locale) private var locale
+    @Query private var notes: [NoteSchema.Note]
+
+    private let content: (String) -> Content
+
+    init(noteID: UUID, @ViewBuilder content: @escaping (String) -> Content) {
+        _notes = Query(
+            filter: #Predicate<NoteSchema.Note> { $0.id == noteID },
+            sort: \NoteSchema.Note.updatedAt
+        )
+        self.content = content
+    }
+
+    var body: some View {
+        content(
+            NotesListPresentation.displayTitle(
+                title: notes.first?.title ?? "",
+                content: notes.first?.content ?? "",
+                emptyTitle: localized("Untitled Note", locale: locale)
+            )
+        )
+    }
+}
+
+/// The global capture strip, with its own clock and its own title lookup so the
+/// destination it sits under never re-renders on either.
+private struct GlobalCaptureBarHost: View {
+    @Environment(\.locale) private var locale
+
+    let noteID: UUID
+    let startedAt: Date?
+    let onOpenNote: () -> Void
+    let onFinish: () -> Void
+
+    var body: some View {
+        CapturingNoteTitle(noteID: noteID) { title in
+            TimelineView(.periodic(from: startedAt ?? .now, by: 1)) { context in
+                CaptureBar(
+                    presentation: CaptureBarPresentation.make(
+                        state: CaptureBarState(
+                            phase: startedAt == nil ? .starting : .recording,
+                            elapsed: startedAt.map { max(0, context.date.timeIntervalSince($0)) } ?? 0,
+                            noteTitle: title
+                        ),
+                        density: .global,
+                        locale: locale
+                    ),
+                    onAction: { kind in
+                        switch kind {
+                        case .openNote: onOpenNote()
+                        case .finish: onFinish()
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
 // MARK: - Sidebar
 
 private struct MainSidebar: View {
@@ -432,9 +582,12 @@ private struct MainSidebar: View {
     let position: SidebarPosition
     let selectedNav: MainNavItem
     @ObservedObject private var indicatorState: FloatingIndicatorState
+    /// The live note capture, or nil. Outranks dictation on the status card.
+    let noteCaptureStatus: SidebarCaptureStatus?
     /// When true, insert a draggable top strip so content clears traffic lights.
     let reservesTrafficLightClearance: Bool
     let onSelect: (MainNavItem) -> Void
+    let onOpenCapturingNote: (UUID) -> Void
     let onOpenSettings: () -> Void
 
     /// Aggregate library size only — never materialize TranscriptionRecord rows here.
@@ -448,16 +601,20 @@ private struct MainSidebar: View {
         position: SidebarPosition,
         selectedNav: MainNavItem,
         floatingIndicatorState: FloatingIndicatorState?,
+        noteCaptureStatus: SidebarCaptureStatus? = nil,
         reservesTrafficLightClearance: Bool,
         onSelect: @escaping (MainNavItem) -> Void,
+        onOpenCapturingNote: @escaping (UUID) -> Void = { _ in },
         onOpenSettings: @escaping () -> Void
     ) {
         self._isExpanded = isExpanded
         self.position = position
         self.selectedNav = selectedNav
         self._indicatorState = ObservedObject(wrappedValue: floatingIndicatorState ?? FloatingIndicatorState())
+        self.noteCaptureStatus = noteCaptureStatus
         self.reservesTrafficLightClearance = reservesTrafficLightClearance
         self.onSelect = onSelect
+        self.onOpenCapturingNote = onOpenCapturingNote
         self.onOpenSettings = onOpenSettings
     }
 
@@ -465,8 +622,24 @@ private struct MainSidebar: View {
         isExpanded ? AppTheme.Window.sidebarWidth : AppTheme.Window.sidebarCollapsedWidth
     }
 
-    private var statusPhase: StatusCardPhase {
-        StatusCardPhase(state: indicatorState)
+    private func statusPhase(now: Date) -> StatusCardPhase {
+        StatusCardPhase(
+            noteCapture: noteCaptureStatus,
+            now: now,
+            isRecording: indicatorState.isRecording,
+            isProcessing: indicatorState.isProcessing,
+            duration: indicatorState.recordingDuration
+        )
+    }
+
+    /// Where a click on the status card goes.
+    private func openStatusCardDestination() {
+        switch StatusCardDestination.resolve(noteCapture: noteCaptureStatus) {
+        case .capturingNote(let noteID):
+            onOpenCapturingNote(noteID)
+        case .dictate:
+            onSelect(.dictate)
+        }
     }
 
     /// Stable identity for the active SwiftData container so count reloads when it changes.
@@ -597,6 +770,9 @@ private struct MainSidebar: View {
                                 title: item.title(locale: locale),
                                 systemImage: item.icon,
                                 count: item == .library && isExpanded && libraryCount > 0 ? libraryCount : nil,
+                                accessory: isExpanded
+                                    ? MainNavAccessory.accessory(for: item, captureStatus: noteCaptureStatus)
+                                    : nil,
                                 isCollapsed: !isExpanded,
                                 accessibilityIdentifier: "sidebar.nav.\(item.accessibilityIdentifierComponent)",
                                 isSelected: selectedNav == item,
@@ -622,11 +798,33 @@ private struct MainSidebar: View {
 
     @ViewBuilder
     private var statusFooter: some View {
-        if isExpanded {
-            StatusCard(phase: statusPhase, readyTitle: localized("Ready", locale: locale))
-        } else {
-            StatusCardDot(phase: statusPhase)
-                .frame(maxWidth: .infinity)
+        // One tick a second so the card's clock moves. Nothing else in the
+        // sidebar is inside it.
+        TimelineView(.periodic(from: noteCaptureStatus?.startedAt ?? .now, by: 1)) { context in
+            let phase = statusPhase(now: context.date)
+            if isExpanded {
+                if let noteID = noteCaptureStatus?.noteID {
+                    CapturingNoteTitle(noteID: noteID) { title in
+                        StatusCard(
+                            phase: phase,
+                            readyTitle: localized("Ready", locale: locale),
+                            subtitle: title,
+                            accessibilityIdentifier: "sidebar.status",
+                            action: openStatusCardDestination
+                        )
+                    }
+                } else {
+                    StatusCard(
+                        phase: phase,
+                        readyTitle: localized("Ready", locale: locale),
+                        accessibilityIdentifier: "sidebar.status",
+                        action: phase.isActive ? openStatusCardDestination : nil
+                    )
+                }
+            } else {
+                StatusCardDot(phase: phase)
+                    .frame(maxWidth: .infinity)
+            }
         }
     }
 
@@ -745,6 +943,7 @@ final class MainWindowController {
     var onStartDictation: (() -> Void)?
     var onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
     var onFinishNoteCapture: (() -> Void)?
+    var onCancelNoteCapture: (() -> Void)?
     var onGenerateEnhancedPanel: NoteEnhancementHandler?
     var onOpenSettings: ((SettingsTab) -> Void)?
     private var noteCaptureState: NoteCaptureState?
@@ -773,6 +972,7 @@ final class MainWindowController {
         onStartDictation: @escaping () -> Void,
         onStartNoteCapture: @escaping (NoteCaptureRequest) -> Bool,
         onFinishNoteCapture: (() -> Void)? = nil,
+        onCancelNoteCapture: (() -> Void)? = nil,
         onGenerateEnhancedPanel: NoteEnhancementHandler? = nil
     ) {
         self.floatingIndicatorState = floatingIndicatorState
@@ -781,6 +981,7 @@ final class MainWindowController {
         self.onStartDictation = onStartDictation
         self.onStartNoteCapture = onStartNoteCapture
         self.onFinishNoteCapture = onFinishNoteCapture
+        self.onCancelNoteCapture = onCancelNoteCapture
         self.onGenerateEnhancedPanel = onGenerateEnhancedPanel
     }
 
@@ -869,6 +1070,7 @@ final class MainWindowController {
                 onStartNoteCapture: onStartNoteCapture,
                 noteCaptureState: noteCaptureState,
                 onFinishNoteCapture: onFinishNoteCapture,
+                onCancelNoteCapture: onCancelNoteCapture,
                 onGenerateEnhancedPanel: onGenerateEnhancedPanel,
                 onOpenSettings: onOpenSettings ?? { _ in
                     Log.ui.error("Settings presenter not set - cannot show settings")

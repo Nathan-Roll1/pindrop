@@ -279,12 +279,15 @@ enum LibrarySpeakerColor {
 
     /// Canonical color key: prefer non-empty `speakerId`, else non-empty label, else `"_"`.
     /// Use this everywhere a speaker color is resolved so empty-id segments match the footer.
+    ///
+    /// The rule itself lives on `DiarizedTranscriptSegment`, which is where the
+    /// transcript pipeline groups spans. A second copy here would be a second
+    /// grouping, and a speaker would eventually get two colors.
     static func canonicalKey(speakerId: String, speakerLabel: String) -> String {
-        let trimmedID = speakerId.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedID.isEmpty { return trimmedID }
-        let trimmedLabel = speakerLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedLabel.isEmpty { return trimmedLabel }
-        return "_"
+        DiarizedTranscriptSegment.canonicalSpeakerKey(
+            speakerId: speakerId,
+            speakerLabel: speakerLabel
+        )
     }
 
     static func color(for speakerID: String) -> Color {

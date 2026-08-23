@@ -277,6 +277,9 @@ final class NoteCaptureController {
         streamingSession.onArtifactLiveTextChanged = { [weak self] text in
             self?.updateLiveTranscript(text)
         }
+        streamingSession.onArtifactTentativeTextChanged = { [weak self] text in
+            self?.updateTentativeLiveTranscript(text)
+        }
     }
 
     // MARK: - Start
@@ -1036,6 +1039,16 @@ final class NoteCaptureController {
         if streamingSession.isArtifactLiveTranscriptDegraded {
             state.markLiveTranscriptDegraded()
         }
+    }
+
+    /// The unsettled tail. Only a running recording has one: past that, the
+    /// words either committed or were never said.
+    private func updateTentativeLiveTranscript(_ text: String) {
+        guard state.isCapturing else {
+            state.updateLiveTentativeTranscript("")
+            return
+        }
+        state.updateLiveTentativeTranscript(text)
     }
 
     // MARK: - Ownership

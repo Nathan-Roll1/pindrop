@@ -44,6 +44,23 @@ public struct MeetingNoteSourceBundle: Sendable, Equatable {
     }
 }
 
+/// One reserved citation marker found in generated content.
+public struct MeetingNoteCitationMarker: Equatable, Sendable {
+    /// The marker exactly as it was written, brackets included.
+    public let text: String
+    /// The citation it names, normalized to the `C<number>` form this build
+    /// writes. Nil when the marker carries no readable number.
+    public let identifier: String?
+    /// Where the marker sits in the content it was read from.
+    public let range: NSRange
+
+    public init(text: String, identifier: String?, range: NSRange) {
+        self.text = text
+        self.identifier = identifier
+        self.range = range
+    }
+}
+
 public enum MeetingNoteDerivationError: Error, Equatable, LocalizedError {
     case invalidCheckpoint(sequence: Int)
     case duplicateCheckpointSequence(Int)
@@ -133,6 +150,71 @@ public enum MeetingNoteDerivation {
                 options: .regularExpression
             )
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The reserved citation markers in one piece of generated content.
+    ///
+    /// Reads with the same grammar `sanitizingGeneratedContent` removes, so a
+    /// marker this finds is exactly a marker that would have been stripped, and
+    /// nothing else can pass for one. Resolving a marker to a source stays the
+    /// caller's job: an identifier that names no derived citation is a forgery
+    /// and must be dropped rather than drawn.
+    public static func citationMarkers(in content: String) -> [MeetingNoteCitationMarker] {
+        guard
+            !content.isEmpty,
+            let regex = try? NSRegularExpression(pattern: citationMarkerPattern)
+        else {
+            return []
+        }
+        let nsContent = content as NSString
+        let matches = regex.matches(
+            in: content,
+            range: NSRange(location: 0, length: nsContent.length)
+        )
+        return matches.map { match in
+            let text = nsContent.substring(with: match.range)
+            return MeetingNoteCitationMarker(
+                text: text,
+                identifier: citationIdentifier(inMarker: text),
+                range: match.range
+            )
+        }
+    }
+
+    /// Reads the citation a marker names, in the `C<number>` form this build
+    /// writes. The marker grammar accepts letters that look like a one and
+    /// alphabets that look like a C, so both are folded back here; a marker
+    /// with no readable number names nothing.
+    private static func citationIdentifier(inMarker marker: String) -> String? {
+        var digits = ""
+        var sawPrefix = false
+        for character in marker {
+            if character == "[" || character == "]" || character.isWhitespace {
+                continue
+            }
+            guard sawPrefix else {
+                // The C, in whichever alphabet it was written.
+                sawPrefix = true
+                continue
+            }
+            if let value = character.wholeNumberValue, (0...9).contains(value) {
+                digits.append(String(value))
+                continue
+            }
+            guard isOneLookalike(character) else { return nil }
+            digits.append("1")
+        }
+        guard !digits.isEmpty, let number = Int(digits) else { return nil }
+        return citationIdentifier(number)
+    }
+
+    private static func isOneLookalike(_ character: Character) -> Bool {
+        switch character {
+        case "l", "L", "I", "i", "І", "і", "Ι", "ι", "ı", "|":
+            true
+        default:
+            false
+        }
     }
 
     /// Renders a citation as a single safe display line for trusted structural UI.

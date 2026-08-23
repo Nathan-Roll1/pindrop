@@ -150,19 +150,25 @@ public struct NoteCaptureSessionSnapshot: Sendable, Equatable {
     public let state: CaptureSessionState
     public let startedAt: Date?
     public let endedAt: Date?
+    /// The history record this capture produced, when it reached one. It owns
+    /// the recorded audio file, so it is how a note page finds something to
+    /// play. Nil while the capture is still running and when it never finished.
+    public let transcriptionRecordID: UUID?
 
     public init(
         handle: NoteCaptureHandle,
         mode: CaptureSessionMode,
         state: CaptureSessionState,
         startedAt: Date?,
-        endedAt: Date?
+        endedAt: Date?,
+        transcriptionRecordID: UUID? = nil
     ) {
         self.handle = handle
         self.mode = mode
         self.state = state
         self.startedAt = startedAt
         self.endedAt = endedAt
+        self.transcriptionRecordID = transcriptionRecordID
     }
 
     public var capturesSystemAudio: Bool {

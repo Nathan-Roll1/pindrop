@@ -51,9 +51,12 @@ final class NoteCaptureState {
     private(set) var startedAt: Date?
     private(set) var audioLevel: Float = 0
     private(set) var bandLevels: AudioBandLevels = .zero
-    /// The committed plus tentative live text, mirroring what the floating
-    /// indicator shows. Empty while a capture has produced no words yet.
+    /// The live text the engine has settled on. Empty while a capture has
+    /// produced no words yet.
     private(set) var liveTranscript = ""
+    /// The tail the engine may still rewrite. The live sheet draws it in the
+    /// quiet ink so nobody reads an unsettled guess as a finished sentence.
+    private(set) var liveTentativeTranscript = ""
     /// Why the enhanced panel could not be generated, or nil when nothing
     /// failed. A failed generation never fails the capture: the typed notes and
     /// the transcript are already durable, so the note page explains the gap and
@@ -100,6 +103,7 @@ final class NoteCaptureState {
         audioLevel = 0
         bandLevels = .zero
         liveTranscript = ""
+        liveTentativeTranscript = ""
         isLiveTranscriptDegraded = false
         enhancementFailureMessage = nil
     }
@@ -134,6 +138,13 @@ final class NoteCaptureState {
         liveTranscript = text
     }
 
+    /// Records the unsettled tail. Committed text arrives on its own path, so a
+    /// tentative update never rewrites what was already settled.
+    func updateLiveTentativeTranscript(_ text: String) {
+        guard liveTentativeTranscript != text else { return }
+        liveTentativeTranscript = text
+    }
+
     func markLiveTranscriptDegraded() {
         isLiveTranscriptDegraded = true
     }
@@ -142,6 +153,9 @@ final class NoteCaptureState {
         phase = .finalizing(stage)
         audioLevel = 0
         bandLevels = .zero
+        // Nothing is pending once the microphone is closed: the engine's last
+        // words either committed or never existed.
+        liveTentativeTranscript = ""
     }
 
     func beginEnhancing() {
@@ -180,6 +194,7 @@ final class NoteCaptureState {
         audioLevel = 0
         bandLevels = .zero
         liveTranscript = ""
+        liveTentativeTranscript = ""
         isLiveTranscriptDegraded = false
         enhancementFailureMessage = nil
     }

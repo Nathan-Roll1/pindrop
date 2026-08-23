@@ -93,16 +93,44 @@ struct NoteRowCaptureFacts: Equatable, Sendable {
 
 /// A capture currently bound to a note, driving the live row treatment.
 ///
-/// TODO(WP4/P4): `NoteCaptureController` will publish this. No observable today
-/// records which note a capture is attached to, so `NotesView` binds it to `nil`
-/// and no row renders live.
+/// `startedAt` is what the row actually counts from. Passing the clock instead of
+/// a ticking number means the list is handed one unchanging value for the whole
+/// recording: only the live row re-renders each second, not every row in it.
 struct NoteCaptureLiveRow: Equatable, Sendable {
     let noteID: UUID
+    /// Elapsed time at the moment this value was made. Used when there is no
+    /// `startedAt` to count from.
     let elapsed: TimeInterval
+    let startedAt: Date?
 
-    init(noteID: UUID, elapsed: TimeInterval) {
+    init(noteID: UUID, elapsed: TimeInterval, startedAt: Date? = nil) {
         self.noteID = noteID
         self.elapsed = elapsed
+        self.startedAt = startedAt
+    }
+
+    /// The live row for the Notes list, or nil when no note is being recorded.
+    ///
+    /// A capture that is still starting has no clock yet, and a capture that
+    /// finished recording is no longer live: both leave the list alone.
+    static func active(
+        noteID: UUID?,
+        isRecording: Bool,
+        startedAt: Date?,
+        now: Date = Date()
+    ) -> NoteCaptureLiveRow? {
+        guard isRecording, let noteID, let startedAt else { return nil }
+        return NoteCaptureLiveRow(
+            noteID: noteID,
+            elapsed: max(0, now.timeIntervalSince(startedAt)),
+            startedAt: startedAt
+        )
+    }
+
+    /// Seconds to show on the row at `now`.
+    func elapsed(now: Date) -> TimeInterval {
+        guard let startedAt else { return elapsed }
+        return max(0, now.timeIntervalSince(startedAt))
     }
 }
 

@@ -208,6 +208,45 @@ extension CaptureSessionStore {
         return try panelModel(id: id, in: context)?.restorePanel()
     }
 
+    /// The sources one panel was generated from.
+    ///
+    /// The stored provenance is trusted only when it re-encodes to itself byte
+    /// for byte and still names this panel's note: a blob that was rewritten
+    /// after the generation describes nothing this build wrote. A panel that
+    /// kept no provenance simply has no sources.
+    ///
+    /// A citation returned here says which span of which transcript revision it
+    /// quotes. It does not say that span is still readable, so a reader must
+    /// resolve every citation against the transcript on screen before offering
+    /// it as a link.
+    public func enhancedPanelCitations(panelID: UUID) throws -> [MeetingNoteCitation] {
+        let context = ModelContext(modelContainer)
+        guard let model = try panelModel(id: panelID, in: context) else {
+            throw CaptureSessionStoreError.enhancedPanelNotFound(panelID)
+        }
+        guard
+            let provenanceJSON = model.provenanceJSON,
+            let provenanceData = provenanceJSON.data(using: .utf8),
+            let provenance = try? JSONDecoder().decode(
+                MeetingGeneratedNoteProvenance.self,
+                from: provenanceData
+            )
+        else {
+            return []
+        }
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard
+            let reencoded = try? encoder.encode(provenance),
+            String(decoding: reencoded, as: UTF8.self) == provenanceJSON,
+            provenance.humanAnchorNoteID == model.noteID
+        else {
+            return []
+        }
+        return provenance.citations
+    }
+
     // MARK: - Legacy generated notes
 
     /// Presents a legacy generated meeting note as a read-only panel.

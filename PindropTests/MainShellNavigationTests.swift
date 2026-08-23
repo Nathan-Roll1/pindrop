@@ -234,3 +234,128 @@ struct StatusCardPhaseTests {
         #expect(StatusCard.formatDuration(-3) == "0:00")
     }
 }
+
+@Suite("Status card note capture (WP4)")
+struct StatusCardNoteCaptureTests {
+
+    private let locale = Locale(identifier: "en")
+    private let now = Date(timeIntervalSince1970: 1_000_000)
+    private let noteID = UUID()
+
+    private func recording(elapsed: TimeInterval) -> SidebarCaptureStatus {
+        SidebarCaptureStatus(
+            kind: .recording,
+            startedAt: now.addingTimeInterval(-elapsed),
+            noteID: noteID
+        )
+    }
+
+    // MARK: - Phase
+
+    @Test func aNoteCaptureOutranksTheDictationIndicator() {
+        let phase = StatusCardPhase(
+            noteCapture: recording(elapsed: 65),
+            now: now,
+            isRecording: false,
+            isProcessing: true
+        )
+        #expect(phase == .recording(duration: 65))
+    }
+
+    @Test func aFinalizingNoteCaptureHasItsOwnPhase() {
+        let status = SidebarCaptureStatus(
+            kind: .finalizing,
+            startedAt: now.addingTimeInterval(-243),
+            noteID: noteID
+        )
+        let phase = StatusCardPhase(
+            noteCapture: status,
+            now: now,
+            isRecording: false,
+            isProcessing: false
+        )
+        #expect(phase == .finalizing(duration: 243))
+        #expect(phase.isActive)
+        #expect(phase.duration == 243)
+    }
+
+    @Test func aCaptureThatHasNotStartedYetShowsAZeroClock() {
+        let status = SidebarCaptureStatus(kind: .recording, startedAt: nil, noteID: noteID)
+        #expect(status.elapsed(now: now) == 0)
+    }
+
+    @Test func withoutANoteCaptureTheCardFallsBackToDictation() {
+        #expect(StatusCardPhase(
+            noteCapture: nil,
+            now: now,
+            isRecording: true,
+            isProcessing: false,
+            duration: 12
+        ) == .recording(duration: 12))
+
+        #expect(StatusCardPhase(
+            noteCapture: nil,
+            now: now,
+            isRecording: false,
+            isProcessing: false
+        ) == .ready)
+    }
+
+    // MARK: - Title
+
+    @Test func activePhasesCarryTheirClockInTheTitle() {
+        #expect(StatusCardPresentation.title(
+            phase: .recording(duration: 243),
+            locale: locale
+        ) == "Recording · 4:03")
+
+        #expect(StatusCardPresentation.title(
+            phase: .finalizing(duration: 65),
+            locale: locale
+        ) == "Finalizing · 1:05")
+
+        #expect(StatusCardPresentation.title(phase: .processing, locale: locale) == "Processing")
+        #expect(StatusCardPresentation.title(
+            phase: .ready,
+            readyTitle: "Ready",
+            locale: locale
+        ) == "Ready")
+        #expect(StatusCardPresentation.title(phase: .ready, locale: locale) == "Ready to dictate")
+    }
+
+    // MARK: - Destination
+
+    @Test func theCardGoesToTheNoteThatIsRecording() {
+        #expect(StatusCardDestination.resolve(noteCapture: recording(elapsed: 4))
+            == .capturingNote(noteID))
+    }
+
+    @Test func withoutANoteTheCardGoesToDictate() {
+        #expect(StatusCardDestination.resolve(noteCapture: nil) == .dictate)
+        // A capture that has not bound its note yet has nowhere else to go.
+        #expect(StatusCardDestination.resolve(
+            noteCapture: SidebarCaptureStatus(kind: .recording, startedAt: now, noteID: nil)
+        ) == .dictate)
+    }
+
+    // MARK: - Sidebar accessory
+
+    @Test func notesWearsARecordingDotWhileANoteRecords() {
+        #expect(MainNavAccessory.accessory(
+            for: .notes,
+            captureStatus: recording(elapsed: 4)
+        ) == .recordingDot)
+    }
+
+    @Test func noOtherRowWearsTheDotAndFinalizingDoesNotEither() {
+        #expect(MainNavAccessory.accessory(
+            for: .library,
+            captureStatus: recording(elapsed: 4)
+        ) == nil)
+        #expect(MainNavAccessory.accessory(for: .notes, captureStatus: nil) == nil)
+        #expect(MainNavAccessory.accessory(
+            for: .notes,
+            captureStatus: SidebarCaptureStatus(kind: .finalizing, startedAt: now, noteID: noteID)
+        ) == nil)
+    }
+}

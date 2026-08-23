@@ -7,14 +7,25 @@
 
 import SwiftUI
 
+/// What the count slot shows instead of a count.
+enum SidebarItemAccessory: Equatable, Sendable {
+    /// A note capture is running: an 8 pt recording dot stands in for the count.
+    case recordingDot
+}
+
 /// Scorched Earth sidebar nav item (spec §3).
 /// Selected: page bg + 1 pt line border, ink label 600, accent icon.
 /// Unselected: transparent, ink-2 label 500, ink-2 icon.
 /// Collapsed (derived 64 pt rail): icon-only, centered 18 pt slot, counts hidden.
 struct SidebarItem: View {
+    @Environment(\.locale) private var locale
+
     let title: String
     let systemImage: String
     var count: Int? = nil
+    /// Takes the count slot when set. Nothing is recording most of the time, so
+    /// the count keeps the slot by default.
+    var accessory: SidebarItemAccessory? = nil
     var isCollapsed: Bool = false
     var accessibilityIdentifier = ""
     let isSelected: Bool
@@ -22,6 +33,15 @@ struct SidebarItem: View {
 
     private var iconTint: Color {
         isSelected ? AppColors.accent : AppColors.textSecondary
+    }
+
+    private var accessibilityTitle: String {
+        switch accessory {
+        case .recordingDot:
+            return "\(title), \(localized("Recording", locale: locale))"
+        case nil:
+            return count.map { "\(title), \($0)" } ?? title
+        }
     }
 
     var body: some View {
@@ -43,10 +63,18 @@ struct SidebarItem: View {
 
                         Spacer(minLength: 0)
 
-                        if let count {
-                            Text("\(count)")
-                                .font(AppTypography.monoSmall)
-                                .foregroundStyle(AppColors.textTertiary)
+                        switch accessory {
+                        case .recordingDot:
+                            Circle()
+                                .fill(AppColors.recording)
+                                .frame(width: 8, height: 8)
+                                .accessibilityHidden(true)
+                        case nil:
+                            if let count {
+                                Text("\(count)")
+                                    .font(AppTypography.monoSmall)
+                                    .foregroundStyle(AppColors.textTertiary)
+                            }
                         }
                     }
                     .padding(.vertical, 7)
@@ -66,7 +94,7 @@ struct SidebarItem: View {
         .buttonStyle(.plain)
         .focusRing(.rounded(.sm))
         .help(isCollapsed ? title : "")
-        .accessibilityLabel(count.map { "\(title), \($0)" } ?? title)
+        .accessibilityLabel(accessibilityTitle)
         .accessibilityIdentifier(accessibilityIdentifier)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
@@ -76,7 +104,14 @@ struct SidebarItem: View {
     VStack(alignment: .leading, spacing: 2) {
         SidebarItem(title: "Home", systemImage: "house", isSelected: false, action: {})
         SidebarItem(title: "Library", systemImage: "books.vertical", count: 128, isSelected: true, action: {})
-        SidebarItem(title: "Notes", systemImage: "note.text", count: 12, isSelected: false, action: {})
+        SidebarItem(
+            title: "Notes",
+            systemImage: "note.text",
+            count: 12,
+            accessory: .recordingDot,
+            isSelected: false,
+            action: {}
+        )
     }
     .padding(16)
     .frame(width: 236)
