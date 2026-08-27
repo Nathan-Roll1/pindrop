@@ -3021,21 +3021,24 @@ final class MixedAudioCaptureBackend: SourceSeparatedAudioCaptureBackend, Meetin
             state = State(isStarting: true)
         }
 
-        // Only the microphone child feeds `onBuffer`. That callback is the live
-        // transcription pump; system audio must never reach it, because one mixed
-        // stream would destroy speaker attribution in the live transcript. Durable
-        // spooling keeps both sources separate through `configureMeetingRecording`.
+        // One streaming engine cannot safely combine two independently clocked
+        // callback streams. System-audio captures use that source for the live
+        // preview; durable spooling still keeps both sources for final transcription.
         start(
             source: .microphone,
             backend: microphoneBackend,
-            onBuffer: onBuffer,
+            onBuffer: { [weak self] buffer in
+                self?.forwardLiveBuffer(source: .microphone, buffer: buffer, deliver: onBuffer)
+            },
             onAudioLevel: onAudioLevel,
             onError: onError
         )
         start(
             source: .systemAudio,
             backend: systemAudioBackend,
-            onBuffer: { _ in },
+            onBuffer: { [weak self] buffer in
+                self?.forwardLiveBuffer(source: .systemAudio, buffer: buffer, deliver: onBuffer)
+            },
             onAudioLevel: onAudioLevel,
             onError: onError
         )
@@ -3230,6 +3233,24 @@ final class MixedAudioCaptureBackend: SourceSeparatedAudioCaptureBackend, Meetin
                     $0.failure = AudioCaptureSourceFailure(source: source, stage: .start, error: error)
                 }
             }
+        }
+    }
+
+    private func forwardLiveBuffer(
+        source: CaptureSourceKind,
+        buffer: AVAudioPCMBuffer,
+        deliver: (AVAudioPCMBuffer) -> Void
+    ) {
+        let shouldDeliver = stateLock.withLock {
+            switch source {
+            case .microphone:
+                return !state.isStarting && state.microphone.isActive && !state.systemAudio.isActive
+            case .systemAudio:
+                return state.systemAudio.isActive
+            }
+        }
+        if shouldDeliver {
+            deliver(buffer)
         }
     }
 
@@ -3907,9 +3928,8 @@ final class AudioRecorder {
                     guard callbackLease.isActive else { return }
                     let bands = levelNormalizer.scaled(bandLevelAnalyzer.process(buffer))
                     guard callbackLease.isActive else { return }
-                    // Microphone buffers only (the mixed backend forwards no system
-                    // audio here), straight to the live transcription pump from the
-                    // capture thread. Durable spooling is a separate path.
+                    // The mixed backend normally forwards system audio for the live
+                    // preview. Durable spooling keeps both source streams separate.
                     self?.onAudioBuffer?(buffer)
                     meterDelivery.note(bands: bands) { [weak self, callbackLease] level, deliveredBands in
                         guard callbackLease.isActive else { return }

@@ -801,7 +801,7 @@ struct AudioRecorderTests {
 
     // MARK: - Live transcript during durable capture
 
-    @Test func sourceSeparatedCaptureForwardsMicrophoneBuffersOnly() throws {
+    @Test func sourceSeparatedCaptureForwardsSystemAudioForLiveTranscript() throws {
         let microphone = MockAudioCaptureBackend(identifier: "microphone")
         let systemAudio = MockAudioCaptureBackend(identifier: "system")
         let backend = MixedAudioCaptureBackend(
@@ -822,14 +822,40 @@ struct AudioRecorderTests {
             MockAudioCaptureBackend.makeSynthesizedBuffer(format: systemAudio.targetFormat, frequency: 220)
         )
         microphone.capturedOnBuffer?(microphoneBuffer)
+        #expect(forwarded.isEmpty)
         systemAudio.capturedOnBuffer?(systemBuffer)
+        backend.cancelCapture()
+
+        #expect(forwarded.count == 1)
+        #expect(forwarded.first === systemBuffer)
+    }
+
+    @Test func sourceSeparatedLiveTranscriptFallsBackWhenSystemAudioFails() throws {
+        let microphone = MockAudioCaptureBackend(identifier: "microphone")
+        let systemAudio = MockAudioCaptureBackend(identifier: "system")
+        systemAudio.shouldThrowOnStart = AudioRecorderError.systemAudioCaptureFailed("tap unavailable")
+        let backend = MixedAudioCaptureBackend(
+            microphoneBackend: microphone,
+            systemAudioBackend: systemAudio
+        )
+        var forwarded: [AVAudioPCMBuffer] = []
+
+        try backend.startCapture(
+            onBuffer: { forwarded.append($0) },
+            onAudioLevel: { _ in },
+            onError: { _ in }
+        )
+        let microphoneBuffer = try #require(
+            MockAudioCaptureBackend.makeSynthesizedBuffer(format: microphone.targetFormat)
+        )
+        microphone.capturedOnBuffer?(microphoneBuffer)
         backend.cancelCapture()
 
         #expect(forwarded.count == 1)
         #expect(forwarded.first === microphoneBuffer)
     }
 
-    @Test func durableCaptureForwardsMicrophoneBuffersToTheStreamingPump() async throws {
+    @Test func durableCaptureForwardsSystemAudioToTheStreamingPump() async throws {
         let fixture = try makeFixture()
         let plan = makeSpoolPlan(includeSystemAudio: true)
         var pumped: [AVAudioPCMBuffer] = []
@@ -851,7 +877,7 @@ struct AudioRecorderTests {
         fixture.sut.onAudioBuffer = nil
 
         #expect(pumped.count == 1)
-        #expect(pumped.first === microphoneBuffer)
+        #expect(pumped.first === systemBuffer)
     }
 
     @Test func micOnlyDurableCaptureSpoolsTheMicrophoneAndNeverStartsSystemAudio() async throws {

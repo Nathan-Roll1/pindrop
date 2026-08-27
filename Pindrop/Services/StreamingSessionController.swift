@@ -262,8 +262,8 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
 
     /// Begins a note-capture-only live session that writes stable cumulative text to
     /// capture artifacts. Unlike generic dictation, this has no display or output
-    /// sink. The handle may carry a system-audio source; live transcription stays
-    /// microphone-only either way, so checkpoints key on the microphone source.
+    /// sink. A system-audio capture previews that source live, while durable capture
+    /// keeps microphone and system audio separate for final transcription.
     @discardableResult
     func beginArtifactCapture(
         for handle: NoteCaptureHandle,
@@ -872,9 +872,8 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         }
 
         do {
-            // Checkpoints are keyed on the microphone source: live transcription
-            // never hears the system-audio source, so a two-source capture persists
-            // exactly the same revision chain as a mic-only one.
+            // Live text remains one preview revision chain even when its audio comes
+            // from the system source. Final transcription uses both durable streams.
             try captureSessionStore.checkpointVoiceNoteLiveTranscript(
                 for: handle,
                 committedText: committedText,
