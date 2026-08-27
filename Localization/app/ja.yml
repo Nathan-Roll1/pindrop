@@ -358,6 +358,8 @@ diarized:
   _self: "話者分離済み"
 dictate:
   in_russian_and_ukrainian: "ロシア語とウクライナ語でディクテーション"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "音声入力"
   language: "音声入力の言語"
@@ -1165,6 +1167,8 @@ shows:
   beside_the_focused_text_field_caret: "フォーカスされたテキストフィールド/キャレットの横に表示されます"
   in_the_menu_bar_notch_area: "メニューバー/ノッチエリアに表示されます"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "サイドバーの位置"
   position_916f66ea: "サイドバーの位置"
 simplified:
@@ -1321,6 +1325,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "Pindrop に口述して文字起こししてもらう"
   start_talking: "話し始める"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "今日"
 toggle:
   _self: "トグル"

@@ -358,6 +358,8 @@ diarized:
   _self: "με διαχωρισμό ομιλητών"
 dictate:
   in_russian_and_ukrainian: "Υπαγόρευση στα Ρωσικά και Ουκρανικά"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "Υπαγόρευση"
   language: "Γλώσσα υπαγόρευσης"
@@ -1165,6 +1167,8 @@ shows:
   beside_the_focused_text_field_caret: "Εμφανίζεται δίπλα στο εστιασμένο πεδίο κειμένου/φρεάτιο"
   in_the_menu_bar_notch_area: "Εμφανίζεται στη γραμμή μενού/την περιοχή εγκοπής"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "Θέση πλευρικής γραμμής"
   position_916f66ea: "Θέση πλευρικής γραμμής"
 simplified:
@@ -1321,6 +1325,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "να υπαγορεύσει και να αφήσει τον Πίντροπ να μεταγράψει για εσάς"
   start_talking: "να αρχίσουμε να μιλάμε"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "Σήμερα"
 toggle:
   _self: "Μπαρέτα"

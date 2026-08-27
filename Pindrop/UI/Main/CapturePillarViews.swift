@@ -556,6 +556,8 @@ private struct DictateActionFrameFace: View {
             isEnabled: control.isStartEnabled,
             disabledReason: control.disabledReason,
             accessibilityIdentifier: "main.capture.dictate.start",
+            // Paper board 58: the Dictate CTA stands 34 tall.
+            height: 34,
             action: onStart
         )
     }

@@ -117,6 +117,9 @@ struct NotePageView: View {
     /// confirmations in one corner would only compete.
     @State private var confirmationMessage: String?
     @State private var confirmationTask: Task<Void, Never>?
+    /// Measured height of the capture dock while it is up, so the floating
+    /// control can rise clear of it instead of hiding.
+    @State private var bottomDockHeight: CGFloat = 0
 
     // MARK: Page state
 
@@ -267,16 +270,17 @@ struct NotePageView: View {
 
     private func pageBody(canvasHeight: CGFloat) -> some View {
         VStack(spacing: 0) {
-            // The floating control sits over the reading area and nowhere else:
-            // it is 20 above the footer hairline, and the capture dock, when it
-            // is up, fills the same band (which is why the two never share it).
+            // The floating control sits over the reading area: 20 above the
+            // footer hairline, and lifted clear of the capture dock when the
+            // dock is up (the boards pin it above the dock, never hidden).
             ZStack(alignment: .bottomTrailing) {
                 pageContent(canvasHeight: canvasHeight)
 
                 noteFAB
                     .padding(.trailing, NoteFABPresentation.trailingInset)
-                    .padding(.bottom, NoteFABPresentation.bottomInset)
+                    .padding(.bottom, NoteFABPresentation.bottomInset + fabDockClearance)
             }
+            .onPreferenceChange(BottomDockHeightKey.self) { bottomDockHeight = $0 }
 
             footer
         }
@@ -394,14 +398,17 @@ struct NotePageView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         headerRail
                         // Paper board 52: title and meta form one block with a
-                        // 14 gap; 24 separates the blocks around it.
+                        // 14 gap; tags get their own line, then the content
+                        // sits a little further off (+4).
                         VStack(alignment: .leading, spacing: 14) {
                             titleField
                             metaChipRow
+                            tagChipRow
                         }
                         .frame(maxWidth: canvasMaxWidth, alignment: .leading)
                         canvas
                             .frame(maxWidth: canvasMaxWidth, alignment: .leading)
+                            .padding(.top, 4)
                     }
                     .padding(.horizontal, 40)
                     .padding(.top, 40)
@@ -721,11 +728,16 @@ struct NotePageView: View {
                 speakersChip
             }
 
-            tagChips
-
             Spacer(minLength: 0)
         }
         .padding(.leading, textColumnInset)
+    }
+
+    /// Tags live on their own line under the actions row: the actions never
+    /// share their row with them, and the content gets a little air above it.
+    private var tagChipRow: some View {
+        tagChips
+            .padding(.leading, textColumnInset)
     }
 
     /// The Enhanced chip's dropdown is only offered where it can be honored: a
@@ -823,7 +835,7 @@ struct NotePageView: View {
     private var dateChip: some View {
         metaChip(
             systemImage: "calendar",
-            title: NotesDateFormatting.rowDate(
+            title: NotesDateFormatting.chipDate(
                 date: note?.createdAt ?? Date(),
                 locale: locale
             )
@@ -883,7 +895,7 @@ struct NotePageView: View {
                 TagChip(tag: tag, onRemove: { removeTag(tag) })
             }
 
-            TextField(localized("Add tag...", locale: locale), text: $newTag)
+            TextField(localized("Add tag", locale: locale), text: $newTag)
                 .font(AppTypography.badge)
                 .foregroundStyle(AppColors.textTertiary)
                 .textFieldStyle(.plain)
@@ -1010,10 +1022,6 @@ struct NotePageView: View {
                     presentation: enhancedPresentation,
                     onFollowSource: { followCitation(segmentID: $0.segmentID) }
                 )
-
-                if !enhancedPresentation.isReadOnly {
-                    EnhancedPanelFeedbackRow(feedback: panel.feedback, onRate: ratePanel)
-                }
             }
             .padding(.leading, textColumnInset)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1127,9 +1135,20 @@ struct NotePageView: View {
     private func bottomDock(canvasHeight: CGFloat) -> some View {
         if NotePagePresentation.showsCaptureStrip(state: pageState) {
             captureDock(canvasHeight: canvasHeight)
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.preference(key: BottomDockHeightKey.self, value: proxy.size.height)
+                    }
+                }
         } else if isAskDockVisible {
             askDock(canvasHeight: canvasHeight)
         }
+    }
+
+    /// How far the floating control rises while the capture dock is up: the
+    /// measured dock plus the 12 pt gap the boards keep between them.
+    private var fabDockClearance: CGFloat {
+        NotePagePresentation.showsCaptureStrip(state: pageState) ? bottomDockHeight + 12 : 0
     }
 
     private func askDock(canvasHeight: CGFloat) -> some View {
@@ -1241,7 +1260,7 @@ struct NotePageView: View {
 
     private func elapsedText(now: Date) -> String? {
         guard let startedAt = noteCaptureState?.startedAt else { return nil }
-        return NoteRowPresentation.elapsedText(max(0, now.timeIntervalSince(startedAt)))
+        return NoteRowPresentation.liveElapsedText(max(0, now.timeIntervalSince(startedAt)))
     }
 
     // MARK: - Footer
@@ -1330,14 +1349,18 @@ struct NotePageView: View {
         await refreshViews()
         refreshTemplatePresets()
 
-        if let stored = views?.selectedView {
+        let stored = views?.selectedView
+        if views?.panels.isEmpty == false {
+            // A note with an enhanced note always opens on it: Enhanced is the
+            // primary page, so going back into the note never lands on My
+            // notes or the transcript. The stored pick still names the
+            // template.
+            selection = .enhanced
+            selectedTemplateIdentifier = stored?.templatePresetIdentifier
+                ?? views?.panels.first?.templatePresetIdentifier
+        } else if let stored {
             selection = stored.kind
             selectedTemplateIdentifier = stored.templatePresetIdentifier
-        } else if views?.panels.isEmpty == false {
-            // A recorded note opens on its enhanced view until the person picks
-            // another view themselves; that pick is stored and wins from then on.
-            selection = .enhanced
-            selectedTemplateIdentifier = views?.panels.first?.templatePresetIdentifier
         }
         lastSeenPanelID = views?.panels.first?.id
         hasUnreadEnhanced = false
@@ -1648,19 +1671,6 @@ struct NotePageView: View {
                 return
             }
             try service.renameProfile(profile, to: name)
-            Task { await refreshViews() }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func ratePanel(_ feedback: CaptureNotePanelFeedback?) {
-        guard let panel = currentPanel, panel.isRegenerable else { return }
-        do {
-            try captureSessionStore.setEnhancedPanelFeedback(
-                panelID: panel.id,
-                feedback: feedback
-            )
             Task { await refreshViews() }
         } catch {
             errorMessage = error.localizedDescription
@@ -2025,6 +2035,15 @@ private struct LiveTranscriptLines: View {
 }
 
 // MARK: - Preview
+
+/// The capture dock reports its height through this key so the note page can
+/// lift the floating control clear of it.
+private struct BottomDockHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
 
 #Preview("Note page") {
     NotePageView(noteID: UUID(), onBack: {})

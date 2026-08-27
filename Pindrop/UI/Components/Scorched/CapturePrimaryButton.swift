@@ -5,8 +5,9 @@
 //  Created on 2026-08-22.
 //
 //  The one standard accent CTA for starting a capture, shared by the Dictate
-//  and Notes pages: fixed 36pt face, accent fill, an optional keyboard hint
-//  inside the face, and an optional split menu segment on the trailing edge.
+//  and Notes pages: accent fill, an optional keyboard hint inside the face,
+//  and an optional split menu segment on the trailing edge. Height follows the
+//  surface: 32 on Notes (matches the search field), 34 on Dictate.
 //
 
 import SwiftUI
@@ -19,7 +20,6 @@ enum CapturePrimaryGlyph {
 }
 
 enum CapturePrimaryButtonMetrics {
-    static let height: CGFloat = 36
     static let cornerRadius: CGFloat = 8
     static let contentGap: CGFloat = 8
     static let dotSize: CGFloat = 8
@@ -35,6 +35,7 @@ struct CapturePrimaryButton<MenuContent: View>: View {
     var isEnabled: Bool = true
     var disabledReason: String?
     var accessibilityIdentifier: String?
+    var height: CGFloat = 32
     let action: () -> Void
     var menuAccessibilityLabel: String?
     var menuAccessibilityIdentifier: String?
@@ -49,12 +50,12 @@ struct CapturePrimaryButton<MenuContent: View>: View {
             if hasMenu {
                 Rectangle()
                     .fill(AppColors.contentBackground.opacity(0.28))
-                    .frame(width: 1, height: CapturePrimaryButtonMetrics.height)
+                    .frame(width: 1, height: height)
 
                 menuSegment
             }
         }
-        .frame(height: CapturePrimaryButtonMetrics.height)
+        .frame(height: height)
         .fixedSize()
         .background(
             RoundedRectangle(
@@ -88,7 +89,7 @@ struct CapturePrimaryButton<MenuContent: View>: View {
                     ? CapturePrimaryButtonMetrics.splitTrailingPadding
                     : CapturePrimaryButtonMetrics.horizontalPadding
             )
-            .frame(height: CapturePrimaryButtonMetrics.height)
+            .frame(height: height)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -104,14 +105,17 @@ struct CapturePrimaryButton<MenuContent: View>: View {
         Menu(content: menuContent) {
             Image(systemName: "chevron.down")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(AppColors.contentBackground)
                 .padding(.horizontal, CapturePrimaryButtonMetrics.menuSegmentPadding)
-                .frame(height: CapturePrimaryButtonMetrics.height)
+                .frame(height: height)
                 .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
+        // The borderless menu style redraws the label; the chevron must read as
+        // the same on-accent ink as the title, not the style's default.
+        .foregroundStyle(AppColors.contentBackground)
+        .tint(AppColors.contentBackground)
         .accessibilityIdentifier(menuAccessibilityIdentifier ?? "")
         .accessibilityLabel(menuAccessibilityLabel ?? "")
     }
@@ -125,6 +129,7 @@ extension CapturePrimaryButton where MenuContent == EmptyView {
         isEnabled: Bool = true,
         disabledReason: String? = nil,
         accessibilityIdentifier: String? = nil,
+        height: CGFloat = 32,
         action: @escaping () -> Void
     ) {
         self.init(
@@ -134,6 +139,7 @@ extension CapturePrimaryButton where MenuContent == EmptyView {
             isEnabled: isEnabled,
             disabledReason: disabledReason,
             accessibilityIdentifier: accessibilityIdentifier,
+            height: height,
             action: action,
             menuAccessibilityLabel: nil,
             menuAccessibilityIdentifier: nil,

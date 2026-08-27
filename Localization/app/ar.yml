@@ -358,6 +358,8 @@ diarized:
   _self: "مُقسَّم حسب المتحدثين"
 dictate:
   in_russian_and_ukrainian: "أملِ بالروسية والأوكرانية"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "الإملاء"
   language: "لغة الإملاء"
@@ -1165,6 +1167,8 @@ shows:
   beside_the_focused_text_field_caret: "يظهر بجانب حقل/علامة الإقحام التي تم التركيز عليها"
   in_the_menu_bar_notch_area: "يظهر في شريط القائمة/منطقة الشق"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "موقف الشريط الجانبي"
   position_916f66ea: "موضع الشريط الجانبي"
 simplified:
@@ -1321,6 +1325,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "للإملاء والسماح لـ Pindrop بالنسخ لك"
   start_talking: "لبدء الحديث"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "اليوم"
 toggle:
   _self: "تبديل"

@@ -358,6 +358,8 @@ diarized:
   _self: "已区分发言人"
 dictate:
   in_russian_and_ukrainian: "用俄语和乌克兰语听写"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "听写"
   language: "听写语言"
@@ -1165,6 +1167,8 @@ shows:
   beside_the_focused_text_field_caret: "显示在聚焦的文本字段/光标旁边"
   in_the_menu_bar_notch_area: "显示在菜单栏/刘海区域"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "侧边栏位置"
   position_916f66ea: "侧边栏位置"
 simplified:
@@ -1321,6 +1325,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "进行听写并让 Pindrop 为您转录"
   start_talking: "开始说话"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "今天"
 toggle:
   _self: "切换"

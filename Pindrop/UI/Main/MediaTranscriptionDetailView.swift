@@ -97,13 +97,6 @@ struct MediaTranscriptionDetailView: View {
     private var hasMedia: Bool { TranscriptionDetailAccess.shouldShowPlayback(for: record) }
     private var showsSpeakerLanes: Bool { !segments.isEmpty }
 
-    private static let metaDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter
-    }()
-
     var body: some View {
         GeometryReader { geo in
             if geo.size.width >= 960 {
@@ -248,7 +241,7 @@ struct MediaTranscriptionDetailView: View {
                 .textSelection(.enabled)
 
             HStack(spacing: 10) {
-                Text(Self.metaDateFormatter.string(from: record.timestamp))
+                Text(NotesDateFormatting.detailDate(date: record.timestamp, locale: locale))
                     .font(AppTypography.monoTime)
                     .foregroundStyle(AppColors.textSecondary)
                     .monospacedDigit()

@@ -358,6 +358,8 @@ diarized:
   _self: "đã phân vai nói"
 dictate:
   in_russian_and_ukrainian: "Đọc chính tả bằng tiếng Nga và tiếng Ukraina"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "Chính tả"
   language: "Ngôn ngữ chính tả"
@@ -1165,6 +1167,8 @@ shows:
   beside_the_focused_text_field_caret: "Hiển thị bên cạnh trường văn bản/dấu mũ tập trung"
   in_the_menu_bar_notch_area: "Hiển thị trong thanh menu/khu vực khía cạnh"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "Vị trí thanh bên"
   position_916f66ea: "Vị trí thanh bên"
 simplified:
@@ -1321,6 +1325,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "ra lệnh và để Pindrop chép lời cho bạn"
   start_talking: "bắt đầu nói chuyện"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "Hôm nay"
 toggle:
   _self: "Chuyển đổi"

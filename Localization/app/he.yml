@@ -358,6 +358,8 @@ diarized:
   _self: "מחולק לפי דוברים"
 dictate:
   in_russian_and_ukrainian: "הכתבה ברוסית ובאוקראינית"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "הכתבה"
   language: "שפת הכתבה"
@@ -1165,6 +1167,8 @@ shows:
   beside_the_focused_text_field_caret: "מוצג לצד שדה הטקסט/הקארט הממוקד"
   in_the_menu_bar_notch_area: "מופיע בשורת התפריטים/אזור החריץ"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "מיקום סרגל הצד"
   position_916f66ea: "מיקום סרגל הצד"
 simplified:
@@ -1321,6 +1325,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "להכתיב ולתת לפינדרופ לתמלל עבורך"
   start_talking: "להתחיל לדבר"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "הַיוֹם"
 toggle:
   _self: "לְמַתֵג"

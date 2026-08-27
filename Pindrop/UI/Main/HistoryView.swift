@@ -606,7 +606,10 @@ struct HistoryView: View {
                 ForEach(groupedSections, id: \.key) { group in
                     SectionHeader(
                         title: LibraryDayGrouping.displayTitle(group.key, locale: locale),
-                        trailing: "\(group.records.count)",
+                        trailing: String(
+                            format: localized("%lld items", locale: locale),
+                            group.records.count
+                        ),
                         isFirst: group.key == groupedSections.first?.key
                     )
                     .padding(.horizontal, 24)

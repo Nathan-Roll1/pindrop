@@ -29,9 +29,9 @@ extension MediaLibrarySortMode {
     var title: String {
         switch self {
         case .newest:
-            return "Newest"
+            return "Newest first"
         case .oldest:
-            return "Oldest"
+            return "Oldest first"
         case .nameAscending:
             return "Name A-Z"
         case .nameDescending:

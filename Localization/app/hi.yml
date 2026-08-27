@@ -358,6 +358,8 @@ diarized:
   _self: "डायराइज़्ड"
 dictate:
   in_russian_and_ukrainian: "रूसी और यूक्रेनी में डिक्टेट करें"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "डिक्टेशन"
   language: "डिक्टेशन भाषा"
@@ -1165,6 +1167,8 @@ shows:
   beside_the_focused_text_field_caret: "फ़ोकस किए गए टेक्स्ट फ़ील्ड/कैरेट के बगल में दिखाता है"
   in_the_menu_bar_notch_area: "मेनू बार/नॉच क्षेत्र में दिखता है"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "साइडबार स्थिति"
   position_916f66ea: "साइडबार स्थिति"
 simplified:
@@ -1321,6 +1325,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "निर्देशित करने के लिए और पिनड्रॉप को आपके लिए लिखने की अनुमति देने के लिए"
   start_talking: "बात शुरू करने के लिए"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "आज"
 toggle:
   _self: "टॉगल"

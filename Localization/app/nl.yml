@@ -358,6 +358,8 @@ diarized:
   _self: "gediariseerd"
 dictate:
   in_russian_and_ukrainian: "Dicteer in het Russisch en Oekraïens"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "Dictee"
   language: "Dictatetaal"
@@ -1165,6 +1167,8 @@ shows:
   beside_the_focused_text_field_caret: "Wordt weergegeven naast het gefocuste tekstveld/caret"
   in_the_menu_bar_notch_area: "Wordt weergegeven in de menubalk/notch-gebied"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "Zijbalkpositie"
   position_916f66ea: "Positie zijbalk"
 simplified:
@@ -1321,6 +1325,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "om te dicteren en Pindrop voor u te laten transcriberen"
   start_talking: "om te beginnen praten"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "Vandaag"
 toggle:
   _self: "Schakelaar"

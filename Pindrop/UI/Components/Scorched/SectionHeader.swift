@@ -33,6 +33,8 @@ struct SectionHeader<TrailingContent: View>: View {
                 .font(AppTypography.overline)
                 .foregroundStyle(AppColors.textTertiary)
                 .tracking(AppTypography.overlineTracking)
+                // The hairline gives way first; a section title never truncates.
+                .fixedSize()
 
             Rectangle()
                 .fill(AppColors.border)

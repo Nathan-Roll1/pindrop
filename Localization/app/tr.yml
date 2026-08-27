@@ -358,6 +358,8 @@ diarized:
   _self: "diyarıze"
 dictate:
   in_russian_and_ukrainian: "Rusça ve Ukraynaca dikte edin"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "Dikte"
   language: "Dikte dili"
@@ -1165,6 +1167,8 @@ shows:
   beside_the_focused_text_field_caret: "Odaklanılan metin alanının/işaret işaretinin yanında gösterilir"
   in_the_menu_bar_notch_area: "Menü çubuğu/çentik alanında gösterilir"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "Kenar çubuğu konumu"
   position_916f66ea: "Kenar çubuğu konumu"
 simplified:
@@ -1321,6 +1325,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "dikte etmek ve Pindrop'un sizin için yazıya dökmesine izin vermek"
   start_talking: "konuşmaya başlamak"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "Bugün"
 toggle:
   _self: "Değiştir"

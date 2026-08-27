@@ -358,6 +358,8 @@ diarized:
   _self: "diarisasi"
 dictate:
   in_russian_and_ukrainian: "Dikte dalam bahasa Rusia dan Ukraina"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "Dikte"
   language: "Bahasa dikte"
@@ -1165,6 +1167,8 @@ shows:
   beside_the_focused_text_field_caret: "Ditampilkan di samping bidang teks/tanda sisipan yang terfokus"
   in_the_menu_bar_notch_area: "Ditampilkan di bilah menu/area takik"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "Posisi bilah sisi"
   position_916f66ea: "Posisi bilah sisi"
 simplified:
@@ -1321,6 +1325,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "untuk mendiktekan dan membiarkan Pindrop menuliskannya untuk Anda"
   start_talking: "untuk mulai berbicara"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "Hari ini"
 toggle:
   _self: "Beralih"

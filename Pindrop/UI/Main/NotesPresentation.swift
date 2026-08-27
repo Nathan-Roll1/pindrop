@@ -159,9 +159,9 @@ enum NoteRowPresentation {
         return String(format: "%d:%02d", minutes, seconds)
     }
 
-    /// Trailing lane of a live row: "REC 04:03".
+    /// Trailing lane of a live row: "REC 4:03".
     static func liveLabel(elapsed: TimeInterval, locale: Locale) -> String {
-        String(format: localized("REC %@", locale: locale), elapsedText(elapsed))
+        String(format: localized("REC %@", locale: locale), liveElapsedText(elapsed))
     }
 
     /// One spoken sentence for a Notes-list row.
@@ -218,6 +218,20 @@ enum NoteRowPresentation {
             return String(format: "%d:%02d:%02d", hours, minutes, seconds)
         }
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    /// The live clocks (capture bar, dictate pill, REC lane, playback pill) print
+    /// unpadded minutes per the design boards: "0:23", not "00:23". Transcript
+    /// time codes keep the padded clock (`elapsedText`).
+    static func liveElapsedText(_ elapsed: TimeInterval) -> String {
+        let total = max(0, Int(elapsed.rounded()))
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let seconds = total % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 
@@ -281,7 +295,9 @@ enum NotesDateFormatting {
         )
     }
 
-    /// Note-row date lane (88 pt): time today, weekday yesterday, else medium date.
+    /// Note-row date lane (88 pt): time today and yesterday, else medium date.
+    /// The boards print the clock for both days ("1:30 PM", "4:48 PM"); the day
+    /// name lives on the section header instead.
     static func rowDate(
         date: Date,
         now: Date = Date(),
@@ -293,9 +309,58 @@ enum NotesDateFormatting {
         }
         if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
            calendar.isDate(date, inSameDayAs: yesterday) {
-            return localized("Yesterday", locale: locale)
+            return timeFormatter(locale: locale).string(from: date)
         }
         return mediumDateFormatter(locale: locale).string(from: date)
+    }
+
+    /// The note page's date chip: "Today, 1:12 PM" / "Yesterday, 4:48 PM", else
+    /// a medium date. The chip names the day; the list row does not.
+    static func chipDate(
+        date: Date,
+        now: Date = Date(),
+        calendar: Calendar = .current,
+        locale: Locale = Locale(identifier: "en")
+    ) -> String {
+        let time = timeFormatter(locale: locale).string(from: date)
+        if calendar.isDate(date, inSameDayAs: now) {
+            return String(
+                format: localized("%1$@, %2$@", locale: locale),
+                localized("Today", locale: locale),
+                time
+            )
+        }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+           calendar.isDate(date, inSameDayAs: yesterday) {
+            return String(
+                format: localized("%1$@, %2$@", locale: locale),
+                localized("Yesterday", locale: locale),
+                time
+            )
+        }
+        return mediumDateFormatter(locale: locale).string(from: date)
+    }
+
+    /// The meeting detail's meta date: "Today, 8:02 AM" / "Yesterday, 3:14 PM",
+    /// else a medium date with the time kept.
+    static func detailDate(
+        date: Date,
+        now: Date = Date(),
+        calendar: Calendar = .current,
+        locale: Locale = Locale(identifier: "en")
+    ) -> String {
+        if calendar.isDate(date, inSameDayAs: now) {
+            return chipDate(date: date, now: now, calendar: calendar, locale: locale)
+        }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+           calendar.isDate(date, inSameDayAs: yesterday) {
+            return chipDate(date: date, now: now, calendar: calendar, locale: locale)
+        }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        formatter.locale = locale
+        return formatter.string(from: date)
     }
 
     /// Footer-style "edited just now" without the "edited" prefix when used alone.

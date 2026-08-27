@@ -147,7 +147,7 @@ struct NotesView: View {
 
             HStack(spacing: 10) {
                 NotesSearchChrome(
-                    placeholder: localized("Search notes...", locale: locale),
+                    placeholder: localized("Search notes", locale: locale),
                     isFocused: $isSearchFieldFocused,
                     onAppliedQueryChange: { query in
                         appliedSearchQuery = query
@@ -252,7 +252,6 @@ struct NotesView: View {
                 ForEach(Array(snapshot.sections.enumerated()), id: \.element.key) { index, group in
                     SectionHeader(
                         title: localizedSectionTitle(group.key),
-                        trailing: "\(group.notes.count)",
                         isFirst: index == 0
                     )
                     .padding(.horizontal, 20)
@@ -437,7 +436,7 @@ struct NotesView: View {
                         .foregroundStyle(AppColors.textTertiary)
                         .lineLimit(1)
                         .multilineTextAlignment(.trailing)
-                        .frame(width: 64, alignment: .trailing)
+                        .frame(width: 88, alignment: .trailing)
                 }
             }
             .padding(.vertical, 13)

@@ -123,12 +123,11 @@ enum NoteFABPresentation {
 
     /// True when the corner belongs to the floating control.
     ///
-    /// Two things take it away: the Ask surface, which owns the corner while it
-    /// is open, and a running capture, whose dock fills the same band the pills
-    /// grow into. Both are geometry, not preference: two controls in one corner
-    /// would overlap.
+    /// The Ask surface takes the corner while it is open. A running capture no
+    /// longer does: the boards pin the control above the capture dock, so the
+    /// page lifts it clear of the dock instead of hiding it.
     static func isVisible(context: NoteFABContext) -> Bool {
-        !context.isAskSurfaceOpen && !context.isCaptureDockVisible
+        !context.isAskSurfaceOpen
     }
 
     /// The satellites, top to bottom. Order is fixed so the same action is always
@@ -263,8 +262,8 @@ enum NoteFABPresentation {
 
     /// "cur / total", in the mono slot at the end of the playback pill.
     static func clockText(currentTime: TimeInterval, duration: TimeInterval) -> String {
-        let elapsed = NoteRowPresentation.elapsedText(max(0, currentTime))
-        let total = NoteRowPresentation.elapsedText(max(0, duration))
+        let elapsed = NoteRowPresentation.liveElapsedText(max(0, currentTime))
+        let total = NoteRowPresentation.liveElapsedText(max(0, duration))
         return "\(elapsed) / \(total)"
     }
 

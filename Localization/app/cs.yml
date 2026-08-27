@@ -358,6 +358,8 @@ diarized:
   _self: "diarizováno"
 dictate:
   in_russian_and_ukrainian: "Diktujte rusky a ukrajinsky"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "Diktování"
   language: "Jazyk diktování"
@@ -1165,6 +1167,8 @@ shows:
   beside_the_focused_text_field_caret: "Zobrazuje se vedle vybraného textového pole/stříšky"
   in_the_menu_bar_notch_area: "Zobrazuje se v pruhu nabídky/oblasti zářezu"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "Poloha bočního panelu"
   position_916f66ea: "Pozice postranního panelu"
 simplified:
@@ -1321,6 +1325,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "diktovat a nechat Pindrop přepisovat za vás"
   start_talking: "začít mluvit"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "Dnes"
 toggle:
   _self: "Přepnout"

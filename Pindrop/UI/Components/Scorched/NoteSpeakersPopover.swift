@@ -52,11 +52,12 @@ struct NoteSpeakersPopover: View {
                 .foregroundStyle(AppColors.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 10)
-                .padding(.bottom, 6)
+                .padding(.top, 2)
+                .padding(.bottom, 8)
 
             expectedCountMenu
         }
-        .padding(6)
+        .padding(8)
         .frame(width: 280, alignment: .leading)
         .background(AppColors.contentBackground)
         .accessibilityIdentifier("note.page.speakers.popover")
@@ -78,8 +79,8 @@ struct NoteSpeakersPopover: View {
                 .environment(\.layoutDirection, .leftToRight)
         }
         .padding(.horizontal, 10)
-        .padding(.top, 4)
-        .padding(.bottom, 6)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder
@@ -114,7 +115,7 @@ struct NoteSpeakersPopover: View {
                 renameAction(row)
             }
         }
-        .padding(.vertical, 7)
+        .padding(.vertical, 8)
         .padding(.horizontal, 10)
         .background(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -169,7 +170,7 @@ struct NoteSpeakersPopover: View {
                     .font(AppTypography.label)
                     .foregroundStyle(AppColors.textSecondary)
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 8)
             .padding(.horizontal, 10)
             .contentShape(Rectangle())
         }
@@ -192,7 +193,7 @@ struct NoteSpeakersPopover: View {
         Rectangle()
             .fill(AppColors.border)
             .frame(height: 1)
-            .padding(.vertical, 6)
+            .padding(.vertical, 8)
     }
 
     private func dotColor(_ row: NoteSpeakerRow) -> Color {

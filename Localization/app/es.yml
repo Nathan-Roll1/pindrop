@@ -358,6 +358,8 @@ diarized:
   _self: "diarizado"
 dictate:
   in_russian_and_ukrainian: "Dicta en ruso y ucraniano"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "Dictado"
   language: "Idioma de dictado"
@@ -1165,6 +1167,8 @@ shows:
   beside_the_focused_text_field_caret: "Shows beside the focused text field/caret"
   in_the_menu_bar_notch_area: "Shows in the menu bar/notch area"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "Posición de la barra lateral"
   position_916f66ea: "Posición de la barra lateral"
 simplified:
@@ -1320,6 +1324,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "para dictar y dejar que Pindrop transcriba por ti"
   start_talking: "to start talking"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "Hoy"
 toggle:
   _self: "Toggle"

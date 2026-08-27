@@ -24,9 +24,11 @@ struct CaptureBarPresentationTests {
 
     // MARK: - Clock
 
-    @Test func theClockIsZeroPaddedMinutesAndSeconds() {
-        #expect(page(CaptureBarState(elapsed: 0)).elapsedText == "00:00")
-        #expect(page(CaptureBarState(elapsed: 243)).elapsedText == "04:03")
+    @Test func theClockUsesUnpaddedMinutes() {
+        // Live clocks print "0:00" / "4:03" per the boards; only transcript
+        // time codes keep the padded clock.
+        #expect(page(CaptureBarState(elapsed: 0)).elapsedText == "0:00")
+        #expect(page(CaptureBarState(elapsed: 243)).elapsedText == "4:03")
         #expect(global(CaptureBarState(elapsed: 3723)).elapsedText == "1:02:03")
     }
 

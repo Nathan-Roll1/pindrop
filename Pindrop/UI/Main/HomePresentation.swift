@@ -444,10 +444,12 @@ enum HomePresentation {
     // MARK: Dictate action frame
 
     /// The hotkey as the page prints it. Falls back to the shipped default so the
-    /// button and the empty state never say "Press  anywhere to start."
+    /// button and the empty state never say "Press  anywhere to start." The
+    /// boards print a gap between the modifiers and the key ("⌥ Space").
     static func dictationShortcut(_ hotkey: String, locale: Locale) -> String {
         let trimmed = hotkey.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? localized("⌥Space", locale: locale) : trimmed
+        let resolved = trimmed.isEmpty ? localized("⌥Space", locale: locale) : trimmed
+        return StatusCardPresentation.spacedHotkey(resolved)
     }
 
     /// What the one action frame on the Dictate page shows.
@@ -470,7 +472,7 @@ enum HomePresentation {
                 shortcut: shortcut,
                 isStartEnabled: false,
                 disabledReason: nil,
-                elapsedText: NoteRowPresentation.elapsedText(elapsed),
+                elapsedText: NoteRowPresentation.liveElapsedText(elapsed),
                 stopTitle: localized("Stop", locale: locale)
             )
         }

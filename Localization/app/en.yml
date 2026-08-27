@@ -44,7 +44,7 @@ add:
   a_provider_to_start_using_ai_enhancement: "Add a provider to start using AI enhancement."
   custom_words_to_improve_transcription_accura: "Add custom words to improve transcription accuracy for specialized terms, names, or jargon."
   provider: "Add Provider"
-  tag: "Add tag..."
+  tag: "Add tag"
   this_to_claude_settings_json_in_your_project: "Add this to .claude/settings.json in your project root, or ~/.claude/settings.json for user-wide access."
   this_to_codex_config_toml_project_scoped_con: "Add this to ~/.codex/config.toml. Project-scoped configuration can live in .codex/config.toml for trusted projects."
   this_to_config_opencode_opencode_json_for_us: "Add this to ~/.config/opencode/opencode.json for user-wide access across all projects."
@@ -352,7 +352,7 @@ delete:
 destinations:
   _self: "Destinations"
 detected:
-  from_the_recording_renames_apply_to_the: "Detected from the recording. Renames apply to the transcript and future notes."
+  from_the_recording_renames_apply_to_the: "Detected from the recording. Click a name to change it. Renames apply to the transcript and future notes."
 diarization:
   _self: "Speaker diarization"
   automatic: "Automatic"
@@ -368,6 +368,8 @@ diarized:
   _self: "diarized"
 dictate:
   in_russian_and_ukrainian: "Dictate in Russian and Ukrainian"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "Dictation"
   language: "Dictation Language"
@@ -780,7 +782,7 @@ new:
   preset: "New Preset"
   template: "New template"
 newest:
-  _self: "Newest"
+  _self: "Newest first"
 next:
   _self: "Next"
   match: "Next match"
@@ -857,7 +859,7 @@ off:
 ok:
   _self: "OK"
 oldest:
-  _self: "Oldest"
+  _self: "Oldest first"
 ollama:
   _self: "Ollama"
   usually_does_not_require_authentication_f: "Ollama usually does not require authentication for local requests."
@@ -1184,7 +1186,7 @@ search:
   media_transcripts: "Search media transcripts..."
   models: "Search models"
   models_61c1b9fe: "Search models..."
-  notes: "Search notes..."
+  notes: "Search notes"
   settings: "Search settings"
   settings_or_jump_between_sections_without: "Search settings or jump between sections without leaving the main workspace."
   transcriptions: "Search transcriptions..."
@@ -1236,6 +1238,8 @@ shows:
   beside_the_focused_text_field_caret: "Shows beside the focused text field/caret"
   in_the_menu_bar_notch_area: "Shows in the menu bar/notch area"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "Sidebar position"
   position_916f66ea: "Sidebar Position"
 simplified:
@@ -1399,6 +1403,7 @@ to:
   start_talking: "to start talking"
 today:
   _self: "Today"
+  comma_time: "%1$@, %2$@"
 toggle:
   _self: "Toggle"
   recording: "Toggle Recording"

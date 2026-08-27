@@ -820,7 +820,6 @@ private struct MainSidebar: View {
                     CapturingNoteTitle(noteID: noteID) { title in
                         StatusCard(
                             phase: phase,
-                            readyTitle: localized("Ready", locale: locale),
                             subtitle: title,
                             accessibilityIdentifier: "sidebar.status",
                             action: openStatusCardDestination
@@ -829,7 +828,10 @@ private struct MainSidebar: View {
                 } else {
                     StatusCard(
                         phase: phase,
-                        readyTitle: localized("Ready", locale: locale),
+                        hotkeyHint: dictationHint(phase: phase),
+                        recordingTitle: noteCaptureStatus == nil
+                            ? localized("Dictating", locale: locale)
+                            : nil,
                         accessibilityIdentifier: "sidebar.status",
                         action: phase.isActive ? openStatusCardDestination : nil
                     )
@@ -838,6 +840,23 @@ private struct MainSidebar: View {
                 StatusCardDot(phase: phase)
                     .frame(maxWidth: .infinity)
             }
+        }
+    }
+
+    /// The card's second line when dictation owns it: where the hotkey works
+    /// idle, what it does while recording. Empty when a note capture owns the
+    /// card (its second line is the note title) or the page cannot dictate.
+    private func dictationHint(phase: StatusCardPhase) -> String {
+        guard noteCaptureStatus == nil else { return "" }
+        let hotkey = StatusCardPresentation.spacedHotkey(indicatorState.toggleRecordingHotkey)
+        guard !hotkey.isEmpty else { return "" }
+        switch phase {
+        case .ready:
+            return String(format: localized("%@ anywhere", locale: locale), hotkey)
+        case .recording:
+            return String(format: localized("%@ to stop", locale: locale), hotkey)
+        case .finalizing, .processing:
+            return ""
         }
     }
 

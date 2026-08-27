@@ -102,7 +102,9 @@ struct NoteViewChips<Value: Hashable, MenuContent: View>: View {
                         .accessibilityHidden(true)
                 }
 
-                if isSelected, chip.opensMenu {
+                // The chevron marks the menu wherever the chip sits: the boards
+                // keep it on Enhanced from the Transcript view too.
+                if chip.opensMenu {
                     Image(systemName: "chevron.down")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(AppColors.textTertiary)

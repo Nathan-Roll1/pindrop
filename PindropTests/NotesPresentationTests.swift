@@ -117,11 +117,12 @@ struct NotesPresentationTests {
         #expect(NoteRowPresentation.durationText(3725) == "1:02:05")
     }
 
-    @Test func liveLaneReadsRecPlusPaddedElapsed() {
+    @Test func liveLaneReadsRecPlusUnpaddedElapsed() {
         #expect(NoteRowPresentation.elapsedText(0) == "00:00")
         #expect(NoteRowPresentation.elapsedText(63) == "01:03")
         #expect(NoteRowPresentation.elapsedText(3725) == "1:02:05")
-        #expect(NoteRowPresentation.liveLabel(elapsed: 243, locale: en) == "REC 04:03")
+        #expect(NoteRowPresentation.liveElapsedText(63) == "1:03")
+        #expect(NoteRowPresentation.liveLabel(elapsed: 243, locale: en) == "REC 4:03")
     }
 
     // MARK: - Live row wiring (WP4)
@@ -225,7 +226,7 @@ struct NotesPresentationTests {
         #expect(!label.localizedCaseInsensitiveContains("July"))
     }
 
-    @Test func rowDateUsesYesterdayLabel() {
+    @Test func rowDateUsesTimeForYesterday() {
         let now = date(year: 2026, month: 7, day: 10, hour: 12)
         let yesterday = date(year: 2026, month: 7, day: 9, hour: 18)
         let label = NotesDateFormatting.rowDate(
@@ -234,7 +235,34 @@ struct NotesPresentationTests {
             calendar: calendar,
             locale: en
         )
-        #expect(label == "Yesterday")
+        // The boards print the clock for yesterday too; the day name lives on
+        // the section header.
+        #expect(label == shortTime(yesterday))
+        #expect(label != "Yesterday")
+    }
+
+    @Test func chipDateNamesTodayAndYesterday() {
+        let now = date(year: 2026, month: 7, day: 10, hour: 12)
+        let today = date(year: 2026, month: 7, day: 10, hour: 9)
+        let yesterday = date(year: 2026, month: 7, day: 9, hour: 18)
+        #expect(
+            NotesDateFormatting.chipDate(date: today, now: now, calendar: calendar, locale: en)
+                == "Today, \(shortTime(today))"
+        )
+        #expect(
+            NotesDateFormatting.chipDate(date: yesterday, now: now, calendar: calendar, locale: en)
+                == "Yesterday, \(shortTime(yesterday))"
+        )
+    }
+
+    /// Short-time print in the same style the formatters under test use, so the
+    /// expectation does not depend on the runner's time zone.
+    private func shortTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        formatter.locale = en
+        return formatter.string(from: date)
     }
 
     @Test func rowDateUsesMediumDateForOlder() {

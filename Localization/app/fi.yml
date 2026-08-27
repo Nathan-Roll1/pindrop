@@ -358,6 +358,8 @@ diarized:
   _self: "diarisointi"
 dictate:
   in_russian_and_ukrainian: "Sanele venäjäksi ja ukrainaksi"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "Diktointi"
   language: "Diktointikieli"
@@ -1165,6 +1167,8 @@ shows:
   beside_the_focused_text_field_caret: "Näkyy kohdistetun tekstikentän/merkin vieressä"
   in_the_menu_bar_notch_area: "Näkyy valikkopalkissa/lovialueella"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "Sivupalkin sijainti"
   position_916f66ea: "Sivupalkin sijainti"
 simplified:
@@ -1321,6 +1325,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "sanella ja antaa Pindropin litteroida puolestasi"
   start_talking: "alkaa puhua"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "Tänään"
 toggle:
   _self: "Vaihda"

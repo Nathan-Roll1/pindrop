@@ -152,7 +152,7 @@ struct CaptureBarPresentation: Equatable, Sendable {
     ) -> CaptureBarPresentation {
         CaptureBarPresentation(
             density: density,
-            elapsedText: NoteRowPresentation.elapsedText(state.elapsed),
+            elapsedText: NoteRowPresentation.liveElapsedText(state.elapsed),
             title: density == .global ? noteTitle(state: state, locale: locale) : nil,
             detail: density == .global
                 ? localized("Recording continues while you work", locale: locale)

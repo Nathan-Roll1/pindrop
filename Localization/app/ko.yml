@@ -358,6 +358,8 @@ diarized:
   _self: "화자 분리됨"
 dictate:
   in_russian_and_ukrainian: "러시아어와 우크라이나어로 받아쓰기"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "받아쓰기"
   language: "받아쓰기 언어"
@@ -1165,6 +1167,8 @@ shows:
   beside_the_focused_text_field_caret: "초점이 맞춰진 텍스트 필드/캐럿 옆에 표시됩니다."
   in_the_menu_bar_notch_area: "메뉴바/노치 영역에 표시"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "사이드바 위치"
   position_916f66ea: "사이드바 위치"
 simplified:
@@ -1321,6 +1325,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "Pindrop이 당신을 위해 받아쓰기하고 받아쓰기하도록 합니다."
   start_talking: "이야기를 시작하다"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "오늘"
 toggle:
   _self: "비녀장"

@@ -392,7 +392,7 @@ struct NotePagePresentationTests {
 
     // MARK: - Footer
 
-    @Test func theTypedNotesFooterCountsWordsAndOffersTheSaveHint() {
+    @Test func theTypedNotesFooterCountsWordsAndAutosavesQuietly() {
         let now = Date()
         let footer = NotePagePresentation.footer(
             kind: .humanNotes,
@@ -402,7 +402,8 @@ struct NotePagePresentationTests {
             locale: locale
         )
         #expect(footer.leading == "128 words · edited just now")
-        #expect(footer.trailing == "⌘S to save")
+        // Autosave owns the write path, so there is no save hint.
+        #expect(footer.trailing == nil)
     }
 
     @Test func oneWordReadsAsOneWord() {
@@ -554,7 +555,7 @@ struct NotePagePresentationTests {
         #expect(chips.filter(\.isSelected).map(\.kind) == [.transcript])
     }
 
-    @Test func onlyTheSelectedEnhancedChipOpensTheDropdown() throws {
+    @Test func everyEnabledEnhancedChipWearsTheMenuChevron() throws {
         let state = NotePageState(hasPanels: true, hasTranscript: true, isRecorded: true)
 
         let selected = try #require(
@@ -563,12 +564,13 @@ struct NotePagePresentationTests {
         #expect(selected.isSelected)
         #expect(selected.opensMenu)
 
-        // Unselected: clicking it switches views, so it wears no chevron.
+        // Unselected but enabled: the chevron stays visible (boards 56/70);
+        // clicking still switches views, and the menu opens once selected.
         let unselected = try #require(
             chip(.enhanced, in: state, selection: .transcript, canOpenEnhancedMenu: true)
         )
         #expect(!unselected.isSelected)
-        #expect(!unselected.opensMenu)
+        #expect(unselected.opensMenu)
 
         // Nothing else ever opens a dropdown.
         let transcript = try #require(

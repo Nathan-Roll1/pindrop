@@ -116,18 +116,34 @@ enum StatusCardPhase: Equatable {
 /// The words on the status card, decided once.
 enum StatusCardPresentation {
     /// Active phases carry their clock in the title ("Recording · 4:03"), so the
-    /// card can spend its second line on what is being recorded.
-    static func title(phase: StatusCardPhase, readyTitle: String? = nil, locale: Locale) -> String {
+    /// card can spend its second line on what is being recorded. Dictation has
+    /// no note to name, so its title reads "Dictating · 4:03" instead.
+    static func title(
+        phase: StatusCardPhase,
+        readyTitle: String? = nil,
+        recordingTitle: String? = nil,
+        locale: Locale
+    ) -> String {
         switch phase {
         case .ready:
             return readyTitle ?? localized("Ready to dictate", locale: locale)
         case .recording(let duration):
-            return clocked(localized("Recording", locale: locale), duration: duration)
+            return clocked(recordingTitle ?? localized("Recording", locale: locale), duration: duration)
         case .finalizing(let duration):
             return clocked(localized("Finalizing", locale: locale), duration: duration)
         case .processing:
             return localized("Processing", locale: locale)
         }
+    }
+
+    /// The boards print the hotkey with a gap between the modifiers and the key
+    /// ("⌥ Space", "⇧⌥ Space"). The stored string compacts them ("⌥Space").
+    static func spacedHotkey(_ hotkey: String) -> String {
+        let trimmed = hotkey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let modifiers = trimmed.prefix { "⌘⌥⌃⇧".contains($0) }
+        let rest = trimmed.dropFirst(modifiers.count)
+        guard !modifiers.isEmpty, !rest.isEmpty else { return trimmed }
+        return "\(modifiers) \(rest)"
     }
 
     private static func clocked(_ title: String, duration: TimeInterval) -> String {
@@ -145,6 +161,9 @@ struct StatusCard: View {
     let phase: StatusCardPhase
     var hotkeyHint: String = ""
     var readyTitle: String?
+    /// What a recording is called when no note owns it: dictation reads
+    /// "Dictating · 4:03", a note capture "Recording · 4:03".
+    var recordingTitle: String?
     /// Second line: the note being recorded, while a note capture runs.
     var subtitle: String?
     var accessibilityIdentifier: String = ""
@@ -154,6 +173,7 @@ struct StatusCard: View {
         phase: StatusCardPhase,
         hotkeyHint: String = "",
         readyTitle: String? = nil,
+        recordingTitle: String? = nil,
         subtitle: String? = nil,
         accessibilityIdentifier: String = "",
         action: (() -> Void)? = nil
@@ -161,6 +181,7 @@ struct StatusCard: View {
         self.phase = phase
         self.hotkeyHint = hotkeyHint
         self.readyTitle = readyTitle
+        self.recordingTitle = recordingTitle
         self.subtitle = subtitle
         self.accessibilityIdentifier = accessibilityIdentifier
         self.action = action
@@ -211,9 +232,9 @@ struct StatusCard: View {
                     .foregroundStyle(AppColors.textSecondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
-            }
-
-            if !hotkeyHint.isEmpty, case .ready = phase {
+            } else if !hotkeyHint.isEmpty {
+                // The hint line shows whenever no note owns the second line:
+                // "⌥ Space anywhere" idle, "⌥ Space to stop" while dictating.
                 Text(hotkeyHint)
                     .font(AppTypography.monoSmall)
                     .foregroundStyle(AppColors.textSecondary)
@@ -230,7 +251,12 @@ struct StatusCard: View {
     }
 
     private var title: String {
-        StatusCardPresentation.title(phase: phase, readyTitle: readyTitle, locale: locale)
+        StatusCardPresentation.title(
+            phase: phase,
+            readyTitle: readyTitle,
+            recordingTitle: recordingTitle,
+            locale: locale
+        )
     }
 
     private var iconName: String {

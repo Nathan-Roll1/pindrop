@@ -573,7 +573,7 @@ struct NoteEditorView: View {
                         TagChip(tag: tag, onRemove: { removeTag(tag) })
                     }
 
-                    TextField(localized("Add tag...", locale: locale), text: $newTag)
+                    TextField(localized("Add tag", locale: locale), text: $newTag)
                         .font(AppTypography.caption)
                         .foregroundStyle(AppColors.textSecondary)
                         .textFieldStyle(.plain)
@@ -667,12 +667,6 @@ struct NoteEditorView: View {
                     .foregroundStyle(AppColors.accent)
                     .transition(.opacity)
             }
-
-            Text(localized("⌘S to save", locale: locale))
-                .font(AppTypography.monoSmall)
-                .foregroundStyle(AppColors.textTertiary)
-                .onTapGesture { saveNow() }
-                .help(localized("Save now (⌘S)", locale: locale))
         }
         .padding(.horizontal, 40)
         .frame(height: 39)
@@ -1645,6 +1639,10 @@ struct TagChip: View {
             Text(tag)
                 .font(AppTypography.caption)
                 .foregroundStyle(AppColors.textSecondary)
+                // A chip is one line and sizes to its word; a narrow row must
+                // not break a word across two lines.
+                .lineLimit(1)
+                .fixedSize()
 
             Button(action: onRemove) {
                 Image(systemName: "xmark")

@@ -461,58 +461,6 @@ struct EnhancedMenuPanel: View {
     }
 }
 
-// MARK: - Feedback
-
-/// Was the generated note any good? One quiet question, asked once.
-struct EnhancedPanelFeedbackRow: View {
-    @Environment(\.locale) private var locale
-
-    let feedback: CaptureNotePanelFeedback?
-    var onRate: (CaptureNotePanelFeedback?) -> Void
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(localized("Was this note useful?", locale: locale))
-                .font(AppTypography.caption)
-                .foregroundStyle(AppColors.textTertiary)
-
-            rateButton(
-                .helpful,
-                systemImage: "hand.thumbsup",
-                label: localized("Helpful", locale: locale)
-            )
-            rateButton(
-                .notHelpful,
-                systemImage: "hand.thumbsdown",
-                label: localized("Not helpful", locale: locale)
-            )
-        }
-    }
-
-    private func rateButton(
-        _ rating: CaptureNotePanelFeedback,
-        systemImage: String,
-        label: String
-    ) -> some View {
-        let isSelected = feedback == rating
-        return Button {
-            // Picking the same rating twice takes it back.
-            onRate(isSelected ? nil : rating)
-        } label: {
-            Image(systemName: isSelected ? "\(systemImage).fill" : systemImage)
-                .font(.system(size: 12))
-                .foregroundStyle(isSelected ? AppColors.accent : AppColors.textTertiary)
-                .frame(width: 20, height: 20)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .focusRing(.rounded(.sm))
-        .help(label)
-        .accessibilityLabel(label)
-        .accessibilityIdentifier("note.page.enhanced.feedback.\(rating.rawValue)")
-    }
-}
-
 // MARK: - Preview
 
 #Preview("Enhanced note") {

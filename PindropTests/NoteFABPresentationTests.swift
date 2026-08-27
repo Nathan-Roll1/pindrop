@@ -23,9 +23,11 @@ struct NoteFABPresentationTests {
         #expect(NoteFABPresentation.resolvedState(.search, context: context) == .resting)
     }
 
-    @Test func aRunningCaptureTakesTheCorner() {
+    @Test func aRunningCaptureKeepsTheCorner() {
+        // The boards pin the control above the capture dock instead of hiding
+        // it, so visibility no longer yields to a running capture.
         let context = NoteFABContext(hasAudio: true, isCaptureDockVisible: true)
-        #expect(!NoteFABPresentation.isVisible(context: context))
+        #expect(NoteFABPresentation.isVisible(context: context))
     }
 
     @Test func aQuietNoteKeepsTheCorner() {
@@ -34,8 +36,8 @@ struct NoteFABPresentationTests {
 
     /// The note page feeds `isAskSurfaceOpen` from the same rule the Ask dock is
     /// drawn by, so the two never claim the band at once: a running capture
-    /// suppresses the dock, and the floating control still stands down for the
-    /// capture rather than reappearing over it.
+    /// suppresses the Ask dock, and the floating control stays up, lifted clear
+    /// of the capture dock.
     @Test func theAskDockAndTheCaptureDockNeverBothTakeTheCorner() {
         let askOpenDuringCapture = NoteAskPresentation.isVisible(
             isOpen: true,
@@ -48,7 +50,7 @@ struct NoteFABPresentationTests {
             isAskSurfaceOpen: askOpenDuringCapture,
             isCaptureDockVisible: true
         )
-        #expect(!NoteFABPresentation.isVisible(context: context))
+        #expect(NoteFABPresentation.isVisible(context: context))
     }
 
     @Test func theOpenAskDockTakesTheCornerFromTheFloatingControl() {
@@ -196,7 +198,7 @@ struct NoteFABPresentationTests {
     }
 
     @Test func theClockReadsAsElapsedOverTotal() {
-        #expect(NoteFABPresentation.clockText(currentTime: 65, duration: 130) == "01:05 / 02:10")
+        #expect(NoteFABPresentation.clockText(currentTime: 65, duration: 130) == "1:05 / 2:10")
     }
 
     // MARK: - Anchor

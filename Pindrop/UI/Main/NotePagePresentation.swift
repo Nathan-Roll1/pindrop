@@ -285,6 +285,11 @@ enum NotePagePresentation {
     /// `canOpenEnhancedMenu` is the one thing the chips cannot work out for
     /// themselves: a legacy panel has no templates to offer, so its chip stays a
     /// plain switch with no chevron and no dropdown.
+    /// The Enhanced chip's chevron appears whenever its menu can open, not only
+    /// while it is selected: the boards keep the affordance visible on the
+    /// Transcript view too, and drop it while the chip is disabled (recording).
+    /// Clicking still opens the menu only from the selected chip, so a plain
+    /// click always just switches views.
     static func chips(
         state: NotePageState,
         selection: CaptureNoteViewKind,
@@ -299,7 +304,7 @@ enum NotePagePresentation {
                 indicator: segment.indicator,
                 helpText: segment.helpText,
                 isSelected: isSelected,
-                opensMenu: segment.kind == .enhanced && isSelected && canOpenEnhancedMenu,
+                opensMenu: segment.kind == .enhanced && segment.isEnabled && canOpenEnhancedMenu,
                 systemImage: chipIcon(segment.kind)
             )
         }
@@ -364,7 +369,7 @@ enum NotePagePresentation {
             durationText: NoteRowPresentation.elapsedText(duration),
             rows: rows,
             caption: localized(
-                "Detected from the recording. Renames apply to the transcript and future notes.",
+                "Detected from the recording. Click a name to change it. Renames apply to the transcript and future notes.",
                 locale: locale
             )
         )
@@ -493,7 +498,9 @@ enum NotePagePresentation {
                     words,
                     edited
                 ),
-                trailing: localized("⌘S to save", locale: locale)
+                // Autosave owns the write path (500 ms debounce), so the footer
+                // carries no save hint.
+                trailing: nil
             )
 
         case .enhanced:

@@ -358,6 +358,8 @@ diarized:
   _self: "diariserad"
 dictate:
   in_russian_and_ukrainian: "Diktera på ryska och ukrainska"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "Diktering"
   language: "Dikteringsspråk"
@@ -1165,6 +1167,8 @@ shows:
   beside_the_focused_text_field_caret: "Visas bredvid det fokuserade textfältet/careten"
   in_the_menu_bar_notch_area: "Visas i menyraden/notchområdet"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "Sidofältsposition"
   position_916f66ea: "Sidofältets position"
 simplified:
@@ -1321,6 +1325,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "att diktera och låta Pindrop transkribera åt dig"
   start_talking: "att börja prata"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "I dag"
 toggle:
   _self: "Växla"

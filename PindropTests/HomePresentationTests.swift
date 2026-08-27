@@ -330,7 +330,7 @@ struct HomePresentationTests {
         )
         #expect(control.mode == .start)
         #expect(control.startTitle == "Start dictating")
-        #expect(control.shortcut == "⌥Space")
+        #expect(control.shortcut == "⌥ Space")
         #expect(control.isStartEnabled)
         #expect(control.disabledReason == nil)
         #expect(control.elapsedText.isEmpty)
@@ -345,7 +345,7 @@ struct HomePresentationTests {
             hotkey: "   ",
             locale: en
         )
-        #expect(control.shortcut == "⌥Space")
+        #expect(control.shortcut == "⌥ Space")
     }
 
     @Test func captureControlSwapsToRecordingWithAClock() {
@@ -358,7 +358,7 @@ struct HomePresentationTests {
             locale: en
         )
         #expect(control.mode == .recording)
-        #expect(control.elapsedText == "02:05")
+        #expect(control.elapsedText == "2:05")
         #expect(control.stopTitle == "Stop")
         // The start face never draws while recording, so it cannot be pressed.
         #expect(!control.isStartEnabled)
@@ -428,11 +428,11 @@ struct HomePresentationTests {
     @Test func emptyStateNamesTheSituationAndTheNextAction() {
         let state = HomePresentation.emptyState(hotkey: "⌥Space", locale: en)
         #expect(state.title == "No dictations yet.")
-        #expect(state.guidance == "Press ⌥Space anywhere to start.")
+        #expect(state.guidance == "Press ⌥ Space anywhere to start.")
     }
 
     @Test func emptyStatePrintsTheUsersOwnShortcut() {
         let state = HomePresentation.emptyState(hotkey: "⌃⌥D", locale: en)
-        #expect(state.guidance == "Press ⌃⌥D anywhere to start.")
+        #expect(state.guidance == "Press ⌃⌥ D anywhere to start.")
     }
 }
