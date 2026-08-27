@@ -632,8 +632,10 @@ struct NotePageView: View {
                 }
             }
 
-            Button(localized("Delete this note", locale: locale), role: .destructive) {
-                pendingNoteDeletion = true
+            if headerActions.canDeleteNote {
+                Button(localized("Delete this note", locale: locale), role: .destructive) {
+                    pendingNoteDeletion = true
+                }
             }
         } label: {
             // 30×30: the height the export chrome resolves to (16pt label line

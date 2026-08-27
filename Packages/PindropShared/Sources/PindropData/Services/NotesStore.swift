@@ -321,11 +321,12 @@ public final class NotesStore {
         let context = ModelContext(modelContext.container)
         let references: [CaptureNoteReferenceModel]
         do {
+            try validateBoundIntentDeletion(noteID: noteID, in: context)
             references = try noteReferences(for: noteID, in: context)
             for reference in references {
                 switch try reference.resolvedRole() {
                 case .humanAnchor:
-                    throw NotesStoreError.meetingAnchorProtected(noteID: noteID)
+                    try validateHumanAnchorDeletion(reference, noteID: noteID, in: context)
                 case .generated:
                     break
                 }
@@ -346,6 +347,7 @@ public final class NotesStore {
             for reference in references {
                 context.delete(reference)
             }
+            try deleteNoteOwnedModels(noteID: noteID, in: context)
             context.delete(durableNote)
             try context.save()
             invalidateUniqueTagsCache()
@@ -358,11 +360,12 @@ public final class NotesStore {
         let context = ModelContext(modelContext.container)
         let references: [CaptureNoteReferenceModel]
         do {
+            try validateAllBoundIntentDeletions(in: context)
             references = try noteReferences(in: context)
             for reference in references {
                 switch try reference.resolvedRole() {
                 case .humanAnchor:
-                    throw NotesStoreError.meetingAnchorProtected(noteID: reference.noteID)
+                    try validateHumanAnchorDeletion(reference, noteID: reference.noteID, in: context)
                 case .generated:
                     break
                 }
@@ -377,6 +380,7 @@ public final class NotesStore {
             for reference in references {
                 context.delete(reference)
             }
+            try deleteAllNoteOwnedModels(in: context)
             try context.delete(model: Note.self)
             try context.save()
             invalidateUniqueTagsCache()
@@ -475,6 +479,84 @@ public final class NotesStore {
         in context: ModelContext
     ) throws -> [CaptureNoteReferenceModel] {
         try context.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+    }
+
+    private func validateHumanAnchorDeletion(
+        _ reference: CaptureNoteReferenceModel,
+        noteID: UUID,
+        in context: ModelContext
+    ) throws {
+        try validateCaptureSessionDeletion(
+            sessionID: reference.sessionID,
+            noteID: noteID,
+            in: context
+        )
+    }
+
+    private func validateBoundIntentDeletion(noteID: UUID, in context: ModelContext) throws {
+        let intents = try context.fetch(FetchDescriptor<CaptureIntentModel>(
+            predicate: #Predicate<CaptureIntentModel> { $0.destinationNoteID == noteID }
+        ))
+        for intent in intents {
+            try validateCaptureSessionDeletion(sessionID: intent.sessionID, noteID: noteID, in: context)
+        }
+    }
+
+    private func validateAllBoundIntentDeletions(in context: ModelContext) throws {
+        let intents = try context.fetch(FetchDescriptor<CaptureIntentModel>())
+        for intent in intents {
+            guard let noteID = intent.destinationNoteID else { continue }
+            try validateCaptureSessionDeletion(sessionID: intent.sessionID, noteID: noteID, in: context)
+        }
+    }
+
+    private func validateCaptureSessionDeletion(
+        sessionID: UUID,
+        noteID: UUID,
+        in context: ModelContext
+    ) throws {
+        let descriptor = FetchDescriptor<CaptureSessionModel>(
+            predicate: #Predicate<CaptureSessionModel> { $0.id == sessionID }
+        )
+        guard let session = try context.fetch(descriptor).first else {
+            throw NotesStoreError.meetingAnchorProtected(noteID: noteID)
+        }
+        switch try session.restoreSession().state {
+        case .completed, .failed, .cancelled:
+            return
+        case .created, .capturing, .interrupted, .finalizing:
+            throw NotesStoreError.meetingAnchorProtected(noteID: noteID)
+        }
+    }
+
+    private func deleteNoteOwnedModels(noteID: UUID, in context: ModelContext) throws {
+        let panels = try context.fetch(FetchDescriptor<CaptureEnhancedPanelModel>(
+            predicate: #Predicate<CaptureEnhancedPanelModel> { $0.noteID == noteID }
+        ))
+        let viewStates = try context.fetch(FetchDescriptor<NoteViewStateModel>(
+            predicate: #Predicate<NoteViewStateModel> { $0.noteID == noteID }
+        ))
+        let intents = try context.fetch(FetchDescriptor<CaptureIntentModel>(
+            predicate: #Predicate<CaptureIntentModel> { $0.destinationNoteID == noteID }
+        ))
+        for model in panels {
+            context.delete(model)
+        }
+        for model in viewStates {
+            context.delete(model)
+        }
+        for model in intents {
+            context.delete(model)
+        }
+    }
+
+    private func deleteAllNoteOwnedModels(in context: ModelContext) throws {
+        try context.delete(model: CaptureEnhancedPanelModel.self)
+        try context.delete(model: NoteViewStateModel.self)
+        let intents = try context.fetch(FetchDescriptor<CaptureIntentModel>())
+        for intent in intents where intent.destinationNoteID != nil {
+            context.delete(intent)
+        }
     }
 }
 

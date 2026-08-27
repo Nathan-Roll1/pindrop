@@ -358,6 +358,33 @@ struct NotePagePresentationTests {
         }
     }
 
+    @Test func deleteNoteIsOfferedOnlyWhenCaptureWorkIsFinished() {
+        for phase in [
+            NotePageCapturePhase.starting,
+            .capturing,
+            .finalizing(.transcribing, progress: 0.5),
+            .enhancing
+        ] {
+            let actions = NotePagePresentation.headerActions(
+                state: NotePageState(capture: phase),
+                selection: .humanNotes
+            )
+            #expect(!actions.canDeleteNote)
+        }
+
+        let idleActions = NotePagePresentation.headerActions(
+            state: NotePageState(capture: .none),
+            selection: .humanNotes
+        )
+        #expect(idleActions.canDeleteNote)
+
+        let failedActions = NotePagePresentation.headerActions(
+            state: NotePageState(capture: .failed),
+            selection: .humanNotes
+        )
+        #expect(!failedActions.canDeleteNote)
+    }
+
     @Test func cancelSaysWhatItThrowsAwayAndWhatItKeeps() {
         #expect(NotePagePresentation.cancelCaptureMessage(locale: locale)
             == "The audio and the live transcript are deleted. Your typed notes stay.")

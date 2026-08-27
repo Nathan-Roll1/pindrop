@@ -415,7 +415,9 @@ enum NotePagePresentation {
             canOpenInNewWindow: false,
             canSaveAsNote: state.hasPanels && selection == .enhanced,
             canDeleteTranscript: state.hasTranscript && !state.isTranscriptDeleted,
-            canDeleteNote: true,
+            // A failed phase can still be recoverable in durable state. Only the
+            // detached phase proves no capture lifecycle still owns this note.
+            canDeleteNote: state.capture == .none,
             // Only while audio is still being recorded: once finalization owns
             // the capture, the recording exists and Finish already happened.
             canCancelCapture: state.capture.isRecording

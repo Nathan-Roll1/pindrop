@@ -32,17 +32,57 @@ struct NotesStoreTests {
     private func insertMeetingReference(
         in container: ModelContainer,
         noteID: UUID,
-        role: CaptureNoteRole
+        role: CaptureNoteRole,
+        sessionState: CaptureSessionState? = nil
     ) throws -> CaptureNoteReferenceModel {
         let context = ModelContext(container)
+        let sessionID = UUID()
+        if let sessionState {
+            context.insert(CaptureSessionModel(session: try makeCaptureSession(
+                id: sessionID,
+                state: sessionState
+            )))
+        }
         let reference = CaptureNoteReferenceModel(
-            sessionID: UUID(),
+            sessionID: sessionID,
             noteID: noteID,
             role: role
         )
         context.insert(reference)
         try context.save()
         return reference
+    }
+
+    private func makeCaptureSession(id: UUID, state: CaptureSessionState) throws -> CaptureSession {
+        let createdAt = Date(timeIntervalSince1970: 1_000)
+        var session = try CaptureSession(id: id, mode: .note, createdAt: createdAt)
+        switch state {
+        case .capturing:
+            try session.start(at: createdAt.addingTimeInterval(1))
+        case .completed:
+            try session.start(at: createdAt.addingTimeInterval(1))
+            try session.beginFinalization(at: createdAt.addingTimeInterval(2))
+            try session.complete(at: createdAt.addingTimeInterval(3))
+        default:
+            preconditionFailure("Unsupported note deletion test state: \(state)")
+        }
+        return session
+    }
+
+    private func insertCaptureIntent(
+        in container: ModelContainer,
+        sessionID: UUID,
+        noteID: UUID
+    ) throws {
+        let context = ModelContext(container)
+        context.insert(try CaptureIntentModel(intent: CaptureIntent(
+            sessionID: sessionID,
+            destination: .existingNote,
+            destinationNoteID: noteID,
+            requestedSourceKinds: [.microphone],
+            origin: .mainWindow
+        )))
+        try context.save()
     }
 
     @Test func createNote() async throws {
@@ -206,7 +246,8 @@ struct NotesStoreTests {
         let reference = try insertMeetingReference(
             in: container,
             noteID: anchor.id,
-            role: .humanAnchor
+            role: .humanAnchor,
+            sessionState: .capturing
         )
 
         #expect(throws: NotesStore.NotesStoreError.meetingAnchorProtected(noteID: anchor.id)) {
@@ -221,6 +262,66 @@ struct NotesStoreTests {
         )
     }
 
+    @Test func deleteCompletedMeetingAnchorRemovesNoteSpecificState() async throws {
+        let container = try makeContainer()
+        let notesStore = makeStore(in: container)
+        let anchor = try await notesStore.create(title: "Recorded note", content: "Human content")
+        let reference = try insertMeetingReference(
+            in: container,
+            noteID: anchor.id,
+            role: .humanAnchor,
+            sessionState: .completed
+        )
+        let setupContext = ModelContext(container)
+        setupContext.insert(CaptureEnhancedPanelModel(
+            sessionID: reference.sessionID,
+            noteID: anchor.id,
+            templatePresetIdentifier: "summary",
+            templateDisplayName: "Summary",
+            content: "Enhanced content",
+            generation: 1,
+            assignmentAttempt: 1
+        ))
+        setupContext.insert(NoteViewStateModel(
+            noteID: anchor.id,
+            selection: .enhanced(templatePresetIdentifier: "summary")
+        ))
+        try setupContext.save()
+        try insertCaptureIntent(in: container, sessionID: reference.sessionID, noteID: anchor.id)
+
+        try notesStore.delete(anchor)
+
+        let freshContext = ModelContext(container)
+        #expect(try freshContext.fetch(FetchDescriptor<Note>()).isEmpty)
+        #expect(try freshContext.fetch(FetchDescriptor<CaptureNoteReferenceModel>()).isEmpty)
+        #expect(try freshContext.fetch(FetchDescriptor<CaptureEnhancedPanelModel>()).isEmpty)
+        #expect(try freshContext.fetch(FetchDescriptor<NoteViewStateModel>()).isEmpty)
+        #expect(try freshContext.fetch(FetchDescriptor<CaptureIntentModel>()).isEmpty)
+        #expect(try freshContext.fetch(FetchDescriptor<CaptureSessionModel>()).map(\.id) == [reference.sessionID])
+    }
+
+    @Test func activeBoundIntentProtectsNoteBeforeAnchorReferenceExists() async throws {
+        let container = try makeContainer()
+        let notesStore = makeStore(in: container)
+        let note = try await notesStore.create(title: "Starting capture", content: "")
+        let session = try makeCaptureSession(id: UUID(), state: .capturing)
+        let setupContext = ModelContext(container)
+        setupContext.insert(CaptureSessionModel(session: session))
+        try setupContext.save()
+        try insertCaptureIntent(in: container, sessionID: session.id, noteID: note.id)
+
+        #expect(throws: NotesStore.NotesStoreError.meetingAnchorProtected(noteID: note.id)) {
+            try notesStore.delete(note)
+        }
+        #expect(throws: NotesStore.NotesStoreError.meetingAnchorProtected(noteID: note.id)) {
+            try notesStore.deleteAll()
+        }
+
+        let freshContext = ModelContext(container)
+        #expect(try freshContext.fetch(FetchDescriptor<Note>()).map(\.id) == [note.id])
+        #expect(try freshContext.fetch(FetchDescriptor<CaptureIntentModel>()).map(\.sessionID) == [session.id])
+    }
+
     @Test func deleteAllProtectsEveryMeetingHumanAnchorWithoutMutation() async throws {
         let container = try makeContainer()
         let notesStore = makeStore(in: container)
@@ -229,7 +330,8 @@ struct NotesStoreTests {
         let anchorReference = try insertMeetingReference(
             in: container,
             noteID: anchor.id,
-            role: .humanAnchor
+            role: .humanAnchor,
+            sessionState: .capturing
         )
         let generatedReference = try insertMeetingReference(
             in: container,
