@@ -132,7 +132,7 @@ public enum PindropSyncProjector {
 
         let segments: [DiarizedTranscriptSegment]
         do {
-            segments = try JSONDecoder().decode([DiarizedTranscriptSegment].self, from: data)
+            segments = try JSONDecoder().decode(DiarizationPayload.self, from: data).segments
         } catch {
             throw PindropSyncProjectionError.invalidDiarization(recordID: record.id)
         }

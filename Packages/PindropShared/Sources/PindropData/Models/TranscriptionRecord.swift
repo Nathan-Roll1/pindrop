@@ -77,13 +77,26 @@ extension TranscriptionRecord {
         return PipelineMetrics(jsonString: pipelineMetricsJSON)
     }
 
+    /// The whole persisted diarization payload: the speaker segments plus what
+    /// the live path recorded about them at finalize.
+    public var diarizationPayload: DiarizationPayload? {
+        DiarizationPayload.decode(fromJSON: diarizationSegmentsJSON)
+    }
+
     public var diarizedSegments: [DiarizedTranscriptSegment] {
-        guard let diarizationSegmentsJSON,
-              let data = diarizationSegmentsJSON.data(using: .utf8),
-              let segments = try? JSONDecoder().decode([DiarizedTranscriptSegment].self, from: data) else {
-            return []
-        }
-        return segments
+        diarizationPayload?.segments ?? []
+    }
+
+    /// Rewrites the segments and keeps everything else the payload carries.
+    ///
+    /// Every relabel path goes through this. Encoding a bare segment array over
+    /// the blob would drop the mic-only ranges, and the person who recorded the
+    /// meeting would stop being "You" because somebody renamed a different
+    /// speaker.
+    public func setDiarizedSegments(_ segments: [DiarizedTranscriptSegment]) throws {
+        let payload = diarizationPayload?.replacingSegments(segments)
+            ?? DiarizationPayload(segments: segments)
+        diarizationSegmentsJSON = try payload.encodedJSON()
     }
 
     public var mediaLibrarySortName: String {

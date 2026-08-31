@@ -70,7 +70,12 @@ extension CaptureSessionStore {
         )
 
         let transcript = transcriptDeletedAt == nil
-            ? try transcriptView(handle: handle, session: session, in: context)
+            ? try transcriptView(
+                handle: handle,
+                session: session,
+                transcriptionRecordID: sessionModel.transcriptionRecordID,
+                in: context
+            )
             : nil
 
         return NoteCaptureViews(
@@ -185,17 +190,51 @@ extension CaptureSessionStore {
     private func transcriptView(
         handle: NoteCaptureHandle,
         session: CaptureSession,
+        transcriptionRecordID: UUID?,
         in context: ModelContext
     ) throws -> TranscriptViewSnapshot? {
         let revisions = try readableFinalTranscriptRevisions(
             sessionID: handle.sessionID,
             in: context
         )
-        if !revisions.isEmpty,
-           let snapshot = try finalTranscriptView(revisions, handle: handle, in: context) {
-            return snapshot
+        if !revisions.isEmpty {
+            let micOnlyRanges = try recordedMicOnlyRanges(
+                transcriptionRecordID: transcriptionRecordID,
+                in: context
+            )
+            if let snapshot = try finalTranscriptView(
+                revisions,
+                handle: handle,
+                micOnlyRanges: micOnlyRanges,
+                in: context
+            ) {
+                return snapshot
+            }
         }
         return try liveTranscriptView(handle: handle, session: session, in: context)
+    }
+
+    /// What the microphone channel knew during the capture, as finalization
+    /// recorded it beside the segments.
+    ///
+    /// Empty for every capture finalized before these ranges existed, and for
+    /// every capture that recorded none, and empty is exactly the old
+    /// behaviour.
+    private func recordedMicOnlyRanges(
+        transcriptionRecordID: UUID?,
+        in context: ModelContext
+    ) throws -> [MicOnlyRange] {
+        guard let transcriptionRecordID else { return [] }
+        var descriptor = FetchDescriptor<TranscriptionRecord>(
+            predicate: #Predicate<TranscriptionRecord> { $0.id == transcriptionRecordID }
+        )
+        descriptor.fetchLimit = 1
+        do {
+            let record = try context.fetch(descriptor).first
+            return record?.diarizationPayload?.micOnlyRanges ?? []
+        } catch {
+            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
+        }
     }
 
     /// The final-transcript revisions that describe the capture once, ordered by
@@ -231,6 +270,7 @@ extension CaptureSessionStore {
     private func finalTranscriptView(
         _ revisions: [CaptureTranscriptRevisionModel],
         handle: NoteCaptureHandle,
+        micOnlyRanges: [MicOnlyRange],
         in context: ModelContext
     ) throws -> TranscriptViewSnapshot? {
         var spans: [TranscriptSpan] = []
@@ -276,6 +316,7 @@ extension CaptureSessionStore {
         let segments = try attributedSegments(
             spans,
             capturesSystemAudio: handle.capturesSystemAudio,
+            micOnlyRanges: micOnlyRanges,
             in: context
         )
         let attributedKeys = Set(
@@ -347,6 +388,43 @@ extension CaptureSessionStore {
     /// The key used for the one speaker of a microphone-only capture.
     private static let currentUserSpeakerKey = "self"
 
+    /// The offline clusters that are the person recording.
+    ///
+    /// A cluster qualifies when a majority of its speech landed inside the
+    /// mic-only ranges: the microphone gate open while the system gate was
+    /// shut. No profile match is asked for, because there is nothing better to
+    /// match against. Nobody but the person recording is on that channel alone.
+    ///
+    /// A majority rather than any overlap, because the microphone also hears
+    /// the room and the far end leaks into it, so a passing overlap is evidence
+    /// of leakage while a majority is evidence of ownership.
+    private static func recorderSpeakerKeys(
+        _ spans: [TranscriptSpan],
+        micOnlyRanges: [MicOnlyRange]
+    ) -> Set<String> {
+        guard !micOnlyRanges.isEmpty else { return [] }
+        var speechByKey: [String: TimeInterval] = [:]
+        var micOnlyByKey: [String: TimeInterval] = [:]
+        for span in spans {
+            guard let key = span.segment?.canonicalSpeakerKey, span.duration > 0 else {
+                continue
+            }
+            let end = span.startOffset + span.duration
+            speechByKey[key, default: 0] += span.duration
+            micOnlyByKey[key, default: 0] += MicOnlyRange.overlap(
+                of: micOnlyRanges,
+                withStart: span.startOffset,
+                end: end
+            )
+        }
+        return Set(
+            speechByKey.compactMap { key, speech in
+                let share = (micOnlyByKey[key] ?? 0) / speech
+                return share > MicOnlyRange.recorderMajority ? key : nil
+            }
+        )
+    }
+
     /// Names the speaker of every span.
     ///
     /// A participant profile wins whenever diarization matched one, so a person
@@ -354,9 +432,15 @@ extension CaptureSessionStore {
     /// number the rest of the app uses, because the diarizer's own label is only
     /// a cluster index and changes between runs. A microphone-only capture with
     /// one speaker is the person recording, and is named as such.
+    ///
+    /// A meeting names the person recording too, from `micOnlyRanges`. The
+    /// offline pass has strictly less information than the microphone channel
+    /// had during the capture, and "the offline pass replaces every label" must
+    /// not mean "the offline pass discards what was already known for certain".
     private func attributedSegments(
         _ spans: [TranscriptSpan],
         capturesSystemAudio: Bool,
+        micOnlyRanges: [MicOnlyRange],
         in context: ModelContext
     ) throws -> [TranscriptSegmentSnapshot] {
         var numbersByKey: [String: Int] = [:]
@@ -373,6 +457,7 @@ extension CaptureSessionStore {
         // One microphone and one speaker: nobody else was recorded, so the
         // generic number would only hide who is talking.
         let isSoloMicrophoneCapture = !capturesSystemAudio && numbersByKey.count <= 1
+        let recorderKeys = Self.recorderSpeakerKeys(spans, micOnlyRanges: micOnlyRanges)
 
         var segments: [TranscriptSegmentSnapshot] = []
         segments.reserveCapacity(spans.count)
@@ -396,6 +481,12 @@ extension CaptureSessionStore {
                 isCurrentUser = profile.isCurrentUser
             } else if isSoloMicrophoneCapture {
                 speakerKey = Self.currentUserSpeakerKey
+                speakerLabel = TranscriptSegmentSnapshot.currentUserSpeakerLabel
+                isCurrentUser = true
+            } else if let key, recorderKeys.contains(key) {
+                // The cluster keeps its own key here, unlike a solo capture: a
+                // speaker color and a later profile assignment must still name
+                // the cluster the diarizer found.
                 speakerLabel = TranscriptSegmentSnapshot.currentUserSpeakerLabel
                 isCurrentUser = true
             } else if let key, let number = numbersByKey[key] {

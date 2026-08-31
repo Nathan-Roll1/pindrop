@@ -727,8 +727,7 @@ public final class HistoryStore {
         }
 
         do {
-            let data = try JSONEncoder().encode(updatedSegments)
-            record.diarizationSegmentsJSON = String(data: data, encoding: .utf8)
+            try record.setDiarizedSegments(updatedSegments)
             try speakerIdentityService?.learnFromProfileAssignments(
                 recordID: record.id,
                 segments: updatedSegments,
@@ -797,8 +796,7 @@ public final class HistoryStore {
         }
 
         do {
-            let data = try JSONEncoder().encode(updatedSegments)
-            record.diarizationSegmentsJSON = String(data: data, encoding: .utf8)
+            try record.setDiarizedSegments(updatedSegments)
             if let identityService = speakerIdentityService as? SpeakerIdentityService {
                 try identityService.removeTrainingEvidence(
                     recordID: record.id,

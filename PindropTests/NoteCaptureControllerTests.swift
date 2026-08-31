@@ -1144,6 +1144,138 @@ struct NoteCaptureControllerTests {
         #expect(state.enhancementFailureMessage == nil)
     }
 
+    // MARK: - Live attribution at finalize
+
+    private func finalSegment(
+        speakerId: String,
+        profileID: UUID? = nil,
+        startTime: TimeInterval,
+        endTime: TimeInterval
+    ) -> DiarizedTranscriptSegment {
+        DiarizedTranscriptSegment(
+            speakerId: speakerId,
+            speakerLabel: speakerId,
+            speakerProfileID: profileID,
+            startTime: startTime,
+            endTime: endTime,
+            confidence: 1,
+            text: "text"
+        )
+    }
+
+    private func provisionalSlot(_ number: Int) -> LiveSpeakerRef {
+        LiveSpeakerRef(
+            key: "slot.\(number)",
+            tier: .provisional,
+            slotNumber: number
+        )
+    }
+
+    private func namedSlot(
+        _ number: Int,
+        profileID: UUID,
+        displayName: String
+    ) -> LiveSpeakerRef {
+        LiveSpeakerRef(
+            key: "slot.\(number)",
+            tier: .named,
+            slotNumber: number,
+            profileID: profileID,
+            displayName: displayName,
+            promotedAt: Date(timeIntervalSinceReferenceDate: 1),
+            previousDisplayName: nil
+        )
+    }
+
+    private func liveSpan(
+        id: Int,
+        speaker: LiveSpeakerRef,
+        startOffset: TimeInterval,
+        duration: TimeInterval
+    ) -> LiveTranscriptSpan {
+        LiveTranscriptSpan(
+            id: id,
+            speaker: speaker,
+            text: "text",
+            startOffset: startOffset,
+            duration: duration,
+            boundaryReason: .endOfUtterance
+        )
+    }
+
+    @Test func aCaptureWithNothingLiveToAddStillWritesABareSegmentArray() throws {
+        let segments = [finalSegment(speakerId: "speaker-1", startTime: 0, endTime: 4)]
+
+        let json = try #require(
+            NoteCaptureController.encodeDiarizationJSON(segments: segments, liveAttribution: nil)
+        )
+
+        #expect(try JSONDecoder().decode([DiarizedTranscriptSegment].self, from: Data(json.utf8)) == segments)
+        #expect(NoteCaptureController.encodeDiarizationJSON(segments: [], liveAttribution: nil) == nil)
+    }
+
+    @Test func micOnlyRangesAndTheDifferedFlagAreWrittenBesideTheSegments() throws {
+        let profileID = UUID()
+        let segments = [finalSegment(speakerId: "speaker-1", startTime: 0, endTime: 4)]
+        let snapshot = NoteCaptureController.LiveAttributionSnapshot(
+            micOnlyRanges: [MicOnlyRange(startTime: 0, endTime: 2)],
+            liveSpans: [
+                liveSpan(
+                    id: 0,
+                    speaker: namedSlot(1, profileID: profileID, displayName: "Dana"),
+                    startOffset: 0,
+                    duration: 4
+                )
+            ]
+        )
+
+        let json = try #require(
+            NoteCaptureController.encodeDiarizationJSON(segments: segments, liveAttribution: snapshot)
+        )
+        let payload = try #require(DiarizationPayload.decode(fromJSON: json))
+
+        #expect(payload.segments == segments)
+        #expect(payload.micOnlyRanges == [MicOnlyRange(startTime: 0, endTime: 2)])
+        // The live sheet said "Dana" for the whole turn and the finished
+        // transcript names nobody, so the reader is owed the line.
+        #expect(payload.liveLabelsDiffered)
+    }
+
+    @Test func renumberedAnonymousClustersAreNotReportedAsAChangedName() {
+        let segments = [finalSegment(speakerId: "speaker-3", startTime: 0, endTime: 4)]
+        let spans = [
+            liveSpan(
+                id: 0,
+                speaker: provisionalSlot(2),
+                startOffset: 0,
+                duration: 4
+            )
+        ]
+
+        #expect(
+            NoteCaptureController.liveLabelsDiffered(liveSpans: spans, finalSegments: segments) == false
+        )
+    }
+
+    @Test func aLiveNameTheOfflinePassAgreesWithIsNotAChange() {
+        let profileID = UUID()
+        let segments = [
+            finalSegment(speakerId: "speaker-1", profileID: profileID, startTime: 0, endTime: 4)
+        ]
+        let spans = [
+            liveSpan(
+                id: 0,
+                speaker: namedSlot(1, profileID: profileID, displayName: "Dana"),
+                startOffset: 0,
+                duration: 4
+            )
+        ]
+
+        #expect(
+            NoteCaptureController.liveLabelsDiffered(liveSpans: spans, finalSegments: segments) == false
+        )
+    }
+
     // MARK: - Helpers
 
     private func makeSpoolPlan(

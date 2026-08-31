@@ -792,4 +792,88 @@ struct CaptureSessionStoreNoteViewsTests {
         #expect(transcript.segments.map(\.speakerLabel) == ["Speaker 1", "Speaker 2"])
         #expect(transcript.segments.allSatisfy { !$0.isCurrentUser })
     }
+
+    // MARK: - The recorder in a meeting
+
+    /// Attaches a library record carrying `payload` to the capture, the way
+    /// finalization does.
+    private func attachTranscriptionRecord(
+        _ payload: DiarizationPayload,
+        to recorded: RecordedNote
+    ) throws {
+        let recordID = try recorded.store.reserveMeetingTranscriptionRecordID(recorded.handle)
+        let context = ModelContext(recorded.container)
+        context.insert(
+            TranscriptionRecord(
+                id: recordID,
+                text: Self.twoSpeakerText,
+                duration: recorded.chunkDuration,
+                modelUsed: "catalog-model",
+                diarizationSegmentsJSON: try payload.encodedJSON()
+            )
+        )
+        try context.save()
+    }
+
+    @Test func aMeetingCaptureMarksTheRecorderAsTheCurrentUserWithoutAProfileMatch() throws {
+        let recorded = try makeRecordedNote(segments: twoSpeakerSegments)
+        // The microphone gate was open and the system gate shut for the whole
+        // of the first speaker's turn, and never during the second's.
+        try attachTranscriptionRecord(
+            DiarizationPayload(
+                segments: twoSpeakerSegments(chunkDuration: recorded.chunkDuration),
+                micOnlyRanges: [MicOnlyRange(startTime: 0, endTime: recorded.chunkDuration / 2)]
+            ),
+            to: recorded
+        )
+
+        let transcript = try #require(
+            try recorded.store.noteCaptureViews(noteID: recorded.noteID).transcript
+        )
+
+        // No participant profile exists in this store at all: the microphone
+        // channel is the whole evidence, and it is enough.
+        #expect(transcript.segments.map(\.isCurrentUser) == [true, false])
+        #expect(transcript.segments.map(\.speakerLabel) == ["You", "Speaker 2"])
+        #expect(transcript.segments.map(\.speakerProfileID) == [nil, nil])
+        // The cluster keeps its own identity, so a speaker color and a later
+        // profile assignment still name the same cluster.
+        #expect(transcript.segments.map(\.speakerKey) == ["speaker-1", "speaker-2"])
+        #expect(transcript.speakerCount == 2)
+    }
+
+    @Test func aMinorityOverlapWithTheMicrophoneChannelDoesNotClaimTheSpeaker() throws {
+        let recorded = try makeRecordedNote(segments: twoSpeakerSegments)
+        // The microphone heard the far end and leaked a little of it. A quarter
+        // of a turn is not the person recording.
+        try attachTranscriptionRecord(
+            DiarizationPayload(
+                segments: twoSpeakerSegments(chunkDuration: recorded.chunkDuration),
+                micOnlyRanges: [MicOnlyRange(startTime: 0, endTime: recorded.chunkDuration / 8)]
+            ),
+            to: recorded
+        )
+
+        let transcript = try #require(
+            try recorded.store.noteCaptureViews(noteID: recorded.noteID).transcript
+        )
+
+        #expect(transcript.segments.allSatisfy { !$0.isCurrentUser })
+        #expect(transcript.segments.map(\.speakerLabel) == ["Speaker 1", "Speaker 2"])
+    }
+
+    @Test func aMeetingWithNoRecordedMicOnlyRangesIsUnchanged() throws {
+        let recorded = try makeRecordedNote(segments: twoSpeakerSegments)
+        try attachTranscriptionRecord(
+            DiarizationPayload(segments: twoSpeakerSegments(chunkDuration: recorded.chunkDuration)),
+            to: recorded
+        )
+
+        let transcript = try #require(
+            try recorded.store.noteCaptureViews(noteID: recorded.noteID).transcript
+        )
+
+        #expect(transcript.segments.map(\.speakerLabel) == ["Speaker 1", "Speaker 2"])
+        #expect(transcript.segments.allSatisfy { !$0.isCurrentUser })
+    }
 }

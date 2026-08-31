@@ -186,6 +186,16 @@ final class LiveChannelArbiter: @unchecked Sendable {
     /// overlap does not draw a wall of them.
     static let droppedSpeechCoalesceGap: TimeInterval = 2.00
 
+    /// Two mic-only runs separated by no more than this much shared silence are
+    /// one range: the breath between two sentences is not a change of who is
+    /// talking. A coalesce never bridges an interval where the system gate was
+    /// open, whatever this is set to, because that interval is exactly what a
+    /// mic-only range has to exclude.
+    static let micOnlyCoalesceGap: TimeInterval = 1.00
+    /// Mic-only runs shorter than this are not recorded. A gate blip on one
+    /// buffer carries no evidence about who owns the microphone.
+    static let micOnlySeconds: TimeInterval = 0.35
+
     /// The echo correlation reads the two channels' recent RMS envelopes over
     /// this much history, and takes the best match across this lag window. The
     /// lag covers the acoustic path from the speakers back into the microphone.
@@ -209,6 +219,8 @@ final class LiveChannelArbiter: @unchecked Sendable {
         var micDominanceMarginDB = LiveChannelArbiter.micDominanceMarginDB
         var droppedSpeechSeconds = LiveChannelArbiter.droppedSpeechSeconds
         var droppedSpeechCoalesceGap = LiveChannelArbiter.droppedSpeechCoalesceGap
+        var micOnlyCoalesceGap = LiveChannelArbiter.micOnlyCoalesceGap
+        var micOnlySeconds = LiveChannelArbiter.micOnlySeconds
 
         init() {}
     }
@@ -249,6 +261,9 @@ final class LiveChannelArbiter: @unchecked Sendable {
 
     private var openDroppedRun: OpenDroppedRun?
     private var settledDropped: [LiveDroppedSpeechInterval] = []
+
+    private var openMicOnlyRun: (start: TimeInterval, end: TimeInterval)?
+    private var settledMicOnly: [MicOnlyRange] = []
 
     /// Grid scratch, reused so a claim evaluation allocates nothing on the
     /// capture thread. Only ever touched under `lock`.
@@ -342,6 +357,7 @@ final class LiveChannelArbiter: @unchecked Sendable {
             }
 
             settleDroppedRunLocked(now: captureTime)
+            accrueMicOnlyRunLocked(now: captureTime)
 
             if owner == source { return .forward }
 
@@ -582,6 +598,64 @@ final class LiveChannelArbiter: @unchecked Sendable {
                 duration: duration
             )
         )
+    }
+
+    // MARK: Mic-only ranges
+
+    /// Where the microphone gate was open and the system gate was shut, in
+    /// capture time.
+    ///
+    /// The same pair of signals the echo gate reads, so this costs the capture
+    /// path nothing beyond two comparisons, and it excludes the intervals where
+    /// the microphone is hearing the speakers. Finalization writes these into
+    /// the note's diarization payload: the offline pass has strictly less
+    /// information than the microphone channel has here, and a cluster that
+    /// mostly lands inside these ranges is the person recording, with no
+    /// profile match needed.
+    ///
+    /// Reading is not draining. Finalization runs once, after the capture is
+    /// over, and a second reader must see the same answer.
+    func micOnlyRanges() -> [MicOnlyRange] {
+        lock.withLock {
+            var ranges = settledMicOnly
+            if let run = openMicOnlyRun, run.end - run.start >= tuning.micOnlySeconds {
+                ranges.append(MicOnlyRange(startTime: run.start, endTime: run.end))
+            }
+            return ranges
+        }
+    }
+
+    /// Reached only from the arbitrated path of `admit`. A single-source capture
+    /// consults no gate and so records no ranges, which is right: nothing else
+    /// was recorded, and the note view names its one speaker without them.
+    private func accrueMicOnlyRunLocked(now: TimeInterval) {
+        guard microphone.gate.isSpeaking, !systemAudio.gate.isSpeaking else {
+            if systemAudio.gate.isSpeaking {
+                // The far end is talking. The run ends here and the next one
+                // starts fresh: coalescing across this would claim the far
+                // end's speech for the person recording, which is the one
+                // mistake these ranges exist to prevent.
+                closeMicOnlyRunLocked()
+            } else if let run = openMicOnlyRun, now - run.end >= tuning.micOnlyCoalesceGap {
+                closeMicOnlyRunLocked()
+            }
+            return
+        }
+
+        if var run = openMicOnlyRun, now - run.end < tuning.micOnlyCoalesceGap {
+            run.end = now
+            openMicOnlyRun = run
+            return
+        }
+        closeMicOnlyRunLocked()
+        openMicOnlyRun = (start: now, end: now)
+    }
+
+    private func closeMicOnlyRunLocked() {
+        guard let run = openMicOnlyRun else { return }
+        openMicOnlyRun = nil
+        guard run.end - run.start >= tuning.micOnlySeconds else { return }
+        settledMicOnly.append(MicOnlyRange(startTime: run.start, endTime: run.end))
     }
 
     // MARK: Handovers

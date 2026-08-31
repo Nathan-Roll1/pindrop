@@ -890,8 +890,7 @@ public final class SpeakerIdentityService: SpeakerIdentityManaging {
                     text: segment.text
                 )
             }
-            let data = try JSONEncoder().encode(updatedSegments)
-            record.diarizationSegmentsJSON = String(data: data, encoding: .utf8)
+            try record.setDiarizedSegments(updatedSegments)
         }
     }
 

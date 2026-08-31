@@ -394,6 +394,74 @@ struct LiveChannelArbiterTests {
         #expect((intervals.first?.duration ?? 0) > 3.5)
     }
 
+    // MARK: Mic-only ranges
+
+    @Test func theMicrophoneTalkingAloneIsRecordedAsAMicOnlyRange() {
+        let sut = makeArbiter()
+        let feeder = ChannelFeeder(sut: sut)
+
+        feeder.feed(seconds: 1.0)
+        feeder.feed(seconds: 3.0, microphone: { speech(at: $0, from: 1.0, until: 3.5) })
+
+        let ranges = sut.micOnlyRanges()
+        #expect(ranges.count == 1)
+        #expect(abs((ranges.first?.startTime ?? 0) - 1.0) < 0.1)
+        #expect(abs((ranges.first?.endTime ?? 0) - 3.5) < 0.1)
+    }
+
+    @Test func theMicrophoneHearingTheFarEndIsNotAMicOnlyRange() {
+        let sut = makeArbiter()
+        let feeder = ChannelFeeder(sut: sut)
+
+        feeder.feed(seconds: 1.0)
+        // Both gates open: this is the interval the echo gate already refuses to
+        // treat as the person recording, and it is excluded here for the same
+        // reason.
+        feeder.feed(
+            seconds: 4.0,
+            microphone: { speech(at: $0, from: 1.0) },
+            systemAudio: { speech(at: $0, level: 0.06, from: 1.0) }
+        )
+
+        #expect(sut.micOnlyRanges().isEmpty)
+    }
+
+    @Test func adjacentMicOnlyRunsCoalesceButTheFarEndSplitsThem() {
+        let sut = makeArbiter()
+        let feeder = ChannelFeeder(sut: sut)
+
+        feeder.feed(seconds: 1.0)
+        // Two sentences with a breath between them: one range.
+        feeder.feed(
+            seconds: 4.0,
+            microphone: { time in
+                if time < 2.4 { return speech(at: time, from: 1.0) }
+                return speech(at: time, from: 2.8, until: 4.4)
+            }
+        )
+        // The far end answers, then the person recording speaks again: a second
+        // range, because a coalesce may never bridge the other channel.
+        feeder.feed(seconds: 4.0, systemAudio: { speech(at: $0, level: 0.06, from: 5.2) })
+        feeder.feed(seconds: 4.0, microphone: { speech(at: $0, from: 9.5) })
+
+        let ranges = sut.micOnlyRanges()
+        #expect(ranges.count == 2)
+        #expect(abs((ranges.first?.startTime ?? 0) - 1.0) < 0.1)
+        #expect((ranges.first?.endTime ?? 0) < 5.0)
+        #expect((ranges.last?.startTime ?? 0) > 9.0)
+    }
+
+    @Test func aSingleSourceCaptureRecordsNoMicOnlyRanges() {
+        let sut = makeArbiter(sources: [.microphone])
+        let feeder = ChannelFeeder(sut: sut, channels: [.microphone])
+
+        feeder.feed(seconds: 4.0, microphone: { speech(at: $0, from: 0.5) })
+
+        // Rule 1 consults no gate, so there is nothing to read a range from.
+        // Nothing needs one either: the whole capture is the person recording.
+        #expect(sut.micOnlyRanges().isEmpty)
+    }
+
     // MARK: Single-source captures
 
     @Test func aMicrophoneOnlyCaptureNeverEmitsAHandover() {

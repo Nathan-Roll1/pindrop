@@ -730,9 +730,9 @@ enum MCPToolDispatcher {
         if let v = record.originalSourceURL { obj["source_url"] = .string(v) }
         if let v = record.sourceDisplayName { obj["source_name"] = .string(v) }
 
-        if let segJSON = record.diarizationSegmentsJSON,
-           let segData = segJSON.data(using: .utf8),
-           let segments = try? JSONDecoder().decode([DiarizedTranscriptSegment].self, from: segData) {
+        if let segments = DiarizedTranscriptSegment.decodeSegments(
+            fromJSON: record.diarizationSegmentsJSON
+        ) {
             let segValues: [JSONValue] = segments.map { seg in
                 .object([
                     "speaker_id": .string(seg.speakerId),

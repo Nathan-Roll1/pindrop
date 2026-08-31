@@ -93,13 +93,7 @@ extension DiarizedTranscriptSegment {
     public static func decodeSegments(
         fromJSON segmentsJSON: String?
     ) -> [DiarizedTranscriptSegment]? {
-        guard let segmentsJSON else {
-            return nil
-        }
-        return try? JSONDecoder().decode(
-            [DiarizedTranscriptSegment].self,
-            from: Data(segmentsJSON.utf8)
-        )
+        DiarizationPayload.decode(fromJSON: segmentsJSON)?.segments
     }
 
     /// The stable key that groups every span of one speaker together.

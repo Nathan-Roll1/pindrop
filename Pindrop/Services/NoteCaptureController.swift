@@ -200,6 +200,19 @@ final class NoteCaptureController {
         let sequence: Int
     }
 
+    // MARK: - Live attribution
+
+    /// What the live path knew when the capture stopped.
+    ///
+    /// Taken at stop rather than read at finalize: the arbiter belongs to the
+    /// recording session and the live spans belong to the live sheet, and both
+    /// are torn down before the offline pass runs. Nil for a recovered capture,
+    /// which had no live path at all.
+    struct LiveAttributionSnapshot {
+        let micOnlyRanges: [MicOnlyRange]
+        let liveSpans: [LiveTranscriptSpan]
+    }
+
     /// One live note capture. `generation` makes ownership exact: a stale task
     /// can never clear or finalize a capture that replaced it.
     private struct NoteCaptureContext {
@@ -529,6 +542,12 @@ final class NoteCaptureController {
             try operationGuard?()
             try self.ensureCurrent(context)
         }
+        // Read before the first teardown step: both sources are gone by the
+        // time finalization needs them.
+        let liveAttribution = LiveAttributionSnapshot(
+            micOnlyRanges: audioRecorder.liveChannelArbiter?.micOnlyRanges() ?? [],
+            liveSpans: state.liveSpans
+        )
 
         do {
             state.beginFinalizing(.sealingAudio)
@@ -565,6 +584,7 @@ final class NoteCaptureController {
                 context.handle,
                 spoolPlan: context.spoolPlan,
                 expectedSpeakerCount: context.expectedSpeakerCount,
+                liveAttribution: liveAttribution,
                 operationGuard: guardCurrent
             )
             try guardCurrent()
@@ -1230,11 +1250,7 @@ final class NoteCaptureController {
         checkpoint: PindropData.MeetingTranscriptionCheckpoint,
         workItem: MeetingChunkWorkItem
     ) -> TranscriptionChunkOutput {
-        let segments: [DiarizedTranscriptSegment]? = checkpoint.segmentsJSON.flatMap {
-            (encoded: String) -> [DiarizedTranscriptSegment]? in
-            guard let data = encoded.data(using: .utf8) else { return nil }
-            return try? JSONDecoder().decode([DiarizedTranscriptSegment].self, from: data)
-        }
+        let segments = DiarizedTranscriptSegment.decodeSegments(fromJSON: checkpoint.segmentsJSON)
         return TranscriptionChunkOutput(
             chunkID: workItem.chunkID,
             sequence: checkpoint.sequence,
@@ -1252,6 +1268,7 @@ final class NoteCaptureController {
         _ handle: PindropCore.NoteCaptureHandle,
         spoolPlan: MeetingCaptureSpoolPlan,
         expectedSpeakerCount: Int?,
+        liveAttribution: LiveAttributionSnapshot? = nil,
         operationGuard: () throws -> Void
     ) async throws {
         try operationGuard()
@@ -1431,7 +1448,10 @@ final class NoteCaptureController {
                 duration: workItems.map { $0.startOffset + $0.duration }.max() ?? 0,
                 modelUsed: finalModelIdentifier,
                 enhancedWith: nil,
-                diarizationSegmentsJSON: Self.encodeDiarizationSegmentsJSON(merged.diarizedSegments),
+                diarizationSegmentsJSON: Self.encodeDiarizationJSON(
+                    segments: merged.diarizedSegments,
+                    liveAttribution: liveAttribution
+                ),
                 sourceKind: .manualCapture,
                 sourceDisplayName: handle.capturesSystemAudio ? "Meeting recording" : "Note recording",
                 id: recordID
@@ -1623,7 +1643,12 @@ final class NoteCaptureController {
                 paragraphSegmentationEnabled: !handle.capturesSystemAudio
             )
             try operationGuard()
-            let segmentsJSON = Self.encodeDiarizationSegmentsJSON(output.diarizedSegments)
+            // Per-chunk revisions carry segments and nothing else: the live
+            // attribution describes the whole capture and belongs on its record.
+            let segmentsJSON = Self.encodeDiarizationJSON(
+                segments: output.diarizedSegments,
+                liveAttribution: nil
+            )
             try captureSessionStore.recordMeetingTranscriptionChunk(
                 handle,
                 sourceChunkSequence: output.sequence,
@@ -2335,16 +2360,64 @@ final class NoteCaptureController {
         return normalized.caseInsensitiveCompare("[BLANK AUDIO]") == .orderedSame
     }
 
-    static func encodeDiarizationSegmentsJSON(_ segments: [DiarizedTranscriptSegment]?) -> String? {
+    /// The diarization blob one finished capture stores.
+    ///
+    /// Still a bare segment array whenever the live path had nothing to add, so
+    /// a build that predates the live-attribution keys keeps reading every
+    /// ordinary note this one writes. A capture with no segments stores nothing
+    /// at all, exactly as before: there are no clusters for the mic-only ranges
+    /// to name, and a blob would make an undiarized note read as diarized.
+    static func encodeDiarizationJSON(
+        segments: [DiarizedTranscriptSegment]?,
+        liveAttribution: LiveAttributionSnapshot?
+    ) -> String? {
         guard let segments, !segments.isEmpty else { return nil }
+        let payload = DiarizationPayload(
+            segments: segments,
+            micOnlyRanges: liveAttribution?.micOnlyRanges ?? [],
+            liveLabelsDiffered: liveAttribution.map {
+                liveLabelsDiffered(liveSpans: $0.liveSpans, finalSegments: segments)
+            } ?? false
+        )
         do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.sortedKeys]
-            let encodedData = try encoder.encode(segments)
-            return String(data: encodedData, encoding: .utf8)
+            return try payload.encodedJSON()
         } catch {
             Log.app.warning("Failed to encode diarization segments for history: \(error.localizedDescription)")
             return nil
         }
+    }
+
+    /// True when the finished transcript and the live sheet disagree about who
+    /// somebody is.
+    ///
+    /// Compared by participant profile at the time each live turn covered,
+    /// never by label text. The offline pass renumbers its anonymous clusters
+    /// freely, so "Speaker 2" becoming "Speaker 3" is a renumbering and not a
+    /// correction, and reporting it would raise the line on every capture. A
+    /// name appearing, disappearing, or changing is what the reader was told
+    /// and what this reports.
+    static func liveLabelsDiffered(
+        liveSpans: [LiveTranscriptSpan],
+        finalSegments: [DiarizedTranscriptSegment]
+    ) -> Bool {
+        guard !finalSegments.isEmpty else { return false }
+        for span in liveSpans where span.isText {
+            let start = span.startOffset
+            let end = span.startOffset + span.duration
+            let overlaps = finalSegments.map { segment -> TimeInterval in
+                max(0, min(segment.endTime, end) - max(segment.startTime, start))
+            }
+            guard let best = overlaps.indices.max(by: { overlaps[$0] < overlaps[$1] }),
+                  overlaps[best] > 0 else {
+                // No finished segment covers this turn, so there is nothing for
+                // its name to have changed to.
+                continue
+            }
+            let liveProfile = span.speaker.profileID
+            let finalProfile = finalSegments[best].speakerProfileID
+            if liveProfile == nil, finalProfile == nil { continue }
+            if liveProfile != finalProfile { return true }
+        }
+        return false
     }
 }
