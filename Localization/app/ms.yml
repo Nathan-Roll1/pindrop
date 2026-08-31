@@ -4,6 +4,7 @@
   local_processing: "100% pemprosesan tempatan"
 1:
   folder: "1 folder"
+  is_now_2: "%1$@ kini %2$@."
   note: "1 nota"
   said_2: "%1$@ berkata: %2$@"
   speaker: "1 penutur"
@@ -1237,6 +1238,8 @@ stats:
   _self: "Statistik"
 status:
   _self: "Status"
+still:
+  hearing: "Masih mendengar: %@"
 stop:
   listening: "Berhenti mendengar"
   recording: "Hentikan Rakaman"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "Transkrip"
   source: "Sumber transkrip %@"
 was:
+  _self: "sebelumnya %@"
   this_note_useful: "Adakah nota ini berguna?"
 writing:
   note: "Menulis nota"

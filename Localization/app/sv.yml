@@ -4,6 +4,7 @@
   local_processing: "100 % lokal bearbetning"
 1:
   folder: "1 mapp"
+  is_now_2: "%1$@ är nu %2$@."
   note: "1 anteckning"
   said_2: "%1$@ sa: %2$@"
   speaker: "1 talare"
@@ -1237,6 +1238,8 @@ stats:
   _self: "Statistik"
 status:
   _self: "Status"
+still:
+  hearing: "Hör fortfarande: %@"
 stop:
   listening: "Sluta lyssna"
   recording: "Stoppa inspelning"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "Transkript"
   source: "Transkriptkälla %@"
 was:
+  _self: "tidigare %@"
   this_note_useful: "Var den här anteckningen till nytta?"
 writing:
   note: "Skriver anteckningen"

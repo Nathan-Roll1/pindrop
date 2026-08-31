@@ -4,6 +4,7 @@
   local_processing: "100% lokální zpracování"
 1:
   folder: "1 složka"
+  is_now_2: "%1$@ je nyní %2$@."
   note: "1 poznámka"
   said_2: "%1$@ říká: %2$@"
   speaker: "1 mluvčí"
@@ -1237,6 +1238,8 @@ stats:
   _self: "Statistiky"
 status:
   _self: "Postavení"
+still:
+  hearing: "Stále slyší: %@"
 stop:
   listening: "Ukončit poslech"
   recording: "Zastavit nahrávání"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "Přepis"
   source: "Zdroj přepisu %@"
 was:
+  _self: "dříve %@"
   this_note_useful: "Byla tato poznámka užitečná?"
 writing:
   note: "Psaní poznámky"

@@ -4,6 +4,7 @@
   local_processing: "100% 本地處理"
 1:
   folder: "1 個資料夾"
+  is_now_2: "%1$@ 現在是 %2$@。"
   note: "1 則筆記"
   said_2: "%1$@說：%2$@"
   speaker: "1 位發言人"
@@ -1237,6 +1238,8 @@ stats:
   _self: "統計"
 status:
   _self: "狀態"
+still:
+  hearing: "仍在辨識：%@"
 stop:
   listening: "停止聆聽"
   recording: "停止錄製"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "逐字稿"
   source: "逐字稿來源 %@"
 was:
+  _self: "原為 %@"
   this_note_useful: "這則筆記有用嗎？"
 writing:
   note: "正在寫筆記"

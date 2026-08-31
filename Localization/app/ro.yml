@@ -4,6 +4,7 @@
   local_processing: "Prelucrare 100% locală"
 1:
   folder: "1 dosar"
+  is_now_2: "%1$@ este acum %2$@."
   note: "1 notă"
   said_2: "%1$@ a spus: %2$@"
   speaker: "1 vorbitor"
@@ -1237,6 +1238,8 @@ stats:
   _self: "Statistici"
 status:
   _self: "Stare"
+still:
+  hearing: "Încă ascultă: %@"
 stop:
   listening: "Oprește ascultarea"
   recording: "Opriți înregistrarea"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "Transcriere"
   source: "Sursa transcrierii %@"
 was:
+  _self: "anterior %@"
   this_note_useful: "V-a fost utilă această notiță?"
 writing:
   note: "Se scrie notița"

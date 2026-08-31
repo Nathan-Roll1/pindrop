@@ -4,6 +4,7 @@
   local_processing: "100% lokalne przetwarzanie"
 1:
   folder: "1 folder"
+  is_now_2: "%1$@ to teraz %2$@."
   note: "1 notatka"
   said_2: "%1$@ mówi: %2$@"
   speaker: "1 mówca"
@@ -1286,6 +1287,8 @@ stats:
   _self: "Statystyki"
 status:
   _self: "Status"
+still:
+  hearing: "Nadal słyszy: %@"
 stop:
   listening: "Zatrzymaj nasłuchiwanie"
   recording: "Zatrzymaj nagrywanie"
@@ -1869,6 +1872,7 @@ transcript:
   _self: "Transkrypcja"
   source: "Źródło transkrypcji %@"
 was:
+  _self: "wcześniej %@"
   this_note_useful: "Czy ta notatka była przydatna?"
 writing:
   note: "Pisanie notatki"

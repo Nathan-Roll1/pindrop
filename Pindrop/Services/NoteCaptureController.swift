@@ -280,6 +280,9 @@ final class NoteCaptureController {
         streamingSession.onArtifactTentativeChanged = { [weak self] tentative in
             self?.updateTentativeLiveTranscript(tentative)
         }
+        streamingSession.onArtifactLiveMicrophoneOnlyChanged = { [weak self] isMicrophoneOnly in
+            self?.state.setLiveTranscriptMicrophoneOnly(isMicrophoneOnly)
+        }
     }
 
     // MARK: - Start

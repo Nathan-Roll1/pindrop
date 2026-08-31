@@ -4,6 +4,7 @@
   local_processing: "%100 yerli işleme"
 1:
   folder: "1 klasör"
+  is_now_2: "%1$@ artık %2$@."
   note: "1 not"
   said_2: "%1$@ şunu söyledi: %2$@"
   speaker: "1 konuşmacı"
@@ -1237,6 +1238,8 @@ stats:
   _self: "İstatistikler"
 status:
   _self: "Durum"
+still:
+  hearing: "Hâlâ duyuluyor: %@"
 stop:
   listening: "Dinlemeyi durdur"
   recording: "Kaydı Durdur"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "Deşifre"
   source: "Deşifre kaynağı %@"
 was:
+  _self: "önceden %@"
   this_note_useful: "Bu not işinize yaradı mı?"
 writing:
   note: "Not yazılıyor"

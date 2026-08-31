@@ -129,15 +129,15 @@ struct LiveTranscriptSheet: View {
     }
 
     /// The turn the sheet is currently pinned to, if anything has been heard.
-    private var newestTurn: TranscriptLiveTurn? {
+    private func newestTurn(in entries: [TranscriptLiveEntry]) -> TranscriptLiveTurn? {
         entries.compactMap(\.turn).last
     }
 
     /// Everything the newest turn holds, as one string. The scroll follows this
     /// rather than the entry list, which does not change while a turn grows.
-    private var newestTurnText: String {
-        guard let newestTurn else { return "" }
-        return newestTurn.lines.map { $0.text + ($0.tentativeTail ?? "") }.joined()
+    private func newestTurnText(in entries: [TranscriptLiveEntry]) -> String {
+        guard let turn = newestTurn(in: entries) else { return "" }
+        return turn.lines.map { $0.text + ($0.tentativeTail ?? "") }.joined()
     }
 
     private var openHeight: CGFloat {
@@ -145,13 +145,17 @@ struct LiveTranscriptSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        // Built once per body pass and passed down. Every derived value below
+        // walks every span of the capture, and a live partial redraws this view
+        // several times a second for as long as the recording runs.
+        let entries = self.entries
+        return VStack(spacing: 0) {
             handle
 
             if detent.isOpen || dragHeight != nil {
-                expandedContent
+                expandedContent(entries)
             } else {
-                collapsedRow
+                collapsedRow(entries)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -159,7 +163,7 @@ struct LiveTranscriptSheet: View {
         .onExitCommand { collapse() }
         // On the root, not on the turn stack: the sheet is collapsed by
         // default, and a promotion has to be announced either way.
-        .onChange(of: promotedSpeakers) { _, speakers in announce(speakers) }
+        .onChange(of: promotedSpeakers(in: entries)) { _, speakers in announce(speakers) }
         .accessibilityIdentifier("note.page.capture.live")
     }
 
@@ -208,7 +212,7 @@ struct LiveTranscriptSheet: View {
 
     // MARK: Collapsed
 
-    private var collapsedRow: some View {
+    private func collapsedRow(_ entries: [TranscriptLiveEntry]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 10) {
                 Image(systemName: "mic")
@@ -217,7 +221,7 @@ struct LiveTranscriptSheet: View {
                     .accessibilityHidden(true)
 
                 HStack(spacing: 4) {
-                    if let collapsedName {
+                    if let collapsedName = collapsedName(in: entries) {
                         // The name keeps the row: the words truncate from the
                         // head, so without a separate view the name would be
                         // the first thing cut.
@@ -248,9 +252,9 @@ struct LiveTranscriptSheet: View {
     }
 
     /// Who spoke last, or nil before anything has been heard.
-    private var collapsedName: String? {
-        guard let newestTurn else { return nil }
-        return NoteCaptureState.speakerName(for: newestTurn.speaker, locale: locale)
+    private func collapsedName(in entries: [TranscriptLiveEntry]) -> String? {
+        guard let turn = newestTurn(in: entries) else { return nil }
+        return NoteCaptureState.speakerName(for: turn.speaker, locale: locale)
     }
 
     /// The newest thing Pindrop heard, which is the newest turn's newest line.
@@ -264,7 +268,7 @@ struct LiveTranscriptSheet: View {
 
     // MARK: Expanded
 
-    private var expandedContent: some View {
+    private func expandedContent(_ entries: [TranscriptLiveEntry]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 Text(localized("Live transcript", locale: locale))
@@ -283,7 +287,7 @@ struct LiveTranscriptSheet: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 6)
 
-            turnsColumn
+            turnsColumn(entries)
 
             degradedNotice
                 .padding(.horizontal, 16)
@@ -293,11 +297,8 @@ struct LiveTranscriptSheet: View {
         .accessibilityIdentifier("note.page.capture.live.expanded")
     }
 
-    private var turnsColumn: some View {
-        // Read once per render: every use below is the same list, and building
-        // it walks every span of the capture.
-        let entries = self.entries
-        return GeometryReader { viewport in
+    private func turnsColumn(_ entries: [TranscriptLiveEntry]) -> some View {
+        GeometryReader { viewport in
             ScrollViewReader { proxy in
                 ScrollView(.vertical) {
                     // 12 pt between turns, matching the finished transcript. It
@@ -334,7 +335,7 @@ struct LiveTranscriptSheet: View {
                         .followsLive(distanceFromBottom: distance)
                 }
                 .onChange(of: entries.last?.id) { _, _ in scrollToLive(proxy) }
-                .onChange(of: newestTurnText) { _, _ in scrollToLive(proxy) }
+                .onChange(of: newestTurnText(in: entries)) { _, _ in scrollToLive(proxy) }
                 .onAppear { scrollToLive(proxy, animated: false) }
                 .overlay(alignment: .bottomTrailing) {
                     if !isFollowingLive, !entries.isEmpty {
@@ -373,15 +374,33 @@ struct LiveTranscriptSheet: View {
         // The recording is unaffected when live text stops, so say both things
         // rather than letting a frozen line imply a dead recorder.
         if state?.isLiveTranscriptDegraded == true {
-            Text(localized("Live text stopped. The recording continues.", locale: locale))
-                .font(AppTypography.caption)
-                .foregroundStyle(AppColors.textTertiary)
-                // Two caption lines, and the row grows to hold them. A notice
-                // naming a capture channel does not fit on one.
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("note.page.capture.degraded")
+            noticeText(
+                localized("Live text stopped. The recording continues.", locale: locale),
+                identifier: "note.page.capture.degraded"
+            )
+        } else if state?.isLiveTranscriptMicrophoneOnly == true {
+            // A live transcript that shows one side of a call and never names the
+            // missing side reads as the whole conversation. Say where the rest
+            // went instead.
+            noticeText(
+                localized(
+                    "Pindrop is transcribing only your microphone. The call audio is in the finished note.",
+                    locale: locale
+                ),
+                identifier: "note.page.capture.microphone.only"
+            )
         }
+    }
+
+    private func noticeText(_ text: String, identifier: String) -> some View {
+        Text(text)
+            .font(AppTypography.caption)
+            .foregroundStyle(AppColors.textTertiary)
+            // Two caption lines, and the row grows to hold them. A notice
+            // naming a capture channel does not fit on one.
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier(identifier)
     }
 
     private func chevron(systemImage: String, label: String) -> some View {
@@ -426,7 +445,7 @@ struct LiveTranscriptSheet: View {
 
     /// Every speaker on screen whose label has been promoted, one entry per
     /// speaker however many turns they hold.
-    private var promotedSpeakers: [LiveSpeakerRef] {
+    private func promotedSpeakers(in entries: [TranscriptLiveEntry]) -> [LiveSpeakerRef] {
         var seen: Set<String> = []
         return entries.compactMap(\.turn).map(\.speaker).filter { speaker in
             guard speaker.promotedAt != nil,

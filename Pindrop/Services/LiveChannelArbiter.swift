@@ -296,6 +296,10 @@ final class LiveChannelArbiter: @unchecked Sendable {
 
     // MARK: Reading state
 
+    /// Every channel that can reach the engine in this capture. Fixed for the
+    /// life of the arbiter, so it needs no lock.
+    var liveSources: Set<CaptureSourceKind> { sources }
+
     /// The channel that owns the engine right now, nil before anyone has spoken.
     var currentOwner: CaptureSourceKind? {
         lock.withLock { owner }
@@ -444,14 +448,18 @@ final class LiveChannelArbiter: @unchecked Sendable {
     /// `lagPoints` further back so every lag can be read without resampling.
     private func fillGridsLocked(now: TimeInterval, pointCount: Int, lagPoints: Int) -> Bool {
         guard microphone.envelope.isPopulated, systemAudio.envelope.isPopulated else { return false }
-        for index in 0..<pointCount {
-            let time = now - TimeInterval(pointCount - 1 - index) * Self.echoGridStep
-            microphoneGrid[index] = microphone.envelope.value(at: time)
-        }
-        for index in 0..<(pointCount + lagPoints) {
-            let time = now - TimeInterval(pointCount - 1 + lagPoints - index) * Self.echoGridStep
-            systemAudioGrid[index] = systemAudio.envelope.value(at: time)
-        }
+        microphone.envelope.sample(
+            into: &microphoneGrid,
+            count: pointCount,
+            endingAt: now,
+            step: Self.echoGridStep
+        )
+        systemAudio.envelope.sample(
+            into: &systemAudioGrid,
+            count: pointCount + lagPoints,
+            endingAt: now,
+            step: Self.echoGridStep
+        )
         return true
     }
 
@@ -638,18 +646,36 @@ private struct EnvelopeHistory {
         count = min(count + 1, envelopeHistoryCapacity)
     }
 
-    /// The most recent value at or before `time`, holding the oldest value held
-    /// when `time` predates the history. Callers check `isPopulated` first.
-    func value(at time: TimeInterval) -> Float {
-        guard count > 0 else { return 0 }
+    /// Reads `count` points onto `grid`, spaced by `step` and ending at `now`.
+    /// Each point holds the most recent value at or before its own time, and the
+    /// oldest value held for a time that predates the history.
+    ///
+    /// One backwards walk over the ring, not one per point. The grid times fall
+    /// monotonically as the index falls, so the read cursor never has to go back
+    /// up. Per-point searching made this quadratic in the history, paid on a
+    /// realtime IO thread while holding the lock the other IO thread needs.
+    func sample(
+        into grid: inout [Float],
+        count pointCount: Int,
+        endingAt now: TimeInterval,
+        step: TimeInterval
+    ) {
+        guard pointCount > 0, count > 0 else { return }
         var index = (next - 1 + envelopeHistoryCapacity) % envelopeHistoryCapacity
+        var remaining = count
         var oldest = values[index]
-        for _ in 0..<count {
-            if times[index] <= time { return values[index] }
-            oldest = values[index]
-            index = (index - 1 + envelopeHistoryCapacity) % envelopeHistoryCapacity
+
+        for position in stride(from: pointCount - 1, through: 0, by: -1) {
+            let time = now - TimeInterval(pointCount - 1 - position) * step
+            while remaining > 0, times[index] > time {
+                oldest = values[index]
+                remaining -= 1
+                if remaining > 0 {
+                    index = (index - 1 + envelopeHistoryCapacity) % envelopeHistoryCapacity
+                }
+            }
+            grid[position] = remaining > 0 ? values[index] : oldest
         }
-        return oldest
     }
 }
 

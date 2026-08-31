@@ -79,10 +79,18 @@ public protocol StreamingRefinementCommitObserver: AnyObject {
     /// `spans` is empty for a session begun with
     /// `preservesArtifactParagraphs: false`, which is every dictation session.
     /// Dictation has one speaker and no paragraph structure to carry.
+    ///
+    /// `reachedEngineBoundary` is true only when this commit closed a paragraph
+    /// at a boundary the engine produced itself. It is what says a pending
+    /// channel handover may be applied now. A label-only change and an
+    /// app-written boundary both report false, because the engine's accumulator
+    /// is untouched by either and splicing a channel there would put two voices
+    /// inside one decoded chunk.
     func streamingRefinementCoordinator(
         _ coordinator: StreamingRefinementCoordinator,
         didCommitText committedText: String,
-        spans: [LiveTranscriptSpan]
+        spans: [LiveTranscriptSpan],
+        reachedEngineBoundary: Bool
     )
 }
 
@@ -423,7 +431,9 @@ public final class StreamingRefinementCoordinator {
             appendArtifactParagraphBoundaryIfNeeded(endsArtifactParagraph, notifyObserver: false)
         }
         committedRawLength = clamped
-        notifyCommitObserverIfNeeded()
+        notifyCommitObserverIfNeeded(
+            reachedEngineBoundary: endsArtifactParagraph?.isEngineProduced ?? false
+        )
 
         Log.transcription.debug(
             "StreamingRefinement: committed +\(cleanedChunk.count) chars via \(reason) — committed=\(self.committedText.count), committedRawLength=\(self.committedRawLength)/\(self.rawCumulative.count)"
@@ -471,7 +481,7 @@ public final class StreamingRefinementCoordinator {
             spanMetadata[spanMetadata.count - 1].boundaryReason = reason
         }
         if notifyObserver {
-            notifyCommitObserverIfNeeded()
+            notifyCommitObserverIfNeeded(reachedEngineBoundary: reason.isEngineProduced)
         }
         return true
     }
@@ -485,15 +495,26 @@ public final class StreamingRefinementCoordinator {
     ///
     /// Phase 1 calls this only at a boundary the engine itself produced (an
     /// end-of-utterance final or an idle commit), so "everything committed
-    /// belongs to the outgoing speaker" is exact by ordering. There is no
-    /// timestamp argument and no clock, because at that instant none is needed.
+    /// belongs to the outgoing speaker" is exact by ordering. No clock decides
+    /// that, and none is consulted here.
+    ///
+    /// `startCaptureTime` is only what the new turn's header shows a reader who
+    /// scrolls back: the capture time its channel took the engine at. It never
+    /// decides which speaker a character belongs to. Left nil, the new turn
+    /// keeps the offset the previous one opened at, which is what the first turn
+    /// of a capture wants.
     public func markBoundary(
         _ reason: LiveTurnBoundaryReason,
-        speaker: LiveSpeakerRef
+        speaker: LiveSpeakerRef,
+        at startCaptureTime: TimeInterval? = nil
     ) async {
         guard isSessionActive, preservesArtifactParagraphs else { return }
         let closed = appendArtifactParagraphBoundaryIfNeeded(reason)
         pendingSpeaker = speaker
+        if let startCaptureTime {
+            // Monotonic: a span never opens before the one above it closed.
+            currentSpanStartCaptureTime = max(currentSpanStartCaptureTime, startCaptureTime)
+        }
         if closed {
             await applyCurrentDisplay()
         } else if !spanMetadata.isEmpty, committedText.hasSuffix("\n") {
@@ -696,24 +717,27 @@ public final class StreamingRefinementCoordinator {
 
     // MARK: - Display
 
-    private func notifyCommitObserverIfNeeded() {
+    private func notifyCommitObserverIfNeeded(reachedEngineBoundary: Bool) {
         guard committedText != lastObservedCommittedText else { return }
         lastObservedCommittedText = committedText
         commitObserver?.streamingRefinementCoordinator(
             self,
             didCommitText: committedText,
-            spans: currentSpans()
+            spans: currentSpans(),
+            reachedEngineBoundary: reachedEngineBoundary
         )
     }
 
     /// Reports a change that moved the labels without moving one character, so
-    /// the duplicate-text suppression above would otherwise swallow it.
+    /// the duplicate-text suppression above would otherwise swallow it. The
+    /// engine flushed nothing here, so this can never carry a handover.
     private func notifyCommitObserverOfSpanChange() {
         lastObservedCommittedText = committedText
         commitObserver?.streamingRefinementCoordinator(
             self,
             didCommitText: committedText,
-            spans: currentSpans()
+            spans: currentSpans(),
+            reachedEngineBoundary: false
         )
     }
 

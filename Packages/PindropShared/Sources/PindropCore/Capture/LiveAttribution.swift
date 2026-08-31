@@ -119,6 +119,19 @@ public enum LiveTurnBoundaryReason: String, Codable, Sendable, Equatable {
     case idlePause
     /// The capture stopped.
     case sessionEnd
+
+    /// True for the two boundaries the streaming engine produces on its own.
+    /// At one of these the engine has just flushed and committed a chunk, so a
+    /// pending handover may land on it and "everything committed belongs to the
+    /// outgoing channel" is exact by ordering. Every other reason is written by
+    /// the app onto text the engine already settled, and splicing a channel
+    /// there would put two voices inside one decoded chunk.
+    public var isEngineProduced: Bool {
+        switch self {
+        case .endOfUtterance, .idlePause: true
+        case .channelChange, .crossTalkDropped, .speakerChange, .sessionEnd: false
+        }
+    }
 }
 
 /// What one entry in the live transcript is.

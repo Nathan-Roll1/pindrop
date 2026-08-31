@@ -232,7 +232,10 @@ struct NotePageView: View {
     /// what it takes to offer the Transcript view during the recording.
     private var hasLiveText: Bool {
         guard capturePhase.isRecording, let noteCaptureState else { return false }
-        return !noteCaptureState.liveTranscriptText.isEmpty
+        // Asked as a question about the spans, not about their joined text: this
+        // page hosts the editor, and joining the whole transcript to test it for
+        // emptiness is work proportional to the recording, several times a second.
+        return noteCaptureState.liveSpans.contains { $0.isText && !$0.text.isEmpty }
     }
 
     private var resolvedSelection: CaptureNoteViewKind {
@@ -1777,7 +1780,13 @@ struct NotePageView: View {
         case .enhanced:
             currentPanel?.content ?? content
         case .transcript:
-            views?.transcript?.plainText ?? ""
+            // The durable transcript does not exist until finalize, and the
+            // transcript view is reachable during the recording. Copying then
+            // returns the live text in the shape it is read in, names and gap
+            // markers included, instead of an empty string and a success flash.
+            views?.transcript?.plainText
+                ?? noteCaptureState?.liveTranscriptForCopy(locale: locale)
+                ?? ""
         }
     }
 

@@ -4,6 +4,7 @@
   local_processing: "Xử lý cục bộ 100%"
 1:
   folder: "1 thư mục"
+  is_now_2: "%1$@ hiện là %2$@."
   note: "1 ghi chú"
   said_2: "%1$@ đã nói: %2$@"
   speaker: "1 người nói"
@@ -1237,6 +1238,8 @@ stats:
   _self: "Thống kê"
 status:
   _self: "Trạng thái"
+still:
+  hearing: "Vẫn đang nghe: %@"
 stop:
   listening: "Dừng nghe"
   recording: "Dừng ghi"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "Bản chép lời"
   source: "Nguồn bản chép lời %@"
 was:
+  _self: "trước là %@"
   this_note_useful: "Ghi chú này có ích không?"
 writing:
   note: "Đang viết ghi chú"

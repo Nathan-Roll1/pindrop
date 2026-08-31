@@ -4714,9 +4714,13 @@ final class AudioRecorder {
         )
         let rms = AudioCaptureUtilities.shortTermRMS(buffer)
         let decision = arbiter.admit(source: source, rms: rms, captureTime: captureTime)
+        // Drained whether or not anyone is listening. The live engine takes
+        // seconds to load, and a marker for speech no engine existed to hear is
+        // noise: it would draw a wall of gap lines above an empty transcript.
+        let dropped = arbiter.takeDroppedSpeechIntervals()
         guard let emit = onLivePacket else { return }
 
-        for interval in arbiter.takeDroppedSpeechIntervals() {
+        for interval in dropped {
             emit(
                 .droppedSpeech(
                     source: interval.source,

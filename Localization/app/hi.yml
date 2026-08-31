@@ -4,6 +4,7 @@
   local_processing: "100% स्थानीय प्रसंस्करण"
 1:
   folder: "1 फ़ोल्डर"
+  is_now_2: "%1$@ अब %2$@ है।"
   note: "1 नोट"
   said_2: "%1$@ ने कहा: %2$@"
   speaker: "1 वक्ता"
@@ -1237,6 +1238,8 @@ stats:
   _self: "आँकड़े"
 status:
   _self: "स्थिति"
+still:
+  hearing: "अभी भी सुन रहा है: %@"
 stop:
   listening: "सुनना बंद करें"
   recording: "रिकॉर्डिंग बंद करें"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "प्रतिलेख"
   source: "प्रतिलेख का स्रोत %@"
 was:
+  _self: "पहले %@"
   this_note_useful: "क्या यह नोट काम आया?"
 writing:
   note: "नोट लिखा जा रहा है"

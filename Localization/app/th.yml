@@ -4,6 +4,7 @@
   local_processing: "การประมวลผลในท้องถิ่น 100%"
 1:
   folder: "1 โฟลเดอร์"
+  is_now_2: "%1$@ ตอนนี้คือ %2$@"
   note: "1 บันทึก"
   said_2: "%1$@ พูดว่า: %2$@"
   speaker: "1 ผู้พูด"
@@ -1237,6 +1238,8 @@ stats:
   _self: "สถิติ"
 status:
   _self: "สถานะ"
+still:
+  hearing: "ยังได้ยิน: %@"
 stop:
   listening: "หยุดฟัง"
   recording: "หยุดการบันทึก"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "ข้อความถอดเสียง"
   source: "แหล่งข้อความถอดเสียง %@"
 was:
+  _self: "เดิม %@"
   this_note_useful: "โน้ตนี้มีประโยชน์ไหม"
 writing:
   note: "กำลังเขียนโน้ต"

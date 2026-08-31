@@ -4,8 +4,9 @@
   local_processing: "معالجة محلية 100%"
 1:
   folder: "1 مجلد"
+  is_now_2: "%1$@ الآن %2$@."
   note: "ملاحظة واحدة"
-  said_2: "قال %1$@: %2$@"
+  said_2: "كلام %1$@: %2$@"
   speaker: "متحدث واحد"
   transcription: "1 النسخ"
   word: "كلمة واحدة"
@@ -1237,6 +1238,8 @@ stats:
   _self: "إحصائيات"
 status:
   _self: "حالة"
+still:
+  hearing: "قيد الاستماع: %@"
 stop:
   listening: "إيقاف الاستماع"
   recording: "إيقاف التسجيل"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "النص"
   source: "مصدر النص %@"
 was:
+  _self: "سابقًا %@"
   this_note_useful: "هل كانت هذه الملاحظة مفيدة؟"
 writing:
   note: "جارٍ كتابة الملاحظة"

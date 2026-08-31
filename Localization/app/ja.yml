@@ -4,6 +4,7 @@
   local_processing: "100% ローカル処理"
 1:
   folder: "1フォルダー"
+  is_now_2: "%1$@は%2$@になりました。"
   note: "1件のメモ"
   said_2: "%1$@の発言: %2$@"
   speaker: "話者 1 人"
@@ -1237,6 +1238,8 @@ stats:
   _self: "統計"
 status:
   _self: "状態"
+still:
+  hearing: "認識中: %@"
 stop:
   listening: "聞き取りを停止"
   recording: "録音を停止する"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "文字起こし"
   source: "文字起こしのソース %@"
 was:
+  _self: "以前は%@"
   this_note_useful: "このメモは役に立ちましたか？"
 writing:
   note: "メモを作成中"

@@ -4,6 +4,7 @@
   local_processing: "100% lokale verwerking"
 1:
   folder: "1 map"
+  is_now_2: "%1$@ is nu %2$@."
   note: "1 notitie"
   said_2: "%1$@ zei: %2$@"
   speaker: "1 spreker"
@@ -1237,6 +1238,8 @@ stats:
   _self: "Statistieken"
 status:
   _self: "Status"
+still:
+  hearing: "Hoort nog: %@"
 stop:
   listening: "Stop met luisteren"
   recording: "Stop met opnemen"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "Transcript"
   source: "Transcriptbron %@"
 was:
+  _self: "eerder %@"
   this_note_useful: "Was deze notitie nuttig?"
 writing:
   note: "Notitie schrijven"

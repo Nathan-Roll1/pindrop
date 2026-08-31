@@ -4,6 +4,7 @@
   local_processing: "100%-ban helyi feldolgozás"
 1:
   folder: "1 mappa"
+  is_now_2: "%1$@ mostantól %2$@."
   note: "1 jegyzet"
   said_2: "%1$@ ezt mondta: %2$@"
   speaker: "1 beszélő"
@@ -1237,6 +1238,8 @@ stats:
   _self: "Statisztikák"
 status:
   _self: "Állapot"
+still:
+  hearing: "Még hallja: %@"
 stop:
   listening: "Figyelés leállítása"
   recording: "Felvétel leállítása"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "Átirat"
   source: "Átirat forrása: %@"
 was:
+  _self: "korábban %@"
   this_note_useful: "Hasznos volt ez a jegyzet?"
 writing:
   note: "Jegyzet írása"

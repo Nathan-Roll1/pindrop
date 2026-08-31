@@ -79,14 +79,19 @@ struct StreamingRefinementCoordinatorTests {
       /// Every spans array as it arrived, so a test can assert the labelling
       /// moved at the commit it was supposed to move at.
       private(set) var spanUpdates: [[LiveTranscriptSpan]] = []
+      /// Whether each commit closed a paragraph at a boundary the engine
+      /// produced. Only those may carry a pending channel handover.
+      private(set) var engineBoundaryFlags: [Bool] = []
 
       func streamingRefinementCoordinator(
          _ coordinator: StreamingRefinementCoordinator,
          didCommitText committedText: String,
-         spans: [LiveTranscriptSpan]
+         spans: [LiveTranscriptSpan],
+         reachedEngineBoundary: Bool
       ) {
          committedTexts.append(committedText)
          spanUpdates.append(spans)
+         engineBoundaryFlags.append(reachedEngineBoundary)
       }
 
       var latestSpans: [LiveTranscriptSpan] { spanUpdates.last ?? [] }
@@ -400,6 +405,28 @@ struct StreamingRefinementCoordinatorTests {
       // character committed before the boundary belongs to the outgoing channel.
       #expect(spans.filter { $0.speaker == .systemChannel }.map(\.text) == beforeHandover)
       #expect(spans.filter { $0.speaker == .currentUser }.map(\.text) == ["Five six"])
+   }
+
+   @Test func aChannelChangeStampsTheNewTurnStartTime() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(
+         commitObserver: observer,
+         preservesArtifactParagraphs: true,
+         initialSpeaker: .systemChannel
+      )
+
+      await coord.ingestFinal("one two")
+      await coord.markBoundary(.channelChange, speaker: .currentUser, at: 12.5)
+      await coord.ingestFinal("one two three four")
+
+      let spans = observer.latestSpans
+      // The first turn opened with the capture. Every turn after it carries the
+      // capture time its channel took the engine at, which is the anchor a
+      // reader scrolling back needs. The time never decides attribution: that is
+      // still exact by commit ordering.
+      #expect(spans.first(where: { $0.speaker == .systemChannel })?.startOffset == 0)
+      #expect(spans.first(where: { $0.speaker == .currentUser })?.startOffset == 12.5)
    }
 
    @Test func endOfUtteranceMakesAParagraphNotATurn() async throws {

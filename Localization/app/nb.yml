@@ -4,6 +4,7 @@
   local_processing: "100 % lokal behandling"
 1:
   folder: "1 mappe"
+  is_now_2: "%1$@ er nå %2$@."
   note: "1 notat"
   said_2: "%1$@ sa: %2$@"
   speaker: "1 taler"
@@ -1237,6 +1238,8 @@ stats:
   _self: "Statistikk"
 status:
   _self: "Status"
+still:
+  hearing: "Hører fortsatt: %@"
 stop:
   listening: "Stopp lytting"
   recording: "Stopp opptak"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "Transkript"
   source: "Transkriptkilde %@"
 was:
+  _self: "tidligere %@"
   this_note_useful: "Var dette notatet nyttig?"
 writing:
   note: "Skriver notatet"

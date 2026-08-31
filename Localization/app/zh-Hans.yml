@@ -4,6 +4,7 @@
   local_processing: "100% 本地处理"
 1:
   folder: "1 个文件夹"
+  is_now_2: "%1$@ 现在是 %2$@。"
   note: "1 条笔记"
   said_2: "%1$@说：%2$@"
   speaker: "1 位发言人"
@@ -1237,6 +1238,8 @@ stats:
   _self: "统计"
 status:
   _self: "状态"
+still:
+  hearing: "仍在识别：%@"
 stop:
   listening: "停止聆听"
   recording: "停止录制"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "转录"
   source: "转录来源 %@"
 was:
+  _self: "原为 %@"
   this_note_useful: "这条笔记有用吗？"
 writing:
   note: "正在写笔记"

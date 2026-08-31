@@ -980,6 +980,11 @@ struct NoteCaptureControllerTests {
         // The regression this phase exists to fix: with system audio running, the
         // microphone used to be excluded from the live path entirely.
         #expect(pumpedSources.contains(.microphone))
+        // Not merely tagged: the microphone took the engine from the far end,
+        // which is what puts its words under `You` rather than `Call audio`.
+        // What the pump then does with that handover is asserted directly in
+        // `LiveAudioPumpTests`.
+        #expect(fixture.audioRecorder.liveChannelArbiter?.currentOwner == .microphone)
     }
 
     /// Feeds one interleaved run of buffers to both capture children, at the

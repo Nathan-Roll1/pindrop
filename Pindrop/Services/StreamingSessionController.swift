@@ -154,10 +154,25 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     /// Nothing else consumes it: artifact capture still inserts no text anywhere.
     var onArtifactTentativeChanged: ((LiveTentativeSpan?) -> Void)?
 
+    /// Observer for "this capture records the call, but only the microphone has
+    /// ever reached the live engine". The live view says so, because a transcript
+    /// that shows one side of a call and never names the missing side reads as
+    /// the whole conversation.
+    var onArtifactLiveMicrophoneOnlyChanged: ((Bool) -> Void)?
+
     /// The channel the live transcript is following right now. Set from the pump
     /// when a handover is applied, and read when the tentative tail needs a
     /// speaker to be drawn under.
     private var currentLiveSpeaker: LiveSpeakerRef = .currentUser
+
+    /// True while this capture includes system audio that has never owned the
+    /// live engine. Cleared the first time a handover points at that channel,
+    /// and never set again for the life of the capture.
+    private var isLiveMicrophoneOnly = false
+
+    /// The last string handed to the durable checkpoint. A label-only span change
+    /// reports the same text, and rewriting it would be a store write for nothing.
+    private var lastCheckpointedCommittedText = ""
 
     /// True when live transcription for the active artifact capture stopped
     /// growing: the duration bound elapsed, or checkpoint persistence failed.
@@ -867,13 +882,15 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     func streamingRefinementCoordinator(
         _ coordinator: StreamingRefinementCoordinator,
         didCommitText committedText: String,
-        spans: [LiveTranscriptSpan]
+        spans: [LiveTranscriptSpan],
+        reachedEngineBoundary: Bool
     ) {
         guard refinementCoordinator === coordinator, isArtifactCaptureActive else { return }
-        // A trailing newline means the engine closed a paragraph, which happens
-        // only at an end-of-utterance final or an idle commit. Both are boundaries
-        // the engine produced itself, so a pending handover may land on one.
-        if committedText.hasSuffix("\n") {
+        // The idle commit is one of the two boundaries the engine produces on its
+        // own, so a pending handover may land on it. A trailing newline is not
+        // the test: a channel change and a dropped-speech marker both append one
+        // without the engine having flushed anything.
+        if reachedEngineBoundary {
             engineBoundarySignal?.signal()
         }
         // The observer sees every commit, including ones this controller can no
@@ -882,6 +899,10 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         if !committedText.isEmpty || !spans.isEmpty {
             onArtifactLiveSpansChanged?(spans)
         }
+        // A relabel and a dropped-speech marker move the labels without moving one
+        // character. Rewriting an unchanged string into the durable checkpoint
+        // buys nothing and costs a SwiftData write on the main actor.
+        guard committedText != lastCheckpointedCommittedText else { return }
         guard
             !artifactPersistenceDisabled,
             !committedText.isEmpty,
@@ -911,6 +932,7 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
                 committedText: committedText,
                 assignmentAttempt: assignment.attempt
             )
+            lastCheckpointedCommittedText = committedText
         } catch {
             artifactPersistenceDisabled = true
             recordArtifactFailure(
@@ -979,6 +1001,8 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         artifactFailureRecorded = false
         isArtifactLiveTranscriptionStopped = false
         artifactDisplaySink = nil
+        isLiveMicrophoneOnly = false
+        lastCheckpointedCommittedText = ""
         onArtifactTentativeChanged?(nil)
     }
 
@@ -1030,6 +1054,16 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         let boundarySignal = LiveEngineBoundarySignal()
         engineBoundarySignal = boundarySignal
         let arbiter = audioRecorder.liveChannelArbiter
+        // Said out loud from the first buffer, and withdrawn the moment the call
+        // audio reaches the engine. The opposite order would leave a reader
+        // believing a one-sided transcript is the whole conversation.
+        let liveSources = arbiter?.liveSources ?? []
+        if isArtifactCaptureActive,
+           liveSources.contains(.systemAudio),
+           liveSources.contains(.microphone) {
+            isLiveMicrophoneOnly = true
+            onArtifactLiveMicrophoneOnlyChanged?(true)
+        }
         let chunkSeconds = settingsStore.streamingChunkProfile.nemotronChunkSeconds
         let onHandoverApplied = handoverApplicationHandler()
         let onDroppedSpeech = droppedSpeechHandler()
@@ -1058,10 +1092,10 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
 
     /// What the pump does when a handover takes effect: one hop to the main
     /// actor, at the engine boundary the switch landed on, never per buffer.
-    private func handoverApplicationHandler() -> @Sendable (CaptureSourceKind) -> Void {
-        { [weak self] source in
+    private func handoverApplicationHandler() -> @Sendable (CaptureSourceKind, TimeInterval) -> Void {
+        { [weak self] source, captureTime in
             Task { @MainActor [weak self] in
-                self?.applyLiveChannelChange(to: source)
+                await self?.applyLiveChannelChange(to: source, at: captureTime)
             }
         }
     }
@@ -1081,13 +1115,26 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     }
 
     /// Points the live transcript at the channel that just took the engine.
-    private func applyLiveChannelChange(to source: CaptureSourceKind) {
+    ///
+    /// One main-actor hop, not two. Moving the speaker and recording the boundary
+    /// in separate hops lets a commit land between them, which files the incoming
+    /// speaker's first paragraph under the outgoing speaker's name.
+    private func applyLiveChannelChange(
+        to source: CaptureSourceKind,
+        at captureTime: TimeInterval
+    ) async {
+        if source == .systemAudio, isLiveMicrophoneOnly {
+            isLiveMicrophoneOnly = false
+            onArtifactLiveMicrophoneOnlyChanged?(false)
+        }
         let speaker = LiveSpeakerRef.channel(for: source)
         guard currentLiveSpeaker != speaker else { return }
         currentLiveSpeaker = speaker
-        Task { @MainActor [weak self] in
-            await self?.refinementCoordinator?.markBoundary(.channelChange, speaker: speaker)
-        }
+        await refinementCoordinator?.markBoundary(
+            .channelChange,
+            speaker: speaker,
+            at: captureTime
+        )
     }
 
     private func flushPendingAudioWork() async {
@@ -1098,8 +1145,30 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         let consumerTask = audioConsumerTask
         audioConsumerTask = nil
         await consumerTask?.value
+        await closeLiveAttributionTail()
         pumpEngine = nil
         engineBoundarySignal = nil
+    }
+
+    /// The last thing the live transcript learns about this capture.
+    ///
+    /// A dropped-speech run settles only once its channel has been quiet for the
+    /// coalesce gap, and no buffer arrives after the tap closes, so cross talk in
+    /// the final seconds would be dropped with the arbiter. The reader would see a
+    /// transcript that reads as continuous across a hole, which is the failure
+    /// this phase most needs to avoid. Then the open paragraph is closed.
+    private func closeLiveAttributionTail() async {
+        guard isArtifactCaptureActive else { return }
+        if let arbiter = audioRecorder.liveChannelArbiter {
+            for interval in arbiter.flushDroppedSpeech() {
+                await refinementCoordinator?.markDroppedSpeech(
+                    speaker: .channel(for: interval.source),
+                    startOffset: interval.startCaptureTime,
+                    duration: interval.duration
+                )
+            }
+        }
+        await refinementCoordinator?.markBoundary(.sessionEnd, speaker: currentLiveSpeaker)
     }
 
     /// Makes the recorder unable to enqueue another buffer before any asynchronous
@@ -1309,21 +1378,25 @@ private final class FinalizeTimeoutState<Output>: @unchecked Sendable {
 /// committed, so "everything committed belongs to the outgoing channel" is exact
 /// by ordering with no timestamp involved. Two things produce such a boundary: an
 /// end-of-utterance final, and an idle commit. Both close an artifact paragraph.
+///
+/// A running count, not a flag. A handover may only be carried by a boundary the
+/// engine reached *after* the handover was decided: a boundary from a minute ago
+/// says nothing about whether the accumulator is empty now. The consumer records
+/// the count when a handover starts pending and applies it once the count moves
+/// past that value, so a stale boundary and a boundary the app wrote itself both
+/// cost nothing.
 final class LiveEngineBoundarySignal: @unchecked Sendable {
     private let lock = NSLock()
-    private var isPending = false
+    private var count: UInt64 = 0
 
     /// Main actor. Records that the engine reached a boundary.
     func signal() {
-        lock.withLock { isPending = true }
+        lock.withLock { count &+= 1 }
     }
 
-    /// Consumer task. Returns true once per signalled boundary.
-    func consume() -> Bool {
-        lock.withLock {
-            defer { isPending = false }
-            return isPending
-        }
+    /// Consumer task. How many boundaries the engine has reached so far.
+    var boundaryCount: UInt64 {
+        lock.withLock { count }
     }
 }
 
@@ -1340,13 +1413,16 @@ final class LiveEngineBoundarySignal: @unchecked Sendable {
 /// The incoming channel's speech between the decision and the application is not
 /// in the live preview. The durable spool still holds it and the offline pass at
 /// finalize still transcribes it.
-private final class LiveAudioPump {
+///
+/// Internal, not private, so the boundary contract above can be asserted directly
+/// rather than inferred from the packets the recorder happened to emit.
+final class LiveAudioPump {
 
     private let engine: any PindropSpeech.StreamingTranscriptionEngine
     private let arbiter: LiveChannelArbiter?
     private let boundarySignal: LiveEngineBoundarySignal
     private let chunkSeconds: TimeInterval
-    private let onHandoverApplied: @Sendable (CaptureSourceKind) -> Void
+    private let onHandoverApplied: @Sendable (CaptureSourceKind, TimeInterval) -> Void
     private let onDroppedSpeech: @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) -> Void
 
     /// Samples handed to the engine, including forced-flush silence. The engine
@@ -1355,14 +1431,24 @@ private final class LiveAudioPump {
     private var fedSamples = 0
     /// The channel whose buffers currently reach the engine.
     private var admittedSource: CaptureSourceKind?
-    private var pendingHandover: (to: CaptureSourceKind, atCaptureTime: TimeInterval)?
+    private var pendingHandover: PendingHandover?
+
+    private struct PendingHandover {
+        let to: CaptureSourceKind
+        /// Capture time the incoming channel took the engine at. It stamps the
+        /// new turn's header and nothing else.
+        let atCaptureTime: TimeInterval
+        /// The engine's boundary count when this handover was recorded. Only a
+        /// boundary past this one can carry the switch.
+        let afterBoundaryCount: UInt64
+    }
 
     init(
         engine: any PindropSpeech.StreamingTranscriptionEngine,
         arbiter: LiveChannelArbiter?,
         boundarySignal: LiveEngineBoundarySignal,
         chunkSeconds: TimeInterval,
-        onHandoverApplied: @escaping @Sendable (CaptureSourceKind) -> Void,
+        onHandoverApplied: @escaping @Sendable (CaptureSourceKind, TimeInterval) -> Void,
         onDroppedSpeech: @escaping @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) -> Void
     ) {
         self.engine = engine
@@ -1376,8 +1462,7 @@ private final class LiveAudioPump {
     func ingest(_ packet: LiveAudioPacket) async {
         switch packet {
         case .handoverPending(let target, let captureTime):
-            guard pendingHandover == nil else { return }
-            pendingHandover = (to: target, atCaptureTime: captureTime)
+            beginHandover(to: target, at: captureTime)
         case .droppedSpeech(let source, let startCaptureTime, let duration):
             onDroppedSpeech(source, startCaptureTime, duration)
         case .buffer(let buffer, let source, let captureTime):
@@ -1385,22 +1470,43 @@ private final class LiveAudioPump {
         }
     }
 
+    private func beginHandover(to target: CaptureSourceKind, at captureTime: TimeInterval) {
+        guard pendingHandover == nil, target != admittedSource else { return }
+        pendingHandover = PendingHandover(
+            to: target,
+            atCaptureTime: captureTime,
+            afterBoundaryCount: boundarySignal.boundaryCount
+        )
+    }
+
     private func ingestBuffer(
         _ buffer: AVAudioPCMBuffer,
         from source: CaptureSourceKind,
         at captureTime: TimeInterval
     ) async {
+        if admittedSource == nil {
+            // The first claim needs no boundary in the engine: nothing has been
+            // fed yet, so pointing the transcript at whichever channel the
+            // arbiter already owns is exact. Adopting a handover the pump never
+            // saw is part of that, because the packet carrying it may have been
+            // emitted before any consumer was attached.
+            let owner = arbiter?.pendingHandover ?? arbiter?.currentOwner ?? source
+            admittedSource = owner
+            pendingHandover = nil
+            arbiter?.applyPendingHandover()
+            onHandoverApplied(owner, captureTime)
+        }
+        // Control packets travel in the same bounded ring as the audio, so one can
+        // be dropped as the oldest element. Ownership lives in the arbiter, so
+        // read it here too: a lost packet then costs latency, never an arbiter
+        // wedged behind a handover nobody ever applied.
+        if let target = arbiter?.pendingHandover {
+            beginHandover(to: target, at: captureTime)
+        }
         if pendingHandover != nil {
             await resolvePendingHandover(sampleRate: buffer.format.sampleRate, now: captureTime)
         }
         guard pendingHandover == nil else { return }
-
-        if admittedSource == nil {
-            // The first claim needs no boundary in the engine: nothing has been
-            // committed yet, so pointing the transcript at this channel is exact.
-            admittedSource = source
-            onHandoverApplied(source)
-        }
         guard admittedSource == source else { return }
 
         do {
@@ -1415,15 +1521,23 @@ private final class LiveAudioPump {
     /// one at the ceiling.
     private func resolvePendingHandover(sampleRate: Double, now: TimeInterval) async {
         guard let pending = pendingHandover else { return }
-        if boundarySignal.consume() {
-            apply(pending.to)
+        if boundarySignal.boundaryCount > pending.afterBoundaryCount {
+            apply(pending.to, at: pending.atCaptureTime)
             return
         }
-        guard now - pending.atCaptureTime >= LiveChannelArbiter.handoverCeilingSeconds else {
-            return
-        }
+        guard needsForcedFlush(pending, at: now) else { return }
         await forceFlush(sampleRate: sampleRate)
-        apply(pending.to)
+        apply(pending.to, at: pending.atCaptureTime)
+    }
+
+    /// The arbiter owns the ceiling, so a test that moves it moves what ships.
+    /// Without an arbiter there is no ownership to hand over and the constant is
+    /// the only answer left.
+    private func needsForcedFlush(_ pending: PendingHandover, at now: TimeInterval) -> Bool {
+        if let arbiter, arbiter.pendingHandover != nil {
+            return arbiter.needsForcedFlush(at: now)
+        }
+        return now - pending.atCaptureTime >= LiveChannelArbiter.handoverCeilingSeconds
     }
 
     /// Feeds exactly the remainder of the open chunk as silence, which forces one
@@ -1457,12 +1571,12 @@ private final class LiveAudioPump {
         }
     }
 
-    private func apply(_ target: CaptureSourceKind) {
+    private func apply(_ target: CaptureSourceKind, at captureTime: TimeInterval) {
         pendingHandover = nil
         admittedSource = target
         // Tells the arbiter one channel change cleared, so it may decide another.
         arbiter?.applyPendingHandover()
-        onHandoverApplied(target)
+        onHandoverApplied(target, captureTime)
         Log.transcription.debug("Live channel handover applied to \(target.rawValue)")
     }
 }

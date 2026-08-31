@@ -4,6 +4,7 @@
   local_processing: "100 % paikallinen käsittely"
 1:
   folder: "1 kansio"
+  is_now_2: "%1$@ on nyt %2$@."
   note: "1 muistiinpano"
   said_2: "%1$@ sanoi: %2$@"
   speaker: "1 puhuja"
@@ -1237,6 +1238,8 @@ stats:
   _self: "Tilastot"
 status:
   _self: "Status"
+still:
+  hearing: "Kuulee vielä: %@"
 stop:
   listening: "Lopeta kuuntelu"
   recording: "Lopeta tallennus"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "Tekstitys"
   source: "Tekstityksen lähde %@"
 was:
+  _self: "aiemmin %@"
   this_note_useful: "Oliko tästä muistiinpanosta hyötyä?"
 writing:
   note: "Kirjoitetaan muistiinpanoa"

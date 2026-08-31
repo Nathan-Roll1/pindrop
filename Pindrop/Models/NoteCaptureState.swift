@@ -66,6 +66,20 @@ final class NoteCaptureState {
     /// or checkpoint persistence was disabled. The durable recording continues,
     /// so the UI explains the gap instead of implying the recording stopped.
     private(set) var isLiveTranscriptDegraded = false
+    /// True while this capture records the call but only the microphone has ever
+    /// reached the live engine. A different fact from `isLiveTranscriptDegraded`,
+    /// which means the live text stopped growing: here the live text is growing
+    /// and one side of the conversation is not in it.
+    private(set) var isLiveTranscriptMicrophoneOnly = false
+
+    /// The reader's view, built once per span change instead of once per render.
+    /// Live partials redraw the sheet several times a second for the length of a
+    /// capture, and this walks every span and localizes every turn header.
+    ///
+    /// Ignored by observation on purpose: it is derived from `liveSpans`, which
+    /// is observed, and letting a read from a view body publish a change here
+    /// would invalidate the view that just read it.
+    @ObservationIgnored private var copyTextCache: (localeIdentifier: String, text: String)?
 
     /// v1 has no pause. `AudioRecorder` cannot pause a durable spool and
     /// `CaptureSession.isValid` encodes state in revision parity, so a paused
@@ -103,8 +117,10 @@ final class NoteCaptureState {
         audioLevel = 0
         bandLevels = .zero
         liveSpans = []
+        copyTextCache = nil
         liveTentative = nil
         isLiveTranscriptDegraded = false
+        isLiveTranscriptMicrophoneOnly = false
         enhancementFailureMessage = nil
     }
 
@@ -152,6 +168,15 @@ final class NoteCaptureState {
     /// system locale; a caller that knows the app's selected interface locale
     /// passes it here instead, because the two can differ.
     func liveTranscriptForCopy(locale: Locale) -> String {
+        if let cache = copyTextCache, cache.localeIdentifier == locale.identifier {
+            return cache.text
+        }
+        let text = buildLiveTranscriptForCopy(locale: locale)
+        copyTextCache = (localeIdentifier: locale.identifier, text: text)
+        return text
+    }
+
+    private func buildLiveTranscriptForCopy(locale: Locale) -> String {
         var blocks: [String] = []
         var turnSpeaker: LiveSpeakerRef?
         var turnLines: [String] = []
@@ -185,13 +210,24 @@ final class NoteCaptureState {
     /// The name one live speaker is shown under. Below the named tier the label
     /// names the channel, not the people on it: the system channel can carry
     /// several voices and the app has not counted them.
+    ///
+    /// `You` and `Speaker %d` come from the finished transcript's rule, so the
+    /// live sheet and the finished transcript can never disagree about them. Two
+    /// things are live-only: a promoted name outranks its slot number, because a
+    /// header that reverts to `Speaker 2` after showing `Dana` is worse than
+    /// either alone, and an unattributed channel reads `Call audio` rather than
+    /// the finished transcript's `Speaker`.
     static func speakerName(for speaker: LiveSpeakerRef, locale: Locale) -> String {
         if let displayName = speaker.displayName, !displayName.isEmpty { return displayName }
-        if speaker.isCurrentUser { return localized("You", locale: locale) }
-        if let slotNumber = speaker.slotNumber {
-            return String(format: localized("Speaker %d", locale: locale), slotNumber)
+        guard speaker.isCurrentUser || speaker.slotNumber != nil else {
+            return localized("Call audio", locale: locale)
         }
-        return localized("Call audio", locale: locale)
+        return TranscriptSegmentPresentation.speakerName(
+            isCurrentUser: speaker.isCurrentUser,
+            speakerNumber: speaker.slotNumber,
+            speakerLabel: nil,
+            locale: locale
+        )
     }
 
     /// What a dropped-speech marker reads. It says where the words went, so a
@@ -205,6 +241,14 @@ final class NoteCaptureState {
     func updateLiveSpans(_ spans: [LiveTranscriptSpan]) {
         guard liveSpans != spans else { return }
         liveSpans = spans
+        copyTextCache = nil
+    }
+
+    /// Says that this capture records the call but only the microphone has ever
+    /// reached the live engine, so the live view can say where the rest went.
+    func setLiveTranscriptMicrophoneOnly(_ isMicrophoneOnly: Bool) {
+        guard isLiveTranscriptMicrophoneOnly != isMicrophoneOnly else { return }
+        isLiveTranscriptMicrophoneOnly = isMicrophoneOnly
     }
 
     /// Records the unsettled tail. Committed text arrives on its own path, so a
@@ -264,8 +308,10 @@ final class NoteCaptureState {
         audioLevel = 0
         bandLevels = .zero
         liveSpans = []
+        copyTextCache = nil
         liveTentative = nil
         isLiveTranscriptDegraded = false
+        isLiveTranscriptMicrophoneOnly = false
         enhancementFailureMessage = nil
     }
 }

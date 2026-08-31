@@ -4,8 +4,9 @@
   local_processing: "100% עיבוד מקומי"
 1:
   folder: "תיקיה 1"
+  is_now_2: "%1$@ כעת %2$@."
   note: "הערה אחת"
-  said_2: "%1$@ אמר: %2$@"
+  said_2: "דברי %1$@: %2$@"
   speaker: "דובר אחד"
   transcription: "תמלול 1"
   word: "מילה אחת"
@@ -1237,6 +1238,8 @@ stats:
   _self: "סטטיסטיקה"
 status:
   _self: "סטָטוּס"
+still:
+  hearing: "עדיין בהאזנה: %@"
 stop:
   listening: "הפסק האזנה"
   recording: "עצור את ההקלטה"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "תמליל"
   source: "מקור התמליל %@"
 was:
+  _self: "לשעבר %@"
   this_note_useful: "הפתק הזה עזר לכם?"
 writing:
   note: "כותב את הפתק"

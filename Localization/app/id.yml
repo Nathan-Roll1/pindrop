@@ -4,6 +4,7 @@
   local_processing: "100% pengolahan lokal"
 1:
   folder: "1 map"
+  is_now_2: "%1$@ sekarang %2$@."
   note: "1 catatan"
   said_2: "%1$@ berkata: %2$@"
   speaker: "1 pembicara"
@@ -1237,6 +1238,8 @@ stats:
   _self: "Statistik"
 status:
   _self: "Status"
+still:
+  hearing: "Masih mendengar: %@"
 stop:
   listening: "Berhenti mendengarkan"
   recording: "Berhenti Merekam"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "Transkrip"
   source: "Sumber transkrip %@"
 was:
+  _self: "sebelumnya %@"
   this_note_useful: "Apakah catatan ini berguna?"
 writing:
   note: "Menulis catatan"

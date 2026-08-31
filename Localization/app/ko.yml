@@ -4,6 +4,7 @@
   local_processing: "100% 로컬 처리"
 1:
   folder: "폴더 1개"
+  is_now_2: "%1$@이(가) 이제 %2$@입니다."
   note: "메모 1개"
   said_2: "%1$@ 발언: %2$@"
   speaker: "화자 1명"
@@ -1237,6 +1238,8 @@ stats:
   _self: "통계"
 status:
   _self: "상태"
+still:
+  hearing: "계속 듣는 중: %@"
 stop:
   listening: "듣기 중지"
   recording: "녹음 중지"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "대본"
   source: "대본 출처 %@"
 was:
+  _self: "이전 %@"
   this_note_useful: "이 메모가 도움이 되었나요?"
 writing:
   note: "메모 작성 중"

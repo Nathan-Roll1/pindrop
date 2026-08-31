@@ -97,6 +97,9 @@ struct LocalizationKeyResolutionTests {
         "Someone else spoke here. The finished note has it.",
         "You spoke here. The finished note has it.",
         "%1$@ said: %2$@",
+        "Still hearing: %@",
+        "was %@",
+        "%1$@ is now %2$@.",
         "Pindrop is transcribing only your microphone. The call audio is in the finished note."
     ])
     func sourceStringsResolveToThemselvesInEnglish(_ source: String) {
@@ -125,6 +128,9 @@ struct LocalizationKeyResolutionTests {
         "Someone else spoke here. The finished note has it.",
         "You spoke here. The finished note has it.",
         "%1$@ said: %2$@",
+        "Still hearing: %@",
+        "was %@",
+        "%1$@ is now %2$@.",
         "Pindrop is transcribing only your microphone. The call audio is in the finished note."
     ]
 

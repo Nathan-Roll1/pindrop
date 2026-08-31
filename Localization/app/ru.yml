@@ -4,6 +4,7 @@
   local_processing: "100% местная обработка"
 1:
   folder: "1 папка"
+  is_now_2: "%1$@ теперь %2$@."
   note: "1 заметка"
   said_2: "%1$@ говорит: %2$@"
   speaker: "1 спикер"
@@ -1237,6 +1238,8 @@ stats:
   _self: "Статистика"
 status:
   _self: "Статус"
+still:
+  hearing: "Ещё слышит: %@"
 stop:
   listening: "Остановить прослушивание"
   recording: "Остановить запись"
@@ -1772,6 +1775,7 @@ transcript:
   _self: "Транскрипт"
   source: "Источник транскрипта %@"
 was:
+  _self: "ранее %@"
   this_note_useful: "Эта заметка была полезной?"
 writing:
   note: "Написание заметки"
