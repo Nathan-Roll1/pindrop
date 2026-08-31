@@ -72,6 +72,10 @@ public final class AppleSpeechTranscriberEngine: StreamingTranscriptionEngine {
     private var finalizedText = ""
     private var currentVolatileText = ""
 
+    /// Seconds of audio yielded to the analyzer in the current streaming session.
+    /// The engine's own consumption counter, carried out on every emission.
+    private var fedSeconds: TimeInterval = 0
+
     public init(locale: Locale = Locale(identifier: "en-US")) {
         self.locale = locale
     }
@@ -143,6 +147,10 @@ public final class AppleSpeechTranscriberEngine: StreamingTranscriptionEngine {
 
         finalizedText = ""
         currentVolatileText = ""
+        // The fed watermark is session-scoped: it counts from the first buffer
+        // of this session, which is what the consumer's ownership run converts
+        // against.
+        fedSeconds = 0
 
         let (stream, continuation) = AsyncStream.makeStream(of: AnalyzerInput.self)
         inputContinuation = continuation
@@ -232,6 +240,10 @@ public final class AppleSpeechTranscriberEngine: StreamingTranscriptionEngine {
         guard state == .streaming, let inputContinuation else {
             throw EngineError.invalidState("Cannot process audio while not streaming")
         }
+        let sampleRate = buffer.format.sampleRate
+        if sampleRate > 0 {
+            fedSeconds += Double(buffer.frameLength) / sampleRate
+        }
         inputContinuation.yield(AnalyzerInput(buffer: buffer))
     }
 
@@ -247,6 +259,7 @@ public final class AppleSpeechTranscriberEngine: StreamingTranscriptionEngine {
         await teardownAnalyzer()
         finalizedText = ""
         currentVolatileText = ""
+        fedSeconds = 0
         state = transcriber != nil ? .ready : .unloaded
     }
 
@@ -265,6 +278,11 @@ public final class AppleSpeechTranscriberEngine: StreamingTranscriptionEngine {
 
     private func handleResult(_ result: SpeechTranscriber.Result) async {
         let chunk = String(result.text.characters)
+        // The analyzer consumes yielded buffers on its own schedule, so this
+        // watermark is what was handed to it, not what it has decoded. That is
+        // the same bound the design accepts elsewhere: at most one emission
+        // interval ahead of the audio the words came from.
+        let watermark = fedSeconds
         if result.isFinal {
             finalizedText += chunk
             currentVolatileText = ""
@@ -272,16 +290,20 @@ public final class AppleSpeechTranscriberEngine: StreamingTranscriptionEngine {
             transcriptionCallback?(
                 StreamingTranscriptionResult(
                     text: cumulative, isFinal: true,
-                    timestamp: Date().timeIntervalSince1970
+                    timestamp: Date().timeIntervalSince1970,
+                    fedSeconds: watermark
                 ))
-            endOfUtteranceCallback?(cumulative)
+            endOfUtteranceCallback?(
+                StreamingTranscriptionEmission(text: cumulative, fedSeconds: watermark)
+            )
         } else {
             currentVolatileText = chunk
             let cumulative = finalizedText + currentVolatileText
             transcriptionCallback?(
                 StreamingTranscriptionResult(
                     text: cumulative, isFinal: false,
-                    timestamp: Date().timeIntervalSince1970
+                    timestamp: Date().timeIntervalSince1970,
+                    fedSeconds: watermark
                 ))
         }
     }

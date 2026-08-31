@@ -119,8 +119,10 @@ struct StreamingSessionControllerTests {
             state = .ready
         }
 
-        func emitFinal(_ text: String) {
-            finalUtteranceCallback?(text)
+        func emitFinal(_ text: String, fedSeconds: TimeInterval = 0) {
+            finalUtteranceCallback?(
+                StreamingTranscriptionEmission(text: text, fedSeconds: fedSeconds)
+            )
         }
     }
 
@@ -1205,8 +1207,10 @@ struct StreamingSessionControllerTests {
                 state = .ready
             }
 
-            func emitFinalUtterance(_ text: String) {
-                finalUtteranceCallback?(text)
+            func emitFinalUtterance(_ text: String, fedSeconds: TimeInterval = 0) {
+                finalUtteranceCallback?(
+                    StreamingTranscriptionEmission(text: text, fedSeconds: fedSeconds)
+                )
             }
         }
 

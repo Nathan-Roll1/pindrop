@@ -198,6 +198,29 @@ public final class StreamingRefinementCoordinator {
     private var pendingSpeaker: LiveSpeakerRef?
     private var nextSpanID = 0
 
+    /// One raw-offset watermark: raw offset `rawOffset` had been committed by
+    /// capture time `captureTime`.
+    struct RawOffsetStamp: Equatable {
+        let rawOffset: Int
+        let captureTime: TimeInterval
+    }
+
+    /// Raw-offset watermarks, in commit order. Both fields are non-decreasing,
+    /// so a late boundary can binary-search this for the raw offset the audio
+    /// before that capture time had reached.
+    ///
+    /// Appended inside `commitRawUpTo` from the fed watermark the engine
+    /// reported with the text, converted to capture time by the consumer. Never
+    /// from a clock read at arrival: emissions coalesce and hop isolation before
+    /// they land here, so arrival time is arbitrarily late. Artifact sessions
+    /// only, so a dictation session allocates nothing.
+    private(set) var stamps: [RawOffsetStamp] = []
+
+    /// Capture time reported with the most recent emission, or nil when the
+    /// consumer supplied none. Idle commits and the stop drain carry no emission
+    /// of their own, so they stamp against the last one that arrived.
+    private var latestCaptureTime: TimeInterval?
+
     /// Sleeps for `idleCommitNanoseconds` after the last partial and commits the tentative
     /// tail if not cancelled.
     private var idleCommitTask: Task<Void, Never>?
@@ -234,6 +257,8 @@ public final class StreamingRefinementCoordinator {
         self.preservesArtifactParagraphs = preservesArtifactParagraphs
         spanMetadata.removeAll()
         droppedMarkers.removeAll()
+        stamps.removeAll()
+        latestCaptureTime = nil
         currentSpeaker = initialSpeaker
         currentSpanStartCaptureTime = 0
         pendingSpeaker = nil
@@ -259,8 +284,13 @@ public final class StreamingRefinementCoordinator {
     /// Handle a non-final cumulative partial from the transcriber. Updates internal state,
     /// advances the LocalAgreement-2 commit boundary if possible, and pushes the newly
     /// composed display to the output sink.
-    public func ingestPartial(_ text: String) async {
+    ///
+    /// `captureTime` is the emission's fed watermark, already mapped onto the
+    /// capture timeline by the consumer that owns the ownership run. Nil from
+    /// any caller that has no watermark to report, and then no stamp is kept.
+    public func ingestPartial(_ text: String, captureTime: TimeInterval? = nil) async {
         guard isSessionActive else { return }
+        recordCaptureTime(captureTime)
         rawCumulative = text
         stabilityMetrics.recordPartial(text)
         advanceCommitBoundary(using: text)
@@ -273,14 +303,18 @@ public final class StreamingRefinementCoordinator {
     /// the entire text becomes committed immediately. Post-EOU partials continue
     /// extending `rawCumulative`, so we leave `rawCumulative` and `previousPartial` in place
     /// so LocalAgreement-2 can keep working against a sensible prior.
-    public func ingestFinal(_ text: String) async {
+    public func ingestFinal(_ text: String, captureTime: TimeInterval? = nil) async {
         guard isSessionActive else { return }
+        recordCaptureTime(captureTime)
         idleCommitTask?.cancel()
         idleCommitTask = nil
         guard !text.isEmpty else {
             // Empty EOU: clear the in-flight state without touching committedText.
             rawCumulative = ""
             committedRawLength = 0
+            // Every stamp addressed the raw stream that just restarted, so none
+            // of them can locate an offset in the new one.
+            stamps.removeAll()
             previousPartial = ""
             tentativeTail = ""
             await applyCurrentDisplay()
@@ -431,6 +465,7 @@ public final class StreamingRefinementCoordinator {
             appendArtifactParagraphBoundaryIfNeeded(endsArtifactParagraph, notifyObserver: false)
         }
         committedRawLength = clamped
+        appendStampIfNeeded()
         notifyCommitObserverIfNeeded(
             reachedEngineBoundary: endsArtifactParagraph?.isEngineProduced ?? false
         )
@@ -681,6 +716,31 @@ public final class StreamingRefinementCoordinator {
     private func takeSpanID() -> Int {
         defer { nextSpanID += 1 }
         return nextSpanID
+    }
+
+    /// Holds the capture time the newest emission reported. Monotonic, because a
+    /// binary search over `stamps` is only valid on a non-decreasing key and the
+    /// engine's own counter can never truthfully go backwards inside a session.
+    private func recordCaptureTime(_ captureTime: TimeInterval?) {
+        guard preservesArtifactParagraphs, let captureTime else { return }
+        latestCaptureTime = max(latestCaptureTime ?? captureTime, captureTime)
+    }
+
+    /// Records where the raw stream had reached by the newest reported capture
+    /// time. One entry per commit; a repeat of the same capture time replaces the
+    /// last entry, because the later raw offset is the one that was reached by it.
+    private func appendStampIfNeeded() {
+        guard preservesArtifactParagraphs, let captureTime = latestCaptureTime else { return }
+        if let last = stamps.last, last.captureTime >= captureTime {
+            stamps[stamps.count - 1] = RawOffsetStamp(
+                rawOffset: committedRawLength,
+                captureTime: last.captureTime
+            )
+            return
+        }
+        stamps.append(
+            RawOffsetStamp(rawOffset: committedRawLength, captureTime: captureTime)
+        )
     }
 
     // MARK: - Idle commit timer

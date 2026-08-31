@@ -65,6 +65,14 @@ public actor NemotronStreamingEngine: StreamingTranscriptionEngine {
     /// already queued on the cooperative executor reject themselves when resumed.
     private var callbackSessionGeneration: UInt64 = 1
 
+    /// Seconds of audio handed to the manager in the current streaming session.
+    ///
+    /// Counted here rather than by the caller because only the engine knows what
+    /// it actually consumed: a buffer the manager rejected never moved the
+    /// watermark. Advanced before the decode, so a partial produced by that same
+    /// decode reports the audio it was made from.
+    private var fedSeconds: TimeInterval = 0
+
     /// Chunk-size variant to use when loading the model. Changing this after load has no
     /// effect until the manager is unloaded and reloaded.
     public private(set) var chunkProfile: StreamingChunkProfile
@@ -162,6 +170,7 @@ public actor NemotronStreamingEngine: StreamingTranscriptionEngine {
 
     public func unloadModel() async {
         callbackSessionGeneration &+= 1
+        fedSeconds = 0
         let manager = manager
         self.manager = nil
         state = .unloaded
@@ -178,6 +187,10 @@ public actor NemotronStreamingEngine: StreamingTranscriptionEngine {
         switch state {
         case .ready, .paused:
             callbackSessionGeneration &+= 1
+            // The fed watermark is session-scoped: it counts from the first
+            // buffer of this session, which is what the consumer's ownership
+            // run converts against.
+            fedSeconds = 0
             let generation = callbackSessionGeneration
             await manager.reset()
             guard self.manager === manager,
@@ -255,6 +268,11 @@ public actor NemotronStreamingEngine: StreamingTranscriptionEngine {
             throw EngineError.invalidState("Cannot process audio while in state: \(state)")
         }
 
+        let sampleRate = buffer.format.sampleRate
+        if sampleRate > 0 {
+            fedSeconds += Double(buffer.frameLength) / sampleRate
+        }
+
         do {
             _ = try await manager.process(audioBuffer: buffer)
         } catch {
@@ -278,10 +296,16 @@ public actor NemotronStreamingEngine: StreamingTranscriptionEngine {
         callback: StreamingTranscriptionCallback?
     ) {
         guard generation == callbackSessionGeneration else { return }
+        // The manager raises its partial from inside the decode this Task was
+        // spawned by, so the watermark read here is that decode's, unless the
+        // pump already fed the next buffer. The error is then bounded by one
+        // partial interval, which is the same bound the design accepts for
+        // coalesced partials.
         let result = StreamingTranscriptionResult(
             text: text,
             isFinal: false,
-            timestamp: Date().timeIntervalSince1970
+            timestamp: Date().timeIntervalSince1970,
+            fedSeconds: fedSeconds
         )
         callback?(result)
     }
@@ -291,6 +315,7 @@ public actor NemotronStreamingEngine: StreamingTranscriptionEngine {
         // run those Tasks while reset is suspended, but their generation check
         // makes the barrier observable immediately and permanently.
         callbackSessionGeneration &+= 1
+        fedSeconds = 0
         let resetGeneration = callbackSessionGeneration
         guard let manager else {
             state = .unloaded

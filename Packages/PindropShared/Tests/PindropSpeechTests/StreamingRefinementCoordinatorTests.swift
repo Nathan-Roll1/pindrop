@@ -544,7 +544,63 @@ struct StreamingRefinementCoordinatorTests {
       #expect(spans.allSatisfy { $0.speaker.isCurrentUser })
    }
 
+   // MARK: - Raw-offset stamps
+
+   @Test func anArtifactSessionStampsEveryCommitWithTheReportedCaptureTime() async throws {
+      let coord = makeCoordinator()
+      coord.beginSession(preservesArtifactParagraphs: true)
+
+      await coord.ingestFinal("first thought", captureTime: 4)
+      await coord.ingestFinal("first thought second thought", captureTime: 9)
+
+      #expect(coord.stamps.map(\.captureTime) == [4, 9])
+      #expect(coord.stamps.map(\.rawOffset) == [13, 28])
+   }
+
+   @Test func aStampIsOnlyKeptWhenTheEmissionCarriedAWatermark() async throws {
+      let coord = makeCoordinator()
+      coord.beginSession(preservesArtifactParagraphs: true)
+
+      // No ownership run yet, so the consumer has nothing to convert against.
+      await coord.ingestFinal("first thought")
+      #expect(coord.stamps.isEmpty)
+
+      await coord.ingestFinal("first thought second thought", captureTime: 6)
+      #expect(coord.stamps == [
+         StreamingRefinementCoordinator.RawOffsetStamp(rawOffset: 28, captureTime: 6)
+      ])
+   }
+
+   @Test func stampsStayOrderedWhenAWatermarkRepeatsOrGoesBackwards() async throws {
+      let coord = makeCoordinator()
+      coord.beginSession(preservesArtifactParagraphs: true)
+
+      await coord.ingestFinal("first thought", captureTime: 5)
+      // An idle commit carries no emission of its own, so it stamps against the
+      // last watermark that arrived. A backwards watermark cannot be trusted
+      // either: a binary search is only valid over a non-decreasing key.
+      await coord.ingestFinal("first thought second thought", captureTime: 2)
+      await coord.ingestFinal("first thought second thought third thought", captureTime: 11)
+
+      #expect(coord.stamps.map(\.captureTime) == [5, 11])
+      #expect(coord.stamps.map(\.rawOffset) == [28, 42])
+      #expect(coord.stamps.map(\.captureTime) == coord.stamps.map(\.captureTime).sorted())
+      #expect(coord.stamps.map(\.rawOffset) == coord.stamps.map(\.rawOffset).sorted())
+   }
+
    // MARK: - The dictation path is unchanged
+
+   @Test func aDictationSessionRecordsNoStamps() async throws {
+      let sink = FakeSink()
+      let coord = makeCoordinator()
+      coord.beginSession(outputSink: sink)
+
+      await coord.ingestPartial("the quick brown fox", captureTime: 1)
+      await coord.ingestFinal("the quick brown fox jumps", captureTime: 2)
+
+      #expect(coord.stamps.isEmpty)
+      #expect(sink.lastUpdate == "The quick brown fox jumps")
+   }
 
    @Test func anOutputSessionProducesNoSpans() async throws {
       let sink = FakeSink()

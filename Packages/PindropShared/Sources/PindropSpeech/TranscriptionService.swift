@@ -293,10 +293,12 @@ public final class TranscriptionService {
     /// while this service drops that instance before allowing a newly loaded one.
     private var activeTranscriptionGeneration: UInt64?
     private var nextTranscriptionGeneration: UInt64 = 1
-    private var streamingPartialCallback: (@MainActor @Sendable (String) async -> Void)?
-    private var streamingFinalUtteranceCallback: (@MainActor @Sendable (String) async -> Void)?
+    private var streamingPartialCallback: StreamingEmissionSink?
+    private var streamingFinalUtteranceCallback: StreamingEmissionSink?
     /// Engine emissions hop once onto the main actor through this bridge. Partials
-    /// coalesce to the latest value; finals stay ordered and lossless.
+    /// coalesce to the latest value; finals stay ordered and lossless. Coalescing
+    /// drops intermediate partials, never the fed watermark of the survivor: the
+    /// watermark travels inside the emission it belongs to.
     private let streamingCallbackDelivery = StreamingCallbackDelivery()
 
     private let engineFactory: @MainActor (ModelManager.ModelProvider) throws -> any TranscriptionEngine
@@ -1104,8 +1106,8 @@ public final class TranscriptionService {
     }
 
     public func setStreamingCallbacks(
-        onPartial: (@MainActor @Sendable (String) async -> Void)? = nil,
-        onFinalUtterance: (@MainActor @Sendable (String) async -> Void)? = nil
+        onPartial: StreamingEmissionSink? = nil,
+        onFinalUtterance: StreamingEmissionSink? = nil
     ) {
         // Sinks are read live by the already-installed engine callbacks. Only
         // update the routing targets (and generation on clear) — never reinstall
@@ -2589,15 +2591,19 @@ public final class TranscriptionService {
         let source = delivery.makeSource()
         await streamingEngine.setTranscriptionCallback { result in
             guard !result.isFinal else { return }
-            guard let generation = delivery.enqueuePartial(result.text, from: source) else {
+            let emission = StreamingTranscriptionEmission(
+                text: result.text,
+                fedSeconds: result.fedSeconds
+            )
+            guard let generation = delivery.enqueuePartial(emission, from: source) else {
                 return
             }
             Task { @MainActor [weak self] in
                 await self?.drainStreamingCallbackDelivery(generation: generation)
             }
         }
-        await streamingEngine.setEndOfUtteranceCallback { text in
-            guard let generation = delivery.enqueueFinal(text, from: source) else {
+        await streamingEngine.setEndOfUtteranceCallback { emission in
+            guard let generation = delivery.enqueueFinal(emission, from: source) else {
                 return
             }
             Task { @MainActor [weak self] in
@@ -2626,18 +2632,18 @@ public final class TranscriptionService {
                     break eventLoop
                 }
                 switch event {
-                case .partial(let text):
+                case .partial(let emission):
                     let callback = streamingPartialCallback
                     guard streamingCallbackDelivery.isCurrentGeneration(generation) else {
                         break eventLoop
                     }
-                    await callback?(text)
-                case .final(let text):
+                    await callback?(emission)
+                case .final(let emission):
                     let callback = streamingFinalUtteranceCallback
                     guard streamingCallbackDelivery.isCurrentGeneration(generation) else {
                         break eventLoop
                     }
-                    await callback?(text)
+                    await callback?(emission)
                 }
             }
 
@@ -2689,8 +2695,8 @@ private final class StreamingCallbackDelivery: @unchecked Sendable {
     }
 
     enum Event: Sendable {
-        case partial(String)
-        case final(String)
+        case partial(StreamingTranscriptionEmission)
+        case final(StreamingTranscriptionEmission)
     }
 
     enum DrainPoll: Sendable {
@@ -2747,24 +2753,27 @@ private final class StreamingCallbackDelivery: @unchecked Sendable {
     }
 
     /// Enqueue a partial. Returns a generation when the caller must start the drain.
-    func enqueuePartial(_ text: String, from source: Source) -> UInt64? {
+    ///
+    /// Replacing the queued partial wholesale is what keeps the fed watermark
+    /// honest: the survivor carries its own watermark, never an older one.
+    func enqueuePartial(_ emission: StreamingTranscriptionEmission, from source: Source) -> UInt64? {
         lock.lock()
         defer { lock.unlock() }
         guard activeSourceID == source.id else { return nil }
         if let lastIndex = queue.indices.last, case .partial = queue[lastIndex] {
-            queue[lastIndex] = .partial(text)
+            queue[lastIndex] = .partial(emission)
         } else {
-            queue.append(.partial(text))
+            queue.append(.partial(emission))
         }
         return claimDrainIfIdle()
     }
 
     /// Enqueue a final utterance. Returns a generation when the caller must start the drain.
-    func enqueueFinal(_ text: String, from source: Source) -> UInt64? {
+    func enqueueFinal(_ emission: StreamingTranscriptionEmission, from source: Source) -> UInt64? {
         lock.lock()
         defer { lock.unlock() }
         guard activeSourceID == source.id else { return nil }
-        queue.append(.final(text))
+        queue.append(.final(emission))
         return claimDrainIfIdle()
     }
 

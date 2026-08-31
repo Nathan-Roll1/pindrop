@@ -44,10 +44,18 @@ struct LiveAudioPumpTests {
     private final class AppliedHandovers: @unchecked Sendable {
         private(set) var sources: [CaptureSourceKind] = []
         private(set) var captureTimes: [TimeInterval] = []
+        /// Where the engine's fed watermark stood when each handover applied.
+        /// The consumer's ownership run starts from exactly this pair.
+        private(set) var fedSeconds: [TimeInterval] = []
 
-        func record(_ source: CaptureSourceKind, _ captureTime: TimeInterval) {
+        func record(
+            _ source: CaptureSourceKind,
+            _ captureTime: TimeInterval,
+            _ fed: TimeInterval
+        ) {
             sources.append(source)
             captureTimes.append(captureTime)
+            fedSeconds.append(fed)
         }
     }
 
@@ -74,7 +82,9 @@ struct LiveAudioPumpTests {
             arbiter: arbiter,
             boundarySignal: signal,
             chunkSeconds: 1.12,
-            onHandoverApplied: { source, captureTime in applied.record(source, captureTime) },
+            onHandoverApplied: { source, captureTime, fedSeconds in
+                applied.record(source, captureTime, fedSeconds)
+            },
             onDroppedSpeech: { _, _, _ in }
         )
     }
@@ -122,6 +132,32 @@ struct LiveAudioPumpTests {
         // where the switch happened to land.
         #expect(applied.captureTimes.last == 5.0)
         #expect(engine.fedFrameCounts == [1_600, 1_600])
+    }
+
+    @Test func anAppliedHandoverReportsTheAudioAlreadyFedToTheEngine() async {
+        let engine = RecordingEngine()
+        let signal = LiveEngineBoundarySignal()
+        let applied = AppliedHandovers()
+        let sut = Self.makeSut(engine: engine, arbiter: nil, signal: signal, applied: applied)
+
+        // The first claim needs no boundary and nothing has been fed yet, so the
+        // run it opens starts at watermark zero.
+        await sut.ingest(.buffer(Self.buffer(), source: .microphone, captureTime: 0.1))
+        #expect(applied.fedSeconds == [0])
+
+        // Two more 0.1 s buffers reach the engine before the switch lands.
+        await sut.ingest(.buffer(Self.buffer(), source: .microphone, captureTime: 0.2))
+        await sut.ingest(.buffer(Self.buffer(), source: .microphone, captureTime: 0.3))
+        await sut.ingest(.handoverPending(to: .systemAudio, atCaptureTime: 0.35))
+        signal.signal()
+        await sut.ingest(.buffer(Self.buffer(), source: .systemAudio, captureTime: 0.4))
+
+        // Three buffers of 1600 frames at 16 kHz is 0.3 s of audio, and the
+        // switch lands behind exactly that. The pair (0.35, 0.3) is the whole
+        // ownership run the consumer converts later fed watermarks against.
+        #expect(applied.sources == [.microphone, .systemAudio])
+        #expect(abs((applied.fedSeconds.last ?? -1) - 0.3) < 0.0001)
+        #expect(applied.captureTimes.last == 0.35)
     }
 
     @Test func aLostHandoverPacketIsRecoveredFromTheArbiter() async {

@@ -1497,12 +1497,8 @@ struct TranscriptionServiceTests {
         let collector = StreamingCallbackCollector()
 
         service.setStreamingCallbacks(
-            onPartial: { text in
-                await collector.recordPartial(text)
-            },
-            onFinalUtterance: { text in
-                await collector.recordFinal(text)
-            }
+            onPartial: { await collector.recordPartial($0) },
+            onFinalUtterance: { await collector.recordFinal($0) }
         )
         try await service.prepareStreamingEngine()
         try await mockStreamingEngine.waitUntilCallbacksInstalled()
@@ -1522,12 +1518,8 @@ struct TranscriptionServiceTests {
 
         let replacementCollector = StreamingCallbackCollector()
         service.setStreamingCallbacks(
-            onPartial: { text in
-                await replacementCollector.recordPartial(text)
-            },
-            onFinalUtterance: { text in
-                await replacementCollector.recordFinal(text)
-            }
+            onPartial: { await replacementCollector.recordPartial($0) },
+            onFinalUtterance: { await replacementCollector.recordFinal($0) }
         )
         mockStreamingEngine.emitFinalUtterance("replacement sink")
         try await replacementCollector.waitForFinals(["replacement sink"])
@@ -1544,12 +1536,8 @@ struct TranscriptionServiceTests {
         let collector = StreamingCallbackCollector()
 
         service.setStreamingCallbacks(
-            onPartial: { text in
-                await collector.recordPartial(text)
-            },
-            onFinalUtterance: { text in
-                await collector.recordFinal(text)
-            }
+            onPartial: { await collector.recordPartial($0) },
+            onFinalUtterance: { await collector.recordFinal($0) }
         )
         try await service.prepareStreamingEngine()
         try await mockStreamingEngine.waitUntilCallbacksInstalled()
@@ -1582,6 +1570,47 @@ struct TranscriptionServiceTests {
         }
     }
 
+    @Test func aCoalescedBurstKeepsTheSurvivingPartialsFedWatermark() async throws {
+        let mockStreamingEngine = MockStreamingTranscriptionEngine()
+        let service = TranscriptionService(
+            storageLocations: try SpeechTestSupport.makeStorageLocations().locations,
+            streamingEngineFactory: { _, _ in mockStreamingEngine  })
+        let collector = StreamingCallbackCollector()
+
+        service.setStreamingCallbacks(
+            onPartial: { await collector.recordPartial($0) },
+            onFinalUtterance: { await collector.recordFinal($0) }
+        )
+        try await service.prepareStreamingEngine()
+        try await mockStreamingEngine.waitUntilCallbacksInstalled()
+
+        // The watermark rides inside the emission, so collapsing the burst drops
+        // the intermediate texts and their watermarks together. What survives is
+        // never a stale watermark on newer text.
+        mockStreamingEngine.emitPartial("h", fedSeconds: 1)
+        mockStreamingEngine.emitPartial("he", fedSeconds: 2)
+        mockStreamingEngine.emitPartial("hello", fedSeconds: 3)
+        mockStreamingEngine.emitFinalUtterance("hello", fedSeconds: 4)
+
+        try await collector.waitForFinals(["hello"])
+        let snapshot = await collector.snapshot()
+        let watermarks = await collector.watermarks()
+
+        #expect(watermarks.finals == [4])
+        for (index, text) in snapshot.partials.enumerated() {
+            switch text {
+            case "h": #expect(watermarks.partials[index] == 1)
+            case "he": #expect(watermarks.partials[index] == 2)
+            case "hello": #expect(watermarks.partials[index] == 3)
+            default: Issue.record("unexpected partial \(text)")
+            }
+        }
+        // Whatever coalesced, the newest text that arrived must have been
+        // delivered, carrying its own watermark.
+        #expect(snapshot.partials.last == "hello")
+        #expect(watermarks.partials.last == 3)
+    }
+
     @Test func currentStreamingGenerationProgressesWhileStaleSinkIsSuspended() async throws {
         let mockStreamingEngine = MockStreamingTranscriptionEngine()
         let service = TranscriptionService(
@@ -1592,12 +1621,10 @@ struct TranscriptionServiceTests {
         let gate = StreamingCallbackSuspendGate()
 
         service.setStreamingCallbacks(
-            onPartial: { text in
-                await oldCollector.recordPartial(text)
-            },
-            onFinalUtterance: { text in
+            onPartial: { await oldCollector.recordPartial($0) },
+            onFinalUtterance: { emission in
                 await gate.enterAndWait()
-                await oldCollector.recordFinal(text)
+                await oldCollector.recordFinal(emission)
             }
         )
         try await service.prepareStreamingEngine()
@@ -1608,16 +1635,12 @@ struct TranscriptionServiceTests {
         mockStreamingEngine.emitFinalUtterance("old-queued")
 
         service.setStreamingCallbacks(
-            onPartial: nil as (@MainActor @Sendable (String) async -> Void)?,
-            onFinalUtterance: nil as (@MainActor @Sendable (String) async -> Void)?
+            onPartial: nil as StreamingEmissionSink?,
+            onFinalUtterance: nil as StreamingEmissionSink?
         )
         service.setStreamingCallbacks(
-            onPartial: { text in
-                await newCollector.recordPartial(text)
-            },
-            onFinalUtterance: { text in
-                await newCollector.recordFinal(text)
-            }
+            onPartial: { await newCollector.recordPartial($0) },
+            onFinalUtterance: { await newCollector.recordFinal($0) }
         )
 
         mockStreamingEngine.emitPartial("n")
@@ -1659,9 +1682,7 @@ struct TranscriptionServiceTests {
         let newCollector = StreamingCallbackCollector()
 
         service.setStreamingCallbacks(
-            onFinalUtterance: { text in
-                await oldCollector.recordFinal(text)
-            }
+            onFinalUtterance: { await oldCollector.recordFinal($0) }
         )
         try await service.startStreaming()
         let oldSessionEmission = mockStreamingEngine.captureFinalUtterance(
@@ -1674,13 +1695,11 @@ struct TranscriptionServiceTests {
         await resetGate.waitUntilEntered()
 
         service.setStreamingCallbacks(
-            onPartial: nil as (@MainActor @Sendable (String) async -> Void)?,
-            onFinalUtterance: nil as (@MainActor @Sendable (String) async -> Void)?
+            onPartial: nil as StreamingEmissionSink?,
+            onFinalUtterance: nil as StreamingEmissionSink?
         )
         service.setStreamingCallbacks(
-            onFinalUtterance: { text in
-                await newCollector.recordFinal(text)
-            }
+            onFinalUtterance: { await newCollector.recordFinal($0) }
         )
         let nextStartGate = StreamingCallbackSuspendGate()
         mockStreamingEngine.startGate = nextStartGate
@@ -1765,13 +1784,11 @@ struct TranscriptionServiceTests {
         try await service.prepareStreamingEngine()
         await service.unloadModel()
         service.setStreamingCallbacks(
-            onPartial: nil as (@MainActor @Sendable (String) async -> Void)?,
-            onFinalUtterance: nil as (@MainActor @Sendable (String) async -> Void)?
+            onPartial: nil as StreamingEmissionSink?,
+            onFinalUtterance: nil as StreamingEmissionSink?
         )
         service.setStreamingCallbacks(
-            onFinalUtterance: { text in
-                await collector.recordFinal(text)
-            }
+            onFinalUtterance: { await collector.recordFinal($0) }
         )
         try await service.prepareStreamingEngine()
 
@@ -2987,8 +3004,10 @@ private final class MockStreamingTranscriptionEngine: PindropSpeech.StreamingTra
         state = .ready
     }
 
-    func emitPartial(_ text: String) {
-        transcriptionCallback?(StreamingTranscriptionResult(text: text, isFinal: false))
+    func emitPartial(_ text: String, fedSeconds: TimeInterval = 0) {
+        transcriptionCallback?(
+            StreamingTranscriptionResult(text: text, isFinal: false, fedSeconds: fedSeconds)
+        )
     }
 
     func captureFinalUtterance(_ text: String) -> @MainActor @Sendable () -> Void {
@@ -2998,13 +3017,17 @@ private final class MockStreamingTranscriptionEngine: PindropSpeech.StreamingTra
         return { [weak self] in
             guard self?.callbackSessionGeneration == generation else { return }
             transcriptionCallback?(StreamingTranscriptionResult(text: text, isFinal: true))
-            endOfUtteranceCallback?(text)
+            endOfUtteranceCallback?(StreamingTranscriptionEmission(text: text))
         }
     }
 
-    func emitFinalUtterance(_ text: String) {
-        transcriptionCallback?(StreamingTranscriptionResult(text: text, isFinal: true))
-        endOfUtteranceCallback?(text)
+    func emitFinalUtterance(_ text: String, fedSeconds: TimeInterval = 0) {
+        transcriptionCallback?(
+            StreamingTranscriptionResult(text: text, isFinal: true, fedSeconds: fedSeconds)
+        )
+        endOfUtteranceCallback?(
+            StreamingTranscriptionEmission(text: text, fedSeconds: fedSeconds)
+        )
     }
 }
 
@@ -3063,18 +3086,27 @@ private actor StreamingCallbackCollector {
         let continuation: CheckedContinuation<Void, Error>
     }
 
-    private var partialsStore: [String] = []
-    private var finalsStore: [String] = []
+    private var partialEmissions: [StreamingTranscriptionEmission] = []
+    private var finalEmissions: [StreamingTranscriptionEmission] = []
     private var waiters: [Waiter] = []
 
-    func recordPartial(_ text: String) {
-        partialsStore.append(text)
+    private var partialsStore: [String] { partialEmissions.map(\.text) }
+    private var finalsStore: [String] { finalEmissions.map(\.text) }
+
+    func recordPartial(_ emission: StreamingTranscriptionEmission) {
+        partialEmissions.append(emission)
         resumeSatisfiedWaiters()
     }
 
-    func recordFinal(_ text: String) {
-        finalsStore.append(text)
+    func recordFinal(_ emission: StreamingTranscriptionEmission) {
+        finalEmissions.append(emission)
         resumeSatisfiedWaiters()
+    }
+
+    /// The fed watermarks exactly as they were delivered, so a test can prove a
+    /// coalesced burst kept the survivor's watermark rather than an older one.
+    func watermarks() -> (partials: [TimeInterval], finals: [TimeInterval]) {
+        (partialEmissions.map(\.fedSeconds), finalEmissions.map(\.fedSeconds))
     }
 
     func waitFor(

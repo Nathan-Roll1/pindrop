@@ -15,12 +15,40 @@ public struct StreamingTranscriptionResult: Sendable, Equatable {
     public let isFinal: Bool
     public let confidence: Float?
     public let timestamp: TimeInterval
+    /// Seconds of audio the engine had consumed when it produced this text.
+    ///
+    /// The engine's own consumption counter, carried as data. A consumer must
+    /// never read a clock when an emission arrives instead: emissions coalesce
+    /// and hop isolation before delivery, so arrival time is arbitrarily late.
+    public let fedSeconds: TimeInterval
 
-    public init(text: String, isFinal: Bool, confidence: Float? = nil, timestamp: TimeInterval = 0) {
+    public init(
+        text: String,
+        isFinal: Bool,
+        confidence: Float? = nil,
+        timestamp: TimeInterval = 0,
+        fedSeconds: TimeInterval = 0
+    ) {
         self.text = text
         self.isFinal = isFinal
         self.confidence = confidence
         self.timestamp = timestamp
+        self.fedSeconds = fedSeconds
+    }
+}
+
+/// One piece of streaming text with the fed watermark that produced it.
+///
+/// What a streaming sink receives. `fedSeconds` is the engine's consumption
+/// counter, not a clock read, so it stays correct after the delivery bridge
+/// coalesces a burst of partials down to the survivor.
+public struct StreamingTranscriptionEmission: Sendable, Equatable {
+    public let text: String
+    public let fedSeconds: TimeInterval
+
+    public init(text: String, fedSeconds: TimeInterval = 0) {
+        self.text = text
+        self.fedSeconds = fedSeconds
     }
 }
 
@@ -34,7 +62,12 @@ public enum StreamingTranscriptionState: Equatable, Sendable {
 }
 
 public typealias StreamingTranscriptionCallback = @Sendable (StreamingTranscriptionResult) -> Void
-public typealias EndOfUtteranceCallback = @Sendable (String) -> Void
+public typealias EndOfUtteranceCallback = @Sendable (StreamingTranscriptionEmission) -> Void
+
+/// Where a streaming sink receives text. Main-actor by contract: the delivery
+/// bridge takes exactly one isolation hop and consumers draw from there.
+public typealias StreamingEmissionSink =
+    @MainActor @Sendable (StreamingTranscriptionEmission) async -> Void
 
 /// Foundation-only surface for streaming engines.
 ///

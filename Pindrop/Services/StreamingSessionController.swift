@@ -165,6 +165,23 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     /// speaker to be drawn under.
     private var currentLiveSpeaker: LiveSpeakerRef = .currentUser
 
+    /// One contiguous stretch of one channel owning the live engine, held as
+    /// three scalars.
+    ///
+    /// Inside a run the engine's fed seconds advance one for one with that
+    /// channel's capture seconds, so a fed watermark maps to capture time by
+    /// `captureStart + (fedSeconds - fedStart)`. Only the open run is ever
+    /// needed, so there is no splice map and nothing is inverted across history.
+    private struct LiveOwnershipRun {
+        let source: CaptureSourceKind
+        let fedStart: TimeInterval
+        let captureStart: TimeInterval
+    }
+
+    /// The open ownership run, refreshed at every applied handover. Nil until the
+    /// first channel claims the engine, and for every session that runs no pump.
+    private var liveOwnershipRun: LiveOwnershipRun?
+
     /// True while this capture includes system audio that has never owned the
     /// live engine. Cleared the first time a handover points at that channel,
     /// and never set again for the life of the capture.
@@ -347,6 +364,9 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
             }
             artifactDisplaySink = displaySink
             currentLiveSpeaker = .currentUser
+            // A run belongs to one capture: the engine's fed watermark restarts
+            // at zero for every streaming session.
+            liveOwnershipRun = nil
             coordinator.beginSession(
                 outputSink: displaySink,
                 commitObserver: self,
@@ -857,17 +877,32 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         guard owns(session) else { throw CancellationError() }
     }
 
+    /// Maps an emission's fed watermark onto the capture timeline.
+    ///
+    /// Nil when no channel has claimed the engine yet, which is every dictation
+    /// session: there is nothing to convert against, so nothing is stamped.
+    private func liveCaptureTime(forFedSeconds fedSeconds: TimeInterval) -> TimeInterval? {
+        guard let run = liveOwnershipRun else { return nil }
+        return run.captureStart + (fedSeconds - run.fedStart)
+    }
+
     private func setEngineCallbacks(for session: SessionToken? = nil) {
         transcriptionService.setStreamingCallbacks(
-            onPartial: { [weak self] text in
+            onPartial: { [weak self] emission in
                 guard let self else { return }
                 if let session, !self.owns(session) { return }
-                await self.refinementCoordinator?.ingestPartial(text)
+                await self.refinementCoordinator?.ingestPartial(
+                    emission.text,
+                    captureTime: self.liveCaptureTime(forFedSeconds: emission.fedSeconds)
+                )
             },
-            onFinalUtterance: { [weak self] text in
+            onFinalUtterance: { [weak self] emission in
                 guard let self else { return }
                 if let session, !self.owns(session) { return }
-                await self.refinementCoordinator?.ingestFinal(text)
+                await self.refinementCoordinator?.ingestFinal(
+                    emission.text,
+                    captureTime: self.liveCaptureTime(forFedSeconds: emission.fedSeconds)
+                )
                 // An end-of-utterance final is one of the two boundaries the
                 // engine produces on its own, so a pending handover may land on
                 // it. The idle commit is the other one, reported through the
@@ -1092,10 +1127,14 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
 
     /// What the pump does when a handover takes effect: one hop to the main
     /// actor, at the engine boundary the switch landed on, never per buffer.
-    private func handoverApplicationHandler() -> @Sendable (CaptureSourceKind, TimeInterval) -> Void {
-        { [weak self] source, captureTime in
+    private func handoverApplicationHandler() -> @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) -> Void {
+        { [weak self] source, captureTime, fedSeconds in
             Task { @MainActor [weak self] in
-                await self?.applyLiveChannelChange(to: source, at: captureTime)
+                await self?.applyLiveChannelChange(
+                    to: source,
+                    at: captureTime,
+                    fedSeconds: fedSeconds
+                )
             }
         }
     }
@@ -1121,8 +1160,17 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     /// speaker's first paragraph under the outgoing speaker's name.
     private func applyLiveChannelChange(
         to source: CaptureSourceKind,
-        at captureTime: TimeInterval
+        at captureTime: TimeInterval,
+        fedSeconds: TimeInterval
     ) async {
+        // Refreshed before the speaker guard: the first claim of a capture often
+        // names the speaker the transcript already points at, and the run still
+        // has to start there.
+        liveOwnershipRun = LiveOwnershipRun(
+            source: source,
+            fedStart: fedSeconds,
+            captureStart: captureTime
+        )
         if source == .systemAudio, isLiveMicrophoneOnly {
             isLiveMicrophoneOnly = false
             onArtifactLiveMicrophoneOnlyChanged?(false)
@@ -1422,13 +1470,19 @@ final class LiveAudioPump {
     private let arbiter: LiveChannelArbiter?
     private let boundarySignal: LiveEngineBoundarySignal
     private let chunkSeconds: TimeInterval
-    private let onHandoverApplied: @Sendable (CaptureSourceKind, TimeInterval) -> Void
+    private let onHandoverApplied: @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) -> Void
     private let onDroppedSpeech: @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) -> Void
 
     /// Samples handed to the engine, including forced-flush silence. The engine
     /// decodes on whole chunks, so this is what says how much of the open chunk
     /// is still unfilled.
     private var fedSamples = 0
+    /// The same audio as `fedSamples`, in seconds, so an applied handover can
+    /// report where the engine's own fed watermark stood. It must track the
+    /// engine's internal counter: both count exactly the buffers this pump
+    /// hands over, and they diverge only across a buffer the engine threw on,
+    /// which is logged.
+    private var fedSeconds: TimeInterval = 0
     /// The channel whose buffers currently reach the engine.
     private var admittedSource: CaptureSourceKind?
     private var pendingHandover: PendingHandover?
@@ -1448,7 +1502,7 @@ final class LiveAudioPump {
         arbiter: LiveChannelArbiter?,
         boundarySignal: LiveEngineBoundarySignal,
         chunkSeconds: TimeInterval,
-        onHandoverApplied: @escaping @Sendable (CaptureSourceKind, TimeInterval) -> Void,
+        onHandoverApplied: @escaping @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) -> Void,
         onDroppedSpeech: @escaping @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) -> Void
     ) {
         self.engine = engine
@@ -1494,7 +1548,7 @@ final class LiveAudioPump {
             admittedSource = owner
             pendingHandover = nil
             arbiter?.applyPendingHandover()
-            onHandoverApplied(owner, captureTime)
+            onHandoverApplied(owner, captureTime, fedSeconds)
         }
         // Control packets travel in the same bounded ring as the audio, so one can
         // be dropped as the oldest element. Ownership lives in the arbiter, so
@@ -1512,6 +1566,10 @@ final class LiveAudioPump {
         do {
             try await engine.processAudioBuffer(buffer)
             fedSamples += Int(buffer.frameLength)
+            let sampleRate = buffer.format.sampleRate
+            if sampleRate > 0 {
+                fedSeconds += Double(buffer.frameLength) / sampleRate
+            }
         } catch {
             Log.transcription.error("Streaming audio buffer processing failed: \(error)")
         }
@@ -1566,6 +1624,7 @@ final class LiveAudioPump {
         do {
             try await engine.processAudioBuffer(silence)
             fedSamples += silenceSamples
+            fedSeconds += Double(silenceSamples) / sampleRate
         } catch {
             Log.transcription.error("Streaming handover flush failed: \(error)")
         }
@@ -1576,7 +1635,7 @@ final class LiveAudioPump {
         admittedSource = target
         // Tells the arbiter one channel change cleared, so it may decide another.
         arbiter?.applyPendingHandover()
-        onHandoverApplied(target, captureTime)
+        onHandoverApplied(target, captureTime, fedSeconds)
         Log.transcription.debug("Live channel handover applied to \(target.rawValue)")
     }
 }
