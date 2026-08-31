@@ -5,6 +5,7 @@
 1:
   folder: "1 dossier"
   note: "1 note"
+  said_2: "%1$@ a dit : %2$@"
   speaker: "1 intervenant"
   transcription: "1 transcription"
   word: "1 mot"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Intégré (lecture seule)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Audio de l'appel"
 cancel:
   _self: "Annuler"
   operation: "Annuler l'opération"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop est prêt à être utilisé.
     Cliquez sur l'icône de la barre de menus pour commencer.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop est prêt à être utilisé.nCliquez sur l'icône de la barre de menus pour commencer."
+  is_transcribing_only_your_microphone_the: "Pindrop ne transcrit que votre micro. L'audio de l'appel se trouve dans la note finale."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop a besoin de quelques autorisations pour fonctionner.nVotre vie privée est toujours respectée."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop a besoin de quelques autorisations pour fonctionner.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Les modèles plus petits sont plus rapides mais moins précis.
     Commencez avec Base pour le meilleur équilibre.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Quelqu'un d'autre a parlé ici. La note finale le contient."
 something:
   went_wrong: "Quelque chose s'est mal passé"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Vous pouvez modifier ces éléments à tout moment depuis la barre de menus → Paramètres → Raccourcis"
   re_all_set: "Tout est prêt !"
   re_all_set_058a8130: "Tout est prêt !"
+  spoke_here_the_finished_note_has_it: "Vous avez parlé ici. La note finale le contient."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\"                 Vous avez dépassé votre limite de taux ou quota API.                                  Pour corriger cela :                 1. Attendez quelques minutes et réessayez                 2. Vérifiez les limites d'utilisation de votre fournisseur API                 3. Envisagez de mettre à niveau votre plan API                                  La transcription a été enregistrée sans amélioration.                 \"\""
   re_in_control: "Vous gardez le contrôle"
   deleted_this_transcript: "Vous avez supprimé cette transcription."

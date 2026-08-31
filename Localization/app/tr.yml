@@ -5,6 +5,7 @@
 1:
   folder: "1 klasör"
   note: "1 not"
+  said_2: "%1$@ şunu söyledi: %2$@"
   speaker: "1 konuşmacı"
   transcription: "1 transkripsiyon"
   word: "1 kelime"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Yerleşik (salt okunur)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Çağrı sesi"
 cancel:
   _self: "İptal etmek"
   operation: "İşlemi İptal Et"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop kullanıma hazırdır.
     Başlamak için menü çubuğu simgesini tıklayın.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop kullanıma hazır.nBaşlamak için menü çubuğu simgesine tıklayın."
+  is_transcribing_only_your_microphone_the: "Pindrop yalnızca mikrofonunuzu yazıya döküyor. Çağrı sesi tamamlanan notta yer alıyor."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop'un çalışması için birkaç izne ihtiyacı var.nGizliliğinize her zaman saygı gösterilir."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop'un çalışması için birkaç izne ihtiyacı var.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Daha küçük modeller daha hızlıdır ancak daha az doğrudur.
     En iyi denge için Base ile başlayın.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Burada başka biri konuştu. Tamamlanan notta bu var."
 something:
   went_wrong: "Bir şeyler ters gitti"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Bunları istediğiniz zaman menü çubuğundan → Ayarlar → Kısayol Tuşlarından değiştirebilirsiniz."
   re_all_set: "Tamamen Hazırsınız!"
   re_all_set_058a8130: "Artık hazırsınız!"
+  spoke_here_the_finished_note_has_it: "Burada siz konuştunuz. Tamamlanan notta bu var."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" API hızı sınırınızı veya kotanızı aştınız.                                  Bunu düzeltmek için: 1. Birkaç dakika bekleyin ve tekrar deneyin 2. API sağlayıcınızın kullanım sınırlarını kontrol edin 3. API planınızı yükseltmeyi düşünün Çeviri yazı, geliştirme yapılmadan kaydedildi.                 \"\""
   re_in_control: "Kontrol sizde"
   deleted_this_transcript: "Bu deşifreyi sildiniz."

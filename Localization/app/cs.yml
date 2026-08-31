@@ -5,6 +5,7 @@
 1:
   folder: "1 složka"
   note: "1 poznámka"
+  said_2: "%1$@ říká: %2$@"
   speaker: "1 mluvčí"
   transcription: "1 přepis"
   word: "1 slovo"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Vestavěný (pouze pro čtení)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Zvuk hovoru"
 cancel:
   _self: "Zrušit"
   operation: "Zrušit operaci"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop je připraven k použití.
     Začněte kliknutím na ikonu panelu nabídek.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop je připraveno k použití.nZačněte kliknutím na ikonu na liště nabídek."
+  is_transcribing_only_your_microphone_the: "Pindrop přepisuje jen váš mikrofon. Zvuk hovoru je v hotové poznámce."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop npotřebuje několik oprávněníns, aby fungovalo.nVaše soukromí je vždy respektováno."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop potřebuje k práci několik oprávnění.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Menší modely jsou rychlejší, ale méně přesné.
     Začněte s Base pro nejlepší rovnováhu.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Tady mluvil někdo jiný. Hotová poznámka to obsahuje."
 something:
   went_wrong: "Něco se pokazilo"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Můžete je kdykoli změnit na liště nabídek → Nastavení → Klávesové zkratky"
   re_all_set: "Vše je připraveno!"
   re_all_set_058a8130: "Vše je připraveno!"
+  spoke_here_the_finished_note_has_it: "Tady jste mluvili vy. Hotová poznámka to obsahuje."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Překročili jste limit nebo kvótu rychlosti API.                                  Chcete-li tento problém vyřešit: 1. Počkejte několik minut a zkuste to znovu. 2. Zkontrolujte limity využití poskytovatele rozhraní API. 3. Zvažte upgrade plánu rozhraní API Přepis byl uložen bez vylepšení.                 \"\""
   re_in_control: "Máte to pod kontrolou"
   deleted_this_transcript: "Tento přepis jste smazali."

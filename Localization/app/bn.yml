@@ -5,6 +5,7 @@
 1:
   folder: "1 ফোল্ডার"
   note: "১টি নোট"
+  said_2: "%1$@ বলেছেন: %2$@"
   speaker: "১ জন বক্তা"
   transcription: "1 ট্রান্সক্রিপশন"
   word: "১টি শব্দ"
@@ -157,6 +158,8 @@ built:
   in_read_only: "অন্তর্নির্মিত (শুধু পড়ার জন্য)"
 by:
   weekday: "By weekday"
+call:
+  audio: "কলের অডিও"
 cancel:
   _self: "বাতিল করুন"
   operation: "অপারেশন বাতিল করুন"
@@ -924,6 +927,7 @@ pindrop:
     
     শুরু করতে মেনু বার আইকনে ক্লিক করুন।
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop ব্যবহার করার জন্য প্রস্তুত। শুরু করতে মেনু বার আইকনে ক্লিক করুন।"
+  is_transcribing_only_your_microphone_the: "Pindrop শুধু আপনার মাইক্রোফোন প্রতিলিপি করছে। কলের অডিও চূড়ান্ত নোটে থাকবে।"
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop-এর কাজ করার জন্য কিছু অনুমতির প্রয়োজন৷ আপনার গোপনীয়তা সর্বদা সম্মান করা হয়৷"
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop কাজ করার জন্য কিছু অনুমতি প্রয়োজন.
@@ -1195,6 +1199,8 @@ smaller:
     ছোট মডেল দ্রুত কিন্তু কম সঠিক।
     
     সেরা ব্যালেন্সের জন্য বেস দিয়ে শুরু করুন।
+someone:
+  else_spoke_here_the_finished_note_has_it: "এখানে অন্য কেউ কথা বলেছেন। চূড়ান্ত নোটে সেটি আছে।"
 something:
   went_wrong: "কিছু ভুল হয়েছে"
 soon:
@@ -1656,6 +1662,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "আপনি মেনু বার → সেটিংস → হটকি থেকে যেকোনো সময় এগুলি পরিবর্তন করতে পারেন৷"
   re_all_set: "আপনি সম্পূর্ণ প্রস্তুত!"
   re_all_set_058a8130: "আপনি সব প্রস্তুত!"
+  spoke_here_the_finished_note_has_it: "এখানে আপনি কথা বলেছেন। চূড়ান্ত নোটে সেটি আছে।"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\" আপনি আপনার API রেট সীমা বা কোটা অতিক্রম করেছেন৷                                  এটি ঠিক করতে: 1. কয়েক মিনিট অপেক্ষা করুন এবং আবার চেষ্টা করুন 2. আপনার API প্রদানকারীর ব্যবহারের সীমা পরীক্ষা করুন 3. আপনার API প্ল্যান আপগ্রেড করার কথা বিবেচনা করুন ট্রান্সক্রিপশনটি বর্ধিতকরণ ছাড়াই সংরক্ষণ করা হয়েছিল৷                 \""
   re_in_control: "নিয়ন্ত্রণ আপনার হাতে"
   deleted_this_transcript: "আপনি এই প্রতিলিপি মুছে দিয়েছেন।"

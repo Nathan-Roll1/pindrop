@@ -5,6 +5,7 @@
 1:
   folder: "1 pasta"
   note: "1 nota"
+  said_2: "%1$@ disse: %2$@"
   speaker: "1 interlocutor"
   transcription: "1 transcrição"
   word: "1 palavra"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Integrado (somente leitura)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Áudio da chamada"
 cancel:
   _self: "Cancelar"
   operation: "Cancelar operação"
@@ -922,6 +925,7 @@ pindrop:
     O Pindrop está pronto para uso.
     Clique no ícone da barra de menu para começar.
   is_ready_to_use_nclick_the_menu_bar_icon: "O Pindrop está pronto para uso.nClique no ícone da barra de menu para começar."
+  is_transcribing_only_your_microphone_the: "O Pindrop está transcrevendo só o seu microfone. O áudio da chamada está na nota final."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop precisa de algumas permissões para funcionar.nSua privacidade é sempre respeitada."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop precisa de algumas permissões para funcionar.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Modelos menores são mais rápidos, mas menos precisos.
     Comece com Base para obter o melhor equilíbrio.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Outra pessoa falou aqui. A nota final tem isso."
 something:
   went_wrong: "Algo deu errado"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Você pode alterá-los a qualquer momento na barra de menu → Configurações → Teclas de atalho"
   re_all_set: "Está tudo pronto!"
   re_all_set_058a8130: "Está tudo pronto!"
+  spoke_here_the_finished_note_has_it: "Você falou aqui. A nota final tem isso."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Você excedeu seu limite ou cota de taxa de API.                                  Para corrigir isso: 1. Aguarde alguns minutos e tente novamente 2. Verifique os limites de uso do seu provedor de API 3. Considere atualizar seu plano de API A transcrição foi salva sem melhorias.                 \"\""
   re_in_control: "Você está no controle"
   deleted_this_transcript: "Você excluiu esta transcrição."

@@ -5,6 +5,7 @@
 1:
   folder: "1 kansio"
   note: "1 muistiinpano"
+  said_2: "%1$@ sanoi: %2$@"
   speaker: "1 puhuja"
   transcription: "1 transkriptio"
   word: "1 sana"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Sisäänrakennettu (vain luku)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Puhelun ääni"
 cancel:
   _self: "Peruuttaa"
   operation: "Peruuta toiminto"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop on käyttövalmis.
     Aloita napsauttamalla valikkopalkin kuvaketta.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop on valmis käytettäväksi.nAloita napsauttamalla valikkopalkin kuvaketta."
+  is_transcribing_only_your_microphone_the: "Pindrop litteroi vain mikrofonisi. Puhelun ääni on valmiissa muistiinpanossa."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop tarvitsee muutaman käyttöoikeuden toimiakseen.nYksityisyyttäsi kunnioitetaan aina."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop tarvitsee muutaman käyttöoikeuden toimiakseen.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Pienemmät mallit ovat nopeampia, mutta vähemmän tarkkoja.
     Aloita Basesta parhaan tasapainon saavuttamiseksi.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Tässä puhui joku muu. Valmis muistiinpano sisältää sen."
 something:
   went_wrong: "Jotain meni pieleen"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Voit muuttaa näitä milloin tahansa valikkoriviltä → Asetukset → Pikanäppäimet"
   re_all_set: "Kaikki on valmista!"
   re_all_set_058a8130: "Kaikki on valmista!"
+  spoke_here_the_finished_note_has_it: "Tässä puhuit sinä. Valmis muistiinpano sisältää sen."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Olet ylittänyt API-nopeusrajoituksen tai -kiintiön.                                  Korjaa tämä seuraavasti: 1. Odota muutama minuutti ja yritä uudelleen 2. Tarkista API-palveluntarjoajasi käyttörajoitukset 3. Harkitse API-suunnitelmasi päivittämistä. Transkriptio tallennettiin ilman parannuksia.                 \"\""
   re_in_control: "Sinä hallitset"
   deleted_this_transcript: "Poistit tämän tekstityksen."

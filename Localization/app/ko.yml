@@ -5,6 +5,7 @@
 1:
   folder: "폴더 1개"
   note: "메모 1개"
+  said_2: "%1$@ 발언: %2$@"
   speaker: "화자 1명"
   transcription: "1 전사"
   word: "단어 1개"
@@ -157,6 +158,8 @@ built:
   in_read_only: "내장(읽기 전용)"
 by:
   weekday: "By weekday"
+call:
+  audio: "통화 오디오"
 cancel:
   _self: "취소"
   operation: "작업 취소"
@@ -922,6 +925,7 @@ pindrop:
     핀드롭을 사용할 준비가 되었습니다.
     시작하려면 메뉴 표시줄 아이콘을 클릭하세요.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop을 사용할 준비가 되었습니다.n시작하려면 메뉴 표시줄 아이콘을 클릭하세요."
+  is_transcribing_only_your_microphone_the: "Pindrop이 마이크만 전사하고 있습니다. 통화 오디오는 완성된 메모에 담깁니다."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop이 작동하려면 몇 가지 권한이 필요합니다.n귀하의 개인 정보는 항상 존중됩니다."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop이 작동하려면 몇 가지 권한이 필요합니다.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     작은 모델은 더 빠르지만 정확도는 떨어집니다.
     최고의 균형을 위해 Base로 시작하세요.
+someone:
+  else_spoke_here_the_finished_note_has_it: "여기서 다른 사람이 말했습니다. 완성된 메모에 담깁니다."
 something:
   went_wrong: "문제가 발생했습니다."
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "메뉴 모음 → 설정 → 단축키에서 언제든지 변경할 수 있습니다."
   re_all_set: "모든 준비가 완료되었습니다!"
   re_all_set_058a8130: "모든 준비가 완료되었습니다."
+  spoke_here_the_finished_note_has_it: "여기서 내가 말했습니다. 완성된 메모에 담깁니다."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" API 속도 제한 또는 할당량을 초과했습니다.                                  이 문제를 해결하려면: 1. 몇 분 정도 기다렸다가 다시 시도하십시오. 2. API 공급자의 사용 제한을 확인하십시오. 3. API 계획 업그레이드를 고려하십시오. 스크립트가 향상되지 않고 저장되었습니다.                 \"\""
   re_in_control: "당신이 제어합니다"
   deleted_this_transcript: "이 대본을 삭제했습니다."

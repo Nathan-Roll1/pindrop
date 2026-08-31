@@ -5,6 +5,7 @@
 1:
   folder: "1フォルダー"
   note: "1件のメモ"
+  said_2: "%1$@の発言: %2$@"
   speaker: "話者 1 人"
   transcription: "1 転写"
   word: "1語"
@@ -157,6 +158,8 @@ built:
   in_read_only: "組み込み (読み取り専用)"
 by:
   weekday: "By weekday"
+call:
+  audio: "通話の音声"
 cancel:
   _self: "キャンセル"
   operation: "操作のキャンセル"
@@ -922,6 +925,7 @@ pindrop:
     ピンドロップを使用する準備ができました。
     メニューバーのアイコンをクリックして開始します。
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop を使用する準備ができました。nメニュー バーのアイコンをクリックして開始します。"
+  is_transcribing_only_your_microphone_the: "Pindrop はマイクの音声だけを文字起こししています。通話の音声は完成したメモに入ります。"
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop が動作するには、いくつかの権限が必要です。nあなたのプライバシーは常に尊重されます。"
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop が動作するには、いくつかの権限が必要です。
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     モデルが小さいほど高速になりますが、精度は低くなります。
     最適なバランスを得るには、Base から始めてください。
+someone:
+  else_spoke_here_the_finished_note_has_it: "ここで別の人が話しました。完成したメモには入ります。"
 something:
   went_wrong: "何か問題が発生しました"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "これらは、メニュー バー → 設定 → ホットキーからいつでも変更できます。"
   re_all_set: "準備は完了です!"
   re_all_set_058a8130: "準備は完了です!"
+  spoke_here_the_finished_note_has_it: "ここであなたが話しました。完成したメモには入ります。"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" API レート制限または割り当てを超過しました。                                  これを修正するには: 1. 数分待ってから再試行します。 2. API プロバイダーの使用制限を確認します。 3. API プランのアップグレードを検討してください。 文字起こしは拡張せずに保存されました。                 「」"
   re_in_control: "あなたがコントロールできます"
   deleted_this_transcript: "この文字起こしを削除しました。"

@@ -91,11 +91,42 @@ struct LocalizationKeyResolutionTests {
         "Speaker",
         // Dictate page.
         "No dictations yet.",
-        "Stop"
+        "Stop",
+        // Live attribution.
+        "Call audio",
+        "Someone else spoke here. The finished note has it.",
+        "You spoke here. The finished note has it.",
+        "%1$@ said: %2$@",
+        "Pindrop is transcribing only your microphone. The call audio is in the finished note."
     ])
     func sourceStringsResolveToThemselvesInEnglish(_ source: String) {
         #expect(localized(source, locale: en) == source)
     }
+
+    /// The live attribution copy names a channel and a gap in the live text, so
+    /// a reader who does not read English learns nothing from the untranslated
+    /// source. `localized` falls back to the English key when a locale lacks the
+    /// string, which makes a missing translation invisible on screen and visible
+    /// only here.
+    @Test(arguments: LocalizationMetadata.supportedLocales.filter { $0 != "en" })
+    func liveAttributionStringsAreTranslatedInEveryLocale(_ identifier: String) {
+        let locale = Locale(identifier: identifier)
+
+        for source in Self.liveAttributionSources {
+            #expect(
+                localized(source, locale: locale) != source,
+                "\(identifier) still reads the English source for \(source)"
+            )
+        }
+    }
+
+    private static let liveAttributionSources = [
+        "Call audio",
+        "Someone else spoke here. The finished note has it.",
+        "You spoke here. The finished note has it.",
+        "%1$@ said: %2$@",
+        "Pindrop is transcribing only your microphone. The call audio is in the finished note."
+    ]
 
     /// The lowercase running copy and the capitalised stat label are two strings,
     /// and the footer that used `localized("edited")` got the wrong one.

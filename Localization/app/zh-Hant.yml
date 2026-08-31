@@ -5,6 +5,7 @@
 1:
   folder: "1 個資料夾"
   note: "1 則筆記"
+  said_2: "%1$@說：%2$@"
   speaker: "1 位發言人"
   transcription: "1 個轉錄"
   word: "1 個字"
@@ -157,6 +158,8 @@ built:
   in_read_only: "內建（只讀）"
 by:
   weekday: "By weekday"
+call:
+  audio: "通話聲音"
 cancel:
   _self: "取消"
   operation: "取消操作"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop 已準備好使用。
     點選選單欄圖示開始使用。
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop 已準備好使用。n點選選單欄圖示開始使用。"
+  is_transcribing_only_your_microphone_the: "Pindrop 只轉寫你的麥克風。通話聲音會在完成的筆記裡。"
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop 需要一些許可權才能工作。n您的隱私始終受到尊重。"
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop 需要一些許可權才能工作。
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     較小的模型更快但準確度較低。
     從 Base 開始以獲得最佳平衡。
+someone:
+  else_spoke_here_the_finished_note_has_it: "這裡有其他人說話。完成的筆記裡有這段。"
 something:
   went_wrong: "出錯了"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "您可以隨時從選單欄 → 設定 → 快捷鍵更改這些"
   re_all_set: "一切就緒！"
   re_all_set_058a8130: "一切就緒！"
+  spoke_here_the_finished_note_has_it: "這裡是你在說話。完成的筆記裡有這段。"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\"                 您已超出 API 速率限制或配額。                                  解決方法：                 1. 等待幾分鐘後重試                 2. 檢查您的 API 提供商的使用限制                 3. 考慮升級您的 API 計劃                                  轉錄已儲存，未進行增強。                 \"\""
   re_in_control: "你掌握控制權"
   deleted_this_transcript: "你刪除了這份逐字稿。"

@@ -5,6 +5,7 @@
 1:
   folder: "1 mappa"
   note: "1 jegyzet"
+  said_2: "%1$@ ezt mondta: %2$@"
   speaker: "1 beszélő"
   transcription: "1 átírás"
   word: "1 szó"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Beépített (csak olvasható)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Hívás hangja"
 cancel:
   _self: "Mégsem"
   operation: "A művelet megszakítása"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop használatra kész.
     A kezdéshez kattintson a menüsor ikonjára.
   is_ready_to_use_nclick_the_menu_bar_icon: "A Pindrop használatra kész.nKattintson a menüsor ikonjára a kezdéshez."
+  is_transcribing_only_your_microphone_the: "A Pindrop csak az Ön mikrofonját írja át. A hívás hangja az elkészült jegyzetbe kerül."
   needs_a_few_permissions_to_work_nyour_pr: "A Pindrop működéséhez néhány engedélyre van szüksége.nA magánéletét mindig tiszteletben tartják."
   needs_a_few_permissions_to_work_your_pri: |-
     A Pindrop működéséhez néhány engedélyre van szüksége.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     A kisebb modellek gyorsabbak, de kevésbé pontosak.
     Kezdje a Base-szal a legjobb egyensúly érdekében.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Itt valaki más beszélt. Az elkészült jegyzet tartalmazza."
 something:
   went_wrong: "Valami elromlott"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Ezeket bármikor módosíthatja a menüsorban → Beállítások → Gyorsbillentyűk"
   re_all_set: "Minden készen áll!"
   re_all_set_058a8130: "Minden készen áll!"
+  spoke_here_the_finished_note_has_it: "Itt Ön beszélt. Az elkészült jegyzet tartalmazza."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Túllépte az API-rátakorlátot vagy -kvótát.                                  A probléma megoldása: 1. Várjon néhány percet, majd próbálja újra 2. Ellenőrizze API-szolgáltatója használati korlátait. 3. Fontolja meg API-tervének frissítését. Az átírást javítás nélkül mentettük.                 \"\""
   re_in_control: "Tiéd az irányítás"
   deleted_this_transcript: "Törölte ezt az átiratot."

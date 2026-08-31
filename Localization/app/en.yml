@@ -10,6 +10,7 @@
   recording: "%1$@ recording"
   recording_2: "%1$@ recording · %2$@"
   result: "1 result"
+  said_2: "%1$@ said: %2$@"
   speaker: "1 speaker"
   transcription: "1 transcription"
   word: "1 word"
@@ -165,6 +166,8 @@ built:
   in_read_only: "Built-in (read-only)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Call audio"
 cancel:
   _self: "Cancel"
   operation: "Cancel Operation"
@@ -969,6 +972,7 @@ pindrop:
     Pindrop is ready to use.
     Click the menu bar icon to get started.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop is ready to use.nClick the menu bar icon to get started."
+  is_transcribing_only_your_microphone_the: "Pindrop is transcribing only your microphone. The call audio is in the finished note."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop needs a few permissions to work.nYour privacy is always respected."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop needs a few permissions to work.
@@ -1261,6 +1265,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Smaller models are faster but less accurate.
     Start with Base for the best balance.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Someone else spoke here. The finished note has it."
 something:
   went_wrong: "Something went wrong"
 soon:
@@ -1740,6 +1746,7 @@ you:
   re_all_set: "You're All Set!"
   re_all_set_058a8130: "You're all set!"
   re_in_control: "You're in control"
+  spoke_here_the_finished_note_has_it: "You spoke here. The finished note has it."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\"                 You've exceeded your API rate limit or quota.                                  To fix this:                 1. Wait a few minutes and try again                 2. Check your API provider's usage limits                 3. Consider upgrading your API plan                                  The transcription was saved without enhancement.                 \"\""
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\"                 Your API key appears to be invalid or expired.                                  To fix this:                 1. Open Settings → AI Enhancement                 2. Verify your API key is correct                 3. Check that your API endpoint is correct                                  The transcription was saved without enhancement.                 \"\""

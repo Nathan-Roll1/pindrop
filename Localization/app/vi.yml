@@ -5,6 +5,7 @@
 1:
   folder: "1 thư mục"
   note: "1 ghi chú"
+  said_2: "%1$@ đã nói: %2$@"
   speaker: "1 người nói"
   transcription: "1 bản phiên âm"
   word: "1 từ"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Tích hợp (chỉ đọc)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Âm thanh cuộc gọi"
 cancel:
   _self: "Hủy bỏ"
   operation: "Hủy thao tác"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop đã sẵn sàng để sử dụng.
     Nhấp vào biểu tượng thanh menu để bắt đầu.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop đã sẵn sàng để sử dụng.nNhấp vào biểu tượng thanh menu để bắt đầu."
+  is_transcribing_only_your_microphone_the: "Pindrop chỉ chép lời micrô của bạn. Âm thanh cuộc gọi nằm trong ghi chú hoàn chỉnh."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop cần một số quyền để hoạt động. Quyền riêng tư của bạn luôn được tôn trọng."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop cần một số quyền để hoạt động.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Các mô hình nhỏ hơn thì nhanh hơn nhưng kém chính xác hơn.
     Bắt đầu với Base để có sự cân bằng tốt nhất.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Có người khác đã nói ở đây. Ghi chú hoàn chỉnh có phần này."
 something:
   went_wrong: "Đã xảy ra lỗi"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Bạn có thể thay đổi những điều này bất cứ lúc nào từ thanh menu → Cài đặt → Phím nóng"
   re_all_set: "Bạn đã hoàn tất!"
   re_all_set_058a8130: "Bạn đã hoàn tất!"
+  spoke_here_the_finished_note_has_it: "Bạn đã nói ở đây. Ghi chú hoàn chỉnh có phần này."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Bạn đã vượt quá giới hạn hoặc hạn ngạch tốc độ API của mình.                                  Để khắc phục điều này: 1. Đợi vài phút và thử lại 2. Kiểm tra giới hạn sử dụng của nhà cung cấp API của bạn 3. Cân nhắc nâng cấp gói API của bạn Bản ghi đã được lưu mà không cần cải tiến.                 \"\""
   re_in_control: "Bạn nắm quyền kiểm soát"
   deleted_this_transcript: "Bạn đã xóa bản chép lời này."

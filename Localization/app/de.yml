@@ -5,6 +5,7 @@
 1:
   folder: "1 Ordner"
   note: "1 Notiz"
+  said_2: "%1$@ sagte: %2$@"
   speaker: "1 Sprecher"
   transcription: "1 Transkription"
   word: "1 Wort"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Eingebaut (nur lesen)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Anruf-Audio"
 cancel:
   _self: "Abbrechen"
   operation: "Operation abbrechen"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop ist bereit zur Verwendung.
     Klicken Sie auf das Menüleisten-Symbol, um zu beginnen.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop ist bereit zur Verwendung.nKlicken Sie auf das Menüleisten-Symbol, um zu beginnen."
+  is_transcribing_only_your_microphone_the: "Pindrop transkribiert nur Ihr Mikrofon. Das Anruf-Audio steht in der fertigen Notiz."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop benötigt einige Berechtigungen, um zu funktionieren.nIhre Privatsphäre wird immer respektiert."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop benötigt einige Berechtigungen, um zu funktionieren.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Kleinere Modelle sind schneller aber weniger genau.
     Starten Sie mit Base für die beste Balance.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Hier hat jemand anderes gesprochen. Die fertige Notiz enthält es."
 something:
   went_wrong: "Etwas ist schief gelaufen"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Sie können diese jederzeit über die Menüleiste → Einstellungen → Tastenkürzel ändern"
   re_all_set: "Alles bereit!"
   re_all_set_058a8130: "Alles bereit!"
+  spoke_here_the_finished_note_has_it: "Hier haben Sie gesprochen. Die fertige Notiz enthält es."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\"                 Sie haben Ihr API-Ratenlimit oder Kontingent überschritten.                                  So beheben Sie das:                 1. Warten Sie einige Minuten und versuchen Sie es erneut                 2. Prüfen Sie die Nutzungslimits Ihres API-Anbieters                 3. Erwägen Sie ein Upgrade Ihres API-Plans                                  Die Transkription wurde ohne Verbesserung gespeichert.                 \"\""
   re_in_control: "Du hast die Kontrolle"
   deleted_this_transcript: "Sie haben dieses Transkript gelöscht."

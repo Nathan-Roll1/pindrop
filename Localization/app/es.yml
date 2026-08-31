@@ -5,6 +5,7 @@
 1:
   folder: "1 carpeta"
   note: "1 nota"
+  said_2: "%1$@ dijo: %2$@"
   speaker: "1 interlocutor"
   transcription: "1 transcripción"
   word: "1 palabra"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Integrado (solo lectura)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Audio de la llamada"
 cancel:
   _self: "Cancelar"
   operation: "Cancelar operación"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop está listo para usar.
     Haz clic en el icono de la barra de menús para empezar.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop is ready to use.nClick the menu bar icon to get started."
+  is_transcribing_only_your_microphone_the: "Pindrop solo transcribe tu micrófono. El audio de la llamada está en la nota final."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop needs a few permissions to work.nYour privacy is always respected."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop necesita algunos permisos para funcionar.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Los modelos más pequeños son más rápidos pero menos precisos.
     Empieza con Base para lograr el mejor equilibrio.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Aquí habló otra persona. La nota final lo incluye."
 something:
   went_wrong: "Algo salió mal"
 soon:
@@ -1648,6 +1654,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Puedes cambiar esto en cualquier momento desde la barra de menús → Ajustes → Atajos"
   re_all_set: "¡Todo listo!"
   re_all_set_058a8130: "You're all set!"
+  spoke_here_the_finished_note_has_it: "Aquí hablaste tú. La nota final lo incluye."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\"                 You've exceeded your API rate limit or quota.                                  To fix this:                 1. Wait a few minutes and try again                 2. Check your API provider's usage limits                 3. Consider upgrading your API plan                                  The transcription was saved without enhancement.                 \"\""
   re_in_control: "Tú tienes el control"
   deleted_this_transcript: "Eliminaste esta transcripción."

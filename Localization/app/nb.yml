@@ -5,6 +5,7 @@
 1:
   folder: "1 mappe"
   note: "1 notat"
+  said_2: "%1$@ sa: %2$@"
   speaker: "1 taler"
   transcription: "1 transkripsjon"
   word: "1 ord"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Innebygd (skrivebeskyttet)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Samtalelyd"
 cancel:
   _self: "Kansellere"
   operation: "Avbryt operasjon"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop er klar til bruk.
     Klikk på menylinjeikonet for å komme i gang.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop er klar til bruk.nKlikk på menylinjeikonet for å komme i gang."
+  is_transcribing_only_your_microphone_the: "Pindrop transkriberer bare mikrofonen din. Samtalelyden er med i det ferdige notatet."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop trenger noen få tillatelser for å fungere.nPersonvernet ditt blir alltid respektert."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop trenger noen få tillatelser for å fungere.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Mindre modeller er raskere, men mindre nøyaktige.
     Start med Base for best balanse.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Her snakket noen andre. Det ferdige notatet har det med."
 something:
   went_wrong: "Noe gikk galt"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Du kan endre disse når som helst fra menylinjen → Innstillinger → Hurtigtaster"
   re_all_set: "Du er klar!"
   re_all_set_058a8130: "Du er klar!"
+  spoke_here_the_finished_note_has_it: "Her snakket du. Det ferdige notatet har det med."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Du har overskredet API-hastighetsgrensen eller -kvoten.                                  For å fikse dette: 1. Vent noen minutter og prøv igjen 2. Sjekk API-leverandørens bruksgrenser 3. Vurder å oppgradere API-planen. Transkripsjonen ble lagret uten forbedring.                 \"\""
   re_in_control: "Du har kontrollen"
   deleted_this_transcript: "Du slettet dette transkriptet."

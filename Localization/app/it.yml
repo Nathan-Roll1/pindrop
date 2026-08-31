@@ -5,6 +5,7 @@
 1:
   folder: "1 cartella"
   note: "1 nota"
+  said_2: "%1$@ ha detto: %2$@"
   speaker: "1 interlocutore"
   transcription: "1 trascrizione"
   word: "1 parola"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Integrato (sola lettura)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Audio della chiamata"
 cancel:
   _self: "Cancellare"
   operation: "Annulla operazione"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop è pronto per l'uso.
     Fare clic sull'icona della barra dei menu per iniziare.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop è pronto per l'uso.nFai clic sull'icona della barra dei menu per iniziare."
+  is_transcribing_only_your_microphone_the: "Pindrop trascrive solo il tuo microfono. L'audio della chiamata è nella nota finale."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop necessita di alcune autorizzazioni per funzionare. La tua privacy è sempre rispettata."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop necessita di alcune autorizzazioni per funzionare.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     I modelli più piccoli sono più veloci ma meno precisi.
     Inizia con Base per il miglior equilibrio.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Qui ha parlato qualcun altro. La nota finale lo contiene."
 something:
   went_wrong: "Qualcosa è andato storto"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Puoi modificarli in qualsiasi momento dalla barra dei menu → Impostazioni → Tasti di scelta rapida"
   re_all_set: "Sei tutto pronto!"
   re_all_set_058a8130: "È tutto pronto!"
+  spoke_here_the_finished_note_has_it: "Qui hai parlato tu. La nota finale lo contiene."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Hai superato il limite di velocità o la quota API.                                  Per risolvere questo problema: 1. Attendi qualche minuto e riprova 2. Controlla i limiti di utilizzo del tuo provider API 3. Valuta la possibilità di aggiornare il tuo piano API La trascrizione è stata salvata senza miglioramenti.                 \"\""
   re_in_control: "Hai il controllo"
   deleted_this_transcript: "Hai eliminato questa trascrizione."

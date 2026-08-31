@@ -5,6 +5,7 @@
 1:
   folder: "1 mapp"
   note: "1 anteckning"
+  said_2: "%1$@ sa: %2$@"
   speaker: "1 talare"
   transcription: "1 transkription"
   word: "1 ord"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Inbyggd (skrivskyddad)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Samtalsljud"
 cancel:
   _self: "Avboka"
   operation: "Avbryt operation"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop är redo att användas.
     Klicka på menyradens ikon för att komma igång.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop är redo att användas.nKlicka på menyradens ikon för att komma igång."
+  is_transcribing_only_your_microphone_the: "Pindrop transkriberar bara din mikrofon. Samtalsljudet finns i den färdiga anteckningen."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop behöver några behörigheter för att fungera.nDin integritet respekteras alltid."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop behöver några behörigheter för att fungera.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Mindre modeller är snabbare men mindre exakta.
     Börja med Base för bästa balans.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Här talade någon annan. Den färdiga anteckningen har med det."
 something:
   went_wrong: "Något gick fel"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Du kan ändra dessa när som helst från menyraden → Inställningar → Snabbtangenter"
   re_all_set: "Du är klar!"
   re_all_set_058a8130: "Du är redo!"
+  spoke_here_the_finished_note_has_it: "Här talade du. Den färdiga anteckningen har med det."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Du har överskridit din API-hastighetsgräns eller -kvot.                                  För att åtgärda detta: 1. Vänta några minuter och försök igen 2. Kontrollera din API-leverantörs användningsgränser 3. Överväg att uppgradera din API-plan. Transkriptionen sparades utan förbättring.                 \"\""
   re_in_control: "Du har kontrollen"
   deleted_this_transcript: "Du raderade det här transkriptet."

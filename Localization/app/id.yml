@@ -5,6 +5,7 @@
 1:
   folder: "1 map"
   note: "1 catatan"
+  said_2: "%1$@ berkata: %2$@"
   speaker: "1 pembicara"
   transcription: "1 transkripsi"
   word: "1 kata"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Terintegrasi (hanya baca)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Audio panggilan"
 cancel:
   _self: "Membatalkan"
   operation: "Batalkan Operasi"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop siap digunakan.
     Klik ikon bilah menu untuk memulai.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop siap digunakan.nKlik ikon bilah menu untuk memulai."
+  is_transcribing_only_your_microphone_the: "Pindrop hanya mentranskripsi mikrofon Anda. Audio panggilan ada di catatan akhir."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop memerlukan beberapa izin untuk bekerja.nPrivasi Anda selalu dihormati."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop memerlukan beberapa izin agar dapat berfungsi.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Model yang lebih kecil lebih cepat namun kurang akurat.
     Mulailah dengan Base untuk keseimbangan terbaik.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Ada orang lain berbicara di sini. Catatan akhir memuatnya."
 something:
   went_wrong: "Ada yang tidak beres"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Anda dapat mengubahnya kapan saja dari bilah menu → Pengaturan → Tombol pintas"
   re_all_set: "Anda sudah siap!"
   re_all_set_058a8130: "Anda sudah siap!"
+  spoke_here_the_finished_note_has_it: "Anda berbicara di sini. Catatan akhir memuatnya."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Anda telah melampaui batas laju atau kuota API Anda.                                  Untuk memperbaikinya: 1. Tunggu beberapa menit dan coba lagi 2. Periksa batas penggunaan penyedia API Anda 3. Pertimbangkan untuk meningkatkan paket API Anda Transkripsi disimpan tanpa penyempurnaan.                 \"\""
   re_in_control: "Anda yang memegang kendali"
   deleted_this_transcript: "Anda menghapus transkrip ini."

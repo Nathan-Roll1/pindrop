@@ -5,6 +5,7 @@
 1:
   folder: "1 folder"
   note: "1 notatka"
+  said_2: "%1$@ mówi: %2$@"
   speaker: "1 mówca"
   transcription: "1 transkrypcja"
   word: "1 słowo"
@@ -163,6 +164,8 @@ built:
   in_read_only: "Wbudowane (tylko do odczytu)"
 by:
   weekday: "Według dnia tygodnia"
+call:
+  audio: "Dźwięk rozmowy"
 cancel:
   _self: "Anuluj"
   operation: "Anuluj operację"
@@ -935,6 +938,7 @@ pindrop:
   is_ready_to_use_nclick_the_menu_bar_icon: |-
     Pindrop jest gotowy do użycia.
     Kliknij ikonę na pasku menu, aby rozpocząć.
+  is_transcribing_only_your_microphone_the: "Pindrop przepisuje tylko twój mikrofon. Dźwięk rozmowy znajdzie się w gotowej notatce."
   needs_a_few_permissions_to_work_nyour_pr: |-
     Pindrop potrzebuje kilku uprawnień do działania.
     Twoja prywatność jest zawsze szanowana.
@@ -1239,6 +1243,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Mniejsze modele są szybsze, ale mniej dokładne.
     Zacznij od modelu Base, aby uzyskać najlepszą równowagę.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Tutaj była wypowiedź kogoś innego. Gotowa notatka ją zawiera."
 something:
   went_wrong: "Coś poszło nie tak"
 soon:
@@ -1728,6 +1734,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Możesz je zmienić w dowolnym momencie z paska menu → Ustawienia → Skróty klawiszowe"
   re_all_set: "Wszystko gotowe!"
   re_all_set_058a8130: "Wszystko gotowe!"
+  spoke_here_the_finished_note_has_it: "Tutaj była twoja wypowiedź. Gotowa notatka ją zawiera."
   ve_exceeded_your_api_rate_limit_or_quota_to: |-
     Przekroczono limit zapytań lub przydział API.
     

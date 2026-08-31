@@ -5,6 +5,7 @@
 1:
   folder: "1 مجلد"
   note: "ملاحظة واحدة"
+  said_2: "قال %1$@: %2$@"
   speaker: "متحدث واحد"
   transcription: "1 النسخ"
   word: "كلمة واحدة"
@@ -157,6 +158,8 @@ built:
   in_read_only: "مدمج (للقراءة فقط)"
 by:
   weekday: "By weekday"
+call:
+  audio: "صوت المكالمة"
 cancel:
   _self: "يلغي"
   operation: "إلغاء العملية"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop جاهز للاستخدام.
     انقر على أيقونة شريط القائمة للبدء.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop جاهز للاستخدام. انقر فوق رمز شريط القائمة للبدء."
+  is_transcribing_only_your_microphone_the: "ينسخ Pindrop صوت الميكروفون فقط. صوت المكالمة موجود في الملاحظة النهائية."
   needs_a_few_permissions_to_work_nyour_pr: "يحتاج Pindrop إلى بعض الأذونات للعمل. خصوصيتك تُحترم دائمًا."
   needs_a_few_permissions_to_work_your_pri: |-
     يحتاج Pindrop إلى بعض الأذونات للعمل.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     النماذج الأصغر حجمًا أسرع ولكنها أقل دقة.
     ابدأ بالقاعدة للحصول على أفضل توازن.
+someone:
+  else_spoke_here_the_finished_note_has_it: "تحدّث شخص آخر هنا. الملاحظة النهائية تتضمّن كلامه."
 something:
   went_wrong: "حدث خطأ ما"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "يمكنك تغيير هذه الإعدادات في أي وقت من شريط القائمة → الإعدادات → مفاتيح التشغيل السريع"
   re_all_set: "أنت جاهز تمامًا!"
   re_all_set_058a8130: "أنت جاهز تمامًا!"
+  spoke_here_the_finished_note_has_it: "تحدّثت هنا. الملاحظة النهائية تتضمّن كلامك."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" لقد تجاوزت حد معدل واجهة برمجة التطبيقات (API) أو حصتها.                                  لحل هذه المشكلة: 1. انتظر بضع دقائق وحاول مرة أخرى 2. تحقق من حدود استخدام موفر واجهة برمجة التطبيقات (API) 3. فكر في ترقية خطة واجهة برمجة التطبيقات (API) الخاصة بك تم حفظ النسخ بدون تحسين.                 \"\""
   re_in_control: "أنت المتحكم"
   deleted_this_transcript: "لقد حذفت هذا النص."

@@ -5,6 +5,7 @@
 1:
   folder: "1 dosar"
   note: "1 notă"
+  said_2: "%1$@ a spus: %2$@"
   speaker: "1 vorbitor"
   transcription: "1 transcriere"
   word: "1 cuvânt"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Încorporat (numai citire)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Sunetul apelului"
 cancel:
   _self: "Anula"
   operation: "Anulați operațiunea"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop este gata de utilizare.
     Faceți clic pe pictograma barei de meniu pentru a începe.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop este gata de utilizare.n Faceți clic pe pictograma barei de meniu pentru a începe."
+  is_transcribing_only_your_microphone_the: "Pindrop transcrie doar microfonul dvs. Sunetul apelului se află în notița finală."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop are nevoie de câteva permisiuni pentru a funcționa.nConfidențialitatea dvs. este întotdeauna respectată."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop are nevoie de câteva permisiuni pentru a funcționa.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Modelele mai mici sunt mai rapide, dar mai puțin precise.
     Începeți cu Base pentru cel mai bun echilibru.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Aici a vorbit altcineva. Notița finală îl conține."
 something:
   went_wrong: "Ceva a mers prost"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Le puteți modifica oricând din bara de meniu → Setări → Taste rapide"
   re_all_set: "Ești gata!"
   re_all_set_058a8130: "Sunteți gata!"
+  spoke_here_the_finished_note_has_it: "Aici ați vorbit dvs. Notița finală îl conține."
   ve_exceeded_your_api_rate_limit_or_quota_to: "„” Ați depășit limita sau cota de rată API.                                  Pentru a remedia acest lucru: 1. Așteptați câteva minute și încercați din nou 2. Verificați limitele de utilizare ale furnizorului dvs. API 3. Luați în considerare actualizarea planului API Transcrierea a fost salvată fără îmbunătățiri.                 \"\""
   re_in_control: "Tu deții controlul"
   deleted_this_transcript: "Ați șters această transcriere."

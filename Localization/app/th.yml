@@ -5,6 +5,7 @@
 1:
   folder: "1 โฟลเดอร์"
   note: "1 บันทึก"
+  said_2: "%1$@ พูดว่า: %2$@"
   speaker: "1 ผู้พูด"
   transcription: "การถอดเสียง 1 รายการ"
   word: "1 คำ"
@@ -157,6 +158,8 @@ built:
   in_read_only: "ในตัว (อ่านอย่างเดียว)"
 by:
   weekday: "By weekday"
+call:
+  audio: "เสียงการโทร"
 cancel:
   _self: "ยกเลิก"
   operation: "ยกเลิกการดำเนินการ"
@@ -922,6 +925,7 @@ pindrop:
     พินดรอปพร้อมใช้งานแล้ว
     คลิกไอคอนแถบเมนูเพื่อเริ่มต้น
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop พร้อมใช้งานแล้วคลิกไอคอนแถบเมนูเพื่อเริ่มต้น"
+  is_transcribing_only_your_microphone_the: "Pindrop ถอดเสียงเฉพาะไมโครโฟนของคุณ เสียงการโทรจะอยู่ในโน้ตฉบับสมบูรณ์"
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop ต้องการการอนุญาตเล็กน้อยในการทำงาน ความเป็นส่วนตัวของคุณได้รับการเคารพเสมอ"
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop ต้องการสิทธิ์บางอย่างในการทำงาน
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     รุ่นเล็กจะเร็วกว่าแต่แม่นยำน้อยกว่า
     เริ่มต้นด้วยฐานเพื่อความสมดุลที่ดีที่สุด
+someone:
+  else_spoke_here_the_finished_note_has_it: "มีคนอื่นพูดตรงนี้ โน้ตฉบับสมบูรณ์มีข้อความนี้"
 something:
   went_wrong: "มีบางอย่างผิดพลาด"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "คุณสามารถเปลี่ยนได้ตลอดเวลาจากแถบเมนู → การตั้งค่า → ปุ่มลัด"
   re_all_set: "คุณพร้อมแล้ว!"
   re_all_set_058a8130: "คุณพร้อมแล้ว!"
+  spoke_here_the_finished_note_has_it: "คุณพูดตรงนี้ โน้ตฉบับสมบูรณ์มีข้อความนี้"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" คุณใช้งานเกินขีดจำกัดอัตรา API หรือโควต้าของคุณ                                  วิธีแก้ไขปัญหานี้: 1. รอสักครู่แล้วลองอีกครั้ง 2. ตรวจสอบขีดจำกัดการใช้งานของผู้ให้บริการ API ของคุณ 3. พิจารณาอัปเกรดแผน API ของคุณ การถอดเสียงได้รับการบันทึกโดยไม่มีการปรับปรุง                 \"\""
   re_in_control: "คุณเป็นผู้ควบคุม"
   deleted_this_transcript: "คุณลบข้อความถอดเสียงนี้แล้ว"

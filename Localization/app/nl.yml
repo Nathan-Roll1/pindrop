@@ -5,6 +5,7 @@
 1:
   folder: "1 map"
   note: "1 notitie"
+  said_2: "%1$@ zei: %2$@"
   speaker: "1 spreker"
   transcription: "1 transcriptie"
   word: "1 woord"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Ingebouwd (alleen-lezen)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Gespreksaudio"
 cancel:
   _self: "Annuleren"
   operation: "Annuleer bewerking"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop is klaar voor gebruik.
     Klik op het menubalkpictogram om aan de slag te gaan.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop is klaar voor gebruik.nKlik op het menubalkpictogram om aan de slag te gaan."
+  is_transcribing_only_your_microphone_the: "Pindrop transcribeert alleen je microfoon. De gespreksaudio staat in de voltooide notitie."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop heeft een aantal machtigingen nodig om te kunnen werken.nUw privacy wordt altijd gerespecteerd."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop heeft een paar machtigingen nodig om te werken.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Kleinere modellen zijn sneller maar minder nauwkeurig.
     Begin met Base voor de beste balans.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Hier sprak iemand anders. De voltooide notitie bevat het."
 something:
   went_wrong: "Er is iets misgegaan"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "U kunt deze op elk gewenst moment wijzigen via de menubalk → Instellingen → Sneltoetsen"
   re_all_set: "Je bent helemaal klaar!"
   re_all_set_058a8130: "Je bent helemaal klaar!"
+  spoke_here_the_finished_note_has_it: "Hier sprak jij. De voltooide notitie bevat het."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" U heeft uw API-limiet of quotum overschreden.                                  Om dit op te lossen: 1. Wacht een paar minuten en probeer het opnieuw 2. Controleer de gebruikslimieten van uw API-provider 3. Overweeg een upgrade van uw API-abonnement De transcriptie is zonder verbeteringen opgeslagen.                 \"\""
   re_in_control: "Jij hebt de controle"
   deleted_this_transcript: "Je hebt dit transcript verwijderd."

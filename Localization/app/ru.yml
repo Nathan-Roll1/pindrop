@@ -5,6 +5,7 @@
 1:
   folder: "1 папка"
   note: "1 заметка"
+  said_2: "%1$@ говорит: %2$@"
   speaker: "1 спикер"
   transcription: "1 транскрипция"
   word: "1 слово"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Встроенный (только для чтения)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Звук звонка"
 cancel:
   _self: "Отмена"
   operation: "Отменить операцию"
@@ -922,6 +925,7 @@ pindrop:
     Пиндроп готов к использованию.
     Нажмите значок в строке меню, чтобы начать.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop готов к использованию. Чтобы начать работу, щелкните значок в строке меню."
+  is_transcribing_only_your_microphone_the: "Pindrop расшифровывает только ваш микрофон. Звук звонка попадёт в готовую заметку."
   needs_a_few_permissions_to_work_nyour_pr: "Для работы Pindrop требуется несколько разрешений. nВаша конфиденциальность всегда соблюдается."
   needs_a_few_permissions_to_work_your_pri: |-
     Для работы Pindrop требуется несколько разрешений.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Меньшие модели работают быстрее, но менее точны.
     Начните с базы для лучшего баланса.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Здесь говорил кто-то другой. В готовой заметке это есть."
 something:
   went_wrong: "Что-то пошло не так"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Вы можете изменить их в любое время в строке меню → Настройки → Горячие клавиши."
   re_all_set: "Все готово!"
   re_all_set_058a8130: "Все готово!"
+  spoke_here_the_finished_note_has_it: "Здесь говорили вы. В готовой заметке это есть."
   ve_exceeded_your_api_rate_limit_or_quota_to: "«» Вы превысили лимит скорости или квоту API.                                  Чтобы это исправить: 1. Подождите несколько минут и повторите попытку. 2. Проверьте ограничения на использование вашего провайдера API. 3. Рассмотрите возможность обновления вашего плана API. Транскрипция была сохранена без улучшений.                 \"\""
   re_in_control: "Вы всё контролируете"
   deleted_this_transcript: "Вы удалили этот транскрипт."

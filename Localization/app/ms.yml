@@ -5,6 +5,7 @@
 1:
   folder: "1 folder"
   note: "1 nota"
+  said_2: "%1$@ berkata: %2$@"
   speaker: "1 penutur"
   transcription: "1 transkripsi"
   word: "1 perkataan"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Terbina dalam (baca sahaja)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Audio panggilan"
 cancel:
   _self: "Batal"
   operation: "Batalkan Operasi"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop sedia untuk digunakan.
     Klik ikon bar menu untuk bermula.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop sedia untuk digunakan.nKlik ikon bar menu untuk bermula."
+  is_transcribing_only_your_microphone_the: "Pindrop hanya mentranskrip mikrofon anda. Audio panggilan ada dalam nota akhir."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop memerlukan beberapa kebenaran untuk berfungsi.nPrivasi anda sentiasa dihormati."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop memerlukan beberapa kebenaran untuk berfungsi.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Model yang lebih kecil lebih pantas tetapi kurang tepat.
     Mulakan dengan Base untuk keseimbangan terbaik.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Orang lain bercakap di sini. Nota akhir memuatnya."
 something:
   went_wrong: "Sesuatu telah berlaku"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Anda boleh menukarnya pada bila-bila masa dari bar menu → Tetapan → Hotkeys"
   re_all_set: "Anda Sudah Bersedia!"
   re_all_set_058a8130: "Anda sudah bersedia!"
+  spoke_here_the_finished_note_has_it: "Anda bercakap di sini. Nota akhir memuatnya."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Anda telah melebihi had kadar API atau kuota anda.                                  Untuk membetulkannya: 1. Tunggu beberapa minit dan cuba lagi 2. Semak had penggunaan penyedia API anda 3. Pertimbangkan untuk menaik taraf pelan API anda Transkripsi telah disimpan tanpa peningkatan.                 \"\""
   re_in_control: "Anda yang mengawal"
   deleted_this_transcript: "Anda memadam transkrip ini."

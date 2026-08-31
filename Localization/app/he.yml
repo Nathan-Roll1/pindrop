@@ -5,6 +5,7 @@
 1:
   folder: "תיקיה 1"
   note: "הערה אחת"
+  said_2: "%1$@ אמר: %2$@"
   speaker: "דובר אחד"
   transcription: "תמלול 1"
   word: "מילה אחת"
@@ -157,6 +158,8 @@ built:
   in_read_only: "מובנה (לקריאה בלבד)"
 by:
   weekday: "By weekday"
+call:
+  audio: "אודיו השיחה"
 cancel:
   _self: "לְבַטֵל"
   operation: "בטל פעולה"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop מוכן לשימוש.
     לחץ על סמל שורת התפריטים כדי להתחיל.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop מוכן לשימוש. nלחץ על סמל שורת התפריטים כדי להתחיל."
+  is_transcribing_only_your_microphone_the: "כרגע Pindrop מתמלל רק את המיקרופון שלכם. אודיו השיחה נמצא בפתק המוגמר."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop זקוק לכמה הרשאות כדי לעבוד. nהפרטיות שלך תמיד מכבדת."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop זקוק לכמה הרשאות כדי לעבוד.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     דגמים קטנים יותר מהירים יותר אך פחות מדויקים.
     התחל עם Base לקבלת האיזון הטוב ביותר.
+someone:
+  else_spoke_here_the_finished_note_has_it: "כאן דיבר מישהו אחר. הפתק המוגמר כולל את זה."
 something:
   went_wrong: "משהו השתבש"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "אתה יכול לשנות אותם בכל עת משורת התפריטים ← הגדרות ← מקשי קיצור"
   re_all_set: "אתה מוכן!"
   re_all_set_058a8130: "אתה מוכן!"
+  spoke_here_the_finished_note_has_it: "כאן דיברתם. הפתק המוגמר כולל את זה."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" חרגת ממגבלת התעריף או ממכסת ה-API שלך.                                  כדי לתקן זאת: 1. המתן מספר דקות ונסה שוב 2. בדוק את מגבלות השימוש של ספק ה-API שלך 3. שקול לשדרג את תוכנית ה-API שלך התמלול נשמר ללא שיפור.                 \"\""
   re_in_control: "השליטה בידיים שלך"
   deleted_this_transcript: "מחקתם את התמליל הזה."

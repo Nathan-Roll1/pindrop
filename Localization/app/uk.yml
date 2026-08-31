@@ -5,6 +5,7 @@
 1:
   folder: "1 папка"
   note: "1 нотатка"
+  said_2: "%1$@ каже: %2$@"
   speaker: "1 спікер"
   transcription: "1 транскрипція"
   word: "1 слово"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Вбудований (лише читання)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Звук дзвінка"
 cancel:
   _self: "Скасувати"
   operation: "Скасувати операцію"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop готовий до використання.
     Щоб розпочати, натисніть значок панелі меню.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop готовий до використання.nНатисніть піктограму панелі меню, щоб розпочати."
+  is_transcribing_only_your_microphone_the: "Pindrop розшифровує лише ваш мікрофон. Звук дзвінка буде в готовій нотатці."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop потребує кількох дозволів для роботи.nВаша конфіденційність завжди поважається."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop потребує кількох дозволів для роботи.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Менші моделі швидші, але менш точні.
     Почніть з Base для найкращого балансу.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Тут говорив хтось інший. У готовій нотатці це є."
 something:
   went_wrong: "Щось пішло не так"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Ви можете будь-коли змінити їх у рядку меню → Налаштування → Гарячі клавіші"
   re_all_set: "Усе готово!"
   re_all_set_058a8130: "Усе готово!"
+  spoke_here_the_finished_note_has_it: "Тут говорили ви. У готовій нотатці це є."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" Ви перевищили ліміт або квоту швидкості API.                                  Щоб виправити це: 1. Зачекайте кілька хвилин і повторіть спробу 2. Перевірте обмеження на використання вашого постачальника API 3. Розгляньте можливість оновлення вашого плану API. Транскрипцію збережено без покращення.                 \"\""
   re_in_control: "Ви все контролюєте"
   deleted_this_transcript: "Ви видалили цей транскрипт."

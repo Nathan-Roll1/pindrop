@@ -5,6 +5,7 @@
 1:
   folder: "1 mappe"
   note: "1 note"
+  said_2: "%1$@ sagde: %2$@"
   speaker: "1 taler"
   transcription: "1 transskription"
   word: "1 ord"
@@ -157,6 +158,8 @@ built:
   in_read_only: "Indbygget (skrivebeskyttet)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Opkaldslyd"
 cancel:
   _self: "Ophæve"
   operation: "Annuller handling"
@@ -922,6 +925,7 @@ pindrop:
     Pindrop er klar til brug.
     Klik på menulinjeikonet for at komme i gang.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop er klar til brug.nKlik på menulinjeikonet for at komme i gang."
+  is_transcribing_only_your_microphone_the: "Pindrop transskriberer kun din mikrofon. Opkaldslyden er med i den færdige note."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop har brug for et par tilladelser for at fungere.nDit privatliv respekteres altid."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop har brug for et par tilladelser for at fungere.
@@ -1190,6 +1194,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Mindre modeller er hurtigere, men mindre præcise.
     Start med Base for den bedste balance.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Her talte en anden. Den færdige note har det med."
 something:
   went_wrong: "Noget gik galt"
 soon:
@@ -1649,6 +1655,7 @@ you:
   can_change_these_anytime_from_the_menu_bar_s: "Du kan til enhver tid ændre disse fra menulinjen → Indstillinger → Genvejstaster"
   re_all_set: "Du er klar!"
   re_all_set_058a8130: "Du er klar!"
+  spoke_here_the_finished_note_has_it: "Her talte du. Den færdige note har det med."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\\\"\\\" Du har overskredet din API-hastighedsgrænse eller -kvote.                                  Sådan rettes dette: 1. Vent et par minutter, og prøv igen 2. Tjek din API-udbyders brugsgrænser 3. Overvej at opgradere din API-plan. Transskriptionen blev gemt uden forbedring.                 \\\"\\\""
   re_in_control: "Du har kontrollen"
   deleted_this_transcript: "Du slettede denne udskrift."
