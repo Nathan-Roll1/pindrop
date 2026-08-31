@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "Lyssnar…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Live-namn täcker upp till fyra röster. Pindrop kontrollerar varje talare igen när inspelningen slutar."
+  names_cover_up_to_four_voices: "Live-namn täcker upp till fyra röster."
   speaker_names_need_the_speaker_model_downlo: "Live-talarnamn kräver talarmodellen. Ladda ner den för att namnge personer redan under inspelningen."
   speaker_names_paused: "Live-talarnamn pausade."
   streaming_refinement: "Förfining av livestreaming"

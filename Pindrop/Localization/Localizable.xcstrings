@@ -91778,194 +91778,194 @@
         }
       }
     },
-    "live_names_cover_up_to_four_voices_pindrop_check": {
-      "comment": "Live names cover up to four voices. Pindrop checks every speaker again when the recording ends.",
+    "live_names_cover_up_to_four_voices": {
+      "comment": "Live names cover up to four voices.",
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "تغطي الأسماء المباشرة حتى أربعة أصوات. يتحقق Pindrop من كل متحدث مرة أخرى عند انتهاء التسجيل."
+            "value": "تغطي الأسماء المباشرة حتى أربعة أصوات."
           }
         },
         "bn": {
           "stringUnit": {
             "state": "translated",
-            "value": "লাইভ নাম চারটি কণ্ঠ পর্যন্ত কাজ করে। রেকর্ডিং শেষ হলে Pindrop প্রতিটি বক্তা আবার যাচাই করে।"
+            "value": "লাইভ নাম চারটি কণ্ঠ পর্যন্ত কাজ করে।"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Živá jména pokrývají až čtyři hlasy. Po skončení nahrávání Pindrop každého mluvčího znovu ověří."
+            "value": "Živá jména pokrývají až čtyři hlasy."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Live-navne dækker op til fire stemmer. Pindrop tjekker hver taler igen, når optagelsen slutter."
+            "value": "Live-navne dækker op til fire stemmer."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Live-Namen decken bis zu vier Stimmen ab. Pindrop prüft jeden Sprecher erneut, wenn die Aufnahme endet."
+            "value": "Live-Namen decken bis zu vier Stimmen ab."
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Τα ζωντανά ονόματα καλύπτουν έως τέσσερις φωνές. Το Pindrop ελέγχει ξανά κάθε ομιλητή όταν τελειώσει η εγγραφή."
+            "value": "Τα ζωντανά ονόματα καλύπτουν έως τέσσερις φωνές."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Live names cover up to four voices. Pindrop checks every speaker again when the recording ends."
+            "value": "Live names cover up to four voices."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Los nombres en vivo cubren hasta cuatro voces. Pindrop revisa cada orador otra vez cuando termina la grabación."
+            "value": "Los nombres en vivo cubren hasta cuatro voces."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reaaliaikaiset nimet kattavat enintään neljä ääntä. Pindrop tarkistaa jokaisen puhujan uudelleen, kun tallennus päättyy."
+            "value": "Reaaliaikaiset nimet kattavat enintään neljä ääntä."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les noms en direct couvrent jusqu'à quatre voix. Pindrop revérifie chaque intervenant à la fin de l'enregistrement."
+            "value": "Les noms en direct couvrent jusqu'à quatre voix."
           }
         },
         "he": {
           "stringUnit": {
             "state": "translated",
-            "value": "השמות בזמן אמת מכסים עד ארבעה קולות. Pindrop בודק כל דובר שוב בסיום ההקלטה."
+            "value": "השמות בזמן אמת מכסים עד ארבעה קולות."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "लाइव नाम चार आवाज़ों तक काम करते हैं। रिकॉर्डिंग खत्म होने पर Pindrop हर वक्ता की फिर से जाँच करता है।"
+            "value": "लाइव नाम चार आवाज़ों तक काम करते हैं।"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Az élő nevek legfeljebb négy hangot fednek le. A Pindrop a felvétel végén minden beszélőt újra ellenőriz."
+            "value": "Az élő nevek legfeljebb négy hangot fednek le."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nama langsung mencakup sampai empat suara. Pindrop memeriksa lagi setiap pembicara saat rekaman selesai."
+            "value": "Nama langsung mencakup sampai empat suara."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "I nomi dal vivo coprono fino a quattro voci. Pindrop ricontrolla ogni parlante quando la registrazione finisce."
+            "value": "I nomi dal vivo coprono fino a quattro voci."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ライブの名前は最大 4 人分の声に対応します。録音が終わると Pindrop がすべての話者をもう一度確認します。"
+            "value": "ライブの名前は最大 4 人分の声に対応します。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "실시간 이름은 최대 네 사람의 목소리까지 지원합니다. 녹음이 끝나면 Pindrop이 모든 화자를 다시 확인합니다."
+            "value": "실시간 이름은 최대 네 사람의 목소리까지 지원합니다."
           }
         },
         "ms": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nama langsung meliputi sehingga empat suara. Pindrop menyemak semula setiap penutur apabila rakaman tamat."
+            "value": "Nama langsung meliputi sehingga empat suara."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Direkte navn dekker opptil fire stemmer. Pindrop sjekker hver taler på nytt når opptaket slutter."
+            "value": "Direkte navn dekker opptil fire stemmer."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Live namen dekken maximaal vier stemmen. Pindrop controleert elke spreker opnieuw als de opname stopt."
+            "value": "Live namen dekken maximaal vier stemmen."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Imiona na żywo obejmują do czterech głosów. Po zakończeniu nagrania Pindrop ponownie sprawdza każdego mówcę."
+            "value": "Imiona na żywo obejmują do czterech głosów."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Os nomes ao vivo cobrem até quatro vozes. O Pindrop confere cada falante de novo quando a gravação termina."
+            "value": "Os nomes ao vivo cobrem até quatro vozes."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Numele în direct acoperă până la patru voci. Pindrop verifică din nou fiecare vorbitor când se termină înregistrarea."
+            "value": "Numele în direct acoperă până la patru voci."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Живые имена охватывают до четырёх голосов. Когда запись закончится, Pindrop проверит каждого говорящего ещё раз."
+            "value": "Живые имена охватывают до четырёх голосов."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Live-namn täcker upp till fyra röster. Pindrop kontrollerar varje talare igen när inspelningen slutar."
+            "value": "Live-namn täcker upp till fyra röster."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ชื่อแบบสดรองรับได้ถึงสี่เสียง Pindrop จะตรวจผู้พูดทุกคนอีกครั้งเมื่อการบันทึกสิ้นสุด"
+            "value": "ชื่อแบบสดรองรับได้ถึงสี่เสียง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Canlı adlar en fazla dört sesi kapsar. Kayıt bitince Pindrop her konuşmacıyı yeniden denetler."
+            "value": "Canlı adlar en fazla dört sesi kapsar."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Живі імена охоплюють до чотирьох голосів. Коли запис завершиться, Pindrop перевірить кожного мовця ще раз."
+            "value": "Живі імена охоплюють до чотирьох голосів."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tên trực tiếp bao được tối đa bốn giọng. Pindrop kiểm tra lại từng người nói khi bản ghi kết thúc."
+            "value": "Tên trực tiếp bao được tối đa bốn giọng."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "实时姓名最多覆盖四个声音。录音结束后，Pindrop 会重新核对每一位说话人。"
+            "value": "实时姓名最多覆盖四个声音。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "即時名稱最多涵蓋四個聲音。錄音結束後，Pindrop 會重新核對每一位說話者。"
+            "value": "即時名稱最多涵蓋四個聲音。"
           }
         }
       }

@@ -801,7 +801,40 @@ struct NotePagePresentationTests {
             )
         )
         #expect(
-            chip == "Live names cover up to four voices. Pindrop checks every speaker again when the recording ends."
+            chip == "Live names cover up to four voices. Pindrop checks the speakers again when the recording ends."
+        )
+    }
+
+    /// Live labels are gated on their own setting, so a capture can fill all four
+    /// slots with no offline pass scheduled at all. The capability sentence is
+    /// still true there; the promise of a second pass is not.
+    @Test func theFourVoiceChipDropsTheRecheckPromiseWhenNoPassIsScheduled() {
+        #expect(
+            NotePagePresentation.liveSpeakerChip(
+                status: .running,
+                isAtSlotCapacity: true,
+                isOfflinePassScheduled: false,
+                locale: locale
+            ) == "Live names cover up to four voices."
+        )
+    }
+
+    @Test func aFailedDownloadSaysWhyOnTheBannerTheReaderPressed() {
+        #expect(
+            NotePagePresentation.liveSpeakerSetupMessage(
+                status: .modelMissing,
+                downloadFailure: "The network connection was lost.",
+                locale: locale
+            )
+                == "Live speaker names need the speaker model. Download it to name people while you record. The network connection was lost."
+        )
+        // Nothing to report is still nothing to say.
+        #expect(
+            NotePagePresentation.liveSpeakerSetupMessage(
+                status: .off,
+                downloadFailure: "The network connection was lost.",
+                locale: locale
+            ) == nil
         )
     }
 

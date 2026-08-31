@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "Lytter…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Live-navne dækker op til fire stemmer. Pindrop tjekker hver taler igen, når optagelsen slutter."
+  names_cover_up_to_four_voices: "Live-navne dækker op til fire stemmer."
   speaker_names_need_the_speaker_model_downlo: "Live-talernavne kræver talermodellen. Hent den for at give folk navne, mens du optager."
   speaker_names_paused: "Live-talernavne er sat på pause."
   streaming_refinement: "Forfining af livestreaming"

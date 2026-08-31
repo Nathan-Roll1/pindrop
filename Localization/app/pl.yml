@@ -643,7 +643,7 @@ limited:
 listening:
   _self: "Słucham…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Imiona na żywo obejmują do czterech głosów. Po zakończeniu nagrania Pindrop ponownie sprawdza każdego mówcę."
+  names_cover_up_to_four_voices: "Imiona na żywo obejmują do czterech głosów."
   speaker_names_need_the_speaker_model_downlo: "Imiona mówców na żywo wymagają modelu mówców. Pobierz go, aby nadawać imiona już podczas nagrywania."
   speaker_names_paused: "Imiona mówców na żywo wstrzymane."
   streaming_refinement: "Udoskonalenie transmisji na żywo"

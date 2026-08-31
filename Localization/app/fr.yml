@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "Écoute…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Les noms en direct couvrent jusqu'à quatre voix. Pindrop revérifie chaque intervenant à la fin de l'enregistrement."
+  names_cover_up_to_four_voices: "Les noms en direct couvrent jusqu'à quatre voix."
   speaker_names_need_the_speaker_model_downlo: "Les noms d'intervenants en direct nécessitent le modèle d'intervenants. Téléchargez-le pour nommer les personnes pendant l'enregistrement."
   speaker_names_paused: "Noms d'intervenants en direct en pause."
   streaming_refinement: "Affinement de la diffusion en direct"

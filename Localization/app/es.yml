@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "Escuchando…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Los nombres en vivo cubren hasta cuatro voces. Pindrop revisa cada orador otra vez cuando termina la grabación."
+  names_cover_up_to_four_voices: "Los nombres en vivo cubren hasta cuatro voces."
   speaker_names_need_the_speaker_model_downlo: "Los nombres de oradores en vivo necesitan el modelo de oradores. Descárgalo para nombrar a las personas mientras grabas."
   speaker_names_paused: "Nombres de oradores en vivo en pausa."
   streaming_refinement: "Refinamiento de la transmisión en vivo"

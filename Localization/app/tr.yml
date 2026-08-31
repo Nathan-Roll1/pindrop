@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "Dinleniyor…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Canlı adlar en fazla dört sesi kapsar. Kayıt bitince Pindrop her konuşmacıyı yeniden denetler."
+  names_cover_up_to_four_voices: "Canlı adlar en fazla dört sesi kapsar."
   speaker_names_need_the_speaker_model_downlo: "Canlı konuşmacı adları için konuşmacı modeli gerekir. Kayıt sırasında kişilere ad vermek için modeli indirin."
   speaker_names_paused: "Canlı konuşmacı adları duraklatıldı."
   streaming_refinement: "Canlı Yayın İyileştirmesi"

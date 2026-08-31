@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "Lytter…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Direkte navn dekker opptil fire stemmer. Pindrop sjekker hver taler på nytt når opptaket slutter."
+  names_cover_up_to_four_voices: "Direkte navn dekker opptil fire stemmer."
   speaker_names_need_the_speaker_model_downlo: "Direkte talernavn krever talermodellen. Last den ned for å gi folk navn mens du tar opp."
   speaker_names_paused: "Direkte talernavn er satt på pause."
   streaming_refinement: "Forbedring av direktestrømming"

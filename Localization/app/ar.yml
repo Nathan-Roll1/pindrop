@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "جارٍ الاستماع…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "تغطي الأسماء المباشرة حتى أربعة أصوات. يتحقق Pindrop من كل متحدث مرة أخرى عند انتهاء التسجيل."
+  names_cover_up_to_four_voices: "تغطي الأسماء المباشرة حتى أربعة أصوات."
   speaker_names_need_the_speaker_model_downlo: "تحتاج أسماء المتحدثين المباشرة إلى نموذج المتحدثين. حمّله لتسمية الأشخاص أثناء التسجيل."
   speaker_names_paused: "توقفت أسماء المتحدثين المباشرة مؤقتًا."
   streaming_refinement: "تحسين البث المباشر"

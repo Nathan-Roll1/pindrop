@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "Ακρόαση…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Τα ζωντανά ονόματα καλύπτουν έως τέσσερις φωνές. Το Pindrop ελέγχει ξανά κάθε ομιλητή όταν τελειώσει η εγγραφή."
+  names_cover_up_to_four_voices: "Τα ζωντανά ονόματα καλύπτουν έως τέσσερις φωνές."
   speaker_names_need_the_speaker_model_downlo: "Τα ζωντανά ονόματα ομιλητών χρειάζονται το μοντέλο ομιλητών. Κάντε λήψη για να ονομάζετε άτομα ενώ ηχογραφείτε."
   speaker_names_paused: "Τα ζωντανά ονόματα ομιλητών είναι σε παύση."
   streaming_refinement: "Βελτιστοποίηση ζωντανής ροής"

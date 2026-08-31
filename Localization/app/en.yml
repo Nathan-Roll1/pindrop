@@ -669,7 +669,7 @@ list:
 listening:
   _self: "Listening…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Live names cover up to four voices. Pindrop checks every speaker again when the recording ends."
+  names_cover_up_to_four_voices: "Live names cover up to four voices."
   speaker_names_need_the_speaker_model_downlo: "Live speaker names need the speaker model. Download it to name people while you record."
   speaker_names_paused: "Live speaker names paused."
   streaming_refinement: "Live Streaming Refinement"

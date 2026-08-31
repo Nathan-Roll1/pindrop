@@ -69,30 +69,74 @@ public actor LiveSpeakerEmbedder: LiveSpeakerEmbedding {
         let models: OfflineDiarizerModels
     }
 
+    /// What the bounded pass carries back. `TimedSpeakerSegment` is a FluidAudio
+    /// value type; only this actor reads one once the race resolves.
+    private struct EmbeddingPass: @unchecked Sendable {
+        let segments: [TimedSpeakerSegment]
+        let speakerDatabase: [String: [Float]]?
+    }
+
     public init(modelsDirectory: URL) {
         self.modelsDirectory = modelsDirectory
     }
 
+    /// One promotion attempt, whole, inside the budget.
+    ///
+    /// The bound covers the pass as well as the first load. The pass is the
+    /// larger half: a full offline diarization over six seconds of conference
+    /// audio, on a Neural Engine two streaming models are already using. Leaving
+    /// it unbounded is what can keep an embedder resident into finalize, which
+    /// is the contention step 6 of the stop sequence exists to prevent.
     public func embed(_ samples: [Float]) async -> [Float]? {
         guard !isUnavailable, !samples.isEmpty else { return nil }
-        guard let models = await loadedModels() else { return nil }
 
+        let deadline = Date().addingTimeInterval(Self.embedBudgetSeconds)
+        guard let models = await loadedModels(deadline: deadline) else { return nil }
+
+        let remaining = deadline.timeIntervalSinceNow
+        guard remaining > 0 else {
+            Log.transcription.info(
+                "Live speaker embedder spent its \(Self.embedBudgetSeconds)s budget loading; slots stay provisional"
+            )
+            return nil
+        }
+
+        let config: OfflineDiarizerConfig
         do {
-            var config = OfflineDiarizerConfig.default
-            config.clustering.threshold = FluidSpeakerDiarizer.offlineClusteringThreshold
+            var built = OfflineDiarizerConfig.default
+            built.clustering.threshold = FluidSpeakerDiarizer.offlineClusteringThreshold
             // One clip, one voice. The slot is the separation the streaming
             // diarizer already made; this pass only has to describe it.
-            config = config.withSpeakers(exactly: 1)
-            try config.validate()
+            built = built.withSpeakers(exactly: 1)
+            try built.validate()
+            config = built
+        } catch {
+            Log.transcription.info(
+                "Live speaker embedding failed, the slot stays provisional: \(error.localizedDescription)"
+            )
+            return nil
+        }
 
+        let carried = LoadedOfflineModels(models: models)
+        let outcome = await withWallDeadline(seconds: remaining) {
             let manager = OfflineDiarizerManager(config: config)
-            manager.initialize(models: models)
+            manager.initialize(models: carried.models)
             let result = try await manager.process(audio: samples)
-            return embedding(
+            return EmbeddingPass(
                 segments: result.segments,
                 speakerDatabase: result.speakerDatabase
             )
-        } catch {
+        }
+
+        switch outcome {
+        case .value(let pass):
+            return embedding(segments: pass.segments, speakerDatabase: pass.speakerDatabase)
+        case .timedOut:
+            Log.transcription.info(
+                "Live speaker embedding exceeded its \(Self.embedBudgetSeconds)s budget; the slot stays provisional"
+            )
+            return nil
+        case .failure(let error):
             Log.transcription.info(
                 "Live speaker embedding failed, the slot stays provisional: \(error.localizedDescription)"
             )
@@ -109,31 +153,26 @@ public actor LiveSpeakerEmbedder: LiveSpeakerEmbedding {
     /// The models, loading them at the first promotion attempt rather than at
     /// capture start: most captures never promote anything, and capture start is
     /// the worst moment to spend on a model load.
-    private func loadedModels() async -> OfflineDiarizerModels? {
+    private func loadedModels(deadline: Date) async -> OfflineDiarizerModels? {
         if let models { return models }
 
         let directory = modelsDirectory
-        let loadTask = Task.detached(priority: .utility) {
+        let outcome = await withWallDeadline(seconds: deadline.timeIntervalSinceNow) {
             LoadedOfflineModels(models: try await OfflineDiarizerModels.load(from: directory))
         }
-        let deadline = Task.detached(priority: .utility) { [budget = Self.embedBudgetSeconds] in
-            try await Task.sleep(nanoseconds: UInt64(budget * 1_000_000_000))
-            loadTask.cancel()
-        }
-        defer { deadline.cancel() }
 
-        do {
-            let loaded = try await loadTask.value
+        switch outcome {
+        case .value(let loaded):
             models = loaded.models
             return loaded.models
-        } catch is CancellationError {
+        case .timedOut:
             // Retried at the next attempt: the models may simply be slow to
             // page in, and one slow load is not a missing bundle.
             Log.transcription.info(
                 "Live speaker embedder exceeded its \(Self.embedBudgetSeconds)s budget; slots stay provisional"
             )
             return nil
-        } catch {
+        case .failure(let error):
             isUnavailable = true
             Log.transcription.info(
                 "Live speaker names need the offline speaker model: \(error.localizedDescription)"

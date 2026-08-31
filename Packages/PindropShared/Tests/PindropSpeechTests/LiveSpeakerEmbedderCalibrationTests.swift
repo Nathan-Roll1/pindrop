@@ -51,8 +51,18 @@ private enum LiveEmbedderCalibrationSupport {
 private let liveEmbedderCalibrationPrerequisitesAvailable: Bool = {
     guard ProcessInfo.processInfo.environment["PINDROP_RUN_INTEGRATION_TESTS"] == "1" else { return false }
     let root = LiveEmbedderCalibrationSupport.fixtureRoot
-    return FileManager.default.fileExists(atPath: root.appendingPathComponent("ami-en2002a-0-60.wav").path)
-        && FileManager.default.fileExists(atPath: root.appendingPathComponent("ami-en2002a-0-60.json").path)
+    guard FileManager.default.fileExists(atPath: root.appendingPathComponent("ami-en2002a-0-60.wav").path),
+          FileManager.default.fileExists(atPath: root.appendingPathComponent("ami-en2002a-0-60.json").path)
+    else {
+        return false
+    }
+    // The offline speaker bundle is part of the gate, not part of the run.
+    // Without it every embed returns nil, the distributions come back empty, and
+    // an operator who is told to read numbers off this run sees a pass and no
+    // numbers. The section 8.3 merge gate must not be satisfiable that way.
+    return ModelManager.isOfflineDiarizationModelsReady(
+        at: LiveEmbedderCalibrationSupport.modelsRoot
+    )
 }()
 
 @Suite(
@@ -146,9 +156,11 @@ struct LiveSpeakerEmbedderCalibrationTests {
             print("  suggested similarity floor: between \(crossHigh) and \(sameLow)")
         }
 
-        // The only assertion. Everything above is measurement, and a run that
-        // reports "no clips" is itself a finding about the fixture.
-        #expect(Bool(true))
+        // Everything above is measurement. The assertion is only that the run
+        // produced numbers to read: an empty run is the one outcome a merge gate
+        // must never report as a pass.
+        #expect(!sameSpeaker.isEmpty)
+        #expect(!crossSpeaker.isEmpty)
     }
 
     // MARK: - Clips

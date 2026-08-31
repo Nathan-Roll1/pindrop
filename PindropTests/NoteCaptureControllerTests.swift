@@ -1276,6 +1276,45 @@ struct NoteCaptureControllerTests {
         )
     }
 
+    /// The default configuration: live speaker names off, offline diarization on,
+    /// one saved profile. Every live turn read `You` or `Call audio`, which
+    /// claims no identity, so a name in the finished note corrects nothing the
+    /// reader was told and the line must stay away.
+    @Test func channelTurnsAreNotComparedAgainstTheOfflineNames() {
+        let segments = [
+            finalSegment(speakerId: "speaker-1", profileID: UUID(), startTime: 0, endTime: 4)
+        ]
+        let spans = [
+            liveSpan(id: 0, speaker: .systemChannel, startOffset: 0, duration: 2),
+            liveSpan(id: 1, speaker: .currentUser, startOffset: 2, duration: 2)
+        ]
+
+        #expect(
+            NoteCaptureController.liveLabelsDiffered(liveSpans: spans, finalSegments: segments) == false
+        )
+    }
+
+    /// A slot the diarizer resolved is still compared: the reader watched a name
+    /// there, and section 4.7 owes them the line when it changes.
+    @Test func aResolvedSlotIsStillComparedBesideChannelTurns() {
+        let segments = [
+            finalSegment(speakerId: "speaker-1", profileID: UUID(), startTime: 0, endTime: 4)
+        ]
+        let spans = [
+            liveSpan(id: 0, speaker: .systemChannel, startOffset: 0, duration: 2),
+            liveSpan(
+                id: 1,
+                speaker: namedSlot(1, profileID: UUID(), displayName: "Dana"),
+                startOffset: 2,
+                duration: 2
+            )
+        ]
+
+        #expect(
+            NoteCaptureController.liveLabelsDiffered(liveSpans: spans, finalSegments: segments)
+        )
+    }
+
     // MARK: - Helpers
 
     private func makeSpoolPlan(

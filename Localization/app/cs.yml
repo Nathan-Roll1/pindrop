@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "Poslouchám…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Živá jména pokrývají až čtyři hlasy. Po skončení nahrávání Pindrop každého mluvčího znovu ověří."
+  names_cover_up_to_four_voices: "Živá jména pokrývají až čtyři hlasy."
   speaker_names_need_the_speaker_model_downlo: "Živá jména mluvčích potřebují model mluvčích. Stáhněte ho, ať můžete lidi pojmenovat už při nahrávání."
   speaker_names_paused: "Živá jména mluvčích jsou pozastavena."
   streaming_refinement: "Upřesnění živého vysílání"

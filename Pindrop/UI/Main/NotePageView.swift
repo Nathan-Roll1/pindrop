@@ -244,6 +244,12 @@ struct NotePageView: View {
         return noteCaptureState.liveSpeakerLabelStatus
     }
 
+    /// Why the last download from this page's setup banner failed, if it did.
+    private var liveSpeakerDownloadFailure: String? {
+        guard capturePhase.isRecording, let noteCaptureState else { return nil }
+        return noteCaptureState.liveSpeakerDownloadFailure
+    }
+
     /// True once the running capture has heard something. Reading the live text
     /// here costs this page one invalidation per committed sentence, which is
     /// what it takes to offer the Transcript view during the recording.
@@ -1026,6 +1032,7 @@ struct NotePageView: View {
 
         if let message = NotePagePresentation.liveSpeakerSetupMessage(
             status: liveSpeakerLabelStatus,
+            downloadFailure: liveSpeakerDownloadFailure,
             locale: locale
         ) {
             // The component the Library and the Dictate page already use, not a

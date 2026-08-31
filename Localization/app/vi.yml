@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "Đang nghe…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Tên trực tiếp bao được tối đa bốn giọng. Pindrop kiểm tra lại từng người nói khi bản ghi kết thúc."
+  names_cover_up_to_four_voices: "Tên trực tiếp bao được tối đa bốn giọng."
   speaker_names_need_the_speaker_model_downlo: "Tên người nói trực tiếp cần mô hình người nói. Hãy tải mô hình về để đặt tên cho mọi người ngay khi đang ghi."
   speaker_names_paused: "Đã tạm dừng tên người nói trực tiếp."
   streaming_refinement: "Tinh chỉnh phát trực tiếp"

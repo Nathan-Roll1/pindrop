@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "กำลังฟัง…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "ชื่อแบบสดรองรับได้ถึงสี่เสียง Pindrop จะตรวจผู้พูดทุกคนอีกครั้งเมื่อการบันทึกสิ้นสุด"
+  names_cover_up_to_four_voices: "ชื่อแบบสดรองรับได้ถึงสี่เสียง"
   speaker_names_need_the_speaker_model_downlo: "ชื่อผู้พูดแบบสดต้องใช้โมเดลผู้พูด ดาวน์โหลดเพื่อตั้งชื่อผู้คนขณะบันทึกเสียง"
   speaker_names_paused: "หยุดชื่อผู้พูดแบบสดชั่วคราว"
   streaming_refinement: "การปรับแต่งการสตรีมสด"

@@ -1301,6 +1301,16 @@ public final class ModelManager {
 
     /// Reusable complete-asset check used by refresh, download completion, and preflight.
     public func isOfflineDiarizationModelsReady(at modelsRoot: URL) -> Bool {
+        Self.isOfflineDiarizationModelsReady(at: modelsRoot, fileManager: fileManager)
+    }
+
+    /// Nonisolated so a gated test can decide whether the bundle this needs is on
+    /// disk without standing up a manager. One copy of the rule, so a gate and a
+    /// download can never disagree about what "ready" means.
+    public nonisolated static func isOfflineDiarizationModelsReady(
+        at modelsRoot: URL,
+        fileManager: FileManager = .default
+    ) -> Bool {
         let coremlFolder = modelsRoot
             .appendingPathComponent(FeatureModelType.diarization.repoFolderName, isDirectory: true)
 

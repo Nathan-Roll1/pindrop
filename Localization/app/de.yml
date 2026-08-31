@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "Höre zu…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Live-Namen decken bis zu vier Stimmen ab. Pindrop prüft jeden Sprecher erneut, wenn die Aufnahme endet."
+  names_cover_up_to_four_voices: "Live-Namen decken bis zu vier Stimmen ab."
   speaker_names_need_the_speaker_model_downlo: "Live-Sprechernamen brauchen das Sprechermodell. Laden Sie es herunter, um Personen schon während der Aufnahme zu benennen."
   speaker_names_paused: "Live-Sprechernamen pausiert."
   streaming_refinement: "Verfeinerung des Live-Streamings"

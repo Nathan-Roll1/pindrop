@@ -97,6 +97,10 @@ final class NoteCaptureState {
     /// never asked for them, which is every dictation and every note recorded
     /// from the microphone alone.
     private(set) var liveSpeakerLabelStatus: LiveSpeakerLabelStatus = .off
+    /// What the last speaker-model download attempted from the note page's setup
+    /// banner said went wrong, or nil. Not localized here: it is the model
+    /// manager's own error text.
+    private(set) var liveSpeakerDownloadFailure: String?
     /// True once every diarizer slot is in use. The live sheet states this as a
     /// capability and never as a headcount: the app has not counted the people
     /// on the call, and a confident wrong count costs more trust than silence.
@@ -155,6 +159,7 @@ final class NoteCaptureState {
         isLiveTranscriptDegraded = false
         isLiveTranscriptMicrophoneOnly = false
         liveSpeakerLabelStatus = .off
+        liveSpeakerDownloadFailure = nil
         isLiveSpeakerSlotCapacityReached = false
         isOfflineSpeakerPassScheduled = false
         enhancementFailureMessage = nil
@@ -293,12 +298,23 @@ final class NoteCaptureState {
         liveSpeakerLabelStatus = status
     }
 
+    /// Why the last speaker-model download from the note page's banner failed.
+    ///
+    /// The banner is the surface the reader pressed, so it is the surface that
+    /// owes them the reason. Without this the progress bar disappears and the
+    /// same banner comes back saying nothing new.
+    func setLiveSpeakerDownloadFailure(_ message: String?) {
+        guard liveSpeakerDownloadFailure != message else { return }
+        liveSpeakerDownloadFailure = message
+    }
+
     /// Clears a setup fault once the models behind it are on disk.
     ///
     /// The labels stay off for the rest of this capture: nothing is loaded from
     /// the capture path, and a half-written bundle is exactly what that rule
     /// exists to keep out. The banner goes because its download was taken.
     func clearLiveSpeakerSetupIssue() {
+        liveSpeakerDownloadFailure = nil
         switch liveSpeakerLabelStatus {
         case .modelMissing, .loadFailed:
             liveSpeakerLabelStatus = .off
@@ -381,6 +397,7 @@ final class NoteCaptureState {
         isLiveTranscriptDegraded = false
         isLiveTranscriptMicrophoneOnly = false
         liveSpeakerLabelStatus = .off
+        liveSpeakerDownloadFailure = nil
         isLiveSpeakerSlotCapacityReached = false
         isOfflineSpeakerPassScheduled = false
         enhancementFailureMessage = nil

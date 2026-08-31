@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "Luisteren…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Live namen dekken maximaal vier stemmen. Pindrop controleert elke spreker opnieuw als de opname stopt."
+  names_cover_up_to_four_voices: "Live namen dekken maximaal vier stemmen."
   speaker_names_need_the_speaker_model_downlo: "Live sprekersnamen hebben het sprekersmodel nodig. Download het om mensen al tijdens de opname een naam te geven."
   speaker_names_paused: "Live sprekersnamen gepauzeerd."
   streaming_refinement: "Verfijning van livestreaming"

@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "Слушаю…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Живые имена охватывают до четырёх голосов. Когда запись закончится, Pindrop проверит каждого говорящего ещё раз."
+  names_cover_up_to_four_voices: "Живые имена охватывают до четырёх голосов."
   speaker_names_need_the_speaker_model_downlo: "Для живых имён говорящих нужна модель говорящих. Скачайте её, чтобы называть людей прямо во время записи."
   speaker_names_paused: "Живые имена говорящих приостановлены."
   streaming_refinement: "Усовершенствование прямых трансляций"

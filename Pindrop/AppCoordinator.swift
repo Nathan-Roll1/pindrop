@@ -6529,6 +6529,8 @@ final class AppCoordinator {
 
         recordingState.isDiarizationModelDownloading = true
         recordingState.diarizationModelDownloadProgress = 0.0
+        // The reason for the previous attempt is not the reason for this one.
+        noteCaptureState.setLiveSpeakerDownloadFailure(nil)
 
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -6545,6 +6547,10 @@ final class AppCoordinator {
                 } catch {
                     self.recordingState.diarizationModelDownloadProgress = 0.0
                     self.recordingState.setSetupIssue(error.localizedDescription)
+                    // The Dictate and Library pages are not the surface the
+                    // reader pressed. The note page's banner is, so it carries
+                    // the reason too.
+                    self.noteCaptureState.setLiveSpeakerDownloadFailure(error.localizedDescription)
                     return
                 }
             }

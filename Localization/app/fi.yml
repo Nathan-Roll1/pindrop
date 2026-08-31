@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "Kuunnellaan…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Reaaliaikaiset nimet kattavat enintään neljä ääntä. Pindrop tarkistaa jokaisen puhujan uudelleen, kun tallennus päättyy."
+  names_cover_up_to_four_voices: "Reaaliaikaiset nimet kattavat enintään neljä ääntä."
   speaker_names_need_the_speaker_model_downlo: "Reaaliaikaiset puhujanimet tarvitsevat puhujamallin. Lataa se, niin voit nimetä ihmiset jo tallennuksen aikana."
   speaker_names_paused: "Reaaliaikaiset puhujanimet keskeytetty."
   streaming_refinement: "Suoratoiston tarkennus"

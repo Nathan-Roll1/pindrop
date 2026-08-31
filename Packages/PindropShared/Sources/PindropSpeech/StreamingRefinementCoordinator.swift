@@ -76,6 +76,14 @@ public protocol StreamingRefinementCommitObserver: AnyObject {
     ///                           .joined(separator: "\n")
     ///                      + (isParagraphOpen ? "" : "\n")
     ///
+    /// with one qualification once a retroactive speaker change has cut a
+    /// paragraph. `committedText` is never edited, so a cut is recorded as an
+    /// offset rather than written in, and the character already sitting there is
+    /// the whitespace that separated the two words. Rebuilding then re-inserts
+    /// that character instead of "\n" at each recorded cut. Every span is still
+    /// exactly a piece of `committedText`, in order, with no character added and
+    /// none dropped, which is what the durable checkpoint's prefix rule needs.
+    ///
     /// `spans` is empty for a session begun with
     /// `preservesArtifactParagraphs: false`, which is every dictation session.
     /// Dictation has one speaker and no paragraph structure to carry.
@@ -335,9 +343,11 @@ public final class StreamingRefinementCoordinator {
             // Empty EOU: clear the in-flight state without touching committedText.
             rawCumulative = ""
             committedRawLength = 0
-            // Every stamp addressed the raw stream that just restarted, so none
-            // of them can locate an offset in the new one.
-            stamps.removeAll()
+            // The stamps survive. They address `committedText`, which this
+            // branch explicitly does not touch, so a later speaker boundary can
+            // still find where in the settled text the voice changed. Clearing
+            // them would leave the next boundary with no cut to make, and the
+            // whole open paragraph would be handed to the incoming speaker.
             previousPartial = ""
             tentativeTail = ""
             await applyCurrentDisplay()
@@ -536,7 +546,9 @@ public final class StreamingRefinementCoordinator {
         }
         committedText.append("\n")
         if !spanMetadata.isEmpty {
-            spanMetadata[spanMetadata.count - 1].boundaryReason = reason
+            let closing = spanMetadata.count - 1
+            spanMetadata[closing].boundaryReason = reason
+            closeSpanDuration(at: closing)
         }
         if notifyObserver {
             notifyCommitObserverIfNeeded(reachedEngineBoundary: reason.isEngineProduced)
@@ -893,6 +905,22 @@ public final class StreamingRefinementCoordinator {
                 )
             )
         }
+    }
+
+    /// Gives a paragraph its length as it closes, from the newest fed watermark.
+    ///
+    /// A span with no length overlaps no interval, so finalize reconciliation
+    /// would find no offline segment for any turn and could never report that a
+    /// name changed. Phase 2 is where the clock arrives: the engine reports a
+    /// fed watermark with every emission, and the newest one is how far the
+    /// audio behind this paragraph reached.
+    ///
+    /// Never shortens a length already recorded: `applySplit` sets one from the
+    /// boundary's own capture time, which is the more exact of the two.
+    private func closeSpanDuration(at index: Int) {
+        guard let captureTime = latestCaptureTime else { return }
+        let measured = max(0, captureTime - spanMetadata[index].startOffset)
+        spanMetadata[index].duration = max(spanMetadata[index].duration, measured)
     }
 
     private func takeSpanID() -> Int {

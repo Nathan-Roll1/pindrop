@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "正在聆听…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "实时姓名最多覆盖四个声音。录音结束后，Pindrop 会重新核对每一位说话人。"
+  names_cover_up_to_four_voices: "实时姓名最多覆盖四个声音。"
   speaker_names_need_the_speaker_model_downlo: "实时说话人姓名需要说话人模型。下载后即可在录音时为每个人命名。"
   speaker_names_paused: "实时说话人姓名已暂停。"
   streaming_refinement: "直播优化"

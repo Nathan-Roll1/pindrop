@@ -103,6 +103,28 @@ struct StreamingRefinementCoordinatorTests {
          spans.filter(\.isText).map(\.text).joined(separator: "\n")
             + (isParagraphOpen ? "" : "\n")
       }
+
+      /// The invariant in the form that survives a retroactive speaker cut.
+      ///
+      /// A cut is recorded as an offset rather than written into
+      /// `committedText`, and the character already sitting there is the
+      /// whitespace that separated the two words. So the spans are still exactly
+      /// the pieces of the committed string, in order, one separator apart, with
+      /// no character added and none dropped.
+      func partitions(_ committedText: String, spans: [LiveTranscriptSpan]) -> Bool {
+         var remaining = Substring(committedText)
+         var isFirst = true
+         for span in spans where span.isText {
+            if !isFirst {
+               guard let separator = remaining.first, separator.isWhitespace else { return false }
+               remaining = remaining.dropFirst()
+            }
+            guard remaining.hasPrefix(span.text) else { return false }
+            remaining = remaining.dropFirst(span.text.count)
+            isFirst = false
+         }
+         return remaining.isEmpty || remaining == "\n"
+      }
    }
 
    /// A streaming-diarizer slot, the only key `relabelSpeaker` accepts.
@@ -593,6 +615,60 @@ struct StreamingRefinementCoordinatorTests {
       #expect(coord.stamps.map(\.rawOffset) == [28, 42])
       #expect(coord.stamps.map(\.captureTime) == coord.stamps.map(\.captureTime).sorted())
       #expect(coord.stamps.map(\.rawOffset) == coord.stamps.map(\.rawOffset).sorted())
+   }
+
+   @Test func anEmptyFinalKeepsTheStampsThatAddressTheSettledText() async throws {
+      let coord = makeCoordinator()
+      coord.beginSession(preservesArtifactParagraphs: true, initialSpeaker: .systemChannel)
+
+      await coord.ingestFinal("they said this", captureTime: 4)
+      // The raw stream restarts and `committedText` is deliberately untouched.
+      // A stamp addresses `committedText`, so it still locates the offset a late
+      // speaker boundary has to cut at.
+      await coord.ingestFinal("", captureTime: 5)
+
+      #expect(coord.stamps.map(\.captureTime) == [4])
+      #expect(coord.stamps.map(\.committedLength) == [15])
+   }
+
+   @Test func aClosedSpanCarriesTheLengthTheWatermarkMeasured() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(commitObserver: observer, preservesArtifactParagraphs: true)
+
+      // An ordinary end-of-utterance, with no speaker change anywhere. Finalize
+      // reconciliation asks which offline segment overlaps a turn, and a turn of
+      // zero length overlaps nothing, so the "names were checked again" line
+      // would never appear on any capture that never split.
+      await coord.ingestFinal("first thought", captureTime: 4)
+      await coord.ingestFinal("first thought second thought", captureTime: 9)
+
+      let spans = observer.latestSpans.filter(\.isText)
+      #expect(spans.count == 2)
+      #expect(spans.first?.duration == 4)
+      #expect(spans.last?.startOffset == 0)
+      #expect(spans.last?.duration == 9)
+   }
+
+   @Test func spansStillPartitionTheCommittedTextAcrossARetroactiveSplit() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(
+         commitObserver: observer,
+         preservesArtifactParagraphs: true,
+         initialSpeaker: slotSpeaker(1)
+      )
+
+      await coord.ingestFinal("they said this", captureTime: 4)
+      await coord.ingestPartial("they said this and then the other one answered", captureTime: 8)
+      await coord.ingestFinal("they said this and then the other one answered", captureTime: 9)
+      // The cut lands on the whitespace already inside the open paragraph, so no
+      // character is added to `committedText` and none is taken away.
+      await coord.markBoundary(.speakerChange, speaker: slotSpeaker(2), atCaptureTime: 6)
+
+      let committed = try #require(observer.committedTexts.last)
+      #expect(observer.partitions(committed, spans: observer.latestSpans))
+      #expect(observer.latestSpans.filter(\.isText).count >= 2)
    }
 
    // MARK: - The dictation path is unchanged

@@ -26,8 +26,38 @@ import Testing
             captureTime += 0.256
         }
 
+        // Exactly one model step per call, never a burst: a single oversized
+        // `process()` also defeats the fall-behind rule, which compares a step's
+        // wall time against the audio that step covered.
         #expect(script.processCallCount == 2)
-        #expect(script.addAudioSampleCounts == [8192, 8192])
+        #expect(script.addAudioSampleCounts == [7680, 7680])
+    }
+
+    @Test func theFirstIngestAnchorsTheFrameClockInsteadOfPaddingTheLoad() async throws {
+        let script = FakeDiarizerScript()
+        let sut = try await makeLoadedEngine(script: script)
+        script.enqueue(update(finalized: [segment(speaker: 0, startFrame: 0, endFrame: 6)]))
+
+        // The sink is armed only once the bounded load returns, so the first
+        // buffer the engine ever sees carries a capture time seconds into the
+        // recording. Padding that with zeros would push several seconds of
+        // silence through the model in one call at every capture start.
+        await sut.ingest(silence(seconds: 0.48)[...], captureTime: 3.0)
+
+        #expect(script.addAudioSampleCounts == [7680])
+        #expect(abs(await sut.diarizerFedSeconds - 3.48) < 0.0001)
+
+        // The offset is constant for the session, so frame time still reads as
+        // capture time on the way out.
+        let drained = await sut.drainSegments()
+        let first = try #require(drained.first)
+        #expect(abs(first.startCaptureTime - 3.0) < 0.0001)
+        #expect(abs(first.endCaptureTime - 3.48) < 0.0001)
+
+        // And the ring is addressed in the same capture time the segments are.
+        let clip = await sut.clip(from: 3.0, to: 3.48)
+        #expect(clip?.count == 7_680)
+        #expect(await sut.clip(from: 0, to: 1) == nil)
     }
 
     // MARK: - Segment reporting
@@ -150,12 +180,23 @@ import Testing
         let script = FakeDiarizerScript()
         let sut = try await makeLoadedEngine(script: script)
         let gate = DispatchSemaphore(value: 0)
-        script.onProcess = { _ = gate.wait(timeout: .now() + 10) }
+        let observedQueue = LockedBox<String>()
+        script.onProcess = {
+            observedQueue.set(String(cString: __dispatch_queue_get_label(nil)))
+            _ = gate.wait(timeout: .now() + 10)
+        }
 
         let ingest = Task { await sut.ingest(silence(seconds: 0.5)[...], captureTime: 0) }
         while script.processCallCount == 0 {
             try await Task.sleep(nanoseconds: 1_000_000)
         }
+
+        // This is the assertion that distinguishes the two designs. Remove the
+        // engine's `unownedExecutor` and the synchronous CoreML call lands on a
+        // shared cooperative-pool thread, which is the starvation class fixed in
+        // 312f23a. The 50 awaits below still complete either way on a
+        // multi-core machine, so they cannot prove it on their own.
+        #expect(observedQueue.value == "com.pindrop.live-diarization")
 
         // The ASR consumer lives on its own stream and its own task. A wedged
         // diarizer holds its private queue thread, not the shared pool.
@@ -313,6 +354,21 @@ final class TestClock: @unchecked Sendable {
         lock.lock()
         value += seconds
         lock.unlock()
+    }
+}
+
+/// One value written from the diarizer's own queue and read from the test.
+final class LockedBox<Value: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Value?
+
+    var value: Value? {
+        lock.lock(); defer { lock.unlock() }
+        return stored
+    }
+
+    func set(_ value: Value) {
+        lock.lock(); stored = value; lock.unlock()
     }
 }
 

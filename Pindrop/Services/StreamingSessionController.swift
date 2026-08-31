@@ -213,7 +213,19 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         /// Uptime when the run opened. Inside a run the owner's buffers are
         /// always forwarded, so capture seconds and wall seconds advance
         /// together and the difference is how far behind the engine has fallen.
-        let wallStart: TimeInterval
+        var wallStart: TimeInterval
+
+        /// Moves the wall anchor forward past a deficit the engine has already
+        /// recovered from.
+        ///
+        /// Only `wallStart` moves. `fedStart` and `captureStart` are what map an
+        /// emission's watermark onto capture time, and moving either would shift
+        /// every later speaker boundary.
+        func discountingStaleness(_ seconds: TimeInterval) -> LiveOwnershipRun {
+            var adjusted = self
+            adjusted.wallStart += max(0, seconds)
+            return adjusted
+        }
     }
 
     /// The open ownership run, refreshed at every applied handover. Nil until the
@@ -255,9 +267,15 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     /// Decides when a slot has earned a name. Nil when this capture cannot
     /// promote anything, which leaves every slot at `Speaker N`.
     private var liveSpeakerPromoter: LiveSpeakerPromoter?
-    /// One promotion attempt at a time. Attempts are bounded but not instant,
-    /// and two drains should not queue two passes over the same slots.
-    private var isPromotionInFlight = false
+    /// The promotion attempt currently running, or nil.
+    ///
+    /// One at a time: attempts are bounded but not instant, and two drains
+    /// should not queue two passes over the same slots. Held as a task rather
+    /// than a flag so the stop sequence can wait for the CoreML pass inside it.
+    /// `LiveSpeakerEmbedder.unload()` only drops the model reference, and an
+    /// actor is reentrant, so unloading slips in at a suspension point and
+    /// returns while the pass is still on the Neural Engine.
+    private var promotionTask: Task<Void, Never>?
     /// True once the capacity chip has been asked for. Slots never close, so the
     /// fact is reported once rather than on every drain that follows it.
     private var didReportSlotCapacity = false
@@ -1313,9 +1331,18 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     /// A promotion repoints the whole slot at once, so a reader sees one
     /// consistent transcript rather than a name that starts partway down.
     private func attemptLiveSpeakerPromotions() async {
-        guard let promoter = liveSpeakerPromoter, !isPromotionInFlight else { return }
-        isPromotionInFlight = true
-        defer { isPromotionInFlight = false }
+        guard liveSpeakerPromoter != nil, promotionTask == nil else { return }
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.runLiveSpeakerPromotions()
+        }
+        promotionTask = task
+        await task.value
+        if promotionTask == task { promotionTask = nil }
+    }
+
+    private func runLiveSpeakerPromotions() async {
+        guard let promoter = liveSpeakerPromoter else { return }
 
         for slot in liveSlotAttributor.slotsBelowNamedTier() {
             guard !isLiveDiarizationStopped else { return }
@@ -1456,7 +1483,20 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         guard let run = liveOwnershipRun else { return }
         let now = ProcessInfo.processInfo.systemUptime
         let staleness = (now - run.wallStart) - (captureTime - run.captureStart)
-        guard partialLatencyMonitor.record(staleness: staleness, at: now) else { return }
+        switch partialLatencyMonitor.record(staleness: staleness, at: now) {
+        case .measuring, .overBudget:
+            return
+        case .healthy:
+            // The engine is keeping up now. Audio it never received (a buffer
+            // the newest-wins stream dropped, the seconds a pending handover
+            // feeds nothing) subtracts from this measure for good, so without
+            // this the kill switch would fire on a deficit the transcript
+            // recovered from a minute ago.
+            liveOwnershipRun = run.discountingStaleness(staleness)
+            return
+        case .limitReached:
+            break
+        }
         Log.transcription.error(
             """
             Live speaker labels paused: partial arrival latency stayed over \
@@ -1483,11 +1523,16 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         liveSpeakerPromoter = nil
         let embedder = liveSpeakerEmbedder
         liveSpeakerEmbedder = nil
+        let promotion = promotionTask
+        promotionTask = nil
         guard engine != nil || embedder != nil else { return }
         // Lifecycle teardown, detached so a stop never waits on a model release.
-        // The embedder goes first, as it does in the ordered stop sequence.
+        // The embedder goes first, as it does in the ordered stop sequence, and
+        // an in-flight promotion is waited out first: releasing the models while
+        // its pass is still running frees nothing.
         Task.detached(priority: .utility) {
             await consumerTask?.value
+            await promotion?.value
             await embedder?.unload()
             await engine?.unload()
         }
@@ -1575,9 +1620,13 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         // 2. Finish the diarizer's stream and wait for its consumer to exit.
         diarizationStreamContinuation?.finish()
         diarizationStreamContinuation = nil
-        let loadTask = liveDiarizationLoadTask
+        // Cancelled, never awaited. A first-run CoreML compile can outlast the
+        // 3 s bound by a wide margin, and waiting for it here would hold the
+        // note at "finalizing" for the remainder with nothing progressing. The
+        // load task's own `isLiveDiarizationStopped` guard, which step 1 above
+        // already set, unloads whatever it ends up with.
+        liveDiarizationLoadTask?.cancel()
         liveDiarizationLoadTask = nil
-        await loadTask?.value
         let diarizationConsumer = diarizationConsumerTask
         diarizationConsumerTask = nil
         await diarizationConsumer?.value
@@ -1600,7 +1649,13 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         // 6. Release the profile embedder. This is a stated precondition of the
         //    offline pass, not a best effort: its models and the offline pass's
         //    are the same bundle, and two resident copies contend for the Neural
-        //    Engine at exactly the finalize moment.
+        //    Engine at exactly the finalize moment. A promotion decided before
+        //    step 1 may still be inside its CoreML pass, and `unload()` would
+        //    return straight past it, so the pass is waited for and not the
+        //    release.
+        let promotion = promotionTask
+        promotionTask = nil
+        await promotion?.value
         liveSpeakerPromoter = nil
         let embedder = liveSpeakerEmbedder
         liveSpeakerEmbedder = nil
@@ -1891,29 +1946,45 @@ struct LivePartialLatencyMonitor {
     private var staleness: [TimeInterval] = []
     private var consecutiveOverBudgetWindows = 0
 
-    /// Records one arrival. True once the limit is crossed.
-    mutating func record(staleness value: TimeInterval, at wallTime: TimeInterval) -> Bool {
+    /// What one arrival did to the measurement.
+    enum Outcome: Equatable {
+        /// The window is still open, or it closed on too few partials to say
+        /// anything about a percentile.
+        case measuring
+        /// A window closed inside the budget. The caller re-anchors on this: the
+        /// staleness it reports is a cumulative deficit, so audio the pump never
+        /// fed subtracts from it for good, and a healthy window is the evidence
+        /// that the deficit is history rather than a live regression.
+        case healthy
+        case overBudget
+        case limitReached
+    }
+
+    /// Records one arrival.
+    mutating func record(staleness value: TimeInterval, at wallTime: TimeInterval) -> Outcome {
         guard let start = windowStart else {
             windowStart = wallTime
             staleness = [value]
-            return false
+            return .measuring
         }
         staleness.append(value)
-        guard wallTime - start >= Self.windowSeconds else { return false }
+        guard wallTime - start >= Self.windowSeconds else { return .measuring }
 
         let closed = staleness
         windowStart = wallTime
         staleness.removeAll(keepingCapacity: true)
 
         // Silence is not a regression: no partials arrive while nobody talks.
-        guard closed.count >= Self.minimumSamplesPerWindow,
-              Self.percentile95(of: closed) > Self.budgetSeconds
-        else {
+        guard closed.count >= Self.minimumSamplesPerWindow else {
             consecutiveOverBudgetWindows = 0
-            return false
+            return .measuring
+        }
+        guard Self.percentile95(of: closed) > Self.budgetSeconds else {
+            consecutiveOverBudgetWindows = 0
+            return .healthy
         }
         consecutiveOverBudgetWindows += 1
-        return consecutiveOverBudgetWindows >= Self.consecutiveWindowLimit
+        return consecutiveOverBudgetWindows >= Self.consecutiveWindowLimit ? .limitReached : .overBudget
     }
 
     /// Drops the open window when the ownership run it was measured against
@@ -2077,13 +2148,20 @@ final class LiveAudioPump {
         guard pendingHandover == nil else { return }
         guard admittedSource == source else { return }
 
+        // Counted before the call, not after. The engine advances its own fed
+        // watermark before it decodes, and rethrows a decode failure, so a
+        // buffer it threw on has still moved the clock the emissions report.
+        // Counting only successes here would leave this counter behind the
+        // engine's by the audio behind every failure, and `fedStart` is read
+        // from this one: every later speaker boundary would then cut that far
+        // into the outgoing speaker's words, permanently and cumulatively.
+        fedSamples += Int(buffer.frameLength)
+        let sampleRate = buffer.format.sampleRate
+        if sampleRate > 0 {
+            fedSeconds += Double(buffer.frameLength) / sampleRate
+        }
         do {
             try await engine.processAudioBuffer(buffer)
-            fedSamples += Int(buffer.frameLength)
-            let sampleRate = buffer.format.sampleRate
-            if sampleRate > 0 {
-                fedSeconds += Double(buffer.frameLength) / sampleRate
-            }
         } catch {
             Log.transcription.error("Streaming audio buffer processing failed: \(error)")
         }

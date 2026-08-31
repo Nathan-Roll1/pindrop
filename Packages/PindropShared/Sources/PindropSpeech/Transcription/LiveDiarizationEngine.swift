@@ -108,6 +108,10 @@ public actor LiveDiarizationEngine {
     /// gap is filled with exactly its own duration of zeros before the next
     /// real audio is fed (see the `ingest` contract below).
     public private(set) var diarizerFedSeconds: TimeInterval = 0
+    /// Capture time of the first sample the engine was handed. Every frame time
+    /// the model reports is relative to it, so it is added back on the way out.
+    private var frameTimeOffset: TimeInterval = 0
+    private var hasIngested = false
 
     /// True once the fall-behind rule fired. Never clears inside a capture: the
     /// consumer shows the paused chip and the labels stay frozen where they are.
@@ -240,6 +244,18 @@ public actor LiveDiarizationEngine {
     public func ingest(_ samples: ArraySlice<Float>, captureTime: TimeInterval) {
         guard let diarizer, !isPaused else { return }
 
+        // The engine's clock starts at the first audio it is handed, not at the
+        // capture's first buffer. The sink is only armed once the model load
+        // returns, so anchoring at zero would make every capture open by
+        // padding the whole load duration with zeros and pushing all of it
+        // through the model in one call. The offset is constant for the
+        // session, so frame time still equals capture time.
+        if !hasIngested {
+            hasIngested = true
+            frameTimeOffset = max(0, captureTime)
+            diarizerFedSeconds = frameTimeOffset
+        }
+
         let gapSamples = Int(((captureTime - diarizerFedSeconds) * Self.sampleRate).rounded())
         if gapSamples > 0 {
             ring.appendZeros(gapSamples)
@@ -251,10 +267,15 @@ public actor LiveDiarizationEngine {
         pendingSamples.append(contentsOf: samples)
         diarizerFedSeconds += Double(samples.count) / Self.sampleRate
 
-        if Double(pendingSamples.count) / Self.sampleRate >= Self.processBatchSeconds {
-            let batch = pendingSamples
-            pendingSamples.removeAll(keepingCapacity: true)
+        // One model step per batch, never a several-second burst in one call.
+        // A single oversized `process()` also defeats the fall-behind rule,
+        // which compares a step's wall time against the audio that step covered.
+        let batchSamples = Int(Self.processBatchSeconds * Self.sampleRate)
+        while pendingSamples.count >= batchSamples {
+            let batch = Array(pendingSamples.prefix(batchSamples))
+            pendingSamples.removeFirst(batchSamples)
             step(diarizer, batch: batch)
+            if isPaused { return }
         }
     }
 
@@ -268,10 +289,13 @@ public actor LiveDiarizationEngine {
     }
 
     /// Cuts a range out of the ring for profile matching. Nil when it aged out.
+    ///
+    /// The ring's first sample is the first one the engine was handed, so a
+    /// capture-time range is shifted by the same offset the segment times carry.
     public func clip(from start: TimeInterval, to end: TimeInterval) -> [Float]? {
         ring.samples(
-            fromSample: Int((start * Self.sampleRate).rounded()),
-            toSample: Int((end * Self.sampleRate).rounded())
+            fromSample: Int(((start - frameTimeOffset) * Self.sampleRate).rounded()),
+            toSample: Int(((end - frameTimeOffset) * Self.sampleRate).rounded())
         )
     }
 
@@ -357,7 +381,8 @@ public actor LiveDiarizationEngine {
         return assigned
     }
 
-    /// Frame time equals capture time because `ingest` zero fills every gap.
+    /// Frame time equals capture time because `ingest` zero fills every gap
+    /// after the first sample and offsets everything by where that sample sat.
     private func slotSegment(
         from segment: DiarizerSegment,
         slotIndex: Int,
@@ -366,8 +391,8 @@ public actor LiveDiarizationEngine {
         let frameDuration = TimeInterval(segment.frameDurationSeconds)
         return SlotSegment(
             slotIndex: slotIndex,
-            startCaptureTime: TimeInterval(segment.startFrame) * frameDuration,
-            endCaptureTime: TimeInterval(segment.endFrame) * frameDuration,
+            startCaptureTime: frameTimeOffset + TimeInterval(segment.startFrame) * frameDuration,
+            endCaptureTime: frameTimeOffset + TimeInterval(segment.endFrame) * frameDuration,
             activity: segment.activity,
             isFinalized: isFinalized
         )
@@ -399,7 +424,11 @@ public actor LiveDiarizationEngine {
     /// one that threads `computeUnits` through.
     private func loadModelsWithinBudget() async throws -> SortformerModels {
         let cacheDirectory = modelsDirectory
-        let loadTask = Task.detached(priority: .utility) {
+        // Raced, not cancelled. The CoreML load is synchronous and polls no
+        // cancellation flag, so a bound built on `cancel()` plus `await
+        // task.value` would still wait out the whole load and report success
+        // whenever it happened to finish.
+        let outcome = await withWallDeadline(seconds: Self.loadTimeoutSeconds) {
             LoadedSortformerModels(
                 models: try await SortformerModels.loadFromHuggingFace(
                     config: LiveDiarizationPreset.config,
@@ -409,20 +438,20 @@ public actor LiveDiarizationEngine {
                 )
             )
         }
-        let deadline = Task.detached(priority: .utility) { [timeout = Self.loadTimeoutSeconds] in
-            try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-            loadTask.cancel()
-        }
-        defer { deadline.cancel() }
 
-        do {
-            return try await loadTask.value.models
-        } catch is CancellationError {
+        switch outcome {
+        case .value(let loaded):
+            return loaded.models
+        case .timedOut:
+            // The abandoned load keeps running and releases its own models when
+            // it finishes. Waiting for it is what this bound exists to refuse.
             Log.transcription.error(
                 "LiveDiarization: load exceeded \(Self.loadTimeoutSeconds)s, degrading to channel labels"
             )
-            throw LiveDiarizationError.modelLoadFailed("Loading exceeded the \(Int(Self.loadTimeoutSeconds)) s bound.")
-        } catch {
+            throw LiveDiarizationError.modelLoadFailed(
+                "Loading exceeded the \(Int(Self.loadTimeoutSeconds)) s bound."
+            )
+        case .failure(let error):
             Log.transcription.error("LiveDiarization: load failed: \(error.localizedDescription)")
             throw LiveDiarizationError.modelLoadFailed(error.localizedDescription)
         }
@@ -431,6 +460,8 @@ public actor LiveDiarizationEngine {
     private func resetSessionState() {
         pendingSamples.removeAll(keepingCapacity: true)
         diarizerFedSeconds = 0
+        frameTimeOffset = 0
+        hasIngested = false
         isPaused = false
         consecutiveSlowSteps = 0
         slotForSpeaker.removeAll()
@@ -466,8 +497,16 @@ struct LiveAudioRing {
         }
     }
 
+    /// A gap longer than the window overwrites every slot, so it is filled once
+    /// and the index is advanced by the whole gap. Writing it sample by sample
+    /// would cost the gap's whole length for a window of zeros either way.
     mutating func appendZeros(_ count: Int) {
         guard count > 0 else { return }
+        guard count < capacity else {
+            for index in storage.indices { storage[index] = 0 }
+            totalSamplesWritten += count
+            return
+        }
         for _ in 0..<count {
             storage[totalSamplesWritten % capacity] = 0
             totalSamplesWritten += 1

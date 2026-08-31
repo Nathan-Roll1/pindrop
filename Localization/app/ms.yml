@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "Mendengar…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Nama langsung meliputi sehingga empat suara. Pindrop menyemak semula setiap penutur apabila rakaman tamat."
+  names_cover_up_to_four_voices: "Nama langsung meliputi sehingga empat suara."
   speaker_names_need_the_speaker_model_downlo: "Nama penutur langsung memerlukan model penutur. Muat turun model itu untuk menamakan orang semasa anda merakam."
   speaker_names_paused: "Nama penutur langsung dijeda."
   streaming_refinement: "Penapisan Penstriman Langsung"

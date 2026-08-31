@@ -2426,12 +2426,19 @@ final class NoteCaptureController {
     /// correction, and reporting it would raise the line on every capture. A
     /// name appearing, disappearing, or changing is what the reader was told
     /// and what this reports.
+    ///
+    /// Only turns the diarizer resolved are compared. A `.channel` turn read
+    /// `You` or `Call audio`, which claims no identity, and section 4.5 keeps
+    /// those labels for the life of the capture precisely because one channel
+    /// can cover several people. Comparing them would raise the line on every
+    /// meeting recorded with live speaker names off, which is the default, over
+    /// names the reader was never shown.
     static func liveLabelsDiffered(
         liveSpans: [LiveTranscriptSpan],
         finalSegments: [DiarizedTranscriptSegment]
     ) -> Bool {
         guard !finalSegments.isEmpty else { return false }
-        for span in liveSpans where span.isText {
+        for span in liveSpans where span.isText && span.speaker.tier > .channel {
             let start = span.startOffset
             let end = span.startOffset + span.duration
             let overlaps = finalSegments.map { segment -> TimeInterval in

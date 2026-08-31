@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "सुन रहा है…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "लाइव नाम चार आवाज़ों तक काम करते हैं। रिकॉर्डिंग खत्म होने पर Pindrop हर वक्ता की फिर से जाँच करता है।"
+  names_cover_up_to_four_voices: "लाइव नाम चार आवाज़ों तक काम करते हैं।"
   speaker_names_need_the_speaker_model_downlo: "लाइव वक्ता नामों के लिए वक्ता मॉडल चाहिए। रिकॉर्डिंग के दौरान लोगों को नाम देने के लिए इसे डाउनलोड करें।"
   speaker_names_paused: "लाइव वक्ता नाम रुके हुए हैं।"
   streaming_refinement: "लाइव स्ट्रीमिंग परिशोधन"

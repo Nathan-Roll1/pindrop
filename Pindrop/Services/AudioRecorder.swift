@@ -4037,11 +4037,34 @@ final class AudioRecorder {
     }
     
     var onAudioLevel: ((Float) -> Void)?
+
+    /// Guards the two live sinks below, and nothing else.
+    ///
+    /// A closure variable is a function pointer and a retained context. Writing
+    /// one from the main actor while a capture IO thread is calling it races on
+    /// that pair: the thread can retain a context the writer is releasing, which
+    /// is an over-release on a realtime thread. Live speaker labels arm and
+    /// disarm mid-capture, so "set between sessions" is not something the
+    /// callers can promise any more.
+    ///
+    /// Deliberately not `stateLock`: that one is also held from the main actor
+    /// during teardown, and a realtime thread parked behind main-actor work is a
+    /// dropout. This lock is only ever held long enough to copy a closure
+    /// reference, and never across a call or an await.
+    private let liveSinkLock = NSLock()
+    nonisolated(unsafe) private var storedOnLivePacket: ((LiveAudioPacket) -> Void)?
+    nonisolated(unsafe) private var storedOnDiarizationBuffer:
+        ((AVAudioPCMBuffer, TimeInterval) -> Void)?
+
     /// Invoked directly on the audio capture thread — the streaming pump yields the
     /// packet into an AsyncStream and must not wait for a main-thread slot (a busy
     /// render loop delays main-actor delivery until the session ends). The closure
-    /// must be thread-safe; it is set/cleared on the main actor between sessions.
-    nonisolated(unsafe) var onLivePacket: ((LiveAudioPacket) -> Void)?
+    /// must be thread-safe.
+    nonisolated var onLivePacket: ((LiveAudioPacket) -> Void)? {
+        get { liveSinkLock.withLock { storedOnLivePacket } }
+        set { liveSinkLock.withLock { storedOnLivePacket = newValue } }
+    }
+
     /// The streaming diarizer's own sink, raised for every system-audio buffer
     /// whichever channel owns the streaming engine.
     ///
@@ -4049,7 +4072,10 @@ final class AudioRecorder {
     /// is a synchronous CoreML call, and awaiting it in the ASR consumer would
     /// head-of-line block the next audio buffer by a full inference time. Same
     /// thread rules as `onLivePacket`.
-    nonisolated(unsafe) var onDiarizationBuffer: ((AVAudioPCMBuffer, TimeInterval) -> Void)?
+    nonisolated var onDiarizationBuffer: ((AVAudioPCMBuffer, TimeInterval) -> Void)? {
+        get { liveSinkLock.withLock { storedOnDiarizationBuffer } }
+        set { liveSinkLock.withLock { storedOnDiarizationBuffer = newValue } }
+    }
 
     /// Which capture channel owns the one streaming engine, for the running
     /// session. The consumer reads it to acknowledge an applied handover.
@@ -4700,7 +4726,8 @@ final class AudioRecorder {
     /// RMS, the speaker gate, and the echo correlation are computed outside every
     /// lock, and nothing on this path takes `stateLock`: that lock is also held
     /// from the main actor during teardown, and a realtime thread parked behind
-    /// main-actor work is a dropout.
+    /// main-actor work is a dropout. The two sinks are read once each through
+    /// `liveSinkLock`, which is only ever held to copy a closure reference.
     nonisolated private func emitLivePackets(
         for buffer: AVAudioPCMBuffer,
         from source: CaptureSourceKind,
@@ -4718,8 +4745,8 @@ final class AudioRecorder {
         // streaming engine. Fed only what the engine took, its speaker cache
         // would miss every voice that spoke while the microphone had the engine,
         // and its frame clock would drift away from capture time for good.
-        if source == .systemAudio {
-            onDiarizationBuffer?(buffer, captureTime)
+        if source == .systemAudio, let receive = onDiarizationBuffer {
+            receive(buffer, captureTime)
         }
         // Drained whether or not anyone is listening. The live engine takes
         // seconds to load, and a marker for speech no engine existed to hear is

@@ -1780,7 +1780,7 @@ enum LocalizationMetadata {
         "Listening — speak to append…": "u5_u7_listening_speak_to_append",
         "Listening…": "listening",
         "Live Streaming Refinement": "live_streaming_refinement",
-        "Live names cover up to four voices. Pindrop checks every speaker again when the recording ends.": "live_names_cover_up_to_four_voices_pindrop_check",
+        "Live names cover up to four voices.": "live_names_cover_up_to_four_voices",
         "Live speaker names need the speaker model. Download it to name people while you record.": "live_speaker_names_need_the_speaker_model_downlo",
         "Live speaker names paused.": "live_speaker_names_paused",
         "Live text stopped. The recording continues.": "live_text_stopped_the_recording_continues",

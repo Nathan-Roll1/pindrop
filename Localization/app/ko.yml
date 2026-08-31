@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "듣는 중…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "실시간 이름은 최대 네 사람의 목소리까지 지원합니다. 녹음이 끝나면 Pindrop이 모든 화자를 다시 확인합니다."
+  names_cover_up_to_four_voices: "실시간 이름은 최대 네 사람의 목소리까지 지원합니다."
   speaker_names_need_the_speaker_model_downlo: "실시간 화자 이름에는 화자 모델이 필요합니다. 모델을 다운로드하면 녹음하면서 이름을 지정할 수 있습니다."
   speaker_names_paused: "실시간 화자 이름이 일시 중지되었습니다."
   streaming_refinement: "라이브 스트리밍 개선"

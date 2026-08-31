@@ -104,7 +104,7 @@ struct LocalizationKeyResolutionTests {
         // Live speaker names.
         "Live speaker names need the speaker model. Download it to name people while you record.",
         "The live speaker model could not be loaded. Recording continues, and the finished note still names everyone.",
-        "Live names cover up to four voices. Pindrop checks every speaker again when the recording ends.",
+        "Live names cover up to four voices.",
         "Live speaker names paused.",
         "Pindrop checks the speakers again when the recording ends.",
         "Speaker names were checked again against the full recording.",
@@ -143,7 +143,7 @@ struct LocalizationKeyResolutionTests {
         "Pindrop is transcribing only your microphone. The call audio is in the finished note.",
         "Live speaker names need the speaker model. Download it to name people while you record.",
         "The live speaker model could not be loaded. Recording continues, and the finished note still names everyone.",
-        "Live names cover up to four voices. Pindrop checks every speaker again when the recording ends.",
+        "Live names cover up to four voices.",
         "Live speaker names paused.",
         "Pindrop checks the speakers again when the recording ends.",
         "Speaker names were checked again against the full recording.",

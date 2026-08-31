@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "מאזין…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "השמות בזמן אמת מכסים עד ארבעה קולות. Pindrop בודק כל דובר שוב בסיום ההקלטה."
+  names_cover_up_to_four_voices: "השמות בזמן אמת מכסים עד ארבעה קולות."
   speaker_names_need_the_speaker_model_downlo: "שמות דוברים בזמן אמת דורשים את מודל הדוברים. הורידו אותו כדי לתת שמות לאנשים כבר בזמן ההקלטה."
   speaker_names_paused: "שמות הדוברים בזמן אמת הושהו."
   streaming_refinement: "חידוד סטרימינג בשידור חי"

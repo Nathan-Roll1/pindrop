@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "聞き取り中…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "ライブの名前は最大 4 人分の声に対応します。録音が終わると Pindrop がすべての話者をもう一度確認します。"
+  names_cover_up_to_four_voices: "ライブの名前は最大 4 人分の声に対応します。"
   speaker_names_need_the_speaker_model_downlo: "ライブ話者名には話者モデルが必要です。ダウンロードすると、録音しながら名前を付けられます。"
   speaker_names_paused: "ライブ話者名は一時停止中です。"
   streaming_refinement: "ライブストリーミングの改良"

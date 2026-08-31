@@ -491,24 +491,33 @@ enum NotePagePresentation {
     /// Both messages say the recording is unaffected, because it is: nothing is
     /// fetched from the capture path, and the finished note still names
     /// everyone from the offline pass.
+    /// `downloadFailure` is what the last download attempt from this banner said
+    /// went wrong. Without it the reader presses `Download`, the network drops,
+    /// the progress bar disappears, and the same banner returns with no reason
+    /// and nothing to do differently.
     static func liveSpeakerSetupMessage(
         status: LiveSpeakerLabelStatus,
+        downloadFailure: String? = nil,
         locale: Locale
     ) -> String? {
+        let base: String?
         switch status {
         case .modelMissing:
-            localized(
+            base = localized(
                 "Live speaker names need the speaker model. Download it to name people while you record.",
                 locale: locale
             )
         case .loadFailed:
-            localized(
+            base = localized(
                 "The live speaker model could not be loaded. Recording continues, and the finished note still names everyone.",
                 locale: locale
             )
         case .off, .running, .paused:
-            nil
+            base = nil
         }
+        guard let base else { return nil }
+        guard let downloadFailure, !downloadFailure.isEmpty else { return base }
+        return base + " " + downloadFailure
     }
 
     /// The quiet chip the live sheet draws under the transcript, or nil.
@@ -537,8 +546,14 @@ enum NotePagePresentation {
             )
         }
         guard status == .running, isAtSlotCapacity else { return nil }
-        return localized(
-            "Live names cover up to four voices. Pindrop checks every speaker again when the recording ends.",
+        let capability = localized("Live names cover up to four voices.", locale: locale)
+        // Live labels are gated on their own setting, not on the finalize
+        // stage's, so a capture can run them with no offline pass scheduled at
+        // all. Promising a second pass there would state a fact the app can see
+        // is false.
+        guard isOfflinePassScheduled else { return capability }
+        return capability + " " + localized(
+            "Pindrop checks the speakers again when the recording ends.",
             locale: locale
         )
     }

@@ -171,6 +171,7 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		LIVEAUDIOPUMPTESTBUILD1 /* LiveAudioPumpTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVEAUDIOPUMPTESTFILE1 /* LiveAudioPumpTests.swift */; };
 		LIVEATTRTESTBUILD01 /* LiveAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVEATTRTESTFILE01 /* LiveAttributionTests.swift */; };
 		LIVEPROMOTESTBUILD01 /* LiveSpeakerPromotionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVEPROMOTESTFILE01 /* LiveSpeakerPromotionTests.swift */; };
+		LIVELATTESTBUILD01 /* LivePartialLatencyMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVELATTESTFILE01 /* LivePartialLatencyMonitorTests.swift */; };
 		WP3MDGRAMMARTESTBUILD01 /* MarkdownBlockGrammarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP3MDGRAMMARTESTFILE01A /* MarkdownBlockGrammarTests.swift */; };
 		WP3NOTEPAGEPRESTESTBUILD /* NotePagePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP3NOTEPAGEPRESTESTFILE0 /* NotePagePresentationTests.swift */; };
 		RBNOTEFABTESTBUILD000001 /* NoteFABPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = RBNOTEFABTESTFILE0000001 /* NoteFABPresentationTests.swift */; };
@@ -445,6 +446,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 		LIVEAUDIOPUMPTESTFILE1 /* LiveAudioPumpTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveAudioPumpTests.swift; sourceTree = "<group>"; };
 		LIVEATTRTESTFILE01 /* LiveAttributionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveAttributionTests.swift; sourceTree = "<group>"; };
 		LIVEPROMOTESTFILE01 /* LiveSpeakerPromotionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSpeakerPromotionTests.swift; sourceTree = "<group>"; };
+		LIVELATTESTFILE01 /* LivePartialLatencyMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePartialLatencyMonitorTests.swift; sourceTree = "<group>"; };
 		WP3MDGRAMMARTESTFILE01A /* MarkdownBlockGrammarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlockGrammarTests.swift; sourceTree = "<group>"; };
 		WP3NOTEPAGEPRESTESTFILE0 /* NotePagePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotePagePresentationTests.swift; sourceTree = "<group>"; };
 		RBNOTEFABTESTFILE0000001 /* NoteFABPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteFABPresentationTests.swift; sourceTree = "<group>"; };
@@ -884,6 +886,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				LIVEAUDIOPUMPTESTFILE1 /* LiveAudioPumpTests.swift */,
 				LIVEATTRTESTFILE01 /* LiveAttributionTests.swift */,
 				LIVEPROMOTESTFILE01 /* LiveSpeakerPromotionTests.swift */,
+				LIVELATTESTFILE01 /* LivePartialLatencyMonitorTests.swift */,
 				WP3MDGRAMMARTESTFILE01A /* MarkdownBlockGrammarTests.swift */,
 				WP3NOTEPAGEPRESTESTFILE0 /* NotePagePresentationTests.swift */,
 				RBNOTEFABTESTFILE0000001 /* NoteFABPresentationTests.swift */,
@@ -1310,6 +1313,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				LIVEAUDIOPUMPTESTBUILD1 /* LiveAudioPumpTests.swift in Sources */,
 				LIVEATTRTESTBUILD01 /* LiveAttributionTests.swift in Sources */,
 				LIVEPROMOTESTBUILD01 /* LiveSpeakerPromotionTests.swift in Sources */,
+				LIVELATTESTBUILD01 /* LivePartialLatencyMonitorTests.swift in Sources */,
 				WP3MDGRAMMARTESTBUILD01 /* MarkdownBlockGrammarTests.swift in Sources */,
 				WP3NOTEPAGEPRESTESTBUILD /* NotePagePresentationTests.swift in Sources */,
 				RBNOTEFABTESTBUILD000001 /* NoteFABPresentationTests.swift in Sources */,

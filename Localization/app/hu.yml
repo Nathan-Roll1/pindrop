@@ -634,7 +634,7 @@ limited:
 listening:
   _self: "Hallgatás…"
 live:
-  names_cover_up_to_four_voices_pindrop_check: "Az élő nevek legfeljebb négy hangot fednek le. A Pindrop a felvétel végén minden beszélőt újra ellenőriz."
+  names_cover_up_to_four_voices: "Az élő nevek legfeljebb négy hangot fednek le."
   speaker_names_need_the_speaker_model_downlo: "Az élő beszélőnevekhez kell a beszélőmodell. Töltse le, hogy már felvétel közben nevet adhasson a résztvevőknek."
   speaker_names_paused: "Az élő beszélőnevek szünetelnek."
   streaming_refinement: "Élő közvetítés finomítása"
