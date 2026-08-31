@@ -121,7 +121,7 @@ struct StreamingRefinementCoordinatorTests {
    @Test func artifactOnlySessionReportsCommittedTextWithoutOutputSink() async throws {
       let observer = FakeCommitObserver()
       let coord = makeCoordinator()
-      coord.beginSession(commitObserver: observer)
+      coord.beginSession(commitObserver: observer, preservesArtifactParagraphs: true)
 
       await coord.ingestPartial("hello")
       #expect(observer.committedTexts.isEmpty)
@@ -130,13 +130,13 @@ struct StreamingRefinementCoordinatorTests {
       let finalText = try await coord.finishSession(appendTrailingSpace: false)
 
       #expect(finalText == "Hello world")
-      #expect(observer.committedTexts == ["Hello world"])
+      #expect(observer.committedTexts == ["Hello world\n"])
    }
 
    @Test func commitObserverNeverReceivesTentativeText() async {
       let observer = FakeCommitObserver()
       let coord = makeCoordinator()
-      coord.beginSession(commitObserver: observer)
+      coord.beginSession(commitObserver: observer, preservesArtifactParagraphs: true)
 
       await coord.ingestPartial("tentative text")
       await coord.ingestPartial("tentative text that is still changing")
@@ -147,7 +147,7 @@ struct StreamingRefinementCoordinatorTests {
    @Test func commitObserverReceivesOrderedCumulativeText() async {
       let observer = FakeCommitObserver()
       let coord = makeCoordinator()
-      coord.beginSession(commitObserver: observer)
+      coord.beginSession(commitObserver: observer, preservesArtifactParagraphs: true)
 
       // LocalAgreement-2 commits "one".
       await coord.ingestPartial("one")
@@ -162,34 +162,34 @@ struct StreamingRefinementCoordinatorTests {
 
       #expect(observer.committedTexts == [
          "One",
-         "One two three four five",
-         "One two three four five six",
+         "One two three four five\n",
+         "One two three four five\nSix",
       ])
    }
 
    @Test func idleCommitReportsCumulativeCommittedText() async throws {
       let observer = FakeCommitObserver()
       let coord = makeCoordinator(idleCommitNs: 80_000_000)
-      coord.beginSession(commitObserver: observer)
+      coord.beginSession(commitObserver: observer, preservesArtifactParagraphs: true)
 
       await coord.ingestPartial("thinking about something")
       #expect(observer.committedTexts.isEmpty)
 
       try await Task.sleep(nanoseconds: 200_000_000)
 
-      #expect(observer.committedTexts == ["Thinking about something"])
+      #expect(observer.committedTexts == ["Thinking about something\n"])
    }
 
    @Test func commitObserverSuppressesDuplicateCommittedText() async {
       let observer = FakeCommitObserver()
       let coord = makeCoordinator()
-      coord.beginSession(commitObserver: observer)
+      coord.beginSession(commitObserver: observer, preservesArtifactParagraphs: true)
 
       await coord.ingestFinal("hello")
       await coord.ingestFinal("hello")
       _ = await coord.awaitFinalTextAndDrain()
 
-      #expect(observer.committedTexts == ["Hello"])
+      #expect(observer.committedTexts == ["Hello\n"])
    }
 
    @Test func commitObserverDoesNotChangeOutputSinkBehavior() async throws {
@@ -207,6 +207,59 @@ struct StreamingRefinementCoordinatorTests {
       #expect(sink.finished?.text == "Hello")
       #expect(sink.finished?.trailingSpace == true)
       #expect(observer.committedTexts == ["Hello"])
+   }
+
+   @Test func artifactFinalUtterancesBecomeParagraphsWithoutChangingFinalOutput() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(commitObserver: observer, preservesArtifactParagraphs: true)
+
+      await coord.ingestFinal("first thought")
+      await coord.ingestFinal("first thought second thought")
+      let finalText = try await coord.finishSession(appendTrailingSpace: false)
+
+      #expect(observer.committedTexts == [
+         "First thought\n",
+         "First thought\nSecond thought\n",
+      ])
+      #expect(finalText == "First thought\nSecond thought")
+   }
+
+   @Test func artifactFinalAddsABoundaryAfterAgreementAlreadyCommittedTheSentence() async {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(commitObserver: observer, preservesArtifactParagraphs: true)
+
+      await coord.ingestPartial("first thought.")
+      await coord.ingestPartial("first thought.")
+      await coord.ingestFinal("first thought.")
+
+      #expect(observer.committedTexts == ["First thought.", "First thought.\n"])
+   }
+
+   @Test func artifactIdleAddsABoundaryAfterAgreementAlreadyCommittedTheSentence() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator(idleCommitNs: 80_000_000)
+      coord.beginSession(commitObserver: observer, preservesArtifactParagraphs: true)
+
+      await coord.ingestPartial("first thought.")
+      await coord.ingestPartial("first thought.")
+      try await Task.sleep(nanoseconds: 200_000_000)
+
+      #expect(observer.committedTexts == ["First thought.", "First thought.\n"])
+   }
+
+   @Test func observerDoesNotAddParagraphsToAnOutputSession() async {
+      let sink = FakeSink()
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(outputSink: sink, commitObserver: observer)
+
+      await coord.ingestFinal("first thought")
+      await coord.ingestFinal("first thought second thought")
+
+      #expect(sink.lastUpdate == "First thought second thought")
+      #expect(observer.committedTexts == ["First thought", "First thought second thought"])
    }
 
    // MARK: - Cumulative partials drive tentative display

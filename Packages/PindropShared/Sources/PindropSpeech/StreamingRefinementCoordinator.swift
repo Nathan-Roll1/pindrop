@@ -89,6 +89,7 @@ public final class StreamingRefinementCoordinator {
 
     private weak var outputSink: StreamingRefinementOutputSink?
     private weak var commitObserver: StreamingRefinementCommitObserver?
+    private var preservesArtifactParagraphs = false
     private let cleaner: DeterministicTranscriptCleaner
     private let stopWaitNanoseconds: UInt64
     private let idleCommitNanoseconds: UInt64
@@ -162,10 +163,12 @@ public final class StreamingRefinementCoordinator {
     /// stable, cumulative committed text through `commitObserver`.
     public func beginSession(
         outputSink: StreamingRefinementOutputSink? = nil,
-        commitObserver: StreamingRefinementCommitObserver? = nil
+        commitObserver: StreamingRefinementCommitObserver? = nil,
+        preservesArtifactParagraphs: Bool = false
     ) {
         self.outputSink = outputSink
         self.commitObserver = commitObserver
+        self.preservesArtifactParagraphs = preservesArtifactParagraphs
         isSessionActive = true
         rawCumulative = ""
         previousPartial = ""
@@ -216,7 +219,11 @@ public final class StreamingRefinementCoordinator {
         }
         rawCumulative = text
         stabilityMetrics.recordPartial(text)
-        commitRawUpTo(charOffset: text.count, reason: "EOU-final")
+        commitRawUpTo(
+            charOffset: text.count,
+            reason: "EOU-final",
+            endsArtifactParagraph: true
+        )
         previousPartial = text
         await applyCurrentDisplay()
     }
@@ -314,9 +321,18 @@ public final class StreamingRefinementCoordinator {
     /// Commit raw characters from `committedRawLength..<charOffset`, running them through
     /// the deterministic cleaner with the correct utterance-start hint before appending to
     /// `committedText`. No-op if there is nothing new to commit.
-    private func commitRawUpTo(charOffset: Int, reason: String) {
+    private func commitRawUpTo(
+        charOffset: Int,
+        reason: String,
+        endsArtifactParagraph: Bool = false
+    ) {
         let clamped = min(max(charOffset, committedRawLength), rawCumulative.count)
-        guard clamped > committedRawLength else { return }
+        guard clamped > committedRawLength else {
+            if endsArtifactParagraph {
+                appendArtifactParagraphBoundaryIfNeeded()
+            }
+            return
+        }
 
         let startIndex = rawCumulative.index(
             rawCumulative.startIndex, offsetBy: committedRawLength
@@ -325,17 +341,25 @@ public final class StreamingRefinementCoordinator {
         let rawChunk = String(rawCumulative[startIndex..<endIndex])
 
         let startOfUtterance =
-            committedText.isEmpty || Self.endsWithSentenceTerminator(committedText)
-        let cleanedChunk = cleaner.clean(
+            committedText.isEmpty
+            || committedText.last?.isNewline == true
+            || Self.endsWithSentenceTerminator(committedText)
+        var cleanedChunk = cleaner.clean(
             rawChunk,
             startOfUtterance: startOfUtterance,
             priorWord: Self.lastWord(of: committedText)
         )
+        if committedText.last?.isNewline == true {
+            cleanedChunk = String(cleanedChunk.drop(while: \Character.isWhitespace))
+        }
 
         committedText = Self.appendingWithSafeBoundary(
             cleanedChunk,
             to: committedText
         )
+        if endsArtifactParagraph {
+            appendArtifactParagraphBoundaryIfNeeded(notifyObserver: false)
+        }
         committedRawLength = clamped
         notifyCommitObserverIfNeeded()
 
@@ -354,12 +378,30 @@ public final class StreamingRefinementCoordinator {
         )
         let rawTail = String(rawCumulative[startIndex...])
         let startOfUtterance =
-            committedText.isEmpty || Self.endsWithSentenceTerminator(committedText)
+            committedText.isEmpty
+            || committedText.last?.isNewline == true
+            || Self.endsWithSentenceTerminator(committedText)
         tentativeTail = cleaner.clean(
             rawTail,
             startOfUtterance: startOfUtterance,
             priorWord: Self.lastWord(of: committedText)
         )
+        if committedText.last?.isNewline == true {
+            tentativeTail = String(tentativeTail.drop(while: \Character.isWhitespace))
+        }
+    }
+
+    private func appendArtifactParagraphBoundaryIfNeeded(notifyObserver: Bool = true) {
+        guard preservesArtifactParagraphs,
+              !committedText.isEmpty,
+              committedText.last?.isNewline != true
+        else {
+            return
+        }
+        committedText.append("\n")
+        if notifyObserver {
+            notifyCommitObserverIfNeeded()
+        }
     }
 
     // MARK: - Idle commit timer
@@ -378,11 +420,19 @@ public final class StreamingRefinementCoordinator {
     private func handleIdleCommit() async {
         guard isSessionActive else { return }
         idleCommitTask = nil
-        guard committedRawLength < rawCumulative.count else { return }
+        guard committedRawLength < rawCumulative.count else {
+            appendArtifactParagraphBoundaryIfNeeded()
+            await applyCurrentDisplay()
+            return
+        }
         Log.transcription.debug(
             "StreamingRefinement: idle commit fired — committing tentative tail (\(self.rawCumulative.count - self.committedRawLength) raw chars)"
         )
-        commitRawUpTo(charOffset: rawCumulative.count, reason: "idle")
+        commitRawUpTo(
+            charOffset: rawCumulative.count,
+            reason: "idle",
+            endsArtifactParagraph: true
+        )
         await applyCurrentDisplay()
     }
 

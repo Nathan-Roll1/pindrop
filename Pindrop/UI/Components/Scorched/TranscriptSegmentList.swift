@@ -208,7 +208,8 @@ struct TranscriptLiveLine: Identifiable, Equatable, Sendable {
     let id: Int
     /// The settled words of this line. Empty when only tentative text exists.
     let text: String
-    /// The words the engine may still change. Only the newest line has one.
+    /// The words the engine may still change. Long tentative text can span
+    /// several bounded lines; none of it is presented as settled.
     let tentativeTail: String?
     /// The newest line. It reads in the primary ink; the ones above it settled.
     let isCurrent: Bool
@@ -466,20 +467,35 @@ enum TranscriptSegmentPresentation {
     static func liveLines(committed: String, tentative: String = "") -> [TranscriptLiveLine] {
         let settled = committed.trimmingCharacters(in: .whitespacesAndNewlines)
         let pending = tentative.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !settled.isEmpty || !pending.isEmpty else { return [] }
 
-        guard !settled.isEmpty else {
-            guard !pending.isEmpty else { return [] }
-            return [TranscriptLiveLine(id: 0, text: "", tentativeTail: pending, isCurrent: true)]
+        var lines = self.sentences(in: settled)
+            .flatMap(Self.boundedLiveLines)
+            .map { TranscriptLiveLine(id: 0, text: $0, tentativeTail: nil, isCurrent: false) }
+        let pendingLines = pending.isEmpty ? [] : Self.boundedLiveLines(pending)
+
+        if let firstPending = pendingLines.first, !lines.isEmpty {
+            let last = lines.removeLast()
+            lines.append(
+                TranscriptLiveLine(
+                    id: 0,
+                    text: last.text,
+                    tentativeTail: firstPending,
+                    isCurrent: false
+                )
+            )
         }
+        lines.append(contentsOf: pendingLines.dropFirst(lines.isEmpty ? 0 : 1).map {
+            TranscriptLiveLine(id: 0, text: "", tentativeTail: $0, isCurrent: false)
+        })
 
-        let sentences = self.sentences(in: settled)
-        return sentences.enumerated().map { index, sentence in
-            let isLast = index == sentences.count - 1
-            return TranscriptLiveLine(
+        guard !lines.isEmpty else { return [] }
+        return lines.enumerated().map { index, line in
+            TranscriptLiveLine(
                 id: index,
-                text: sentence,
-                tentativeTail: isLast && !pending.isEmpty ? pending : nil,
-                isCurrent: isLast
+                text: line.text,
+                tentativeTail: line.tentativeTail,
+                isCurrent: index == lines.count - 1
             )
         }
     }
@@ -534,6 +550,20 @@ enum TranscriptSegmentPresentation {
         }
         flush()
         return lines.isEmpty ? [text] : lines
+    }
+
+    /// A streaming model can emit a long stretch without punctuation. Keep that
+    /// provisional text readable until a pause or the final transcript supplies
+    /// semantic boundaries.
+    private static func boundedLiveLines(_ text: String) -> [String] {
+        let words = text.split(whereSeparator: \Character.isWhitespace)
+        let wordLimit = 24
+        guard words.count > wordLimit else { return [text] }
+
+        return stride(from: 0, to: words.count, by: wordLimit).map { start in
+            let end = min(start + wordLimit, words.count)
+            return words[start..<end].joined(separator: " ")
+        }
     }
 
     private static func isSentenceTerminator(_ character: Character) -> Bool {

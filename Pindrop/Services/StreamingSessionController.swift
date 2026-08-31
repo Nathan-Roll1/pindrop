@@ -317,7 +317,11 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
                 self?.onArtifactTentativeTextChanged?(tentative)
             }
             artifactDisplaySink = displaySink
-            coordinator.beginSession(outputSink: displaySink, commitObserver: self)
+            coordinator.beginSession(
+                outputSink: displaySink,
+                commitObserver: self,
+                preservesArtifactParagraphs: true
+            )
             refinementCoordinator = coordinator
             pumpEngine = transcriptionService.activeStreamingEngine
             attachAudioForwarding()

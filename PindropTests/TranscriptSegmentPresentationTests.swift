@@ -416,6 +416,18 @@ struct TranscriptSegmentPresentationTests {
         #expect(line.isCurrent)
     }
 
+    @Test func longTentativeTextIsBoundedWhileRemainingTentative() {
+        let words = (1...50).map { "word\($0)" }
+        let lines = TranscriptSegmentPresentation.liveLines(
+            committed: "",
+            tentative: words.joined(separator: " ")
+        )
+
+        #expect(lines.count == 3)
+        #expect(lines.allSatisfy { $0.text.isEmpty && $0.tentativeTail != nil })
+        #expect(lines.map(\.isCurrent) == [false, false, true])
+    }
+
     @Test func aCaptureThatHasHeardNothingHasNoLines() {
         #expect(TranscriptSegmentPresentation.liveLines(committed: "", tentative: "").isEmpty)
         #expect(TranscriptSegmentPresentation.liveLines(committed: "   ").isEmpty)
@@ -434,6 +446,21 @@ struct TranscriptSegmentPresentationTests {
         )
         #expect(lines.map(\.text) == ["one long thought with no full stop"])
         #expect(lines.first?.isCurrent == true)
+    }
+
+    @Test func longUnpunctuatedTextIsBoundedIntoReadableLiveLines() {
+        let words = (1...50).map { "word\($0)" }
+        let lines = TranscriptSegmentPresentation.liveLines(
+            committed: words.joined(separator: " ")
+        )
+        let expected = [
+            Array(words[0..<24]).joined(separator: " "),
+            Array(words[24..<48]).joined(separator: " "),
+            Array(words[48..<50]).joined(separator: " "),
+        ]
+
+        #expect(lines.map(\.text) == expected)
+        #expect(lines.map(\.isCurrent) == [false, false, true])
     }
 
     @Test func theCollapsedRowShowsTheNewestLineAndItsTail() {
