@@ -634,6 +634,9 @@ limited:
 listening:
   _self: "Слушаю…"
 live:
+  names_cover_up_to_four_voices_pindrop_check: "Живые имена охватывают до четырёх голосов. Когда запись закончится, Pindrop проверит каждого говорящего ещё раз."
+  speaker_names_need_the_speaker_model_downlo: "Для живых имён говорящих нужна модель говорящих. Скачайте её, чтобы называть людей прямо во время записи."
+  speaker_names_paused: "Живые имена говорящих приостановлены."
   streaming_refinement: "Усовершенствование прямых трансляций"
   text_stopped_the_recording_continues: "Живой текст остановился. Запись продолжается."
   transcript: "Живой транскрипт"
@@ -733,6 +736,7 @@ mute:
   system_audio_during_recording: "Отключение звука системы во время записи"
 name:
   _self: "Имя"
+  speakers_while_recording: "Называть говорящих во время записи"
 nemotron:
   default: "Nemotron (default)"
 new:
@@ -921,6 +925,7 @@ pin:
 pindrop:
   _self: "Pindrop"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "Когда запись закончится, Pindrop проверит говорящих ещё раз."
   help: "Справка Pindrop"
   is_ready_to_use_click_the_menu_bar_icon: |-
     Пиндроп готов к использованию.
@@ -1166,6 +1171,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Показать живой транскрипт"
   in_transcript: "Показать в транскрипте"
+  who_is_talking_in_the_live_transcript_names: "Показывает в живом транскрипте, кто говорит. Имена проверяются ещё раз, когда запись заканчивается."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Отображается как сфера из жидкого стекла в углу экрана"
   as_a_pill_at_the_bottom_of_the_screen: "Отображается в виде таблетки внизу экрана."
@@ -1218,6 +1224,7 @@ speaker:
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "К воспроизведению прикрепляются дневники докладчиков и временные метки."
   diarization_is_required: "Требуется диаризация спикеров"
+  names_were_checked_again_against_the_ful: "Имена говорящих проверены ещё раз по всей записи."
   profile_training: "Speaker profile training"
   d: "Говорящий %d"
 speakers:
@@ -1281,6 +1288,7 @@ thanks:
   to_for_the_contribution_pr_61: "Спасибо %@ за вклад (PR #61)."
 the:
   floating_indicator_is_hidden: "Плавающий индикатор скрыт."
+  live_speaker_model_could_not_be_loaded_recor: "Не удалось загрузить модель живых говорящих. Запись продолжается, и в готовой заметке всё равно будут все имена."
   model_failed_to_load_within_60_seconds_this: "\"\" Модель не удалось загрузить в течение 60 секунд. Обычно это означает, что файлы модели повреждены или несовместимы.                          Чтобы это исправить: 1. Откройте «Настройки» → «Модели». 2. Удалите проблемную модель. 3. Загрузите модель заново. Если проблема не устранена, попробуйте модель меньшего размера (Tiny или Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "Новый потоковый движок Nemotron показывает слова по мере произнесения и прогревается при запуске, чтобы первая диктовка начиналась без задержки."
   selected_chunk_variant_isn_t_downloaded_yet: "Выбранный вариант фрагмента еще не загружен. При переключении начнется загрузка."

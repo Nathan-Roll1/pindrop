@@ -634,6 +634,9 @@ limited:
 listening:
   _self: "In ascolto…"
 live:
+  names_cover_up_to_four_voices_pindrop_check: "I nomi dal vivo coprono fino a quattro voci. Pindrop ricontrolla ogni parlante quando la registrazione finisce."
+  speaker_names_need_the_speaker_model_downlo: "I nomi dei parlanti dal vivo richiedono il modello dei parlanti. Scaricalo per dare un nome alle persone mentre registri."
+  speaker_names_paused: "Nomi dei parlanti dal vivo in pausa."
   streaming_refinement: "Perfezionamento dello streaming live"
   text_stopped_the_recording_continues: "Il testo dal vivo si è fermato. La registrazione continua."
   transcript: "Trascrizione dal vivo"
@@ -733,6 +736,7 @@ mute:
   system_audio_during_recording: "Disattiva l'audio del sistema durante la registrazione"
 name:
   _self: "Nome"
+  speakers_while_recording: "Assegna un nome ai parlanti mentre registri"
 nemotron:
   default: "Nemotron (default)"
 new:
@@ -921,6 +925,7 @@ pin:
 pindrop:
   _self: "Pindrop"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "Pindrop ricontrolla i parlanti quando la registrazione finisce."
   help: "Aiuto di Pindrop"
   is_ready_to_use_click_the_menu_bar_icon: |-
     Pindrop è pronto per l'uso.
@@ -1166,6 +1171,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Mostra la trascrizione dal vivo"
   in_transcript: "Mostra nella trascrizione"
+  who_is_talking_in_the_live_transcript_names: "Mostra chi parla nella trascrizione dal vivo. I nomi vengono ricontrollati quando la registrazione finisce."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Appare come una sfera di vetro liquido nell'angolo dello schermo"
   as_a_pill_at_the_bottom_of_the_screen: "Viene visualizzato come una pillola nella parte inferiore dello schermo"
@@ -1218,6 +1224,7 @@ speaker:
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "La diarizzazione degli altoparlanti e i timestamp sono allegati alla riproduzione."
   diarization_is_required: "È richiesta la diarizzazione del relatore"
+  names_were_checked_again_against_the_ful: "I nomi dei parlanti sono stati ricontrollati sull'intera registrazione."
   profile_training: "Speaker profile training"
   d: "Parlante %d"
 speakers:
@@ -1281,6 +1288,7 @@ thanks:
   to_for_the_contribution_pr_61: "Grazie a %@ per il contributo (PR #61)."
 the:
   floating_indicator_is_hidden: "L’indicatore fluttuante è nascosto."
+  live_speaker_model_could_not_be_loaded_recor: "Non è stato possibile caricare il modello dei parlanti dal vivo. La registrazione continua e la nota finale nomina comunque tutti."
   model_failed_to_load_within_60_seconds_this: "\"\" Impossibile caricare il modello entro 60 secondi. Questo di solito significa che i file del modello sono danneggiati o incompatibili.                          Per risolvere questo problema: 1. Apri Impostazioni → Modelli 2. Elimina il modello problematico 3. Scarica nuovamente il modello Se il problema persiste, prova un modello più piccolo (Tiny o Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "Il nuovo motore di streaming Nemotron mostra le parole mentre le dici e si preriscalda all’avvio, così la tua prima dettatura parte senza ritardi."
   selected_chunk_variant_isn_t_downloaded_yet: "La variante selezionata non è ancora scaricata. Cambiare avvierà un download."

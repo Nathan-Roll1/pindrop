@@ -634,6 +634,9 @@ limited:
 listening:
   _self: "Lytter…"
 live:
+  names_cover_up_to_four_voices_pindrop_check: "Live-navne dækker op til fire stemmer. Pindrop tjekker hver taler igen, når optagelsen slutter."
+  speaker_names_need_the_speaker_model_downlo: "Live-talernavne kræver talermodellen. Hent den for at give folk navne, mens du optager."
+  speaker_names_paused: "Live-talernavne er sat på pause."
   streaming_refinement: "Forfining af livestreaming"
   text_stopped_the_recording_continues: "Liveteksten stoppede. Optagelsen fortsætter."
   transcript: "Liveudskrift"
@@ -733,6 +736,7 @@ mute:
   system_audio_during_recording: "Slå systemlyden fra under optagelse"
 name:
   _self: "Navn"
+  speakers_while_recording: "Navngiv talere under optagelsen"
 nemotron:
   default: "Nemotron (default)"
 new:
@@ -921,6 +925,7 @@ pin:
 pindrop:
   _self: "Pindrop"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "Pindrop tjekker talerne igen, når optagelsen slutter."
   help: "Pindrop-hjælp"
   is_ready_to_use_click_the_menu_bar_icon: |-
     Pindrop er klar til brug.
@@ -1166,6 +1171,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Vis liveudskriften"
   in_transcript: "Vis i udskrift"
+  who_is_talking_in_the_live_transcript_names: "Vis i liveudskriften, hvem der taler. Navnene tjekkes igen, når optagelsen slutter."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Vises som en kugle af flydende glas i hjørnet af skærmen"
   as_a_pill_at_the_bottom_of_the_screen: "Vises som en pille nederst på skærmen"
@@ -1218,6 +1224,7 @@ speaker:
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Højttalerdiarisering og tidsstempler er knyttet til afspilning."
   diarization_is_required: "Højttalerdiaarisering er påkrævet"
+  names_were_checked_again_against_the_ful: "Talernavnene er tjekket igen mod hele optagelsen."
   profile_training: "Speaker profile training"
   d: "Taler %d"
 speakers:
@@ -1281,6 +1288,7 @@ thanks:
   to_for_the_contribution_pr_61: "Tak til %@ for bidraget (PR #61)."
 the:
   floating_indicator_is_hidden: "Den flydende indikator er skjult."
+  live_speaker_model_could_not_be_loaded_recor: "Live-talermodellen kunne ikke indlæses. Optagelsen fortsætter, og den færdige note navngiver stadig alle."
   model_failed_to_load_within_60_seconds_this: "\\\"\\\" Modellen kunne ikke indlæses inden for 60 sekunder. Dette betyder normalt, at modelfilerne er beskadigede eller inkompatible.                          For at løse dette: 1. Åbn Indstillinger → Modeller 2. Slet den problematiske model 3. Download modellen igen Hvis problemet fortsætter, prøv en mindre model (Tiny eller Base).             \\\"\\\""
   new_nemotron_streaming_engine_shows_words_as: "Den nye Nemotron-streamingmotor viser ordene, mens du siger dem, og motoren forvarmes ved start, så din første diktering begynder uden forsinkelse."
   selected_chunk_variant_isn_t_downloaded_yet: "Den valgte chunk-variant er ikke downloadet endnu. Skift vil starte en download."

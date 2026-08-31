@@ -634,6 +634,9 @@ limited:
 listening:
   _self: "듣는 중…"
 live:
+  names_cover_up_to_four_voices_pindrop_check: "실시간 이름은 최대 네 사람의 목소리까지 지원합니다. 녹음이 끝나면 Pindrop이 모든 화자를 다시 확인합니다."
+  speaker_names_need_the_speaker_model_downlo: "실시간 화자 이름에는 화자 모델이 필요합니다. 모델을 다운로드하면 녹음하면서 이름을 지정할 수 있습니다."
+  speaker_names_paused: "실시간 화자 이름이 일시 중지되었습니다."
   streaming_refinement: "라이브 스트리밍 개선"
   text_stopped_the_recording_continues: "실시간 텍스트가 멈췄습니다. 녹음은 계속됩니다."
   transcript: "실시간 대본"
@@ -733,6 +736,7 @@ mute:
   system_audio_during_recording: "녹음 중 시스템 오디오 음소거"
 name:
   _self: "이름"
+  speakers_while_recording: "녹음 중에 화자 이름 지정"
 nemotron:
   default: "Nemotron (default)"
 new:
@@ -921,6 +925,7 @@ pin:
 pindrop:
   _self: "핀드롭"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "녹음이 끝나면 Pindrop이 화자를 다시 확인합니다."
   help: "Pindrop 도움말"
   is_ready_to_use_click_the_menu_bar_icon: |-
     핀드롭을 사용할 준비가 되었습니다.
@@ -1166,6 +1171,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "실시간 대본 보기"
   in_transcript: "대본에 표시"
+  who_is_talking_in_the_live_transcript_names: "실시간 대본에 누가 말하는지 표시합니다. 이름은 녹음이 끝나면 다시 확인합니다."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "화면 모서리에 리퀴드 글래스 오브로 표시됩니다"
   as_a_pill_at_the_bottom_of_the_screen: "화면 하단에 알약으로 표시됩니다."
@@ -1218,6 +1224,7 @@ speaker:
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "화자 분할 및 타임스탬프가 재생에 첨부됩니다."
   diarization_is_required: "화자 분할이 필요합니다."
+  names_were_checked_again_against_the_ful: "전체 녹음과 대조해 화자 이름을 다시 확인했습니다."
   profile_training: "Speaker profile training"
   d: "화자 %d"
 speakers:
@@ -1281,6 +1288,7 @@ thanks:
   to_for_the_contribution_pr_61: "기여해 준 %@님께 감사드립니다 (PR #61)."
 the:
   floating_indicator_is_hidden: "플로팅 표시기가 숨겨져 있습니다."
+  live_speaker_model_could_not_be_loaded_recor: "실시간 화자 모델을 불러오지 못했습니다. 녹음은 계속되고, 완성된 메모에는 모두의 이름이 담깁니다."
   model_failed_to_load_within_60_seconds_this: "\"\" 60초 이내에 모델을 불러오지 못했습니다. 이는 일반적으로 모델 파일이 손상되었거나 호환되지 않음을 의미합니다.                          이 문제를 해결하려면: 1. 설정 → 모델을 엽니다. 2. 문제가 있는 모델을 삭제합니다. 3. 모델을 다시 다운로드합니다. 문제가 지속되면 더 작은 모델(Tiny 또는 Base)을 사용해 보십시오.             \"\""
   new_nemotron_streaming_engine_shows_words_as: "새로운 Nemotron 스트리밍 엔진은 말하는 즉시 단어를 표시하고, 실행 시 미리 준비되어 첫 받아쓰기가 지연 없이 시작됩니다."
   selected_chunk_variant_isn_t_downloaded_yet: "선택한 청크 변형이 아직 다운로드되지 않았습니다. 전환하면 다운로드가 시작됩니다."

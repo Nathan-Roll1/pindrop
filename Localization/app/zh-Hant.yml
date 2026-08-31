@@ -634,6 +634,9 @@ limited:
 listening:
   _self: "正在聆聽…"
 live:
+  names_cover_up_to_four_voices_pindrop_check: "即時名稱最多涵蓋四個聲音。錄音結束後，Pindrop 會重新核對每一位說話者。"
+  speaker_names_need_the_speaker_model_downlo: "即時說話者名稱需要說話者模型。下載後即可在錄音時為每個人命名。"
+  speaker_names_paused: "即時說話者名稱已暫停。"
   streaming_refinement: "直播最佳化"
   text_stopped_the_recording_continues: "即時文字已停止，錄音仍在繼續。"
   transcript: "即時逐字稿"
@@ -733,6 +736,7 @@ mute:
   system_audio_during_recording: "錄製期間靜音系統音訊"
 name:
   _self: "名稱"
+  speakers_while_recording: "錄音時標註說話者"
 nemotron:
   default: "Nemotron (default)"
 new:
@@ -921,6 +925,7 @@ pin:
 pindrop:
   _self: "Pindrop"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "錄音結束後，Pindrop 會重新核對說話者。"
   help: "Pindrop 說明"
   is_ready_to_use_click_the_menu_bar_icon: |-
     Pindrop 已準備好使用。
@@ -1166,6 +1171,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "顯示即時逐字稿"
   in_transcript: "在逐字稿中顯示"
+  who_is_talking_in_the_live_transcript_names: "在即時逐字稿中顯示誰在說話。錄音結束後會重新核對名稱。"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "以液態玻璃光球的形式顯示在螢幕角落"
   as_a_pill_at_the_bottom_of_the_screen: "在螢幕底部顯示為膠囊"
@@ -1218,6 +1224,7 @@ speaker:
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "說話人分離和時間戳附加到播放。"
   diarization_is_required: "需要說話人分離"
+  names_were_checked_again_against_the_ful: "已對照完整錄音重新核對說話者名稱。"
   profile_training: "Speaker profile training"
   d: "說話者 %d"
 speakers:
@@ -1281,6 +1288,7 @@ thanks:
   to_for_the_contribution_pr_61: "感謝 %@ 的貢獻 (PR #61)。"
 the:
   floating_indicator_is_hidden: "懸浮指示器已隱藏。"
+  live_speaker_model_could_not_be_loaded_recor: "無法載入即時說話者模型。錄音仍在繼續，完成的筆記裡依然會標出每個人的名字。"
   model_failed_to_load_within_60_seconds_this: "\"\"             模型在 60 秒內未能載入。這通常意味著模型檔案已損壞或不相容。                          解決方法：             1. 開啟設定 → 模型             2. 刪除有問題的模型             3. 重新下載模型                          如果問題仍然存在，請嘗試使用較小的模型（Tiny 或 Base）。             \"\""
   new_nemotron_streaming_engine_shows_words_as: "新的 Nemotron 串流引擎會在你說話時顯示文字，並在啟動時預熱，讓第一次聽寫也能無延遲開始。"
   selected_chunk_variant_isn_t_downloaded_yet: "所選的分塊變體尚未下載。切換將開始下載。"

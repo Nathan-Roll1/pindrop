@@ -91778,6 +91778,582 @@
         }
       }
     },
+    "live_names_cover_up_to_four_voices_pindrop_check": {
+      "comment": "Live names cover up to four voices. Pindrop checks every speaker again when the recording ends.",
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تغطي الأسماء المباشرة حتى أربعة أصوات. يتحقق Pindrop من كل متحدث مرة أخرى عند انتهاء التسجيل."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "লাইভ নাম চারটি কণ্ঠ পর্যন্ত কাজ করে। রেকর্ডিং শেষ হলে Pindrop প্রতিটি বক্তা আবার যাচাই করে।"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Živá jména pokrývají až čtyři hlasy. Po skončení nahrávání Pindrop každého mluvčího znovu ověří."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live-navne dækker op til fire stemmer. Pindrop tjekker hver taler igen, når optagelsen slutter."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live-Namen decken bis zu vier Stimmen ab. Pindrop prüft jeden Sprecher erneut, wenn die Aufnahme endet."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Τα ζωντανά ονόματα καλύπτουν έως τέσσερις φωνές. Το Pindrop ελέγχει ξανά κάθε ομιλητή όταν τελειώσει η εγγραφή."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live names cover up to four voices. Pindrop checks every speaker again when the recording ends."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los nombres en vivo cubren hasta cuatro voces. Pindrop revisa cada orador otra vez cuando termina la grabación."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reaaliaikaiset nimet kattavat enintään neljä ääntä. Pindrop tarkistaa jokaisen puhujan uudelleen, kun tallennus päättyy."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les noms en direct couvrent jusqu'à quatre voix. Pindrop revérifie chaque intervenant à la fin de l'enregistrement."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "השמות בזמן אמת מכסים עד ארבעה קולות. Pindrop בודק כל דובר שוב בסיום ההקלטה."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "लाइव नाम चार आवाज़ों तक काम करते हैं। रिकॉर्डिंग खत्म होने पर Pindrop हर वक्ता की फिर से जाँच करता है।"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Az élő nevek legfeljebb négy hangot fednek le. A Pindrop a felvétel végén minden beszélőt újra ellenőriz."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nama langsung mencakup sampai empat suara. Pindrop memeriksa lagi setiap pembicara saat rekaman selesai."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I nomi dal vivo coprono fino a quattro voci. Pindrop ricontrolla ogni parlante quando la registrazione finisce."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブの名前は最大 4 人分の声に対応します。録音が終わると Pindrop がすべての話者をもう一度確認します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "실시간 이름은 최대 네 사람의 목소리까지 지원합니다. 녹음이 끝나면 Pindrop이 모든 화자를 다시 확인합니다."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nama langsung meliputi sehingga empat suara. Pindrop menyemak semula setiap penutur apabila rakaman tamat."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direkte navn dekker opptil fire stemmer. Pindrop sjekker hver taler på nytt når opptaket slutter."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live namen dekken maximaal vier stemmen. Pindrop controleert elke spreker opnieuw als de opname stopt."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imiona na żywo obejmują do czterech głosów. Po zakończeniu nagrania Pindrop ponownie sprawdza każdego mówcę."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Os nomes ao vivo cobrem até quatro vozes. O Pindrop confere cada falante de novo quando a gravação termina."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numele în direct acoperă până la patru voci. Pindrop verifică din nou fiecare vorbitor când se termină înregistrarea."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Живые имена охватывают до четырёх голосов. Когда запись закончится, Pindrop проверит каждого говорящего ещё раз."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live-namn täcker upp till fyra röster. Pindrop kontrollerar varje talare igen när inspelningen slutar."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ชื่อแบบสดรองรับได้ถึงสี่เสียง Pindrop จะตรวจผู้พูดทุกคนอีกครั้งเมื่อการบันทึกสิ้นสุด"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Canlı adlar en fazla dört sesi kapsar. Kayıt bitince Pindrop her konuşmacıyı yeniden denetler."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Живі імена охоплюють до чотирьох голосів. Коли запис завершиться, Pindrop перевірить кожного мовця ще раз."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tên trực tiếp bao được tối đa bốn giọng. Pindrop kiểm tra lại từng người nói khi bản ghi kết thúc."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "实时姓名最多覆盖四个声音。录音结束后，Pindrop 会重新核对每一位说话人。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即時名稱最多涵蓋四個聲音。錄音結束後，Pindrop 會重新核對每一位說話者。"
+          }
+        }
+      }
+    },
+    "live_speaker_names_need_the_speaker_model_downlo": {
+      "comment": "Live speaker names need the speaker model. Download it to name people while you record.",
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تحتاج أسماء المتحدثين المباشرة إلى نموذج المتحدثين. حمّله لتسمية الأشخاص أثناء التسجيل."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "লাইভ বক্তার নামের জন্য বক্তা মডেল দরকার। রেকর্ড করার সময় নাম দিতে এটি ডাউনলোড করুন।"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Živá jména mluvčích potřebují model mluvčích. Stáhněte ho, ať můžete lidi pojmenovat už při nahrávání."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live-talernavne kræver talermodellen. Hent den for at give folk navne, mens du optager."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live-Sprechernamen brauchen das Sprechermodell. Laden Sie es herunter, um Personen schon während der Aufnahme zu benennen."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Τα ζωντανά ονόματα ομιλητών χρειάζονται το μοντέλο ομιλητών. Κάντε λήψη για να ονομάζετε άτομα ενώ ηχογραφείτε."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live speaker names need the speaker model. Download it to name people while you record."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los nombres de oradores en vivo necesitan el modelo de oradores. Descárgalo para nombrar a las personas mientras grabas."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reaaliaikaiset puhujanimet tarvitsevat puhujamallin. Lataa se, niin voit nimetä ihmiset jo tallennuksen aikana."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les noms d'intervenants en direct nécessitent le modèle d'intervenants. Téléchargez-le pour nommer les personnes pendant l'enregistrement."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "שמות דוברים בזמן אמת דורשים את מודל הדוברים. הורידו אותו כדי לתת שמות לאנשים כבר בזמן ההקלטה."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "लाइव वक्ता नामों के लिए वक्ता मॉडल चाहिए। रिकॉर्डिंग के दौरान लोगों को नाम देने के लिए इसे डाउनलोड करें।"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Az élő beszélőnevekhez kell a beszélőmodell. Töltse le, hogy már felvétel közben nevet adhasson a résztvevőknek."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nama pembicara langsung memerlukan model pembicara. Unduh model itu untuk memberi nama orang saat merekam."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I nomi dei parlanti dal vivo richiedono il modello dei parlanti. Scaricalo per dare un nome alle persone mentre registri."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブ話者名には話者モデルが必要です。ダウンロードすると、録音しながら名前を付けられます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "실시간 화자 이름에는 화자 모델이 필요합니다. 모델을 다운로드하면 녹음하면서 이름을 지정할 수 있습니다."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nama penutur langsung memerlukan model penutur. Muat turun model itu untuk menamakan orang semasa anda merakam."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direkte talernavn krever talermodellen. Last den ned for å gi folk navn mens du tar opp."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live sprekersnamen hebben het sprekersmodel nodig. Download het om mensen al tijdens de opname een naam te geven."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imiona mówców na żywo wymagają modelu mówców. Pobierz go, aby nadawać imiona już podczas nagrywania."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Os nomes de falantes ao vivo precisam do modelo de falantes. Baixe o modelo para nomear as pessoas enquanto você grava."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numele vorbitorilor în direct au nevoie de modelul de vorbitori. Descărcați-l ca să dați nume persoanelor chiar în timpul înregistrării."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для живых имён говорящих нужна модель говорящих. Скачайте её, чтобы называть людей прямо во время записи."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live-talarnamn kräver talarmodellen. Ladda ner den för att namnge personer redan under inspelningen."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ชื่อผู้พูดแบบสดต้องใช้โมเดลผู้พูด ดาวน์โหลดเพื่อตั้งชื่อผู้คนขณะบันทึกเสียง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Canlı konuşmacı adları için konuşmacı modeli gerekir. Kayıt sırasında kişilere ad vermek için modeli indirin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для живих імен мовців потрібна модель мовців. Завантажте її, щоб називати людей просто під час запису."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tên người nói trực tiếp cần mô hình người nói. Hãy tải mô hình về để đặt tên cho mọi người ngay khi đang ghi."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "实时说话人姓名需要说话人模型。下载后即可在录音时为每个人命名。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即時說話者名稱需要說話者模型。下載後即可在錄音時為每個人命名。"
+          }
+        }
+      }
+    },
+    "live_speaker_names_paused": {
+      "comment": "Live speaker names paused.",
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "توقفت أسماء المتحدثين المباشرة مؤقتًا."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "লাইভ বক্তার নাম থেমে আছে।"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Živá jména mluvčích jsou pozastavena."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live-talernavne er sat på pause."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live-Sprechernamen pausiert."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Τα ζωντανά ονόματα ομιλητών είναι σε παύση."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live speaker names paused."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nombres de oradores en vivo en pausa."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reaaliaikaiset puhujanimet keskeytetty."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noms d'intervenants en direct en pause."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "שמות הדוברים בזמן אמת הושהו."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "लाइव वक्ता नाम रुके हुए हैं।"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Az élő beszélőnevek szünetelnek."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nama pembicara langsung dijeda."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nomi dei parlanti dal vivo in pausa."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブ話者名は一時停止中です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "실시간 화자 이름이 일시 중지되었습니다."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nama penutur langsung dijeda."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direkte talernavn er satt på pause."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live sprekersnamen gepauzeerd."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imiona mówców na żywo wstrzymane."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nomes de falantes ao vivo pausados."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numele vorbitorilor în direct sunt în pauză."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Живые имена говорящих приостановлены."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live-talarnamn pausade."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "หยุดชื่อผู้พูดแบบสดชั่วคราว"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Canlı konuşmacı adları duraklatıldı."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Живі імена мовців призупинено."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã tạm dừng tên người nói trực tiếp."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "实时说话人姓名已暂停。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即時說話者名稱已暫停。"
+          }
+        }
+      }
+    },
     "live_streaming_refinement": {
       "comment": "live_streaming_refinement",
       "extractionState": "manual",
@@ -105214,6 +105790,198 @@
           "stringUnit": {
             "state": "translated",
             "value": "名稱"
+          }
+        }
+      }
+    },
+    "name_speakers_while_recording": {
+      "comment": "Name speakers while recording",
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تسمية المتحدثين أثناء التسجيل"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "রেকর্ডিংয়ের সময় বক্তাদের নাম দিন"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pojmenovat mluvčí při nahrávání"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Navngiv talere under optagelsen"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sprecher während der Aufnahme benennen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ονομασία ομιλητών κατά την εγγραφή"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name speakers while recording"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nombrar oradores mientras grabas"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nimeä puhujat tallennuksen aikana"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nommer les intervenants pendant l'enregistrement"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "מתן שמות לדוברים בזמן ההקלטה"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "रिकॉर्डिंग के दौरान वक्ताओं को नाम दें"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beszélők megnevezése felvétel közben"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beri nama pembicara saat merekam"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Assegna un nome ai parlanti mentre registri"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "録音中に話者名を付ける"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "녹음 중에 화자 이름 지정"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Namakan penutur semasa merakam"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gi talere navn under opptak"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sprekers benoemen tijdens de opname"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nadawaj imiona mówcom podczas nagrywania"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nomear falantes durante a gravação"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numiți vorbitorii în timpul înregistrării"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Называть говорящих во время записи"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Namnge talare under inspelning"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ตั้งชื่อผู้พูดขณะบันทึก"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kayıt sırasında konuşmacıları adlandır"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Називати мовців під час запису"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đặt tên người nói khi đang ghi"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音时标注说话人"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄音時標註說話者"
           }
         }
       }
@@ -135358,6 +136126,198 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pindrop 可傳送匿名且保護隱私的訊號，以便更快修正錯誤。"
+          }
+        }
+      }
+    },
+    "pindrop_checks_the_speakers_again_when_the_recor": {
+      "comment": "Pindrop checks the speakers again when the recording ends.",
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يتحقق Pindrop من المتحدثين مرة أخرى عند انتهاء التسجيل."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "রেকর্ডিং শেষ হলে Pindrop বক্তাদের আবার যাচাই করে।"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Po skončení nahrávání Pindrop mluvčí znovu ověří."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindrop tjekker talerne igen, når optagelsen slutter."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindrop prüft die Sprecher erneut, wenn die Aufnahme endet."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Το Pindrop ελέγχει ξανά τους ομιλητές όταν τελειώσει η εγγραφή."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindrop checks the speakers again when the recording ends."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindrop revisa los oradores otra vez cuando termina la grabación."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindrop tarkistaa puhujat uudelleen, kun tallennus päättyy."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindrop revérifie les intervenants à la fin de l'enregistrement."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindrop בודק את הדוברים שוב בסיום ההקלטה."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "रिकॉर्डिंग खत्म होने पर Pindrop वक्ताओं की फिर से जाँच करता है।"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Pindrop a felvétel végén újra ellenőrzi a beszélőket."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindrop memeriksa lagi pembicara saat rekaman selesai."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindrop ricontrolla i parlanti quando la registrazione finisce."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "録音が終わると Pindrop が話者をもう一度確認します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "녹음이 끝나면 Pindrop이 화자를 다시 확인합니다."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindrop menyemak semula penutur apabila rakaman tamat."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindrop sjekker talerne på nytt når opptaket slutter."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindrop controleert de sprekers opnieuw als de opname stopt."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Po zakończeniu nagrania Pindrop ponownie sprawdza mówców."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Pindrop confere os falantes de novo quando a gravação termina."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindrop verifică din nou vorbitorii când se termină înregistrarea."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Когда запись закончится, Pindrop проверит говорящих ещё раз."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindrop kontrollerar talarna igen när inspelningen slutar."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindrop จะตรวจผู้พูดอีกครั้งเมื่อการบันทึกสิ้นสุด"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kayıt bitince Pindrop konuşmacıları yeniden denetler."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Коли запис завершиться, Pindrop перевірить мовців ще раз."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindrop kiểm tra lại người nói khi bản ghi kết thúc."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录音结束后，Pindrop 会重新核对说话人。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "錄音結束後，Pindrop 會重新核對說話者。"
           }
         }
       }
@@ -172610,6 +173570,198 @@
         }
       }
     },
+    "show_who_is_talking_in_the_live_transcript_names": {
+      "comment": "Show who is talking in the live transcript. Names are checked again when the recording ends.",
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أظهر من يتحدث في النص المباشر. يُعاد التحقق من الأسماء عند انتهاء التسجيل."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "লাইভ প্রতিলিপিতে কে কথা বলছে তা দেখান। রেকর্ডিং শেষ হলে নাম আবার যাচাই করা হয়।"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukáže v živém přepisu, kdo mluví. Jména se po skončení nahrávání ověří znovu."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vis i liveudskriften, hvem der taler. Navnene tjekkes igen, når optagelsen slutter."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeigt im Live-Transkript, wer spricht. Die Namen werden erneut geprüft, wenn die Aufnahme endet."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Δείχνει ποιος μιλάει στη ζωντανή απομαγνητοφώνηση. Τα ονόματα ελέγχονται ξανά όταν τελειώσει η εγγραφή."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show who is talking in the live transcript. Names are checked again when the recording ends."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muestra quién habla en la transcripción en vivo. Los nombres se revisan otra vez cuando termina la grabación."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Näyttää reaaliaikaisessa tekstityksessä, kuka puhuu. Nimet tarkistetaan uudelleen, kun tallennus päättyy."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Affiche qui parle dans la transcription en direct. Les noms sont revérifiés à la fin de l'enregistrement."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "הצגת מי מדבר בתמליל החי. השמות נבדקים שוב בסיום ההקלטה."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "लाइव प्रतिलेख में दिखाएँ कि कौन बोल रहा है। रिकॉर्डिंग खत्म होने पर नाम फिर से जाँचे जाते हैं।"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Megmutatja az élő átiratban, ki beszél. A neveket a felvétel végén újra ellenőrizzük."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tampilkan siapa yang berbicara di transkrip langsung. Nama diperiksa lagi saat rekaman selesai."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra chi parla nella trascrizione dal vivo. I nomi vengono ricontrollati quando la registrazione finisce."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブ文字起こしに誰が話しているかを表示します。名前は録音が終わるともう一度確認されます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "실시간 대본에 누가 말하는지 표시합니다. 이름은 녹음이 끝나면 다시 확인합니다."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tunjukkan siapa yang bercakap dalam transkrip langsung. Nama disemak semula apabila rakaman tamat."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vis i direktetranskriptet hvem som snakker. Navnene sjekkes på nytt når opptaket slutter."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toont in het live transcript wie er praat. De namen worden opnieuw gecontroleerd als de opname stopt."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pokazuje w transkrypcji na żywo, kto mówi. Imiona są sprawdzane ponownie po zakończeniu nagrania."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra quem está falando na transcrição ao vivo. Os nomes são conferidos de novo quando a gravação termina."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arată cine vorbește în transcrierea în direct. Numele sunt verificate din nou când se termină înregistrarea."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывает в живом транскрипте, кто говорит. Имена проверяются ещё раз, когда запись заканчивается."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Visar i livetranskriptet vem som talar. Namnen kontrolleras igen när inspelningen slutar."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "แสดงว่าใครกำลังพูดในข้อความถอดเสียงสด ชื่อจะถูกตรวจอีกครั้งเมื่อการบันทึกสิ้นสุด"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Canlı deşifrede kimin konuştuğunu gösterir. Adlar kayıt bitince yeniden denetlenir."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показує в живому транскрипті, хто говорить. Імена перевіряються ще раз, коли запис завершується."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiện ai đang nói trong bản chép lời trực tiếp. Tên được kiểm tra lại khi bản ghi kết thúc."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在实时转录中显示谁在说话。录音结束后会重新核对姓名。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在即時逐字稿中顯示誰在說話。錄音結束後會重新核對名稱。"
+          }
+        }
+      }
+    },
     "shows_as_a_liquid_glass_orb_in_the_corner_of_the": {
       "comment": "shows_as_a_liquid_glass_orb_in_the_corner_of_the",
       "extractionState": "manual",
@@ -178750,6 +179902,198 @@
           "stringUnit": {
             "state": "translated",
             "value": "需要說話人分離"
+          }
+        }
+      }
+    },
+    "speaker_names_were_checked_again_against_the_ful": {
+      "comment": "Speaker names were checked again against the full recording.",
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أُعيد التحقق من أسماء المتحدثين مقابل التسجيل الكامل."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "পুরো রেকর্ডিং মিলিয়ে বক্তাদের নাম আবার যাচাই করা হয়েছে।"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jména mluvčích byla znovu ověřena proti celé nahrávce."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talernavnene er tjekket igen mod hele optagelsen."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Sprechernamen wurden anhand der ganzen Aufnahme erneut geprüft."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Τα ονόματα των ομιλητών ελέγχθηκαν ξανά με βάση όλη την εγγραφή."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speaker names were checked again against the full recording."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los nombres de los oradores se revisaron otra vez con toda la grabación."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puhujanimet tarkistettiin uudelleen koko tallennetta vasten."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les noms des intervenants ont été revérifiés sur l'enregistrement complet."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "שמות הדוברים נבדקו שוב מול ההקלטה המלאה."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "पूरी रिकॉर्डिंग से मिलाकर वक्ताओं के नाम फिर से जाँचे गए।"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A beszélők nevét a teljes felvétel alapján újra ellenőriztük."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nama pembicara sudah diperiksa lagi terhadap seluruh rekaman."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I nomi dei parlanti sono stati ricontrollati sull'intera registrazione."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "録音全体と照らして話者名をもう一度確認しました。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "전체 녹음과 대조해 화자 이름을 다시 확인했습니다."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nama penutur telah disemak semula terhadap keseluruhan rakaman."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talernavnene ble sjekket på nytt mot hele opptaket."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De sprekersnamen zijn opnieuw gecontroleerd op de hele opname."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imiona mówców zostały ponownie sprawdzone na całym nagraniu."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Os nomes dos falantes foram conferidos de novo com a gravação inteira."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numele vorbitorilor au fost verificate din nou pe toată înregistrarea."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Имена говорящих проверены ещё раз по всей записи."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talarnamnen kontrollerades igen mot hela inspelningen."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ตรวจชื่อผู้พูดอีกครั้งกับการบันทึกทั้งหมดแล้ว"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konuşmacı adları kaydın tamamıyla yeniden denetlendi."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Імена мовців перевірено ще раз за всім записом."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tên người nói đã được kiểm tra lại với toàn bộ bản ghi."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已对照完整录音重新核对说话人姓名。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已對照完整錄音重新核對說話者名稱。"
           }
         }
       }
@@ -187966,6 +189310,198 @@
           "stringUnit": {
             "state": "translated",
             "value": "懸浮指示器已隱藏。"
+          }
+        }
+      }
+    },
+    "the_live_speaker_model_could_not_be_loaded_recor": {
+      "comment": "The live speaker model could not be loaded. Recording continues, and the finished note still names everyone.",
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذّر تحميل نموذج المتحدثين المباشر. التسجيل مستمر، والملاحظة النهائية تسمّي الجميع."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "লাইভ বক্তা মডেল লোড করা যায়নি। রেকর্ডিং চলছে, আর চূড়ান্ত নোটে সবার নাম থাকবে।"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model živých mluvčích se nepodařilo načíst. Nahrávání pokračuje a hotová poznámka stále pojmenuje všechny."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live-talermodellen kunne ikke indlæses. Optagelsen fortsætter, og den færdige note navngiver stadig alle."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Live-Sprechermodell konnte nicht geladen werden. Die Aufnahme läuft weiter, und die fertige Notiz benennt trotzdem alle."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Το μοντέλο ζωντανών ομιλητών δεν φορτώθηκε. Η εγγραφή συνεχίζεται και η τελική σημείωση ονομάζει και πάλι όλους."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The live speaker model could not be loaded. Recording continues, and the finished note still names everyone."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo cargar el modelo de oradores en vivo. La grabación continúa y la nota final sigue nombrando a todos."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reaaliaikaista puhujamallia ei voitu ladata. Tallennus jatkuu, ja valmis muistiinpano nimeää silti kaikki."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le modèle d'intervenants en direct n'a pas pu être chargé. L'enregistrement continue et la note finale nomme quand même tout le monde."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "לא ניתן לטעון את מודל הדוברים בזמן אמת. ההקלטה ממשיכה, והפתק המוגמר עדיין נותן שם לכולם."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "लाइव वक्ता मॉडल लोड नहीं हो सका। रिकॉर्डिंग जारी है, और तैयार नोट में सबके नाम फिर भी रहेंगे।"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Az élő beszélőmodellt nem sikerült betölteni. A felvétel tovább megy, és az elkészült jegyzet így is mindenkit megnevez."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model pembicara langsung tidak bisa dimuat. Perekaman tetap berjalan, dan catatan akhir tetap menyebut nama semua orang."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non è stato possibile caricare il modello dei parlanti dal vivo. La registrazione continua e la nota finale nomina comunque tutti."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブ話者モデルを読み込めませんでした。録音は続いていて、完成したメモには全員の名前が入ります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "실시간 화자 모델을 불러오지 못했습니다. 녹음은 계속되고, 완성된 메모에는 모두의 이름이 담깁니다."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model penutur langsung tidak dapat dimuatkan. Rakaman diteruskan, dan nota akhir tetap menamakan semua orang."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Den direkte talermodellen kunne ikke lastes inn. Opptaket fortsetter, og det ferdige notatet navngir fortsatt alle."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Het live sprekersmodel kon niet worden geladen. De opname loopt door en de voltooide notitie noemt nog steeds iedereen."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie udało się wczytać modelu mówców na żywo. Nagranie trwa dalej, a gotowa notatka i tak nazwie wszystkich."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível carregar o modelo de falantes ao vivo. A gravação continua, e a nota final ainda nomeia todo mundo."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modelul de vorbitori în direct nu a putut fi încărcat. Înregistrarea continuă, iar notița finală tot îi numește pe toți."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось загрузить модель живых говорящих. Запись продолжается, и в готовой заметке всё равно будут все имена."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live-talarmodellen kunde inte läsas in. Inspelningen fortsätter och den färdiga anteckningen namnger fortfarande alla."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "โหลดโมเดลผู้พูดแบบสดไม่สำเร็จ การบันทึกยังดำเนินต่อ และโน้ตฉบับสมบูรณ์ยังระบุชื่อทุกคน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Canlı konuşmacı modeli yüklenemedi. Kayıt sürüyor ve tamamlanan not yine herkesi adlandırıyor."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося завантажити модель живих мовців. Запис триває, і в готовій нотатці все одно будуть усі імена."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không tải được mô hình người nói trực tiếp. Bản ghi vẫn tiếp tục, và ghi chú hoàn chỉnh vẫn nêu tên mọi người."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法加载实时说话人模型。录音仍在继续，完成的笔记里依然会标出每个人的名字。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法載入即時說話者模型。錄音仍在繼續，完成的筆記裡依然會標出每個人的名字。"
           }
         }
       }

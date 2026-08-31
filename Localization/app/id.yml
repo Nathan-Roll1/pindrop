@@ -634,6 +634,9 @@ limited:
 listening:
   _self: "Mendengarkan…"
 live:
+  names_cover_up_to_four_voices_pindrop_check: "Nama langsung mencakup sampai empat suara. Pindrop memeriksa lagi setiap pembicara saat rekaman selesai."
+  speaker_names_need_the_speaker_model_downlo: "Nama pembicara langsung memerlukan model pembicara. Unduh model itu untuk memberi nama orang saat merekam."
+  speaker_names_paused: "Nama pembicara langsung dijeda."
   streaming_refinement: "Penyempurnaan Streaming Langsung"
   text_stopped_the_recording_continues: "Teks langsung berhenti. Rekaman tetap berjalan."
   transcript: "Transkrip langsung"
@@ -733,6 +736,7 @@ mute:
   system_audio_during_recording: "Bisukan audio sistem selama perekaman"
 name:
   _self: "Nama"
+  speakers_while_recording: "Beri nama pembicara saat merekam"
 nemotron:
   default: "Nemotron (default)"
 new:
@@ -921,6 +925,7 @@ pin:
 pindrop:
   _self: "__TETAPKAN_PINDROP__"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "Pindrop memeriksa lagi pembicara saat rekaman selesai."
   help: "Bantuan Pindrop"
   is_ready_to_use_click_the_menu_bar_icon: |-
     Pindrop siap digunakan.
@@ -1166,6 +1171,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Tampilkan transkrip langsung"
   in_transcript: "Tampilkan di transkrip"
+  who_is_talking_in_the_live_transcript_names: "Tampilkan siapa yang berbicara di transkrip langsung. Nama diperiksa lagi saat rekaman selesai."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Muncul sebagai bola kaca cair di sudut layar"
   as_a_pill_at_the_bottom_of_the_screen: "Ditampilkan sebagai pil di bagian bawah layar"
@@ -1218,6 +1224,7 @@ speaker:
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Diarisasi speaker dan stempel waktu dilampirkan pada pemutaran."
   diarization_is_required: "Diarisasi pembicara diperlukan"
+  names_were_checked_again_against_the_ful: "Nama pembicara sudah diperiksa lagi terhadap seluruh rekaman."
   profile_training: "Speaker profile training"
   d: "Pembicara %d"
 speakers:
@@ -1281,6 +1288,7 @@ thanks:
   to_for_the_contribution_pr_61: "Terima kasih kepada %@ atas kontribusinya (PR #61)."
 the:
   floating_indicator_is_hidden: "Indikator mengambang disembunyikan."
+  live_speaker_model_could_not_be_loaded_recor: "Model pembicara langsung tidak bisa dimuat. Perekaman tetap berjalan, dan catatan akhir tetap menyebut nama semua orang."
   model_failed_to_load_within_60_seconds_this: "\"\" Model gagal dimuat dalam waktu 60 detik. Ini biasanya berarti file model rusak atau tidak kompatibel.                          Untuk memperbaikinya: 1. Buka Pengaturan → Model 2. Hapus model yang bermasalah 3. Unduh ulang model Jika masalah terus berlanjut, coba model yang lebih kecil (Tiny atau Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "Mesin streaming Nemotron baru menampilkan kata saat Anda mengucapkannya, dan mesin dipanaskan saat peluncuran agar dikte pertama Anda dimulai tanpa jeda."
   selected_chunk_variant_isn_t_downloaded_yet: "Varian potongan yang dipilih belum diunduh. Beralih akan memulai pengunduhan."

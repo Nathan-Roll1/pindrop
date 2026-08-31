@@ -634,6 +634,9 @@ limited:
 listening:
   _self: "กำลังฟัง…"
 live:
+  names_cover_up_to_four_voices_pindrop_check: "ชื่อแบบสดรองรับได้ถึงสี่เสียง Pindrop จะตรวจผู้พูดทุกคนอีกครั้งเมื่อการบันทึกสิ้นสุด"
+  speaker_names_need_the_speaker_model_downlo: "ชื่อผู้พูดแบบสดต้องใช้โมเดลผู้พูด ดาวน์โหลดเพื่อตั้งชื่อผู้คนขณะบันทึกเสียง"
+  speaker_names_paused: "หยุดชื่อผู้พูดแบบสดชั่วคราว"
   streaming_refinement: "การปรับแต่งการสตรีมสด"
   text_stopped_the_recording_continues: "ข้อความสดหยุดแล้ว การบันทึกยังดำเนินต่อ"
   transcript: "ข้อความถอดเสียงสด"
@@ -733,6 +736,7 @@ mute:
   system_audio_during_recording: "ปิดเสียงระบบระหว่างการบันทึก"
 name:
   _self: "ชื่อ"
+  speakers_while_recording: "ตั้งชื่อผู้พูดขณะบันทึก"
 nemotron:
   default: "Nemotron (default)"
 new:
@@ -921,6 +925,7 @@ pin:
 pindrop:
   _self: "พินดรอป"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "Pindrop จะตรวจผู้พูดอีกครั้งเมื่อการบันทึกสิ้นสุด"
   help: "วิธีใช้ Pindrop"
   is_ready_to_use_click_the_menu_bar_icon: |-
     พินดรอปพร้อมใช้งานแล้ว
@@ -1166,6 +1171,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "แสดงข้อความถอดเสียงสด"
   in_transcript: "แสดงในข้อความถอดเสียง"
+  who_is_talking_in_the_live_transcript_names: "แสดงว่าใครกำลังพูดในข้อความถอดเสียงสด ชื่อจะถูกตรวจอีกครั้งเมื่อการบันทึกสิ้นสุด"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "แสดงเป็นออร์บแก้วเหลวที่มุมหน้าจอ"
   as_a_pill_at_the_bottom_of_the_screen: "แสดงเป็นเม็ดยาที่ด้านล่างของหน้าจอ"
@@ -1218,6 +1224,7 @@ speaker:
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "มีการแนบไดอะแกรมของลำโพงและการประทับเวลาไว้กับการเล่น"
   diarization_is_required: "จำเป็นต้องแปลงเสียงของผู้พูด"
+  names_were_checked_again_against_the_ful: "ตรวจชื่อผู้พูดอีกครั้งกับการบันทึกทั้งหมดแล้ว"
   profile_training: "Speaker profile training"
   d: "ผู้พูด %d"
 speakers:
@@ -1281,6 +1288,7 @@ thanks:
   to_for_the_contribution_pr_61: "ขอบคุณ %@ สำหรับการมีส่วนร่วม (PR #61)"
 the:
   floating_indicator_is_hidden: "ตัวบ่งชี้แบบลอยถูกซ่อนอยู่"
+  live_speaker_model_could_not_be_loaded_recor: "โหลดโมเดลผู้พูดแบบสดไม่สำเร็จ การบันทึกยังดำเนินต่อ และโน้ตฉบับสมบูรณ์ยังระบุชื่อทุกคน"
   model_failed_to_load_within_60_seconds_this: "\"\" ไม่สามารถโหลดโมเดลได้ภายใน 60 วินาที ซึ่งมักจะหมายถึงไฟล์โมเดลเสียหายหรือเข้ากันไม่ได้                          วิธีแก้ไขปัญหานี้: 1. เปิดการตั้งค่า → โมเดล 2. ลบโมเดลที่มีปัญหา 3. ดาวน์โหลดโมเดลอีกครั้ง หากปัญหายังคงอยู่ ให้ลองใช้โมเดลที่เล็กกว่า (จิ๋วหรือฐาน)             \"\""
   new_nemotron_streaming_engine_shows_words_as: "เอนจินสตรีมมิง Nemotron ใหม่จะแสดงคำตามที่คุณพูด และอุ่นเครื่องตอนเปิดแอปเพื่อให้การป้อนตามคำบอกครั้งแรกเริ่มได้โดยไม่ล่าช้า"
   selected_chunk_variant_isn_t_downloaded_yet: "ยังไม่ได้ดาวน์โหลดชุดย่อยที่เลือก การสลับจะเริ่มการดาวน์โหลด"

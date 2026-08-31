@@ -634,6 +634,9 @@ limited:
 listening:
   _self: "جارٍ الاستماع…"
 live:
+  names_cover_up_to_four_voices_pindrop_check: "تغطي الأسماء المباشرة حتى أربعة أصوات. يتحقق Pindrop من كل متحدث مرة أخرى عند انتهاء التسجيل."
+  speaker_names_need_the_speaker_model_downlo: "تحتاج أسماء المتحدثين المباشرة إلى نموذج المتحدثين. حمّله لتسمية الأشخاص أثناء التسجيل."
+  speaker_names_paused: "توقفت أسماء المتحدثين المباشرة مؤقتًا."
   streaming_refinement: "تحسين البث المباشر"
   text_stopped_the_recording_continues: "توقف النص المباشر. التسجيل مستمر."
   transcript: "النص المباشر"
@@ -733,6 +736,7 @@ mute:
   system_audio_during_recording: "كتم صوت النظام أثناء التسجيل"
 name:
   _self: "الاسم"
+  speakers_while_recording: "تسمية المتحدثين أثناء التسجيل"
 nemotron:
   default: "Nemotron (default)"
 new:
@@ -921,6 +925,7 @@ pin:
 pindrop:
   _self: "بيندروب"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "يتحقق Pindrop من المتحدثين مرة أخرى عند انتهاء التسجيل."
   help: "مساعدة Pindrop"
   is_ready_to_use_click_the_menu_bar_icon: |-
     Pindrop جاهز للاستخدام.
@@ -1166,6 +1171,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "إظهار النص المباشر"
   in_transcript: "إظهار في النص"
+  who_is_talking_in_the_live_transcript_names: "أظهر من يتحدث في النص المباشر. يُعاد التحقق من الأسماء عند انتهاء التسجيل."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "يظهر ككرة زجاجية سائلة في زاوية الشاشة"
   as_a_pill_at_the_bottom_of_the_screen: "يظهر على شكل حبة في أسفل الشاشة"
@@ -1218,6 +1224,7 @@ speaker:
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "يتم إرفاق مذكرات المتحدث والطوابع الزمنية بالتشغيل."
   diarization_is_required: "مطلوب مذكرات المتحدث"
+  names_were_checked_again_against_the_ful: "أُعيد التحقق من أسماء المتحدثين مقابل التسجيل الكامل."
   profile_training: "Speaker profile training"
   d: "المتحدث %d"
 speakers:
@@ -1281,6 +1288,7 @@ thanks:
   to_for_the_contribution_pr_61: "شكرًا لـ %@ على المساهمة (PR #61)."
 the:
   floating_indicator_is_hidden: "المؤشر العائم مخفي."
+  live_speaker_model_could_not_be_loaded_recor: "تعذّر تحميل نموذج المتحدثين المباشر. التسجيل مستمر، والملاحظة النهائية تسمّي الجميع."
   model_failed_to_load_within_60_seconds_this: "\" \"فشل تحميل النموذج خلال 60 ثانية. وهذا يعني عادةً أن ملفات النموذج تالفة أو غير متوافقة.                          لإصلاح ذلك: 1. افتح الإعدادات → النماذج 2. احذف النموذج الذي به مشكلة 3. أعد تنزيل النموذج إذا استمرت المشكلة، فجرّب نموذجًا أصغر (Tiny أو Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "يعرض محرك Nemotron الجديد للبث الكلمات أثناء نطقها، ويتم تسخين المحرك مسبقًا عند التشغيل حتى يبدأ أول إملاء لك دون تأخير."
   selected_chunk_variant_isn_t_downloaded_yet: "لم يتم تنزيل متغير القطعة المحدد بعد. سيؤدي التبديل إلى بدء التنزيل."

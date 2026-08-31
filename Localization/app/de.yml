@@ -634,6 +634,9 @@ limited:
 listening:
   _self: "Höre zu…"
 live:
+  names_cover_up_to_four_voices_pindrop_check: "Live-Namen decken bis zu vier Stimmen ab. Pindrop prüft jeden Sprecher erneut, wenn die Aufnahme endet."
+  speaker_names_need_the_speaker_model_downlo: "Live-Sprechernamen brauchen das Sprechermodell. Laden Sie es herunter, um Personen schon während der Aufnahme zu benennen."
+  speaker_names_paused: "Live-Sprechernamen pausiert."
   streaming_refinement: "Verfeinerung des Live-Streamings"
   text_stopped_the_recording_continues: "Der Live-Text ist gestoppt. Die Aufnahme läuft weiter."
   transcript: "Live-Transkript"
@@ -733,6 +736,7 @@ mute:
   system_audio_during_recording: "Systemaudio während der Aufnahme stummschalten"
 name:
   _self: "Name"
+  speakers_while_recording: "Sprecher während der Aufnahme benennen"
 nemotron:
   default: "Nemotron (default)"
 new:
@@ -921,6 +925,7 @@ pin:
 pindrop:
   _self: "Pindrop"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "Pindrop prüft die Sprecher erneut, wenn die Aufnahme endet."
   help: "Pindrop-Hilfe"
   is_ready_to_use_click_the_menu_bar_icon: |-
     Pindrop ist bereit zur Verwendung.
@@ -1166,6 +1171,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Live-Transkript einblenden"
   in_transcript: "Im Transkript anzeigen"
+  who_is_talking_in_the_live_transcript_names: "Zeigt im Live-Transkript, wer spricht. Die Namen werden erneut geprüft, wenn die Aufnahme endet."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Wird als Orb aus flüssigem Glas in der Bildschirmecke angezeigt"
   as_a_pill_at_the_bottom_of_the_screen: "Zeigt sich als Pille am unteren Bildschirmrand"
@@ -1218,6 +1224,7 @@ speaker:
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Sprecherdiarisierung und Zeitstempel sind an die Wiedergabe angehängt."
   diarization_is_required: "Sprecherdiarisierung ist erforderlich"
+  names_were_checked_again_against_the_ful: "Die Sprechernamen wurden anhand der ganzen Aufnahme erneut geprüft."
   profile_training: "Speaker profile training"
   d: "Sprecher %d"
 speakers:
@@ -1281,6 +1288,7 @@ thanks:
   to_for_the_contribution_pr_61: "Danke an %@ für den Beitrag (PR #61)."
 the:
   floating_indicator_is_hidden: "Der schwebende Indikator ist ausgeblendet."
+  live_speaker_model_could_not_be_loaded_recor: "Das Live-Sprechermodell konnte nicht geladen werden. Die Aufnahme läuft weiter, und die fertige Notiz benennt trotzdem alle."
   model_failed_to_load_within_60_seconds_this: "\"\"             Das Modell konnte nicht innerhalb von 60 Sekunden geladen werden. Dies bedeutet normalerweise, dass die Modelldateien beschädigt oder inkompatibel sind.                          So beheben Sie das:             1. Öffnen Sie Einstellungen → Modelle             2. Löschen Sie das problematische Modell             3. Laden Sie das Modell erneut herunter                          Wenn das Problem weiterhin besteht, versuchen Sie ein kleineres Modell (Tiny oder Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "Die neue Nemotron-Streaming-Engine zeigt Wörter, während du sie sagst, und wird beim Start vorgewärmt, damit dein erstes Diktat ohne Verzögerung beginnt."
   selected_chunk_variant_isn_t_downloaded_yet: "Die gewählte Chunk-Variante ist noch nicht geladen. Durch das Umschalten wird ein Download gestartet."

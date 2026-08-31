@@ -634,6 +634,9 @@ limited:
 listening:
   _self: "শোনা হচ্ছে…"
 live:
+  names_cover_up_to_four_voices_pindrop_check: "লাইভ নাম চারটি কণ্ঠ পর্যন্ত কাজ করে। রেকর্ডিং শেষ হলে Pindrop প্রতিটি বক্তা আবার যাচাই করে।"
+  speaker_names_need_the_speaker_model_downlo: "লাইভ বক্তার নামের জন্য বক্তা মডেল দরকার। রেকর্ড করার সময় নাম দিতে এটি ডাউনলোড করুন।"
+  speaker_names_paused: "লাইভ বক্তার নাম থেমে আছে।"
   streaming_refinement: "লাইভ স্ট্রিমিং পরিমার্জন"
   text_stopped_the_recording_continues: "লাইভ লেখা থেমে গেছে। রেকর্ডিং চলছে।"
   transcript: "লাইভ প্রতিলিপি"
@@ -734,6 +737,7 @@ mute:
   system_audio_during_recording: "রেকর্ডিংয়ের সময় সিস্টেম অডিও নিঃশব্দ করুন"
 name:
   _self: "নাম"
+  speakers_while_recording: "রেকর্ডিংয়ের সময় বক্তাদের নাম দিন"
 nemotron:
   default: "Nemotron (default)"
 new:
@@ -922,6 +926,7 @@ pin:
 pindrop:
   _self: "পিনড্রপ"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "রেকর্ডিং শেষ হলে Pindrop বক্তাদের আবার যাচাই করে।"
   help: "Pindrop সহায়তা"
   is_ready_to_use_click_the_menu_bar_icon: |-
     পিনড্রপ ব্যবহারের জন্য প্রস্তুত।
@@ -1170,6 +1175,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "লাইভ প্রতিলিপি দেখান"
   in_transcript: "প্রতিলিপিতে দেখান"
+  who_is_talking_in_the_live_transcript_names: "লাইভ প্রতিলিপিতে কে কথা বলছে তা দেখান। রেকর্ডিং শেষ হলে নাম আবার যাচাই করা হয়।"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "স্ক্রিনের কোণে একটি তরল কাচের গোলক হিসেবে দেখায়"
   as_a_pill_at_the_bottom_of_the_screen: "পর্দার নীচে একটি বড়ি হিসাবে দেখায়"
@@ -1223,6 +1229,7 @@ speaker:
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "স্পীকার ডায়েরাইজেশন এবং টাইমস্ট্যাম্প প্লেব্যাকের সাথে সংযুক্ত।"
   diarization_is_required: "স্পীকার ডায়েরাইজেশন প্রয়োজন"
+  names_were_checked_again_against_the_ful: "পুরো রেকর্ডিং মিলিয়ে বক্তাদের নাম আবার যাচাই করা হয়েছে।"
   profile_training: "Speaker profile training"
   d: "বক্তা %d"
 speakers:
@@ -1286,6 +1293,7 @@ thanks:
   to_for_the_contribution_pr_61: "অবদানের জন্য %@-কে ধন্যবাদ (PR #61)।"
 the:
   floating_indicator_is_hidden: "ভাসমান নির্দেশকটি লুকানো আছে।"
+  live_speaker_model_could_not_be_loaded_recor: "লাইভ বক্তা মডেল লোড করা যায়নি। রেকর্ডিং চলছে, আর চূড়ান্ত নোটে সবার নাম থাকবে।"
   model_failed_to_load_within_60_seconds_this: "\" মডেলটি 60 সেকেন্ডের মধ্যে লোড হতে ব্যর্থ হয়েছে৷ এর মানে সাধারণত মডেল ফাইলগুলি দূষিত বা বেমানান।                          এটি ঠিক করতে: 1. সেটিংস খুলুন → মডেলগুলি 2. সমস্যাযুক্ত মডেলটি মুছুন 3. মডেলটি পুনরায় ডাউনলোড করুন যদি সমস্যাটি থেকে যায়, একটি ছোট মডেল চেষ্টা করুন (ক্ষুদ্র বা বেস)।             \""
   new_nemotron_streaming_engine_shows_words_as: "নতুন Nemotron স্ট্রিমিং ইঞ্জিন আপনি বলার সঙ্গে সঙ্গে শব্দ দেখায়, আর প্রথম ডিক্টেশন যেন দেরি ছাড়াই শুরু হয় সে জন্য ইঞ্জিনটি চালুর সময় প্রিওয়ার্ম হয়।"
   selected_chunk_variant_isn_t_downloaded_yet: "নির্বাচিত খণ্ড ভেরিয়েন্টটি এখনও ডাউনলোড করা হয়নি। টগল করলে একটি ডাউনলোড শুরু হবে।"

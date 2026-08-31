@@ -634,6 +634,9 @@ limited:
 listening:
   _self: "Se ascultă…"
 live:
+  names_cover_up_to_four_voices_pindrop_check: "Numele în direct acoperă până la patru voci. Pindrop verifică din nou fiecare vorbitor când se termină înregistrarea."
+  speaker_names_need_the_speaker_model_downlo: "Numele vorbitorilor în direct au nevoie de modelul de vorbitori. Descărcați-l ca să dați nume persoanelor chiar în timpul înregistrării."
+  speaker_names_paused: "Numele vorbitorilor în direct sunt în pauză."
   streaming_refinement: "Rafinamentul transmisiunii în direct"
   text_stopped_the_recording_continues: "Textul în direct s-a oprit. Înregistrarea continuă."
   transcript: "Transcriere în direct"
@@ -733,6 +736,7 @@ mute:
   system_audio_during_recording: "Dezactivați sunetul sistemului în timpul înregistrării"
 name:
   _self: "Nume"
+  speakers_while_recording: "Numiți vorbitorii în timpul înregistrării"
 nemotron:
   default: "Nemotron (default)"
 new:
@@ -921,6 +925,7 @@ pin:
 pindrop:
   _self: "Pindrop"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "Pindrop verifică din nou vorbitorii când se termină înregistrarea."
   help: "Ajutor Pindrop"
   is_ready_to_use_click_the_menu_bar_icon: |-
     Pindrop este gata de utilizare.
@@ -1166,6 +1171,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Arată transcrierea în direct"
   in_transcript: "Afișați în transcriere"
+  who_is_talking_in_the_live_transcript_names: "Arată cine vorbește în transcrierea în direct. Numele sunt verificate din nou când se termină înregistrarea."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Se afișează ca o sferă de sticlă lichidă în colțul ecranului"
   as_a_pill_at_the_bottom_of_the_screen: "Se afișează ca o pastilă în partea de jos a ecranului"
@@ -1218,6 +1224,7 @@ speaker:
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Diarizarea difuzorului și marcajele de timp sunt atașate la redare."
   diarization_is_required: "Diarizarea vorbitorului este necesară"
+  names_were_checked_again_against_the_ful: "Numele vorbitorilor au fost verificate din nou pe toată înregistrarea."
   profile_training: "Speaker profile training"
   d: "Vorbitorul %d"
 speakers:
@@ -1281,6 +1288,7 @@ thanks:
   to_for_the_contribution_pr_61: "Mulțumiri lui %@ pentru contribuție (PR #61)."
 the:
   floating_indicator_is_hidden: "Indicatorul plutitor este ascuns."
+  live_speaker_model_could_not_be_loaded_recor: "Modelul de vorbitori în direct nu a putut fi încărcat. Înregistrarea continuă, iar notița finală tot îi numește pe toți."
   model_failed_to_load_within_60_seconds_this: "\"\" Modelul nu s-a încărcat în 60 de secunde. Aceasta înseamnă de obicei că fișierele model sunt corupte sau incompatibile.                          Pentru a remedia acest lucru: 1. Deschideți Setări → Modele 2. Ștergeți modelul problematic 3. Descărcați din nou modelul Dacă problema persistă, încercați un model mai mic (Tiny sau Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "Noul motor de streaming Nemotron afișează cuvintele pe măsură ce le rostești și se preîncălzește la lansare, astfel încât prima dictare pornește fără întârziere."
   selected_chunk_variant_isn_t_downloaded_yet: "Varianta de bucată selectată nu este încă descărcată. Comutarea va începe o descărcare."

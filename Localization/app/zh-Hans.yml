@@ -634,6 +634,9 @@ limited:
 listening:
   _self: "正在聆听…"
 live:
+  names_cover_up_to_four_voices_pindrop_check: "实时姓名最多覆盖四个声音。录音结束后，Pindrop 会重新核对每一位说话人。"
+  speaker_names_need_the_speaker_model_downlo: "实时说话人姓名需要说话人模型。下载后即可在录音时为每个人命名。"
+  speaker_names_paused: "实时说话人姓名已暂停。"
   streaming_refinement: "直播优化"
   text_stopped_the_recording_continues: "实时文字已停止，录音仍在继续。"
   transcript: "实时转录"
@@ -733,6 +736,7 @@ mute:
   system_audio_during_recording: "录制期间静音系统音频"
 name:
   _self: "名称"
+  speakers_while_recording: "录音时标注说话人"
 nemotron:
   default: "Nemotron (default)"
 new:
@@ -921,6 +925,7 @@ pin:
 pindrop:
   _self: "Pindrop"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "录音结束后，Pindrop 会重新核对说话人。"
   help: "Pindrop 帮助"
   is_ready_to_use_click_the_menu_bar_icon: |-
     Pindrop 已准备好使用。
@@ -1166,6 +1171,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "显示实时转录"
   in_transcript: "在转录内容中显示"
+  who_is_talking_in_the_live_transcript_names: "在实时转录中显示谁在说话。录音结束后会重新核对姓名。"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "以液态玻璃光球的形式显示在屏幕角落"
   as_a_pill_at_the_bottom_of_the_screen: "在屏幕底部显示为胶囊"
@@ -1218,6 +1224,7 @@ speaker:
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "说话人分离和时间戳附加到播放。"
   diarization_is_required: "需要说话人分离"
+  names_were_checked_again_against_the_ful: "已对照完整录音重新核对说话人姓名。"
   profile_training: "Speaker profile training"
   d: "说话人 %d"
 speakers:
@@ -1281,6 +1288,7 @@ thanks:
   to_for_the_contribution_pr_61: "感谢 %@ 的贡献 (PR #61)。"
 the:
   floating_indicator_is_hidden: "悬浮指示器已隐藏。"
+  live_speaker_model_could_not_be_loaded_recor: "无法加载实时说话人模型。录音仍在继续，完成的笔记里依然会标出每个人的名字。"
   model_failed_to_load_within_60_seconds_this: "\"\"             模型在 60 秒内未能加载。这通常意味着模型文件已损坏或不兼容。                          解决方法：             1. 打开设置 → 模型             2. 删除有问题的模型             3. 重新下载模型                          如果问题仍然存在，请尝试使用较小的模型（Tiny 或 Base）。             \"\""
   new_nemotron_streaming_engine_shows_words_as: "新的 Nemotron 流式引擎会在你说话时显示文字，并在启动时预热，让第一次听写也能无延迟开始。"
   selected_chunk_variant_isn_t_downloaded_yet: "所选的分块变体尚未下载。切换将开始下载。"

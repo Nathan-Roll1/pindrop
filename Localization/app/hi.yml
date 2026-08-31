@@ -634,6 +634,9 @@ limited:
 listening:
   _self: "सुन रहा है…"
 live:
+  names_cover_up_to_four_voices_pindrop_check: "लाइव नाम चार आवाज़ों तक काम करते हैं। रिकॉर्डिंग खत्म होने पर Pindrop हर वक्ता की फिर से जाँच करता है।"
+  speaker_names_need_the_speaker_model_downlo: "लाइव वक्ता नामों के लिए वक्ता मॉडल चाहिए। रिकॉर्डिंग के दौरान लोगों को नाम देने के लिए इसे डाउनलोड करें।"
+  speaker_names_paused: "लाइव वक्ता नाम रुके हुए हैं।"
   streaming_refinement: "लाइव स्ट्रीमिंग परिशोधन"
   text_stopped_the_recording_continues: "लाइव टेक्स्ट रुक गया। रिकॉर्डिंग जारी है।"
   transcript: "लाइव प्रतिलेख"
@@ -733,6 +736,7 @@ mute:
   system_audio_during_recording: "रिकॉर्डिंग के दौरान सिस्टम ऑडियो म्यूट करें"
 name:
   _self: "नाम"
+  speakers_while_recording: "रिकॉर्डिंग के दौरान वक्ताओं को नाम दें"
 nemotron:
   default: "Nemotron (default)"
 new:
@@ -921,6 +925,7 @@ pin:
 pindrop:
   _self: "पिंड्रोप"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "रिकॉर्डिंग खत्म होने पर Pindrop वक्ताओं की फिर से जाँच करता है।"
   help: "Pindrop सहायता"
   is_ready_to_use_click_the_menu_bar_icon: |-
     पिनड्रॉप उपयोग के लिए तैयार है।
@@ -1166,6 +1171,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "लाइव प्रतिलेख दिखाएँ"
   in_transcript: "प्रतिलेख में दिखाएँ"
+  who_is_talking_in_the_live_transcript_names: "लाइव प्रतिलेख में दिखाएँ कि कौन बोल रहा है। रिकॉर्डिंग खत्म होने पर नाम फिर से जाँचे जाते हैं।"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "स्क्रीन के कोने में तरल कांच के गोले के रूप में दिखता है"
   as_a_pill_at_the_bottom_of_the_screen: "स्क्रीन के नीचे एक गोली के रूप में दिखाई देता है"
@@ -1218,6 +1224,7 @@ speaker:
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "स्पीकर डायराइज़ेशन और टाइमस्टैम्प प्लेबैक से जुड़े हुए हैं।"
   diarization_is_required: "स्पीकर डायरीकरण आवश्यक है"
+  names_were_checked_again_against_the_ful: "पूरी रिकॉर्डिंग से मिलाकर वक्ताओं के नाम फिर से जाँचे गए।"
   profile_training: "Speaker profile training"
   d: "वक्ता %d"
 speakers:
@@ -1281,6 +1288,7 @@ thanks:
   to_for_the_contribution_pr_61: "योगदान के लिए %@ का धन्यवाद (PR #61)।"
 the:
   floating_indicator_is_hidden: "फ़्लोटिंग संकेतक छिपा हुआ है।"
+  live_speaker_model_could_not_be_loaded_recor: "लाइव वक्ता मॉडल लोड नहीं हो सका। रिकॉर्डिंग जारी है, और तैयार नोट में सबके नाम फिर भी रहेंगे।"
   model_failed_to_load_within_60_seconds_this: "\"\" मॉडल 60 सेकंड के भीतर लोड होने में विफल रहा। इसका आमतौर पर मतलब है कि मॉडल फ़ाइलें दूषित या असंगत हैं।                          इसे ठीक करने के लिए: 1. सेटिंग्स खोलें → मॉडल 2. समस्याग्रस्त मॉडल हटाएं 3. मॉडल को दोबारा डाउनलोड करें यदि समस्या बनी रहती है, तो एक छोटा मॉडल (छोटा या बेस) आज़माएं।             \"\""
   new_nemotron_streaming_engine_shows_words_as: "नया Nemotron स्ट्रीमिंग इंजन आपके बोलते ही शब्द दिखाता है, और लॉन्च पर पहले से तैयार हो जाता है ताकि आपका पहला डिक्टेशन बिना देरी शुरू हो।"
   selected_chunk_variant_isn_t_downloaded_yet: "चयनित चंक संस्करण अभी तक डाउनलोड नहीं हुआ है। टॉगल करने से डाउनलोड प्रारंभ हो जाएगा."

@@ -669,6 +669,9 @@ list:
 listening:
   _self: "Listening…"
 live:
+  names_cover_up_to_four_voices_pindrop_check: "Live names cover up to four voices. Pindrop checks every speaker again when the recording ends."
+  speaker_names_need_the_speaker_model_downlo: "Live speaker names need the speaker model. Download it to name people while you record."
+  speaker_names_paused: "Live speaker names paused."
   streaming_refinement: "Live Streaming Refinement"
   text_stopped_the_recording_continues: "Live text stopped. The recording continues."
   transcript: "Live transcript"
@@ -776,6 +779,7 @@ my:
   notes: "My notes"
 name:
   _self: "Name"
+  speakers_while_recording: "Name speakers while recording"
 nemotron:
   default: "Nemotron (default)"
 new:
@@ -967,6 +971,7 @@ pindrop:
   _self: "Pindrop"
   1_19: "Pindrop 1.19"
   can_send_anonymous_privacy_preserving_si: "Pindrop can send anonymous, privacy-preserving signals so bugs get fixed faster."
+  checks_the_speakers_again_when_the_recor: "Pindrop checks the speakers again when the recording ends."
   did_not_match_this_voice_to_a_saved_spea: "Pindrop did not match this voice to a saved speaker, so there is no name to change yet."
   help: "Pindrop Help"
   is_ready_to_use_click_the_menu_bar_icon: |-
@@ -1237,6 +1242,7 @@ show:
   in_transcript: "Show in transcript"
   live_transcript: "Show live transcript"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  who_is_talking_in_the_live_transcript_names: "Show who is talking in the live transcript. Names are checked again when the recording ends."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Shows as a liquid glass orb in the corner of the screen"
   as_a_pill_at_the_bottom_of_the_screen: "Shows as a pill at the bottom of the screen"
@@ -1290,6 +1296,7 @@ speaker:
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Speaker diarization and timestamps are attached to playback."
   diarization_is_required: "Speaker diarization is required"
+  names_were_checked_again_against_the_ful: "Speaker names were checked again against the full recording."
   profile_training: "Speaker profile training"
 speakers:
   _self: "Speakers"
@@ -1359,6 +1366,7 @@ the:
   enhanced_note_could_not_be_generated_try_aga: "The enhanced note could not be generated. Try again."
   enhanced_note_could_not_be_saved_try_again: "The enhanced note could not be saved. Try again."
   floating_indicator_is_hidden: "The floating indicator is hidden."
+  live_speaker_model_could_not_be_loaded_recor: "The live speaker model could not be loaded. Recording continues, and the finished note still names everyone."
   model_returned_an_empty_answer_ask_again: "The model returned an empty answer. Ask again."
   model_returned_an_empty_note_try_again: "The model returned an empty note. Try again."
   new_nemotron_streaming_engine_shows_words_as: "The new Nemotron streaming engine shows words as you say them, and the engine prewarms at launch so your first dictation starts without a delay."

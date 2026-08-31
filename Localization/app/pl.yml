@@ -643,6 +643,9 @@ limited:
 listening:
   _self: "Słucham…"
 live:
+  names_cover_up_to_four_voices_pindrop_check: "Imiona na żywo obejmują do czterech głosów. Po zakończeniu nagrania Pindrop ponownie sprawdza każdego mówcę."
+  speaker_names_need_the_speaker_model_downlo: "Imiona mówców na żywo wymagają modelu mówców. Pobierz go, aby nadawać imiona już podczas nagrywania."
+  speaker_names_paused: "Imiona mówców na żywo wstrzymane."
   streaming_refinement: "Udoskonalenie transmisji na żywo"
   text_stopped_the_recording_continues: "Tekst na żywo się zatrzymał. Nagranie trwa dalej."
   transcript: "Transkrypcja na żywo"
@@ -744,6 +747,7 @@ mute:
   system_audio_during_recording: "Wycisz dźwięk systemowy podczas nagrywania"
 name:
   _self: "Nazwa"
+  speakers_while_recording: "Nadawaj imiona mówcom podczas nagrywania"
 nemotron:
   default: "Nemotron (domyślny)"
 new:
@@ -932,6 +936,7 @@ pin:
 pindrop:
   _self: "Pindrop"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "Po zakończeniu nagrania Pindrop ponownie sprawdza mówców."
   help: "Pomoc Pindropa"
   is_ready_to_use_click_the_menu_bar_icon: |-
     Pindrop jest gotowy do użycia.
@@ -1213,6 +1218,7 @@ show:
   the_main_window_and_open_the_library: "Pokaż główne okno i otwórz Bibliotekę."
   live_transcript: "Pokaż transkrypcję na żywo"
   in_transcript: "Pokaż w transkrypcji"
+  who_is_talking_in_the_live_transcript_names: "Pokazuje w transkrypcji na żywo, kto mówi. Imiona są sprawdzane ponownie po zakończeniu nagrania."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Wyświetla się jako kula w stylu Liquid Glass w rogu ekranu"
   as_a_pill_at_the_bottom_of_the_screen: "Pokazuje się jako pigułka na dole ekranu"
@@ -1267,6 +1273,7 @@ speaker:
   diarization: "Rozpoznawanie mówców"
   diarization_and_timestamps_are_attached: "Informacje o mówcach i znaczniki czasu są dołączane do odtwarzania."
   diarization_is_required: "Wymagane jest rozpoznawanie mówców"
+  names_were_checked_again_against_the_ful: "Imiona mówców zostały ponownie sprawdzone na całym nagraniu."
   profile_training: "Trenowanie profili mówców"
   d: "Mówca %d"
 speakers:
@@ -1330,6 +1337,7 @@ thanks:
   to_for_the_contribution_pr_61: "Dziękujemy %@ za wkład (PR #61)."
 the:
   floating_indicator_is_hidden: "Pływający wskaźnik jest ukryty."
+  live_speaker_model_could_not_be_loaded_recor: "Nie udało się wczytać modelu mówców na żywo. Nagranie trwa dalej, a gotowa notatka i tak nazwie wszystkich."
   model_failed_to_load_within_60_seconds_this: |-
     Nie udało się wczytać modelu w ciągu 60 sekund. Zwykle oznacza to, że pliki modelu są uszkodzone lub niezgodne.
     
