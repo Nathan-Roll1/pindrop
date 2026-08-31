@@ -1341,6 +1341,16 @@ public final class ModelManager {
     /// literal here: each preset ships its own bundle, so a hard-coded name would
     /// report "not ready" after a good download of a different preset.
     public func isLiveDiarizationModelsReady(at modelsRoot: URL) -> Bool {
+        Self.isLiveDiarizationModelsReady(at: modelsRoot, fileManager: fileManager)
+    }
+
+    /// Nonisolated so `LiveDiarizationEngine` can gate its own load on this exact
+    /// rule from its own executor. Two copies of the check would let readiness and
+    /// the engine disagree, which reads as "downloaded" with no live labels ever.
+    public nonisolated static func isLiveDiarizationModelsReady(
+        at modelsRoot: URL,
+        fileManager: FileManager = .default
+    ) -> Bool {
         let bundle = modelsRoot
             .appendingPathComponent(
                 FeatureModelType.liveDiarization.repoFolderName,
