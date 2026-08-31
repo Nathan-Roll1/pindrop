@@ -27,6 +27,15 @@ public enum StreamingChunkProfile: String, Sendable {
         }
     }
 
+    /// The chunk the streaming engine decodes, in seconds.
+    ///
+    /// `NemotronChunkSize` carries milliseconds and belongs to FluidAudio, which
+    /// the app target deliberately does not import. Callers that time their work
+    /// against the decode boundary read this instead.
+    public var nemotronChunkSeconds: TimeInterval {
+        TimeInterval(nemotronChunkSize.rawValue) / 1000
+    }
+
     public var modelSubdirectory: String {
         switch self {
         case .standard: return "1120ms"

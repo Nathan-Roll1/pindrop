@@ -156,6 +156,7 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		B105C906BA4047A6B066CA79 /* HotkeyManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61D78A13A5C4AAD839A3F76 /* HotkeyManagerTests.swift */; };
 		HKCONFLICTTESTBUILD01A2B3C4D5 /* HotkeyConflictCheckerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HKCONFLICTTESTFILE01A2B3C4D5 /* HotkeyConflictCheckerTests.swift */; };
 		BC44C77F1DDD43BFAD8A88BD /* HistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDDC77E732664A859279FEC9 /* HistoryStore.swift */; };
+		LIVECHANARBBUILD01 /* LiveChannelArbiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVECHANARBFILE01 /* LiveChannelArbiter.swift */; };
 		ORBINDBUILD001A2B3C4D5E6F70 /* OrbFloatingIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORBINDFILE001A2B3C4D5E6F71 /* OrbFloatingIndicator.swift */; };
 		NOTCHINDBUILD01A2B3C4D5E6 /* FloatingIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTCHINDFILE01A2B3C4D5E6 /* FloatingIndicator.swift */; };
 		BUBBLEINDBUILD01A2B3C4D5 /* CaretBubbleFloatingIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BUBBLEINDFILE01A2B3C4D5E /* CaretBubbleFloatingIndicator.swift */; };
@@ -164,6 +165,7 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		CEACBC45493663E081E4B1FA /* CopyButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 049276EAC4FEBCA2F91F807E /* CopyButton.swift */; };
 		COORDFLW01A2B3C4D5E6F /* AppCoordinatorContextFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = COORDFLW02A2B3C4D5E6F /* AppCoordinatorContextFlowTests.swift */; };
 		NOTECAPCTRLTESTBUILD01 /* NoteCaptureControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTECAPCTRLTESTFILE01 /* NoteCaptureControllerTests.swift */; };
+		LIVECHANARBTESTBUILD01 /* LiveChannelArbiterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVECHANARBTESTFILE01 /* LiveChannelArbiterTests.swift */; };
 		WP3MDGRAMMARTESTBUILD01 /* MarkdownBlockGrammarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP3MDGRAMMARTESTFILE01A /* MarkdownBlockGrammarTests.swift */; };
 		WP3NOTEPAGEPRESTESTBUILD /* NotePagePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP3NOTEPAGEPRESTESTFILE0 /* NotePagePresentationTests.swift */; };
 		RBNOTEFABTESTBUILD000001 /* NoteFABPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = RBNOTEFABTESTFILE0000001 /* NoteFABPresentationTests.swift */; };
@@ -429,8 +431,10 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 		C017B84CBC554D8192D38FFA /* PindropTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PindropTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CB05E1BC11534652810B091F /* OutputManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutputManager.swift; sourceTree = "<group>"; };
 		CDDC77E732664A859279FEC9 /* HistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStore.swift; sourceTree = "<group>"; };
+		LIVECHANARBFILE01 /* LiveChannelArbiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveChannelArbiter.swift; sourceTree = "<group>"; };
 		COORDFLW02A2B3C4D5E6F /* AppCoordinatorContextFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorContextFlowTests.swift; sourceTree = "<group>"; };
 		NOTECAPCTRLTESTFILE01 /* NoteCaptureControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCaptureControllerTests.swift; sourceTree = "<group>"; };
+		LIVECHANARBTESTFILE01 /* LiveChannelArbiterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveChannelArbiterTests.swift; sourceTree = "<group>"; };
 		WP3MDGRAMMARTESTFILE01A /* MarkdownBlockGrammarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlockGrammarTests.swift; sourceTree = "<group>"; };
 		WP3NOTEPAGEPRESTESTFILE0 /* NotePagePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotePagePresentationTests.swift; sourceTree = "<group>"; };
 		RBNOTEFABTESTFILE0000001 /* NoteFABPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteFABPresentationTests.swift; sourceTree = "<group>"; };
@@ -665,6 +669,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				a2189a034cf447e08e86f24b /* PermissionManager.swift */,
 				CB05E1BC11534652810B091F /* OutputManager.swift */,
 				CDDC77E732664A859279FEC9 /* HistoryStore.swift */,
+				LIVECHANARBFILE01 /* LiveChannelArbiter.swift */,
 				TRXPRTFILE01A2B3C4D5E6 /* TranscriptExportService.swift */,
 				NOTEAPPLISTENFILE01A2B3 /* NoteAppendListeningState.swift */,
 				CTXCAPT02A2B3C4D5E6F7 /* ContextCaptureService.swift */,
@@ -863,6 +868,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				AUTOLEARNTSTFILE01A2B3C4D5E6F /* AutomaticDictionaryLearningServiceTests.swift */,
 				COORDFLW02A2B3C4D5E6F /* AppCoordinatorContextFlowTests.swift */,
 				NOTECAPCTRLTESTFILE01 /* NoteCaptureControllerTests.swift */,
+				LIVECHANARBTESTFILE01 /* LiveChannelArbiterTests.swift */,
 				WP3MDGRAMMARTESTFILE01A /* MarkdownBlockGrammarTests.swift */,
 				WP3NOTEPAGEPRESTESTFILE0 /* NotePagePresentationTests.swift */,
 				RBNOTEFABTESTFILE0000001 /* NoteFABPresentationTests.swift */,
@@ -1285,6 +1291,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				AUTOLEARNTSTBUILD01A2B3C4D5E6F /* AutomaticDictionaryLearningServiceTests.swift in Sources */,
 				COORDFLW01A2B3C4D5E6F /* AppCoordinatorContextFlowTests.swift in Sources */,
 				NOTECAPCTRLTESTBUILD01 /* NoteCaptureControllerTests.swift in Sources */,
+				LIVECHANARBTESTBUILD01 /* LiveChannelArbiterTests.swift in Sources */,
 				WP3MDGRAMMARTESTBUILD01 /* MarkdownBlockGrammarTests.swift in Sources */,
 				WP3NOTEPAGEPRESTESTBUILD /* NotePagePresentationTests.swift in Sources */,
 				RBNOTEFABTESTBUILD000001 /* NoteFABPresentationTests.swift in Sources */,
@@ -1329,6 +1336,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				ANNOUNCEBUILD01A2B3C4D5E6F /* Announcement.swift in Sources */,
 				FEATMODEL1A2B3C4D5E6F /* FeatureModelType.swift in Sources */,
 				BC44C77F1DDD43BFAD8A88BD /* HistoryStore.swift in Sources */,
+				LIVECHANARBBUILD01 /* LiveChannelArbiter.swift in Sources */,
 				TRXPRTBUILD01A2B3C4D5E6 /* TranscriptExportService.swift in Sources */,
 				TRXDTLACCESSBUILD01A2B3 /* TranscriptionDetailAccess.swift in Sources */,
 				8D0F64A2A0A44CE9B6B5A002 /* SettingsWindowController.swift in Sources */,
