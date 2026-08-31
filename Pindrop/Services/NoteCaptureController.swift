@@ -274,11 +274,11 @@ final class NoteCaptureController {
         self.toastService = toastService
         self.arbiter = arbiter
         self.state = state
-        streamingSession.onArtifactLiveTextChanged = { [weak self] text in
-            self?.updateLiveTranscript(text)
+        streamingSession.onArtifactLiveSpansChanged = { [weak self] spans in
+            self?.updateLiveSpans(spans)
         }
-        streamingSession.onArtifactTentativeTextChanged = { [weak self] text in
-            self?.updateTentativeLiveTranscript(text)
+        streamingSession.onArtifactTentativeChanged = { [weak self] tentative in
+            self?.updateTentativeLiveTranscript(tentative)
         }
     }
 
@@ -1037,9 +1037,9 @@ final class NoteCaptureController {
         state.updateLevels(level: state.audioLevel, bands: bands)
     }
 
-    private func updateLiveTranscript(_ text: String) {
+    private func updateLiveSpans(_ spans: [LiveTranscriptSpan]) {
         guard state.isActive else { return }
-        state.updateLiveTranscript(text)
+        state.updateLiveSpans(spans)
         if streamingSession.isArtifactLiveTranscriptDegraded {
             state.markLiveTranscriptDegraded()
         }
@@ -1047,12 +1047,12 @@ final class NoteCaptureController {
 
     /// The unsettled tail. Only a running recording has one: past that, the
     /// words either committed or were never said.
-    private func updateTentativeLiveTranscript(_ text: String) {
+    private func updateTentativeLiveTranscript(_ tentative: LiveTentativeSpan?) {
         guard state.isCapturing else {
-            state.updateLiveTentativeTranscript("")
+            state.updateLiveTentative(nil)
             return
         }
-        state.updateLiveTentativeTranscript(text)
+        state.updateLiveTentative(tentative)
     }
 
     // MARK: - Ownership

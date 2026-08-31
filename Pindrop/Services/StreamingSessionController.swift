@@ -143,15 +143,21 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     private(set) var isArtifactLiveTranscriptionStopped = false
     private var artifactLiveTranscriptionLimitTask: Task<Void, Never>?
 
-    /// Observer for the cumulative committed text of an artifact capture. This
-    /// is how the note UI sees what the live engine has decided so far, and it
-    /// reports exactly what the durable checkpoints record.
-    var onArtifactLiveTextChanged: ((String) -> Void)?
+    /// Observer for the settled paragraphs of an artifact capture, each pointed
+    /// at the channel that produced it. This is how the note UI sees what the
+    /// live engine has decided so far. Joined by newline the spans are exactly
+    /// what the durable checkpoints record.
+    var onArtifactLiveSpansChanged: (([LiveTranscriptSpan]) -> Void)?
 
     /// Observer for the tail the engine has not settled on yet. The note page
     /// draws it in a quieter ink, so a person can tell a guess from a decision.
     /// Nothing else consumes it: artifact capture still inserts no text anywhere.
-    var onArtifactTentativeTextChanged: ((String) -> Void)?
+    var onArtifactTentativeChanged: ((LiveTentativeSpan?) -> Void)?
+
+    /// The channel the live transcript is following right now. Set from the pump
+    /// when a handover is applied, and read when the tentative tail needs a
+    /// speaker to be drawn under.
+    private var currentLiveSpeaker: LiveSpeakerRef = .currentUser
 
     /// True when live transcription for the active artifact capture stopped
     /// growing: the duration bound elapsed, or checkpoint persistence failed.
@@ -317,13 +323,20 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
             // Committed text still arrives through the commit observer, which is
             // the path the durable checkpoints follow.
             let displaySink = ArtifactDisplaySink { [weak self] tentative in
-                self?.onArtifactTentativeTextChanged?(tentative)
+                guard let self else { return }
+                self.onArtifactTentativeChanged?(
+                    tentative.isEmpty
+                        ? nil
+                        : LiveTentativeSpan(speaker: self.currentLiveSpeaker, text: tentative)
+                )
             }
             artifactDisplaySink = displaySink
+            currentLiveSpeaker = .currentUser
             coordinator.beginSession(
                 outputSink: displaySink,
                 commitObserver: self,
-                preservesArtifactParagraphs: true
+                preservesArtifactParagraphs: true,
+                initialSpeaker: currentLiveSpeaker
             )
             refinementCoordinator = coordinator
             pumpEngine = transcriptionService.activeStreamingEngine
@@ -853,7 +866,8 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
 
     func streamingRefinementCoordinator(
         _ coordinator: StreamingRefinementCoordinator,
-        didCommitText committedText: String
+        didCommitText committedText: String,
+        spans: [LiveTranscriptSpan]
     ) {
         guard refinementCoordinator === coordinator, isArtifactCaptureActive else { return }
         // A trailing newline means the engine closed a paragraph, which happens
@@ -865,8 +879,8 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         // The observer sees every commit, including ones this controller can no
         // longer checkpoint: the words were still decoded, so the note UI shows
         // them and flags the transcript as degraded instead of losing them.
-        if !committedText.isEmpty {
-            onArtifactLiveTextChanged?(committedText)
+        if !committedText.isEmpty || !spans.isEmpty {
+            onArtifactLiveSpansChanged?(spans)
         }
         guard
             !artifactPersistenceDisabled,
@@ -965,7 +979,7 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         artifactFailureRecorded = false
         isArtifactLiveTranscriptionStopped = false
         artifactDisplaySink = nil
-        onArtifactTentativeTextChanged?("")
+        onArtifactTentativeChanged?(nil)
     }
 
     /// Arms the live-transcription duration bound for one durable capture.
@@ -1042,20 +1056,37 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         }
     }
 
-    /// What the pump does when a handover takes effect. Phase 1 only records the
-    /// channel that owns the live text from here on.
+    /// What the pump does when a handover takes effect: one hop to the main
+    /// actor, at the engine boundary the switch landed on, never per buffer.
     private func handoverApplicationHandler() -> @Sendable (CaptureSourceKind) -> Void {
-        { source in
-            Log.transcription.debug("Live transcript now follows \(source.rawValue)")
+        { [weak self] source in
+            Task { @MainActor [weak self] in
+                self?.applyLiveChannelChange(to: source)
+            }
         }
     }
 
-    /// What the pump does with speech the live engine never heard.
+    /// What the pump does with speech the live engine never heard: one hop per
+    /// marker, a few per minute.
     private func droppedSpeechHandler() -> @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) -> Void {
-        { source, startCaptureTime, duration in
-            Log.transcription.debug(
-                "Live transcript missed \(String(format: "%.1f", duration))s of \(source.rawValue) at \(String(format: "%.1f", startCaptureTime))s"
-            )
+        { [weak self] source, startCaptureTime, duration in
+            Task { @MainActor [weak self] in
+                await self?.refinementCoordinator?.markDroppedSpeech(
+                    speaker: .channel(for: source),
+                    startOffset: startCaptureTime,
+                    duration: duration
+                )
+            }
+        }
+    }
+
+    /// Points the live transcript at the channel that just took the engine.
+    private func applyLiveChannelChange(to source: CaptureSourceKind) {
+        let speaker = LiveSpeakerRef.channel(for: source)
+        guard currentLiveSpeaker != speaker else { return }
+        currentLiveSpeaker = speaker
+        Task { @MainActor [weak self] in
+            await self?.refinementCoordinator?.markBoundary(.channelChange, speaker: speaker)
         }
     }
 

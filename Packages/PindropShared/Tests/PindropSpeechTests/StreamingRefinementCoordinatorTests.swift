@@ -76,13 +76,42 @@ struct StreamingRefinementCoordinatorTests {
    @MainActor
    final class FakeCommitObserver: StreamingRefinementCommitObserver {
       private(set) var committedTexts: [String] = []
+      /// Every spans array as it arrived, so a test can assert the labelling
+      /// moved at the commit it was supposed to move at.
+      private(set) var spanUpdates: [[LiveTranscriptSpan]] = []
 
       func streamingRefinementCoordinator(
          _ coordinator: StreamingRefinementCoordinator,
-         didCommitText committedText: String
+         didCommitText committedText: String,
+         spans: [LiveTranscriptSpan]
       ) {
          committedTexts.append(committedText)
+         spanUpdates.append(spans)
       }
+
+      var latestSpans: [LiveTranscriptSpan] { spanUpdates.last ?? [] }
+
+      /// The committed text rebuilt from the spans, as section 3.7's invariant
+      /// states it: the text spans joined by newline, plus the trailing boundary
+      /// the artifact path appends when no paragraph is open.
+      func rebuiltCommittedText(from spans: [LiveTranscriptSpan], isParagraphOpen: Bool) -> String {
+         spans.filter(\.isText).map(\.text).joined(separator: "\n")
+            + (isParagraphOpen ? "" : "\n")
+      }
+   }
+
+   /// A streaming-diarizer slot, the only key `relabelSpeaker` accepts.
+   private func slotSpeaker(
+      _ number: Int,
+      displayName: String? = nil,
+      tier: LiveSpeakerTier = .provisional
+   ) -> LiveSpeakerRef {
+      LiveSpeakerRef(
+         key: "slot.\(number)",
+         tier: tier,
+         slotNumber: number,
+         displayName: displayName
+      )
    }
 
    // MARK: - Helpers
@@ -223,6 +252,12 @@ struct StreamingRefinementCoordinatorTests {
          "First thought\nSecond thought\n",
       ])
       #expect(finalText == "First thought\nSecond thought")
+      #expect(observer.spanUpdates.map { $0.map(\.text) } == [
+         ["First thought"],
+         ["First thought", "Second thought"],
+      ])
+      #expect(observer.latestSpans.allSatisfy { $0.speaker == .currentUser })
+      #expect(observer.latestSpans.allSatisfy { $0.boundaryReason == .endOfUtterance })
    }
 
    @Test func artifactFinalAddsABoundaryAfterAgreementAlreadyCommittedTheSentence() async {
@@ -235,6 +270,11 @@ struct StreamingRefinementCoordinatorTests {
       await coord.ingestFinal("first thought.")
 
       #expect(observer.committedTexts == ["First thought.", "First thought.\n"])
+      #expect(observer.spanUpdates.map { $0.map(\.text) } == [
+         ["First thought."],
+         ["First thought."],
+      ])
+      #expect(observer.latestSpans.first?.boundaryReason == .endOfUtterance)
    }
 
    @Test func artifactIdleAddsABoundaryAfterAgreementAlreadyCommittedTheSentence() async throws {
@@ -247,6 +287,11 @@ struct StreamingRefinementCoordinatorTests {
       try await Task.sleep(nanoseconds: 200_000_000)
 
       #expect(observer.committedTexts == ["First thought.", "First thought.\n"])
+      #expect(observer.spanUpdates.map { $0.map(\.text) } == [
+         ["First thought."],
+         ["First thought."],
+      ])
+      #expect(observer.latestSpans.first?.boundaryReason == .idlePause)
    }
 
    @Test func observerDoesNotAddParagraphsToAnOutputSession() async {
@@ -260,6 +305,268 @@ struct StreamingRefinementCoordinatorTests {
 
       #expect(sink.lastUpdate == "First thought second thought")
       #expect(observer.committedTexts == ["First thought", "First thought second thought"])
+      // Dictation has one speaker and no paragraph structure to carry, so it
+      // allocates no spans at all.
+      #expect(observer.spanUpdates.allSatisfy { $0.isEmpty })
+   }
+
+   // MARK: - Live attribution spans
+
+   @Test func spansRebuildTheCommittedTextIncludingItsTrailingBoundary() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(commitObserver: observer, preservesArtifactParagraphs: true)
+
+      await coord.ingestFinal("first thought")
+      // A paragraph opened by LocalAgreement is still open, so its rebuild takes
+      // no trailing newline. The naive join is false on day one, which is why
+      // the invariant carries the trailing-boundary term.
+      await coord.ingestPartial("first thought second thought and")
+      await coord.ingestPartial("first thought second thought and more")
+      await coord.ingestPartial("first thought second thought and more words")
+      await coord.markDroppedSpeech(speaker: .systemChannel, startOffset: 3, duration: 1.5)
+      await coord.ingestFinal("first thought second thought and more words here")
+
+      #expect(observer.committedTexts.count == observer.spanUpdates.count)
+      var sawOpenParagraph = false
+      var sawClosedParagraph = false
+      for (committed, spans) in zip(observer.committedTexts, observer.spanUpdates) {
+         let isParagraphOpen = !committed.hasSuffix("\n")
+         if isParagraphOpen { sawOpenParagraph = true } else { sawClosedParagraph = true }
+         #expect(observer.rebuiltCommittedText(from: spans, isParagraphOpen: isParagraphOpen) == committed)
+      }
+      #expect(sawOpenParagraph)
+      #expect(sawClosedParagraph)
+   }
+
+   @Test func aChannelChangeStartsANewSpanAndANewTurn() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(
+         commitObserver: observer,
+         preservesArtifactParagraphs: true,
+         initialSpeaker: .systemChannel
+      )
+
+      await coord.ingestFinal("they said this")
+      await coord.markBoundary(.channelChange, speaker: .currentUser)
+      await coord.ingestFinal("they said this and then I answered")
+
+      let spans = observer.latestSpans
+      #expect(spans.map(\.text) == ["They said this", "And then I answered"])
+      #expect(spans.map(\.speaker) == [.systemChannel, .currentUser])
+      #expect(spans.first?.boundaryReason == .channelChange)
+   }
+
+   @Test func aChannelChangeWithNothingPendingStillOpensANewSpan() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(
+         commitObserver: observer,
+         preservesArtifactParagraphs: true,
+         initialSpeaker: .systemChannel
+      )
+
+      // The handover lands during silence: the paragraph was already closed by
+      // the final that preceded it, so there is nothing to close.
+      await coord.ingestFinal("they said this")
+      await coord.markBoundary(.channelChange, speaker: .currentUser)
+      await coord.markBoundary(.channelChange, speaker: .systemChannel)
+      await coord.markBoundary(.channelChange, speaker: .currentUser)
+      await coord.ingestFinal("they said this and then I answered")
+
+      let spans = observer.latestSpans
+      #expect(spans.count == 2)
+      #expect(spans.map(\.speaker) == [.systemChannel, .currentUser])
+   }
+
+   @Test func everythingCommittedBeforeAHandoverStaysWithTheOutgoingSpeaker() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(
+         commitObserver: observer,
+         preservesArtifactParagraphs: true,
+         initialSpeaker: .systemChannel
+      )
+
+      await coord.ingestFinal("one two")
+      await coord.ingestFinal("one two three four")
+      let beforeHandover = observer.latestSpans.map(\.text)
+      await coord.markBoundary(.channelChange, speaker: .currentUser)
+      await coord.ingestFinal("one two three four five six")
+
+      let spans = observer.latestSpans
+      // Attribution is by commit ordering, with no timestamp anywhere: every
+      // character committed before the boundary belongs to the outgoing channel.
+      #expect(spans.filter { $0.speaker == .systemChannel }.map(\.text) == beforeHandover)
+      #expect(spans.filter { $0.speaker == .currentUser }.map(\.text) == ["Five six"])
+   }
+
+   @Test func endOfUtteranceMakesAParagraphNotATurn() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(commitObserver: observer, preservesArtifactParagraphs: true)
+
+      await coord.ingestFinal("first thought")
+      await coord.ingestFinal("first thought second thought")
+
+      let spans = observer.latestSpans
+      #expect(spans.count == 2)
+      #expect(Set(spans.map(\.speaker.key)).count == 1)
+      #expect(spans.first?.boundaryReason == .endOfUtterance)
+   }
+
+   @Test func idlePauseMakesAParagraphNotATurn() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator(idleCommitNs: 80_000_000)
+      coord.beginSession(commitObserver: observer, preservesArtifactParagraphs: true)
+
+      await coord.ingestPartial("first thought")
+      try await Task.sleep(nanoseconds: 200_000_000)
+      await coord.ingestPartial("second thought")
+      try await Task.sleep(nanoseconds: 200_000_000)
+
+      let spans = observer.latestSpans
+      #expect(spans.count == 2)
+      #expect(Set(spans.map(\.speaker.key)).count == 1)
+      #expect(spans.allSatisfy { $0.boundaryReason == .idlePause })
+   }
+
+   @Test func aDroppedSpeechMarkerAddsNoCharactersToTheCommittedText() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(commitObserver: observer, preservesArtifactParagraphs: true)
+
+      await coord.ingestFinal("I was talking")
+      let committedBefore = try #require(observer.committedTexts.last)
+      await coord.markDroppedSpeech(speaker: .systemChannel, startOffset: 12, duration: 2.5)
+
+      #expect(observer.committedTexts.last == committedBefore)
+      let spans = observer.latestSpans
+      #expect(spans.count == 2)
+      let marker = try #require(spans.last)
+      #expect(marker.kind == .droppedSpeech)
+      #expect(marker.text.isEmpty)
+      #expect(marker.speaker == .systemChannel)
+      #expect(marker.startOffset == 12)
+      #expect(marker.duration == 2.5)
+      // The checkpoint's prefix-monotonic contract cannot be broken by a marker,
+      // because the marker adds no characters.
+      #expect(
+         observer.rebuiltCommittedText(from: spans, isParagraphOpen: false)
+            == observer.committedTexts.last
+      )
+   }
+
+   @Test func relabelSpeakerChangesLabelsAndNeverText() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      let slot = slotSpeaker(2)
+      coord.beginSession(
+         commitObserver: observer,
+         preservesArtifactParagraphs: true,
+         initialSpeaker: slot
+      )
+
+      await coord.ingestFinal("first thought")
+      await coord.markDroppedSpeech(speaker: slot, startOffset: 4, duration: 1.5)
+      let textBefore = observer.latestSpans.map(\.text)
+      let committedBefore = observer.committedTexts.last
+
+      let named = slotSpeaker(2, displayName: "Dana", tier: .named)
+      await coord.relabelSpeaker(slotKey: "slot.2", to: named)
+
+      let spans = observer.latestSpans
+      #expect(spans.map(\.text) == textBefore)
+      #expect(observer.committedTexts.last == committedBefore)
+      #expect(spans.allSatisfy { $0.speaker == named })
+   }
+
+   @Test func relabelSpeakerRejectsAChannelKey() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(
+         commitObserver: observer,
+         preservesArtifactParagraphs: true,
+         initialSpeaker: .systemChannel
+      )
+
+      await coord.ingestFinal("first thought")
+      let updateCount = observer.spanUpdates.count
+
+      // One channel key can cover several people, so promoting it would put one
+      // name on everyone the far end sent.
+      await coord.relabelSpeaker(slotKey: LiveSpeakerRef.systemChannel.key, to: slotSpeaker(1))
+
+      #expect(observer.spanUpdates.count == updateCount)
+      #expect(observer.latestSpans.allSatisfy { $0.speaker == .systemChannel })
+   }
+
+   @Test func aSessionWithOneChannelProducesOneTurn() async throws {
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(commitObserver: observer, preservesArtifactParagraphs: true)
+
+      await coord.ingestFinal("first thought")
+      await coord.ingestFinal("first thought second thought")
+      await coord.ingestFinal("first thought second thought third thought")
+
+      let spans = observer.latestSpans
+      #expect(spans.count == 3)
+      #expect(Set(spans.map(\.speaker.key)) == [LiveSpeakerRef.currentUser.key])
+      #expect(spans.allSatisfy { $0.speaker.isCurrentUser })
+   }
+
+   // MARK: - The dictation path is unchanged
+
+   @Test func anOutputSessionProducesNoSpans() async throws {
+      let sink = FakeSink()
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(outputSink: sink, commitObserver: observer)
+
+      await coord.ingestFinal("first thought")
+      await coord.ingestFinal("first thought second thought")
+
+      #expect(!observer.committedTexts.isEmpty)
+      #expect(observer.spanUpdates.allSatisfy { $0.isEmpty })
+   }
+
+   @Test func anOutputSessionEmitsNoBoundariesBeyondTheEngineOwnPauses() async throws {
+      let sink = FakeSink()
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(outputSink: sink, commitObserver: observer)
+
+      await coord.ingestFinal("first thought")
+      let committedBefore = observer.committedTexts
+      // Dictation is microphone only, so the arbiter never issues a handover and
+      // never reports cross-talk loss. Calling either anyway changes nothing.
+      await coord.markBoundary(.channelChange, speaker: .systemChannel)
+      await coord.markDroppedSpeech(speaker: .systemChannel, startOffset: 1, duration: 3)
+
+      #expect(observer.committedTexts == committedBefore)
+      #expect(observer.spanUpdates.allSatisfy { $0.isEmpty })
+      #expect(sink.lastUpdate == "First thought")
+   }
+
+   @Test func dictationCommittedAndTentativeTextIsByteIdenticalAcrossTheRefactor() async throws {
+      let sink = FakeSink()
+      let observer = FakeCommitObserver()
+      let coord = makeCoordinator()
+      coord.beginSession(outputSink: sink, commitObserver: observer)
+
+      await coord.ingestPartial("the quick brown")
+      await coord.ingestPartial("the quick brown fox")
+      await coord.ingestPartial("the quick brown fox jumps")
+      await coord.ingestFinal("the quick brown fox jumps over")
+      await coord.ingestPartial("the quick brown fox jumps over the lazy")
+
+      let split = try #require(sink.lastSplit)
+      #expect(split.committed == "The quick brown fox jumps over")
+      #expect(split.tentative == " the lazy")
+      #expect(observer.committedTexts.last == "The quick brown fox jumps over")
+      #expect(sink.lastUpdate == "The quick brown fox jumps over the lazy")
    }
 
    // MARK: - Cumulative partials drive tentative display

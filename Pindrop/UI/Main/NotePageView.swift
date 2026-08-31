@@ -232,7 +232,7 @@ struct NotePageView: View {
     /// what it takes to offer the Transcript view during the recording.
     private var hasLiveText: Bool {
         guard capturePhase.isRecording, let noteCaptureState else { return false }
-        return !noteCaptureState.liveTranscript.isEmpty
+        return !noteCaptureState.liveTranscriptText.isEmpty
     }
 
     private var resolvedSelection: CaptureNoteViewKind {
@@ -2013,8 +2013,11 @@ private struct LiveTranscriptLines: View {
 
     private var lines: [TranscriptLiveLine] {
         TranscriptSegmentPresentation.liveLines(
-            committed: state?.liveTranscript ?? "",
-            tentative: state?.liveTentativeTranscript ?? ""
+            // P1.5 replaces this joined-text adapter with the real turn stack.
+            // Until then both live surfaces keep rendering exactly what they
+            // rendered before, read out of the spans.
+            committed: state?.liveTranscriptText ?? "",
+            tentative: state?.liveTentative?.text ?? ""
         )
     }
 

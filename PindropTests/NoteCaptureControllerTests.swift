@@ -1009,6 +1009,66 @@ struct NoteCaptureControllerTests {
         }
     }
 
+    @Test func liveTranscriptTextJoinsSpansWithNewlines() {
+        let state = NoteCaptureState()
+        state.beginStarting(includesSystemAudio: true, origin: .mainWindow)
+        state.updateLiveSpans([
+            textSpan(0, "They opened the call.", speaker: .systemChannel),
+            droppedSpan(1, speaker: .currentUser),
+            textSpan(2, "Then I answered.", speaker: .currentUser),
+        ])
+
+        // The checkpoint-contract view: the settled paragraphs and nothing else,
+        // so it stays equal to what the durable checkpoint holds.
+        #expect(state.liveTranscriptText == "They opened the call.\nThen I answered.")
+    }
+
+    @Test func liveTranscriptForCopyCarriesSpeakerNamesAndGapMarkers() {
+        let state = NoteCaptureState()
+        state.beginStarting(includesSystemAudio: true, origin: .mainWindow)
+        state.updateLiveSpans([
+            textSpan(0, "They opened the call.", speaker: .systemChannel),
+            textSpan(1, "They kept going.", speaker: .systemChannel),
+            droppedSpan(2, speaker: .currentUser),
+            textSpan(3, "Then I answered.", speaker: .currentUser),
+        ])
+
+        let expected = [
+            "Call audio",
+            "They opened the call.",
+            "They kept going.",
+            "",
+            "You spoke here. The finished note has it.",
+            "",
+            "You",
+            "Then I answered.",
+        ].joined(separator: "\n")
+        #expect(state.liveTranscriptForCopy(locale: Locale(identifier: "en_US")) == expected)
+    }
+
+    private func textSpan(_ id: Int, _ text: String, speaker: LiveSpeakerRef) -> LiveTranscriptSpan {
+        LiveTranscriptSpan(
+            id: id,
+            speaker: speaker,
+            text: text,
+            startOffset: 0,
+            duration: 0,
+            boundaryReason: .endOfUtterance
+        )
+    }
+
+    private func droppedSpan(_ id: Int, speaker: LiveSpeakerRef) -> LiveTranscriptSpan {
+        LiveTranscriptSpan(
+            id: id,
+            kind: .droppedSpeech,
+            speaker: speaker,
+            text: "",
+            startOffset: 4,
+            duration: 1.5,
+            boundaryReason: .crossTalkDropped
+        )
+    }
+
     @Test func stateWalksIdleToCapturingToFinalizingToCompleted() {
         let state = NoteCaptureState()
         #expect(state.phase == .idle)
@@ -1039,10 +1099,10 @@ struct NoteCaptureControllerTests {
     @Test func stateKeepsFailureTextAndDegradedLiveTranscriptFlag() {
         let state = NoteCaptureState()
         state.beginStarting(includesSystemAudio: true, origin: .hotkey)
-        state.updateLiveTranscript("half a sentence")
+        state.updateLiveSpans([textSpan(0, "half a sentence", speaker: .currentUser)])
         state.markLiveTranscriptDegraded()
 
-        #expect(state.liveTranscript == "half a sentence")
+        #expect(state.liveTranscriptText == "half a sentence")
         #expect(state.isLiveTranscriptDegraded)
 
         state.fail("The recorder did not start.")

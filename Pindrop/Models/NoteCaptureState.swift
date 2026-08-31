@@ -51,12 +51,12 @@ final class NoteCaptureState {
     private(set) var startedAt: Date?
     private(set) var audioLevel: Float = 0
     private(set) var bandLevels: AudioBandLevels = .zero
-    /// The live text the engine has settled on. Empty while a capture has
-    /// produced no words yet.
-    private(set) var liveTranscript = ""
+    /// The paragraphs the engine has settled on, in order, each pointed at the
+    /// speaker it was attributed to. Empty while a capture has produced no words.
+    private(set) var liveSpans: [LiveTranscriptSpan] = []
     /// The tail the engine may still rewrite. The live sheet draws it in the
     /// quiet ink so nobody reads an unsettled guess as a finished sentence.
-    private(set) var liveTentativeTranscript = ""
+    private(set) var liveTentative: LiveTentativeSpan?
     /// Why the enhanced panel could not be generated, or nil when nothing
     /// failed. A failed generation never fails the capture: the typed notes and
     /// the transcript are already durable, so the note page explains the gap and
@@ -102,8 +102,8 @@ final class NoteCaptureState {
         startedAt = nil
         audioLevel = 0
         bandLevels = .zero
-        liveTranscript = ""
-        liveTentativeTranscript = ""
+        liveSpans = []
+        liveTentative = nil
         isLiveTranscriptDegraded = false
         enhancementFailureMessage = nil
     }
@@ -133,16 +133,85 @@ final class NoteCaptureState {
         bandLevels = bands
     }
 
-    func updateLiveTranscript(_ text: String) {
-        guard liveTranscript != text else { return }
-        liveTranscript = text
+    /// Everything settled so far as one string, one paragraph per line. This is
+    /// the checkpoint-contract view and the test view. It carries no names,
+    /// because it has to stay equal to what the durable checkpoint holds.
+    var liveTranscriptText: String {
+        liveSpans.filter(\.isText).map(\.text).joined(separator: "\n")
+    }
+
+    /// The reader's view: one block per turn, headed by the speaker name, with
+    /// dropped-speech markers spelled out. This is what Copy puts on the
+    /// pasteboard and what the sheet exposes as its accessibility value.
+    /// `liveTranscriptText` is deliberately not used for either.
+    var liveTranscriptForCopy: String {
+        liveTranscriptForCopy(locale: .current)
+    }
+
+    /// The copy view in one explicit locale. The property above reads the
+    /// system locale; a caller that knows the app's selected interface locale
+    /// passes it here instead, because the two can differ.
+    func liveTranscriptForCopy(locale: Locale) -> String {
+        var blocks: [String] = []
+        var turnSpeaker: LiveSpeakerRef?
+        var turnLines: [String] = []
+
+        func flushTurn() {
+            guard let speaker = turnSpeaker, !turnLines.isEmpty else {
+                turnSpeaker = nil
+                turnLines = []
+                return
+            }
+            blocks.append(([Self.speakerName(for: speaker, locale: locale)] + turnLines).joined(separator: "\n"))
+            turnSpeaker = nil
+            turnLines = []
+        }
+
+        for span in liveSpans {
+            switch span.kind {
+            case .text:
+                if turnSpeaker?.key != span.speaker.key { flushTurn() }
+                turnSpeaker = span.speaker
+                turnLines.append(span.text)
+            case .droppedSpeech:
+                flushTurn()
+                blocks.append(Self.droppedSpeechText(for: span.speaker, locale: locale))
+            }
+        }
+        flushTurn()
+        return blocks.joined(separator: "\n\n")
+    }
+
+    /// The name one live speaker is shown under. Below the named tier the label
+    /// names the channel, not the people on it: the system channel can carry
+    /// several voices and the app has not counted them.
+    static func speakerName(for speaker: LiveSpeakerRef, locale: Locale) -> String {
+        if let displayName = speaker.displayName, !displayName.isEmpty { return displayName }
+        if speaker.isCurrentUser { return localized("You", locale: locale) }
+        if let slotNumber = speaker.slotNumber {
+            return String(format: localized("Speaker %d", locale: locale), slotNumber)
+        }
+        return localized("Call audio", locale: locale)
+    }
+
+    /// What a dropped-speech marker reads. It says where the words went, so a
+    /// reader never takes a transcript with a hole in it as continuous.
+    static func droppedSpeechText(for speaker: LiveSpeakerRef, locale: Locale) -> String {
+        speaker.isCurrentUser
+            ? localized("You spoke here. The finished note has it.", locale: locale)
+            : localized("Someone else spoke here. The finished note has it.", locale: locale)
+    }
+
+    func updateLiveSpans(_ spans: [LiveTranscriptSpan]) {
+        guard liveSpans != spans else { return }
+        liveSpans = spans
     }
 
     /// Records the unsettled tail. Committed text arrives on its own path, so a
     /// tentative update never rewrites what was already settled.
-    func updateLiveTentativeTranscript(_ text: String) {
-        guard liveTentativeTranscript != text else { return }
-        liveTentativeTranscript = text
+    func updateLiveTentative(_ tentative: LiveTentativeSpan?) {
+        guard liveTentative != tentative else { return }
+        liveTentative = tentative
     }
 
     func markLiveTranscriptDegraded() {
@@ -155,7 +224,7 @@ final class NoteCaptureState {
         bandLevels = .zero
         // Nothing is pending once the microphone is closed: the engine's last
         // words either committed or never existed.
-        liveTentativeTranscript = ""
+        liveTentative = nil
     }
 
     func beginEnhancing() {
@@ -194,8 +263,8 @@ final class NoteCaptureState {
         startedAt = nil
         audioLevel = 0
         bandLevels = .zero
-        liveTranscript = ""
-        liveTentativeTranscript = ""
+        liveSpans = []
+        liveTentative = nil
         isLiveTranscriptDegraded = false
         enhancementFailureMessage = nil
     }

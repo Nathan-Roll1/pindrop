@@ -114,8 +114,11 @@ struct LiveTranscriptSheet: View {
 
     private var lines: [TranscriptLiveLine] {
         TranscriptSegmentPresentation.liveLines(
-            committed: state?.liveTranscript ?? "",
-            tentative: state?.liveTentativeTranscript ?? ""
+            // P1.5 replaces this joined-text adapter with the real turn stack.
+            // Until then both live surfaces keep rendering exactly what they
+            // rendered before, read out of the spans.
+            committed: state?.liveTranscriptText ?? "",
+            tentative: state?.liveTentative?.text ?? ""
         )
     }
 
@@ -190,8 +193,8 @@ struct LiveTranscriptSheet: View {
                     .accessibilityHidden(true)
 
                 Text(TranscriptSegmentPresentation.collapsedLine(
-                    committed: state?.liveTranscript ?? "",
-                    tentative: state?.liveTentativeTranscript ?? "",
+                    committed: state?.liveTranscriptText ?? "",
+                    tentative: state?.liveTentative?.text ?? "",
                     locale: locale
                 ))
                 .font(Self.collapsedLineMetrics.font)

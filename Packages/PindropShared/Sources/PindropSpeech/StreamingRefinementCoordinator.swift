@@ -62,9 +62,27 @@ public protocol StreamingRefinementOutputSink: AnyObject {
 /// text is never reported.
 @MainActor
 public protocol StreamingRefinementCommitObserver: AnyObject {
+    /// `committedText` stays the append-only cumulative string the durable
+    /// checkpoint holds. `spans` is that same text cut into paragraphs with the
+    /// speaker each one was attributed to, plus any dropped-speech markers.
+    ///
+    /// The text spans are *derived*: they are `committedText` split on "\n",
+    /// with speaker and timing metadata attached per index. They cannot drift
+    /// from the checkpoint string, because they are not stored separately.
+    /// The exact invariant, including the trailing boundary the artifact path
+    /// appends, is:
+    ///
+    ///     committedText == spans.filter(\.isText).map(\.text)
+    ///                           .joined(separator: "\n")
+    ///                      + (isParagraphOpen ? "" : "\n")
+    ///
+    /// `spans` is empty for a session begun with
+    /// `preservesArtifactParagraphs: false`, which is every dictation session.
+    /// Dictation has one speaker and no paragraph structure to carry.
     func streamingRefinementCoordinator(
         _ coordinator: StreamingRefinementCoordinator,
-        didCommitText committedText: String
+        didCommitText committedText: String,
+        spans: [LiveTranscriptSpan]
     )
 }
 
@@ -136,6 +154,42 @@ public final class StreamingRefinementCoordinator {
     /// because display updates may contain tentative text.
     private var lastObservedCommittedText = ""
 
+    // MARK: Live attribution
+
+    /// What one committed paragraph is, apart from its characters.
+    ///
+    /// The characters are never held here. A span's text is cut out of
+    /// `committedText` at read time, which is what keeps the derived spans and
+    /// the durable checkpoint from ever disagreeing.
+    private struct SpanMetadata {
+        let id: Int
+        var speaker: LiveSpeakerRef
+        var startOffset: TimeInterval
+        var duration: TimeInterval
+        var boundaryReason: LiveTurnBoundaryReason
+    }
+
+    /// One dropped-speech marker and where it belongs in paragraph order.
+    ///
+    /// Ordered by the paragraph count at the moment it was recorded rather than
+    /// by `startOffset`: Phase 1 has no clock for a text span, so commit
+    /// ordering is the only ordering that is exact.
+    private struct DroppedMarker {
+        var span: LiveTranscriptSpan
+        let paragraphIndex: Int
+    }
+
+    /// One per committed paragraph, in paragraph order.
+    private var spanMetadata: [SpanMetadata] = []
+    private var droppedMarkers: [DroppedMarker] = []
+    private var currentSpeaker: LiveSpeakerRef = .currentUser
+    /// Capture time the open paragraph started at. Phase 1 learns a capture time
+    /// only from a dropped-speech interval, so it moves only there.
+    private var currentSpanStartCaptureTime: TimeInterval = 0
+    /// The speaker the next paragraph adopts, set by `markBoundary`.
+    private var pendingSpeaker: LiveSpeakerRef?
+    private var nextSpanID = 0
+
     /// Sleeps for `idleCommitNanoseconds` after the last partial and commits the tentative
     /// tail if not cancelled.
     private var idleCommitTask: Task<Void, Never>?
@@ -164,11 +218,18 @@ public final class StreamingRefinementCoordinator {
     public func beginSession(
         outputSink: StreamingRefinementOutputSink? = nil,
         commitObserver: StreamingRefinementCommitObserver? = nil,
-        preservesArtifactParagraphs: Bool = false
+        preservesArtifactParagraphs: Bool = false,
+        initialSpeaker: LiveSpeakerRef = .currentUser
     ) {
         self.outputSink = outputSink
         self.commitObserver = commitObserver
         self.preservesArtifactParagraphs = preservesArtifactParagraphs
+        spanMetadata.removeAll()
+        droppedMarkers.removeAll()
+        currentSpeaker = initialSpeaker
+        currentSpanStartCaptureTime = 0
+        pendingSpeaker = nil
+        nextSpanID = 0
         isSessionActive = true
         rawCumulative = ""
         previousPartial = ""
@@ -222,7 +283,7 @@ public final class StreamingRefinementCoordinator {
         commitRawUpTo(
             charOffset: text.count,
             reason: "EOU-final",
-            endsArtifactParagraph: true
+            endsArtifactParagraph: .endOfUtterance
         )
         previousPartial = text
         await applyCurrentDisplay()
@@ -324,12 +385,12 @@ public final class StreamingRefinementCoordinator {
     private func commitRawUpTo(
         charOffset: Int,
         reason: String,
-        endsArtifactParagraph: Bool = false
+        endsArtifactParagraph: LiveTurnBoundaryReason? = nil
     ) {
         let clamped = min(max(charOffset, committedRawLength), rawCumulative.count)
         guard clamped > committedRawLength else {
-            if endsArtifactParagraph {
-                appendArtifactParagraphBoundaryIfNeeded()
+            if let endsArtifactParagraph {
+                appendArtifactParagraphBoundaryIfNeeded(endsArtifactParagraph)
             }
             return
         }
@@ -357,8 +418,9 @@ public final class StreamingRefinementCoordinator {
             cleanedChunk,
             to: committedText
         )
-        if endsArtifactParagraph {
-            appendArtifactParagraphBoundaryIfNeeded(notifyObserver: false)
+        syncSpanMetadata()
+        if let endsArtifactParagraph {
+            appendArtifactParagraphBoundaryIfNeeded(endsArtifactParagraph, notifyObserver: false)
         }
         committedRawLength = clamped
         notifyCommitObserverIfNeeded()
@@ -391,17 +453,213 @@ public final class StreamingRefinementCoordinator {
         }
     }
 
-    private func appendArtifactParagraphBoundaryIfNeeded(notifyObserver: Bool = true) {
+    /// Closes the open artifact paragraph, if there is one, and records why it
+    /// ended. Returns true when a boundary was actually appended.
+    @discardableResult
+    private func appendArtifactParagraphBoundaryIfNeeded(
+        _ reason: LiveTurnBoundaryReason,
+        notifyObserver: Bool = true
+    ) -> Bool {
         guard preservesArtifactParagraphs,
               !committedText.isEmpty,
               committedText.last?.isNewline != true
         else {
-            return
+            return false
         }
         committedText.append("\n")
+        if !spanMetadata.isEmpty {
+            spanMetadata[spanMetadata.count - 1].boundaryReason = reason
+        }
         if notifyObserver {
             notifyCommitObserverIfNeeded()
         }
+        return true
+    }
+
+    // MARK: - Live attribution
+
+    /// Closes the current paragraph at the point already committed, and points
+    /// everything that follows at `speaker`. Safe to call when nothing is
+    /// pending: it still records the boundary so the next commit opens a new
+    /// span.
+    ///
+    /// Phase 1 calls this only at a boundary the engine itself produced (an
+    /// end-of-utterance final or an idle commit), so "everything committed
+    /// belongs to the outgoing speaker" is exact by ordering. There is no
+    /// timestamp argument and no clock, because at that instant none is needed.
+    public func markBoundary(
+        _ reason: LiveTurnBoundaryReason,
+        speaker: LiveSpeakerRef
+    ) async {
+        guard isSessionActive, preservesArtifactParagraphs else { return }
+        let closed = appendArtifactParagraphBoundaryIfNeeded(reason)
+        pendingSpeaker = speaker
+        if closed {
+            await applyCurrentDisplay()
+        } else if !spanMetadata.isEmpty, committedText.hasSuffix("\n") {
+            // The engine's own boundary already closed this paragraph, which is
+            // the only place Phase 1 applies a handover. The channel change is
+            // the later fact and it is the one that says why what follows is a
+            // new turn rather than another paragraph of the same one.
+            spanMetadata[spanMetadata.count - 1].boundaryReason = reason
+            notifyCommitObserverOfSpanChange()
+        }
+    }
+
+    /// Records speech the live engine never heard. Emits a `.droppedSpeech` span
+    /// attributed to `speaker`, carrying no text, between the surrounding
+    /// paragraphs. Does not touch `committedText`.
+    public func markDroppedSpeech(
+        speaker: LiveSpeakerRef,
+        startOffset: TimeInterval,
+        duration: TimeInterval
+    ) async {
+        guard isSessionActive, preservesArtifactParagraphs else { return }
+        // The marker has to sit where the speech was, so the paragraph that was
+        // open while the other channel talked ends here.
+        let closed = appendArtifactParagraphBoundaryIfNeeded(.crossTalkDropped, notifyObserver: false)
+        droppedMarkers.append(
+            DroppedMarker(
+                span: LiveTranscriptSpan(
+                    id: takeSpanID(),
+                    kind: .droppedSpeech,
+                    speaker: speaker,
+                    text: "",
+                    startOffset: startOffset,
+                    duration: duration,
+                    boundaryReason: .crossTalkDropped
+                ),
+                paragraphIndex: spanMetadata.count
+            )
+        )
+        currentSpanStartCaptureTime = max(currentSpanStartCaptureTime, startOffset + duration)
+        notifyCommitObserverOfSpanChange()
+        if closed {
+            await applyCurrentDisplay()
+        }
+    }
+
+    /// Re-points every span whose speaker key is `key` at `replacement`.
+    /// Text is never changed, only the label. Used by Phase 2 promotion.
+    ///
+    /// Precondition: `key` is a slot key. Channel-tier keys are rejected, because
+    /// one channel key can cover several people.
+    public func relabelSpeaker(slotKey key: String, to replacement: LiveSpeakerRef) async {
+        guard isSessionActive, preservesArtifactParagraphs else { return }
+        guard key != LiveSpeakerRef.currentUser.key, key != LiveSpeakerRef.systemChannel.key else {
+            Log.transcription.warning(
+                "StreamingRefinement: refused to relabel channel key \(key); one channel covers several people"
+            )
+            return
+        }
+
+        var changed = false
+        for index in spanMetadata.indices where spanMetadata[index].speaker.key == key {
+            spanMetadata[index].speaker = replacement
+            changed = true
+        }
+        for index in droppedMarkers.indices where droppedMarkers[index].span.speaker.key == key {
+            let existing = droppedMarkers[index].span
+            droppedMarkers[index].span = LiveTranscriptSpan(
+                id: existing.id,
+                kind: existing.kind,
+                speaker: replacement,
+                text: existing.text,
+                startOffset: existing.startOffset,
+                duration: existing.duration,
+                boundaryReason: existing.boundaryReason
+            )
+            changed = true
+        }
+        if currentSpeaker.key == key {
+            currentSpeaker = replacement
+            changed = true
+        }
+        if pendingSpeaker?.key == key {
+            pendingSpeaker = replacement
+            changed = true
+        }
+        guard changed else { return }
+        notifyCommitObserverOfSpanChange()
+    }
+
+    /// The committed text cut into paragraphs, with the dropped-speech markers
+    /// merged back in at the paragraph they were recorded between.
+    ///
+    /// Nothing here is stored. Deriving the text at read time is what makes the
+    /// invariant in `StreamingRefinementCommitObserver` true by construction
+    /// instead of by discipline.
+    private func currentSpans() -> [LiveTranscriptSpan] {
+        guard preservesArtifactParagraphs else { return [] }
+        let paragraphs = committedParagraphs()
+        var spans: [LiveTranscriptSpan] = []
+        spans.reserveCapacity(paragraphs.count + droppedMarkers.count)
+        var markerIndex = 0
+        for (index, paragraph) in paragraphs.enumerated() {
+            while markerIndex < droppedMarkers.count,
+                  droppedMarkers[markerIndex].paragraphIndex <= index {
+                spans.append(droppedMarkers[markerIndex].span)
+                markerIndex += 1
+            }
+            guard index < spanMetadata.count else { break }
+            let metadata = spanMetadata[index]
+            spans.append(
+                LiveTranscriptSpan(
+                    id: metadata.id,
+                    kind: .text,
+                    speaker: metadata.speaker,
+                    text: paragraph,
+                    startOffset: metadata.startOffset,
+                    duration: metadata.duration,
+                    boundaryReason: metadata.boundaryReason
+                )
+            )
+        }
+        while markerIndex < droppedMarkers.count {
+            spans.append(droppedMarkers[markerIndex].span)
+            markerIndex += 1
+        }
+        return spans
+    }
+
+    /// `committedText` split on the paragraph boundaries the artifact path
+    /// appends. The trailing boundary produces no empty last paragraph.
+    private func committedParagraphs() -> [String] {
+        guard !committedText.isEmpty else { return [] }
+        var paragraphs = committedText.components(separatedBy: "\n")
+        if committedText.hasSuffix("\n") { paragraphs.removeLast() }
+        return paragraphs
+    }
+
+    /// Keeps one metadata row per committed paragraph. Called after every append
+    /// to `committedText`, before any boundary is added.
+    private func syncSpanMetadata() {
+        guard preservesArtifactParagraphs else { return }
+        let paragraphCount = committedParagraphs().count
+        while spanMetadata.count < paragraphCount {
+            if let pending = pendingSpeaker {
+                currentSpeaker = pending
+                pendingSpeaker = nil
+            }
+            spanMetadata.append(
+                SpanMetadata(
+                    id: takeSpanID(),
+                    speaker: currentSpeaker,
+                    startOffset: currentSpanStartCaptureTime,
+                    // Phase 1 has no clock: the engine reports no fed watermark
+                    // yet, so a text span's length is unknown until Phase 2.
+                    duration: 0,
+                    // What the open paragraph would end as if the capture stopped
+                    // now. Every other reason overwrites it when it closes.
+                    boundaryReason: .sessionEnd
+                )
+            )
+        }
+    }
+
+    private func takeSpanID() -> Int {
+        defer { nextSpanID += 1 }
+        return nextSpanID
     }
 
     // MARK: - Idle commit timer
@@ -421,7 +679,7 @@ public final class StreamingRefinementCoordinator {
         guard isSessionActive else { return }
         idleCommitTask = nil
         guard committedRawLength < rawCumulative.count else {
-            appendArtifactParagraphBoundaryIfNeeded()
+            appendArtifactParagraphBoundaryIfNeeded(.idlePause)
             await applyCurrentDisplay()
             return
         }
@@ -431,7 +689,7 @@ public final class StreamingRefinementCoordinator {
         commitRawUpTo(
             charOffset: rawCumulative.count,
             reason: "idle",
-            endsArtifactParagraph: true
+            endsArtifactParagraph: .idlePause
         )
         await applyCurrentDisplay()
     }
@@ -441,7 +699,22 @@ public final class StreamingRefinementCoordinator {
     private func notifyCommitObserverIfNeeded() {
         guard committedText != lastObservedCommittedText else { return }
         lastObservedCommittedText = committedText
-        commitObserver?.streamingRefinementCoordinator(self, didCommitText: committedText)
+        commitObserver?.streamingRefinementCoordinator(
+            self,
+            didCommitText: committedText,
+            spans: currentSpans()
+        )
+    }
+
+    /// Reports a change that moved the labels without moving one character, so
+    /// the duplicate-text suppression above would otherwise swallow it.
+    private func notifyCommitObserverOfSpanChange() {
+        lastObservedCommittedText = committedText
+        commitObserver?.streamingRefinementCoordinator(
+            self,
+            didCommitText: committedText,
+            spans: currentSpans()
+        )
     }
 
     private func applyCurrentDisplay() async {
