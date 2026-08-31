@@ -47,6 +47,7 @@ _test testplan sign="yes" coverage="no":
         -scheme {{scheme}} \
         -testPlan {{testplan}} \
         -destination 'platform=macOS' \
+        -derivedDataPath DerivedData \
         -enableCodeCoverage {{ if coverage == "yes" { "YES" } else { "NO" } }} \
         {{ if sign == "no" { signing_disabled } else { "" } }}
 
