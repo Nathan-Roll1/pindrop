@@ -677,6 +677,11 @@ public final class ModelManager {
             _ fluidAudioModelsRoot: URL,
             _ onProgress: @escaping @Sendable (DownloadUtils.DownloadProgress) -> Void
         ) async throws -> Void
+        var downloadLiveDiarization: @Sendable (
+            _ fluidAudioModelsRoot: URL,
+            _ bundleFileName: String,
+            _ onProgress: @escaping @Sendable (DownloadUtils.DownloadProgress) -> Void
+        ) async throws -> Void
         var downloadStreamingRepo: @Sendable (
             _ fluidAudioModelsRoot: URL,
             _ repoFolderName: String
@@ -731,6 +736,21 @@ public final class ModelManager {
                 downloadOfflineDiarization: { fluidAudioModelsRoot, onProgress in
                     _ = try await OfflineDiarizerModels.load(
                         from: fluidAudioModelsRoot,
+                        progressHandler: { progress in
+                            onProgress(progress)
+                        }
+                    )
+                },
+                downloadLiveDiarization: { fluidAudioModelsRoot, bundleFileName, onProgress in
+                    // Fetch only, never load. `SortformerModels.load` ignores the
+                    // MLModelConfiguration it is handed and forces computeUnits .all,
+                    // which is the GPU-contention shape that already caused a shipped
+                    // bug. The live engine loads this bundle later with
+                    // .cpuAndNeuralEngine.
+                    try await DownloadUtils.downloadRepo(
+                        .sortformer,
+                        to: fluidAudioModelsRoot,
+                        variant: bundleFileName,
                         progressHandler: { progress in
                             onProgress(progress)
                         }
@@ -1306,6 +1326,40 @@ public final class ModelManager {
         return pldaCandidates.contains { fileManager.fileExists(atPath: $0.path) }
     }
 
+    /// Streaming Sortformer readiness for live speaker labels.
+    ///
+    /// The live engine calls a FluidAudio entry point that downloads when the
+    /// bundle is missing or partial, so this gate is what keeps a fetch off the
+    /// capture path. It must be true before the engine loads anything.
+    public func isLiveDiarizationReady() -> Bool {
+        isLiveDiarizationModelsReady(at: fluidAudioModelsURL)
+    }
+
+    /// Reusable bundle check used by refresh, download completion, and preflight.
+    ///
+    /// The expected bundle name comes from `LiveDiarizationPreset`, never from a
+    /// literal here: each preset ships its own bundle, so a hard-coded name would
+    /// report "not ready" after a good download of a different preset.
+    public func isLiveDiarizationModelsReady(at modelsRoot: URL) -> Bool {
+        let bundle = modelsRoot
+            .appendingPathComponent(
+                FeatureModelType.liveDiarization.repoFolderName,
+                isDirectory: true
+            )
+            .appendingPathComponent(LiveDiarizationPreset.bundleFileName, isDirectory: true)
+
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: bundle.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return false
+        }
+
+        // A `.mlmodelc` is a directory. An interrupted download leaves an empty one
+        // behind, and loading that is the corrupt-bundle failure, not a clean miss.
+        let contents = (try? fileManager.contentsOfDirectory(atPath: bundle.path)) ?? []
+        return !contents.isEmpty
+    }
+
     /// The required feature models this install still has to fetch.
     ///
     /// Reads the state of a previous refresh, so callers refresh first. An
@@ -1369,6 +1423,10 @@ public final class ModelManager {
                 }
             case .diarization:
                 if isOfflineDiarizationModelsReady(at: fluidAudioModelsURL) {
+                    downloaded.insert(type)
+                }
+            case .liveDiarization:
+                if isLiveDiarizationModelsReady(at: fluidAudioModelsURL) {
                     downloaded.insert(type)
                 }
             case .vad:
@@ -1444,6 +1502,33 @@ public final class ModelManager {
                     onProgress?(0.0)
                     throw ModelError.downloadFailed(
                         "Speaker diarization model files are incomplete after download"
+                    )
+                }
+
+            case .liveDiarization:
+                featureDownloadProgress = 0.1
+                onProgress?(0.1)
+                try await downloadOperations.downloadLiveDiarization(
+                    fluidAudioModelsURL,
+                    LiveDiarizationPreset.bundleFileName
+                ) { [weak self] progress in
+                    let fraction = min(max(progress.fractionCompleted, 0), 0.99)
+                    Task { @MainActor in
+                        guard let self,
+                              self.isDownloadingFeature,
+                              self.currentDownloadingFeature == .liveDiarization else {
+                            return
+                        }
+                        // Never claim 1.0 from the handler; readiness sets that.
+                        self.featureDownloadProgress = fraction
+                        onProgress?(fraction)
+                    }
+                }
+                guard isLiveDiarizationModelsReady(at: fluidAudioModelsURL) else {
+                    featureDownloadProgress = 0.0
+                    onProgress?(0.0)
+                    throw ModelError.downloadFailed(
+                        "Live speaker model files are incomplete after download"
                     )
                 }
 

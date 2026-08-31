@@ -318,6 +318,14 @@ final class SettingsStore: ObservableObject, AppSettingsProviding {
    var diarizationFeatureEnabled: Bool = false
    @AppStorage("streamingFeatureEnabled", store: SettingsStoreRuntime.appStorageStore)
    var streamingFeatureEnabled: Bool = false
+   /// Gates live speaker labels while a recording runs, and nothing else.
+   ///
+   /// Deliberately not `diarizationFeatureEnabled`: that flag gates the diarization
+   /// stage at finalize. Sharing one flag would mean turning off live labels also
+   /// strips the speakers out of the finished note, which is the opposite of the
+   /// promise that the finished note still names everyone.
+   @AppStorage("liveSpeakerNamesEnabled", store: SettingsStoreRuntime.appStorageStore)
+   var liveSpeakerNamesEnabled: Bool = false
    /// Picks the Nemotron chunk variant used by the streaming backend. OFF (default)
    /// maps to the 1120ms variant — NVIDIA's original export, best accuracy. ON maps to
    /// the 560ms variant — snappier partials at comparable accuracy, double the encoder
@@ -948,6 +956,7 @@ final class SettingsStore: ObservableObject, AppSettingsProviding {
       streamingFeatureEnabled = false
       streamingLowLatencyMode = false
       diarizationFeatureEnabled = false
+      liveSpeakerNamesEnabled = false
       themeMode = Defaults.themeMode
       lightThemePresetID = Defaults.lightThemePresetID
       darkThemePresetID = Defaults.darkThemePresetID
@@ -1409,6 +1418,7 @@ final class SettingsStore: ObservableObject, AppSettingsProviding {
       switch type {
       case .vad: return vadFeatureEnabled
       case .diarization: return diarizationFeatureEnabled
+      case .liveDiarization: return liveSpeakerNamesEnabled
       case .streaming: return streamingFeatureEnabled
       }
    }
@@ -1417,6 +1427,7 @@ final class SettingsStore: ObservableObject, AppSettingsProviding {
       switch type {
       case .vad: vadFeatureEnabled = enabled
       case .diarization: diarizationFeatureEnabled = enabled
+      case .liveDiarization: liveSpeakerNamesEnabled = enabled
       case .streaming: streamingFeatureEnabled = enabled
       }
       objectWillChange.send()

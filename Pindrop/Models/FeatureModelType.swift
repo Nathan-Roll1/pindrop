@@ -18,6 +18,8 @@ extension FeatureModelType {
             return "Voice Activity Detection"
         case .diarization:
             return "Speaker Diarization"
+        case .liveDiarization:
+            return "Live Speaker Labels"
         case .streaming:
             return "Streaming Transcription"
         }
@@ -29,6 +31,8 @@ extension FeatureModelType {
             return "Hears when you stop speaking, so a recorded note breaks into paragraphs"
         case .diarization:
             return "Identifies different speakers in recordings"
+        case .liveDiarization:
+            return "Shows who is talking while you record. Speakers are checked again when the recording ends"
         case .streaming:
             return "Real-time transcription as you speak"
         }
@@ -48,6 +52,8 @@ extension FeatureModelType {
             return "waveform.badge.mic"
         case .diarization:
             return "person.2.wave.2"
+        case .liveDiarization:
+            return "person.wave.2"
         case .streaming:
             return "text.bubble"
         }

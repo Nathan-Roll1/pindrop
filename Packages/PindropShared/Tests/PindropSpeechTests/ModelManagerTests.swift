@@ -425,6 +425,68 @@ struct ModelManagerTests {
         }
     }
 
+    // MARK: - Live speaker model
+
+    @Test func liveDiarizationIsNotRequired() {
+        #expect(!FeatureModelType.liveDiarization.isRequired)
+        #expect(!FeatureModelType.required.contains(.liveDiarization))
+        #expect(FeatureModelType.liveDiarization.repoFolderName == "diar-streaming-sortformer-coreml")
+    }
+
+    @Test func liveDiarizationReadinessNeedsTheModelBundle() async throws {
+        try await withManagerAsync { modelManager, root in
+            // The filename is derived from the preset, never spelled twice. The balanced
+            // v2.1 preset ships as SortformerNvidiaLow_v2.1; Sortformer_v2.1 is the fast
+            // preset, so asserting that name would report "not ready" after a good
+            // download and the feature would never turn on.
+            #expect(LiveDiarizationPreset.bundleFileName == "SortformerNvidiaLow_v2.1.mlmodelc")
+
+            let bundle = root
+                .appendingPathComponent(
+                    FeatureModelType.liveDiarization.repoFolderName,
+                    isDirectory: true
+                )
+                .appendingPathComponent(LiveDiarizationPreset.bundleFileName, isDirectory: true)
+
+            #expect(modelManager.isLiveDiarizationReady() == false)
+
+            // An interrupted download leaves the bundle directory behind with nothing
+            // in it, which is the corrupt-bundle shape that must not count as ready.
+            try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)
+            #expect(modelManager.isLiveDiarizationReady() == false)
+
+            FileManager.default.createFile(
+                atPath: bundle.appendingPathComponent("coremldata.bin").path,
+                contents: Data([0x01])
+            )
+            #expect(modelManager.isLiveDiarizationReady())
+        }
+    }
+
+    @Test func refreshDownloadedFeatureModelsSeesLiveDiarization() async throws {
+        try await withManagerAsync { modelManager, root in
+            await modelManager.refreshDownloadedFeatureModels()
+            #expect(!modelManager.isFeatureModelDownloaded(.liveDiarization))
+
+            let bundle = root
+                .appendingPathComponent(
+                    FeatureModelType.liveDiarization.repoFolderName,
+                    isDirectory: true
+                )
+                .appendingPathComponent(LiveDiarizationPreset.bundleFileName, isDirectory: true)
+            try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)
+            FileManager.default.createFile(
+                atPath: bundle.appendingPathComponent("coremldata.bin").path,
+                contents: Data([0x01])
+            )
+
+            await modelManager.refreshDownloadedFeatureModels()
+            #expect(modelManager.isFeatureModelDownloaded(.liveDiarization))
+            // Live labels are optional, so they must never join the first-run set.
+            #expect(!modelManager.missingRequiredFeatureModels().contains(.liveDiarization))
+        }
+    }
+
     private func withManagerAsync<T>(
         _ body: (ModelManager, URL) async throws -> T
     ) async throws -> T {

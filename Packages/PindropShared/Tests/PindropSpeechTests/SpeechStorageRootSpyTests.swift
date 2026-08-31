@@ -136,6 +136,7 @@ struct SpeechStorageRootSpyTests {
         var senseVoiceRoots: [URL] = []
         var senseVoiceLoadDirectories: [URL] = []
         var diarizationRoots: [URL] = []
+        var liveDiarizationRoots: [(root: URL, bundle: String)] = []
         var streamingRoots: [(root: URL, folder: String)] = []
     }
 
@@ -179,6 +180,15 @@ struct SpeechStorageRootSpyTests {
             },
             downloadOfflineDiarization: { fluidAudioModelsRoot, onProgress in
                 roots.value.diarizationRoots.append(fluidAudioModelsRoot)
+                onProgress(
+                    DownloadUtils.DownloadProgress(
+                        fractionCompleted: 0.5,
+                        phase: .downloading(completedFiles: 1, totalFiles: 2)
+                    )
+                )
+            },
+            downloadLiveDiarization: { fluidAudioModelsRoot, bundleFileName, onProgress in
+                roots.value.liveDiarizationRoots.append((fluidAudioModelsRoot, bundleFileName))
                 onProgress(
                     DownloadUtils.DownloadProgress(
                         fractionCompleted: 0.5,

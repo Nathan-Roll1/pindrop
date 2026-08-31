@@ -60,6 +60,7 @@ public enum StreamingChunkProfile: String, Sendable {
 public enum FeatureModelType: String, CaseIterable, Identifiable, Codable, Sendable {
     case vad = "vad"
     case diarization = "diarization"
+    case liveDiarization = "liveDiarization"
     case streaming = "streaming"
 
     public var id: String { rawValue }
@@ -71,7 +72,8 @@ public enum FeatureModelType: String, CaseIterable, Identifiable, Codable, Senda
     /// Neither is a setting anybody would think to turn on, so both are part of
     /// setting the app up rather than an extra a person has to find. Speaker
     /// diarization stays optional: it only matters when a recording has more
-    /// than one voice in it.
+    /// than one voice in it. Live speaker labels are optional the same way, and
+    /// they must never block a first run.
     public static let required: [FeatureModelType] = [.vad, .streaming]
 
     public var isRequired: Bool {
@@ -84,6 +86,11 @@ public enum FeatureModelType: String, CaseIterable, Identifiable, Codable, Senda
             return 3
         case .diarization:
             return 100
+        case .liveDiarization:
+            // Measured on 2026-08-31: the sum of every file under
+            // SortformerNvidiaLow_v2.1.mlmodelc in
+            // FluidInference/diar-streaming-sortformer-coreml is 246,280,141 bytes.
+            return 246
         case .streaming:
             // Nemotron 0.6B per chunk variant (int8-quantized encoder).
             return 650
@@ -99,6 +106,10 @@ public enum FeatureModelType: String, CaseIterable, Identifiable, Codable, Senda
             return "silero-vad-coreml"
         case .diarization:
             return "speaker-diarization-coreml"
+        case .liveDiarization:
+            // Matches `Repo.sortformer.folderName`, which is where
+            // DownloadUtils materializes the streaming Sortformer bundle.
+            return "diar-streaming-sortformer-coreml"
         case .streaming:
             return StreamingChunkProfile.standard.repoFolderName
         }
