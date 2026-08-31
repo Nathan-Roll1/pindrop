@@ -628,6 +628,99 @@ struct AudioRecorderTests {
         #expect(deliveryOrder.suffix(2).elementsEqual(["level", "bands"]))
     }
 
+    /// Short, quiet tones. Short so the filters' carried state is a large share
+    /// of each buffer, quiet so no band saturates at full scale and hides it.
+    private func makeToneBuffer(
+        format: AVAudioFormat,
+        frequency: Float,
+        amplitude: Float,
+        frameCount: AVAudioFrameCount = 128
+    ) throws -> AVAudioPCMBuffer {
+        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount))
+        buffer.frameLength = frameCount
+        let channelData = try #require(buffer.floatChannelData)
+        let sampleRate = Float(format.sampleRate)
+        for frame in 0..<Int(frameCount) {
+            channelData[0][frame] = amplitude * sin(2.0 * Float.pi * frequency * Float(frame) / sampleRate)
+        }
+        return buffer
+    }
+
+    @Test func bothChannelsMeterWithoutSharingFilterState() throws {
+        let format = MockAudioCaptureBackend(identifier: "microphone").targetFormat
+        // A quiet near voice against loud low-frequency call audio: the case
+        // where shared filter state and a shared gain envelope both show.
+        let microphoneBuffer = try makeToneBuffer(format: format, frequency: 180, amplitude: 0.01)
+        let systemBuffer = try makeToneBuffer(format: format, frequency: 60, amplitude: 0.3)
+
+        // Microphone metered on its own pair: the reading a mic-only capture shows.
+        let soloAnalyzer = ThreeBandLevelAnalyzer()
+        let soloNormalizer = AudioLevelNormalizer()
+        var microphoneAlone = AudioBandLevels.zero
+        for _ in 0..<6 {
+            _ = soloNormalizer.normalize(0.2)
+            microphoneAlone = soloNormalizer.scaled(soloAnalyzer.process(microphoneBuffer))
+        }
+
+        // Both channels admitted through one shared filter pair, the way the
+        // recorder metered before per-source isolation. Kept in the test so the
+        // shared-state regression cannot come back unnoticed.
+        let sharedAnalyzer = ThreeBandLevelAnalyzer()
+        let sharedNormalizer = AudioLevelNormalizer()
+        var microphoneThroughSharedPair = AudioBandLevels.zero
+        for _ in 0..<6 {
+            _ = sharedNormalizer.normalize(0.2)
+            microphoneThroughSharedPair = sharedNormalizer.scaled(sharedAnalyzer.process(microphoneBuffer))
+            _ = sharedNormalizer.normalize(0.3)
+            _ = sharedNormalizer.scaled(sharedAnalyzer.process(systemBuffer))
+        }
+        #expect(microphoneThroughSharedPair != microphoneAlone)
+
+        // Both channels admitted through the bank, one pair each.
+        let sut = CaptureSourceMeterBank()
+        var mergedBands = AudioBandLevels.zero
+        for _ in 0..<6 {
+            _ = sut.meter(level: 0.2, from: .microphone)
+            _ = sut.meter(microphoneBuffer, from: .microphone)
+            _ = sut.meter(level: 0.3, from: .systemAudio)
+            mergedBands = sut.meter(systemBuffer, from: .systemAudio)
+        }
+
+        // The microphone reads exactly as it would with no system audio present.
+        #expect(sut.latestBands(for: .microphone) == microphoneAlone)
+        let systemBands = sut.latestBands(for: .systemAudio)
+        #expect(systemBands != microphoneAlone)
+        // The reader merges the two: the indicator still shows one waveform.
+        #expect(mergedBands.low == max(microphoneAlone.low, systemBands.low))
+        #expect(mergedBands.mid == max(microphoneAlone.mid, systemBands.mid))
+        #expect(mergedBands.high == max(microphoneAlone.high, systemBands.high))
+    }
+
+    @Test func singleSourceMeteringMatchesTheSharedPairItReplaces() throws {
+        let format = MockAudioCaptureBackend(identifier: "microphone").targetFormat
+        let microphoneBuffer = try makeToneBuffer(format: format, frequency: 180, amplitude: 0.01)
+
+        let analyzer = ThreeBandLevelAnalyzer()
+        let normalizer = AudioLevelNormalizer()
+        var expectedLevels: [Float] = []
+        var expectedBands: [AudioBandLevels] = []
+        for step in 0..<8 {
+            expectedLevels.append(normalizer.normalize(0.1 + Float(step) * 0.05))
+            expectedBands.append(normalizer.scaled(analyzer.process(microphoneBuffer)))
+        }
+
+        let sut = CaptureSourceMeterBank()
+        var levels: [Float] = []
+        var bands: [AudioBandLevels] = []
+        for step in 0..<8 {
+            levels.append(sut.meter(level: 0.1 + Float(step) * 0.05, from: .microphone))
+            bands.append(sut.meter(microphoneBuffer, from: .microphone))
+        }
+
+        #expect(levels == expectedLevels)
+        #expect(bands == expectedBands)
+    }
+
     @Test func coreAudioInputFormatUsesInputStreamVirtualFormat() throws {
         let expectedStreamID = AudioStreamID(42)
         var requestedStreamID: AudioStreamID?

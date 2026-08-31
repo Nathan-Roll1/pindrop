@@ -3016,6 +3016,24 @@ final class MixedAudioCaptureBackend: SourceSeparatedAudioCaptureBackend, Meetin
         onAudioLevel: @escaping (Float) -> Void,
         onError: @escaping (Error) -> Void
     ) throws {
+        try startSourceTaggedCapture(
+            onBuffer: { buffer, _ in onBuffer(buffer) },
+            onAudioLevel: { level, _ in onAudioLevel(level) },
+            onError: onError
+        )
+    }
+
+    /// Starts both children with every live callback tagged by the child that
+    /// produced it.
+    ///
+    /// Meters keep one filter pair per source, so the source has to travel with
+    /// each callback. A tag chosen once at start would be wrong the moment a
+    /// source drops out and the sibling takes over the live path.
+    func startSourceTaggedCapture(
+        onBuffer: @escaping (AVAudioPCMBuffer, CaptureSourceKind) -> Void,
+        onAudioLevel: @escaping (Float, CaptureSourceKind) -> Void,
+        onError: @escaping (Error) -> Void
+    ) throws {
         drainChildTeardownQueue()
         stateLock.withLock {
             state = State(isStarting: true)
@@ -3028,18 +3046,22 @@ final class MixedAudioCaptureBackend: SourceSeparatedAudioCaptureBackend, Meetin
             source: .microphone,
             backend: microphoneBackend,
             onBuffer: { [weak self] buffer in
-                self?.forwardLiveBuffer(source: .microphone, buffer: buffer, deliver: onBuffer)
+                self?.forwardLiveBuffer(source: .microphone, buffer: buffer) {
+                    onBuffer($0, .microphone)
+                }
             },
-            onAudioLevel: onAudioLevel,
+            onAudioLevel: { onAudioLevel($0, .microphone) },
             onError: onError
         )
         start(
             source: .systemAudio,
             backend: systemAudioBackend,
             onBuffer: { [weak self] buffer in
-                self?.forwardLiveBuffer(source: .systemAudio, buffer: buffer, deliver: onBuffer)
+                self?.forwardLiveBuffer(source: .systemAudio, buffer: buffer) {
+                    onBuffer($0, .systemAudio)
+                }
             },
-            onAudioLevel: onAudioLevel,
+            onAudioLevel: { onAudioLevel($0, .systemAudio) },
             onError: onError
         )
 
@@ -3526,6 +3548,118 @@ final class AudioLevelNormalizer {
     }
 }
 
+// MARK: - Per-source metering
+
+/// One `ThreeBandLevelAnalyzer` and one `AudioLevelNormalizer` for every capture
+/// source, plus the merged reading the indicator draws.
+///
+/// Each capture source runs on its own Core Audio IO thread, and both the band
+/// filters and the gain envelope carry state from one buffer to the next. Two
+/// sources sharing one pair therefore race on that state and cross-contaminate
+/// each other's bands. Here a source's pair is reached only from that source's
+/// own capture callbacks, which are serial, so the pair needs no lock. Only the
+/// published readings are locked. That lock is never a capture backend's state
+/// lock, and it is never held while a filter runs.
+final class CaptureSourceMeterBank: @unchecked Sendable {
+    private final class SourceMeter {
+        let analyzer = ThreeBandLevelAnalyzer()
+        let normalizer = AudioLevelNormalizer()
+
+        func reset() {
+            analyzer.reset()
+            normalizer.reset()
+        }
+    }
+
+    private let microphoneMeter = SourceMeter()
+    private let systemAudioMeter = SourceMeter()
+
+    private let readingLock = NSLock()
+    private var microphoneBands: AudioBandLevels?
+    private var systemAudioBands: AudioBandLevels?
+    private var microphoneLevel: Float?
+    private var systemAudioLevel: Float?
+
+    /// Capture-thread entry for one source's buffer. Returns the merged bands
+    /// across every source that has reported since the last reset.
+    @discardableResult
+    func meter(_ buffer: AVAudioPCMBuffer, from source: CaptureSourceKind) -> AudioBandLevels {
+        let meter = sourceMeter(for: source)
+        // Bands use the gain from the previous level update, a one-buffer lag
+        // that is invisible at tap cadence.
+        let bands = meter.normalizer.scaled(meter.analyzer.process(buffer))
+        return readingLock.withLock {
+            switch source {
+            case .microphone:
+                microphoneBands = bands
+            case .systemAudio:
+                systemAudioBands = bands
+            }
+            return mergedBandsLocked()
+        }
+    }
+
+    /// Capture-thread entry for one source's overall level. Returns the merged
+    /// level across every source that has reported since the last reset.
+    @discardableResult
+    func meter(level: Float, from source: CaptureSourceKind) -> Float {
+        let normalized = sourceMeter(for: source).normalizer.normalize(level)
+        return readingLock.withLock {
+            switch source {
+            case .microphone:
+                microphoneLevel = normalized
+            case .systemAudio:
+                systemAudioLevel = normalized
+            }
+            return max(microphoneLevel ?? 0, systemAudioLevel ?? 0)
+        }
+    }
+
+    /// Latest bands published by one source, or `.zero` before it has reported.
+    func latestBands(for source: CaptureSourceKind) -> AudioBandLevels {
+        readingLock.withLock {
+            switch source {
+            case .microphone:
+                return microphoneBands ?? .zero
+            case .systemAudio:
+                return systemAudioBands ?? .zero
+            }
+        }
+    }
+
+    /// Clears every pair and every published reading. Called between sessions,
+    /// while no capture callback can be running.
+    func reset() {
+        microphoneMeter.reset()
+        systemAudioMeter.reset()
+        readingLock.withLock {
+            microphoneBands = nil
+            systemAudioBands = nil
+            microphoneLevel = nil
+            systemAudioLevel = nil
+        }
+    }
+
+    private func sourceMeter(for source: CaptureSourceKind) -> SourceMeter {
+        switch source {
+        case .microphone:
+            return microphoneMeter
+        case .systemAudio:
+            return systemAudioMeter
+        }
+    }
+
+    private func mergedBandsLocked() -> AudioBandLevels {
+        guard let microphoneBands else { return systemAudioBands ?? .zero }
+        guard let systemAudioBands else { return microphoneBands }
+        return AudioBandLevels(
+            low: max(microphoneBands.low, systemAudioBands.low),
+            mid: max(microphoneBands.mid, systemAudioBands.mid),
+            high: max(microphoneBands.high, systemAudioBands.high)
+        )
+    }
+}
+
 // MARK: - Capture finalization handoff
 
 /// Exclusive ownership wrapper so stop-time drain/mix/materialization can leave
@@ -3828,10 +3962,9 @@ final class AudioRecorder {
     var onAudioBandLevels: ((AudioBandLevels) -> Void)?
     var onCaptureError: ((Error) -> Void)?
 
-    /// Touched only from the capture backend's buffer callback (serial).
-    private let bandLevelAnalyzer = ThreeBandLevelAnalyzer()
-    /// Touched only from the capture backend's callbacks (serial).
-    private let levelNormalizer = AudioLevelNormalizer()
+    /// One filter and gain pair per capture source. Each pair is touched only
+    /// from its own source's capture callbacks, which are serial per source.
+    private let sourceMeters = CaptureSourceMeterBank()
     /// Capture-thread coalescer for main-actor meter delivery.
     private let meterDelivery = AudioMeterDeliveryCoalescer()
 
@@ -3906,8 +4039,7 @@ final class AudioRecorder {
         lastNativeAudio = nil
         captureBackend.retainsNativeAudio = false
         isLimitStopRequested = false
-        bandLevelAnalyzer.reset()
-        levelNormalizer.reset()
+        sourceMeters.reset()
         meterDelivery.reset()
         activeCallbackLease?.invalidate()
         let callbackLease = AudioCaptureCallbackLease()
@@ -3920,13 +4052,14 @@ final class AudioRecorder {
                 source: .microphone,
                 onChunkSealed: onChunkSealed
             )
-            let bandLevelAnalyzer = self.bandLevelAnalyzer
-            let levelNormalizer = self.levelNormalizer
+            let sourceMeters = self.sourceMeters
             let meterDelivery = self.meterDelivery
-            try captureBackend.startCapture(
-                onBuffer: { [weak self, callbackLease] buffer in
+            try startSourceTaggedCapture(
+                captureBackend,
+                singleSource: singleCaptureSource(for: captureMode),
+                onBuffer: { [weak self, callbackLease] buffer, source in
                     guard callbackLease.isActive else { return }
-                    let bands = levelNormalizer.scaled(bandLevelAnalyzer.process(buffer))
+                    let bands = sourceMeters.meter(buffer, from: source)
                     guard callbackLease.isActive else { return }
                     // The mixed backend normally forwards system audio for the live
                     // preview. Durable spooling keeps both source streams separate.
@@ -3941,9 +4074,9 @@ final class AudioRecorder {
                         }
                     }
                 },
-                onAudioLevel: { [weak self, callbackLease] level in
+                onAudioLevel: { [weak self, callbackLease] level, source in
                     guard callbackLease.isActive else { return }
-                    let normalized = levelNormalizer.normalize(level)
+                    let normalized = sourceMeters.meter(level: level, from: source)
                     meterDelivery.note(level: normalized) { [weak self, callbackLease] deliveredLevel, bands in
                         guard callbackLease.isActive else { return }
                         if let deliveredLevel {
@@ -4018,23 +4151,21 @@ final class AudioRecorder {
         captureBackend.retainsNativeAudio = retainNativeAudioForSession
         isLimitStopRequested = false
 
-        bandLevelAnalyzer.reset()
-        levelNormalizer.reset()
+        sourceMeters.reset()
         meterDelivery.reset()
         activeCallbackLease?.invalidate()
         let callbackLease = AudioCaptureCallbackLease()
         activeCallbackLease = callbackLease
         let captureBackendIdentifier = ObjectIdentifier(captureBackend)
         do {
-            let bandLevelAnalyzer = self.bandLevelAnalyzer
-            let levelNormalizer = self.levelNormalizer
+            let sourceMeters = self.sourceMeters
             let meterDelivery = self.meterDelivery
-            try captureBackend.startCapture(
-                onBuffer: { [weak self, callbackLease] buffer in
+            try startSourceTaggedCapture(
+                captureBackend,
+                singleSource: singleCaptureSource(for: configuration.mode),
+                onBuffer: { [weak self, callbackLease] buffer, source in
                     guard callbackLease.isActive else { return }
-                    // Bands use the gain from the previous level update — a
-                    // one-buffer lag that is invisible at tap cadence.
-                    let bands = levelNormalizer.scaled(bandLevelAnalyzer.process(buffer))
+                    let bands = sourceMeters.meter(buffer, from: source)
                     guard callbackLease.isActive else { return }
                     // Raw buffers go straight to the streaming pump from the capture
                     // thread; only UI-facing meters hop to the main actor.
@@ -4049,9 +4180,9 @@ final class AudioRecorder {
                         }
                     }
                 },
-                onAudioLevel: { [weak self, callbackLease] level in
+                onAudioLevel: { [weak self, callbackLease] level, source in
                     guard callbackLease.isActive else { return }
-                    let normalized = levelNormalizer.normalize(level)
+                    let normalized = sourceMeters.meter(level: level, from: source)
                     meterDelivery.note(level: normalized) { [weak self, callbackLease] deliveredLevel, bands in
                         guard callbackLease.isActive else { return }
                         if let deliveredLevel {
@@ -4377,6 +4508,45 @@ final class AudioRecorder {
         }
     }
 
+
+    /// Starts capture with every live callback tagged by the source that
+    /// produced it, so each source reaches only its own meter pair.
+    ///
+    /// Only the mixed backend multiplexes more than one Core Audio IO thread, so
+    /// only it can name the producer per callback. Every other backend keeps one
+    /// source for the whole session and is tagged once, here.
+    private func startSourceTaggedCapture(
+        _ backend: AudioCaptureBackend,
+        singleSource: CaptureSourceKind,
+        onBuffer: @escaping (AVAudioPCMBuffer, CaptureSourceKind) -> Void,
+        onAudioLevel: @escaping (Float, CaptureSourceKind) -> Void,
+        onError: @escaping (Error) -> Void
+    ) throws {
+        if let mixedBackend = backend as? MixedAudioCaptureBackend {
+            try mixedBackend.startSourceTaggedCapture(
+                onBuffer: onBuffer,
+                onAudioLevel: onAudioLevel,
+                onError: onError
+            )
+            return
+        }
+        try backend.startCapture(
+            onBuffer: { onBuffer($0, singleSource) },
+            onAudioLevel: { onAudioLevel($0, singleSource) },
+            onError: onError
+        )
+    }
+
+    /// The one source a single-source backend captures for the whole session.
+    /// Mixed captures ignore it and tag each callback with its own child.
+    private func singleCaptureSource(for mode: AudioRecordingMode) -> CaptureSourceKind {
+        switch mode {
+        case .systemAudio:
+            return .systemAudio
+        case .microphone, .microphoneAndSystemAudio:
+            return .microphone
+        }
+    }
 
     private func makeCaptureBackend(for mode: AudioRecordingMode) throws -> AudioCaptureBackend {
         switch mode {
