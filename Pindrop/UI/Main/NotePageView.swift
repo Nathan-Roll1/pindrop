@@ -2011,25 +2011,30 @@ private struct LiveTranscriptLines: View {
 
     let state: NoteCaptureState?
 
-    private var lines: [TranscriptLiveLine] {
-        TranscriptSegmentPresentation.liveLines(
-            // P1.5 replaces this joined-text adapter with the real turn stack.
-            // Until then both live surfaces keep rendering exactly what they
-            // rendered before, read out of the spans.
-            committed: state?.liveTranscriptText ?? "",
-            tentative: state?.liveTentative?.text ?? ""
+    private var entries: [TranscriptLiveEntry] {
+        TranscriptSegmentPresentation.liveEntries(
+            spans: state?.liveSpans ?? [],
+            tentative: state?.liveTentative,
+            // Read per render on purpose: the promotion emphasis window is
+            // derived from `promotedAt`, never stored as a one-shot flag.
+            now: Date()
         )
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if lines.isEmpty {
+        // Read once per render: building the list walks every span of the
+        // capture.
+        let entries = self.entries
+        // 12 pt between turns, matching the finished transcript. It is also the
+        // space a gap marker needs above and below it.
+        return VStack(alignment: .leading, spacing: TranscriptLiveTurnView.turnSpacing) {
+            if entries.isEmpty {
                 Text(localized("The transcript starts once you speak.", locale: locale))
                     .font(AppTypography.body)
                     .foregroundStyle(AppColors.textSecondary)
             } else {
-                ForEach(lines) { line in
-                    TranscriptLiveLineText(line: line)
+                ForEach(entries) { entry in
+                    TranscriptLiveEntryView(entry: entry)
                 }
             }
         }

@@ -215,6 +215,50 @@ struct TranscriptLiveLine: Identifiable, Equatable, Sendable {
     let isCurrent: Bool
 }
 
+/// One speaker's run of live text, ready to draw.
+struct TranscriptLiveTurn: Identifiable, Equatable, Sendable {
+    let id: Int
+    let speaker: LiveSpeakerRef
+    let lines: [TranscriptLiveLine]
+    /// The newest turn. Its lines read in the primary ink.
+    let isCurrent: Bool
+    /// Capture-time start of this turn. Nil for the newest turn, whose end is
+    /// still moving.
+    let startOffset: TimeInterval?
+    /// Set once this turn's speaker has been promoted, and kept for the rest
+    /// of the capture. Derived from `speaker.promotedAt` and
+    /// `speaker.previousDisplayName`, never stored as a one-shot flag.
+    let promotion: TranscriptLivePromotion?
+}
+
+/// What a promoted header shows.
+struct TranscriptLivePromotion: Equatable, Sendable {
+    /// For example "Speaker 2". Drawn as a quiet affix beside the new name.
+    let previousDisplayName: String
+    /// True while the promotion is inside the emphasis window. The caller
+    /// passes `now`, so this is a pure function and a test can drive it.
+    let isRecent: Bool
+}
+
+/// One line of live text, or one marker for speech the live engine missed.
+enum TranscriptLiveEntry: Identifiable, Equatable, Sendable {
+    case turn(TranscriptLiveTurn)
+    case droppedSpeech(id: Int, source: CaptureSourceKind, startOffset: TimeInterval)
+
+    var id: Int {
+        switch self {
+        case .turn(let turn): turn.id
+        case .droppedSpeech(let id, _, _): id
+        }
+    }
+
+    /// The turn this entry draws, or nil when it is a gap marker.
+    var turn: TranscriptLiveTurn? {
+        guard case .turn(let turn) = self else { return nil }
+        return turn
+    }
+}
+
 // MARK: - Presentation
 
 enum TranscriptSegmentPresentation {
@@ -457,6 +501,151 @@ enum TranscriptSegmentPresentation {
     }
 
     // MARK: Live transcript
+
+    /// How long a promoted name reads with emphasis. The affix beside the name
+    /// stays for the rest of the capture; only the crossfade and the underline
+    /// are bounded by this window.
+    static let promotionEmphasisSeconds: TimeInterval = 1.2
+
+    /// The live transcript as the reader sees it: one entry per speaker turn,
+    /// with a marker wherever cross talk cost the live engine some speech.
+    ///
+    /// Consecutive spans of one speaker collapse into one turn, the same rule
+    /// the finished transcript uses. A dropped-speech span closes the open turn,
+    /// so the words on either side of a gap are never read as one run.
+    ///
+    /// `now` is an argument rather than a clock read, so the promotion emphasis
+    /// window is a pure function a test can drive.
+    static func liveEntries(
+        spans: [LiveTranscriptSpan],
+        tentative: LiveTentativeSpan?,
+        now: Date
+    ) -> [TranscriptLiveEntry] {
+        var groups: [LiveEntryGroup] = []
+
+        for span in spans {
+            switch span.kind {
+            case .text:
+                if case .turn(let speaker, let texts, let pending, let start)? = groups.last,
+                   speaker.key == span.speaker.key {
+                    // The newest reference wins: a relabel rewrites every span
+                    // of one key, and the header has to read the new name.
+                    groups[groups.count - 1] = .turn(
+                        speaker: span.speaker,
+                        texts: texts + [span.text],
+                        tentative: pending,
+                        startOffset: start
+                    )
+                } else {
+                    groups.append(
+                        .turn(
+                            speaker: span.speaker,
+                            texts: [span.text],
+                            tentative: "",
+                            startOffset: span.startOffset
+                        )
+                    )
+                }
+            case .droppedSpeech:
+                groups.append(.dropped(speaker: span.speaker, startOffset: span.startOffset))
+            }
+        }
+
+        let pending = tentative?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if let tentative, !pending.isEmpty {
+            if case .turn(let speaker, let texts, _, let start)? = groups.last,
+               speaker.key == tentative.speaker.key {
+                groups[groups.count - 1] = .turn(
+                    speaker: tentative.speaker,
+                    texts: texts,
+                    tentative: pending,
+                    startOffset: start
+                )
+            } else {
+                // The other channel started talking before anything of theirs
+                // settled. Its start is unknown and unneeded: the newest turn
+                // never prints a time.
+                groups.append(
+                    .turn(speaker: tentative.speaker, texts: [], tentative: pending, startOffset: 0)
+                )
+            }
+        }
+
+        var entries: [TranscriptLiveEntry] = []
+        var newestTurnIndex: Int?
+
+        for group in groups {
+            // The identifier is the entry's own position, which is stable
+            // because entries only ever append.
+            let id = entries.count
+            switch group {
+            case .turn(let speaker, let texts, let pending, let startOffset):
+                let lines = liveLines(
+                    committed: texts.joined(separator: "\n"),
+                    tentative: pending
+                )
+                guard !lines.isEmpty else { continue }
+                entries.append(
+                    .turn(
+                        TranscriptLiveTurn(
+                            id: id,
+                            speaker: speaker,
+                            lines: lines,
+                            isCurrent: false,
+                            startOffset: startOffset,
+                            promotion: promotion(for: speaker, now: now)
+                        )
+                    )
+                )
+                newestTurnIndex = entries.count - 1
+            case .dropped(let speaker, let startOffset):
+                entries.append(
+                    .droppedSpeech(
+                        id: id,
+                        source: speaker.isCurrentUser ? .microphone : .systemAudio,
+                        startOffset: startOffset
+                    )
+                )
+            }
+        }
+
+        if let index = newestTurnIndex, let turn = entries[index].turn {
+            entries[index] = .turn(
+                TranscriptLiveTurn(
+                    id: turn.id,
+                    speaker: turn.speaker,
+                    lines: turn.lines,
+                    isCurrent: true,
+                    // The newest turn's end is still moving, and a number that
+                    // keeps changing is worse than none.
+                    startOffset: nil,
+                    promotion: turn.promotion
+                )
+            )
+        }
+
+        return entries
+    }
+
+    private static func promotion(
+        for speaker: LiveSpeakerRef,
+        now: Date
+    ) -> TranscriptLivePromotion? {
+        guard let promotedAt = speaker.promotedAt,
+              let previous = speaker.previousDisplayName,
+              !previous.isEmpty
+        else { return nil }
+        return TranscriptLivePromotion(
+            previousDisplayName: previous,
+            isRecent: now.timeIntervalSince(promotedAt) < promotionEmphasisSeconds
+        )
+    }
+
+    /// One turn or one gap, before it has an identifier or its lines.
+    private enum LiveEntryGroup {
+        case turn(speaker: LiveSpeakerRef, texts: [String], tentative: String, startOffset: TimeInterval)
+        case dropped(speaker: LiveSpeakerRef, startOffset: TimeInterval)
+    }
 
     /// The live text as lines: everything the engine settled, plus the tail it
     /// may still rewrite.

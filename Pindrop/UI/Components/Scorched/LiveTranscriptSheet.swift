@@ -8,16 +8,18 @@
 //
 //  While a note is recording, the dock's top half is a sheet the person can pull
 //  open: collapsed it is one line, the last thing Pindrop heard; opened it is the
-//  running transcript, settled words in the reading ink and the tentative tail in
-//  the quiet one.
+//  running transcript, read as speaker turns, settled words in the reading ink
+//  and the tentative tail in the quiet one.
 //
 //  The sheet reads `NoteCaptureState` inside its own body on purpose. Live text
 //  changes several times a second and the note page around it holds a text
 //  editor, so the observation has to stop here.
 //
 
+import AppKit
 import SwiftUI
 import Foundation
+import PindropCore
 
 // MARK: - Snap points
 
@@ -103,6 +105,9 @@ struct LiveTranscriptSheet: View {
     @State private var dragHeight: CGFloat?
     /// True while the newest line should stay pinned to the bottom.
     @State private var isFollowingLive = true
+    /// Speaker keys already announced. A promotion is announced once for the
+    /// life of the sheet, however many turns that speaker holds.
+    @State private var announcedPromotions: Set<String> = []
 
     private static let lineMetrics = TypographyRoleMetrics(
         family: .newsreader, size: 15, weight: .regular, lineHeight: 22
@@ -112,14 +117,27 @@ struct LiveTranscriptSheet: View {
     )
     private static let scrollSpace = "note.page.capture.live.scroll"
 
-    private var lines: [TranscriptLiveLine] {
-        TranscriptSegmentPresentation.liveLines(
-            // P1.5 replaces this joined-text adapter with the real turn stack.
-            // Until then both live surfaces keep rendering exactly what they
-            // rendered before, read out of the spans.
-            committed: state?.liveTranscriptText ?? "",
-            tentative: state?.liveTentative?.text ?? ""
+    private var entries: [TranscriptLiveEntry] {
+        TranscriptSegmentPresentation.liveEntries(
+            spans: state?.liveSpans ?? [],
+            tentative: state?.liveTentative,
+            // Read per render on purpose: the emphasis window is derived from
+            // `promotedAt`, because SwiftUI cannot deliver "true for exactly
+            // one render pass".
+            now: Date()
         )
+    }
+
+    /// The turn the sheet is currently pinned to, if anything has been heard.
+    private var newestTurn: TranscriptLiveTurn? {
+        entries.compactMap(\.turn).last
+    }
+
+    /// Everything the newest turn holds, as one string. The scroll follows this
+    /// rather than the entry list, which does not change while a turn grows.
+    private var newestTurnText: String {
+        guard let newestTurn else { return "" }
+        return newestTurn.lines.map { $0.text + ($0.tentativeTail ?? "") }.joined()
     }
 
     private var openHeight: CGFloat {
@@ -139,6 +157,9 @@ struct LiveTranscriptSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: detent.isOpen || dragHeight != nil ? openHeight : nil)
         .onExitCommand { collapse() }
+        // On the root, not on the turn stack: the sheet is collapsed by
+        // default, and a promotion has to be announced either way.
+        .onChange(of: promotedSpeakers) { _, speakers in announce(speakers) }
         .accessibilityIdentifier("note.page.capture.live")
     }
 
@@ -156,6 +177,9 @@ struct LiveTranscriptSheet: View {
             .onTapGesture { toggle() }
             .accessibilityIdentifier("note.page.capture.live.handle")
             .accessibilityLabel(localized("Live transcript", locale: locale))
+            // The reader's view, with names and gap markers. The checkpoint
+            // string carries neither, so it is deliberately not used here.
+            .accessibilityValue(state?.liveTranscriptForCopy(locale: locale) ?? "")
             .accessibilityAddTraits(.isButton)
     }
 
@@ -192,16 +216,23 @@ struct LiveTranscriptSheet: View {
                     .foregroundStyle(AppColors.textTertiary)
                     .accessibilityHidden(true)
 
-                Text(TranscriptSegmentPresentation.collapsedLine(
-                    committed: state?.liveTranscriptText ?? "",
-                    tentative: state?.liveTentative?.text ?? "",
-                    locale: locale
-                ))
+                HStack(spacing: 4) {
+                    if let collapsedName {
+                        // The name keeps the row: the words truncate from the
+                        // head, so without a separate view the name would be
+                        // the first thing cut.
+                        Text("\(collapsedName) ·")
+                            .lineLimit(1)
+                            .layoutPriority(1)
+                    }
+
+                    Text(collapsedLine)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 .font(Self.collapsedLineMetrics.font)
                 .foregroundStyle(AppColors.textSecondary)
-                .lineLimit(1)
-                .truncationMode(.head)
-                .frame(maxWidth: .infinity, alignment: .leading)
 
                 chevron(systemImage: "chevron.up", label: localized("Show live transcript", locale: locale))
             }
@@ -214,6 +245,21 @@ struct LiveTranscriptSheet: View {
         .contentShape(Rectangle())
         .onTapGesture { setDetent(.medium) }
         .accessibilityIdentifier("note.page.capture.live.collapsed")
+    }
+
+    /// Who spoke last, or nil before anything has been heard.
+    private var collapsedName: String? {
+        guard let newestTurn else { return nil }
+        return NoteCaptureState.speakerName(for: newestTurn.speaker, locale: locale)
+    }
+
+    /// The newest thing Pindrop heard, which is the newest turn's newest line.
+    private var collapsedLine: String {
+        TranscriptSegmentPresentation.collapsedLine(
+            committed: state?.liveTranscriptText ?? "",
+            tentative: state?.liveTentative?.text ?? "",
+            locale: locale
+        )
     }
 
     // MARK: Expanded
@@ -237,7 +283,7 @@ struct LiveTranscriptSheet: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 6)
 
-            linesColumn
+            turnsColumn
 
             degradedNotice
                 .padding(.horizontal, 16)
@@ -247,16 +293,21 @@ struct LiveTranscriptSheet: View {
         .accessibilityIdentifier("note.page.capture.live.expanded")
     }
 
-    private var linesColumn: some View {
-        GeometryReader { viewport in
+    private var turnsColumn: some View {
+        // Read once per render: every use below is the same list, and building
+        // it walks every span of the capture.
+        let entries = self.entries
+        return GeometryReader { viewport in
             ScrollViewReader { proxy in
                 ScrollView(.vertical) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(lines) { line in
-                            TranscriptLiveLineText(line: line).id(line.id)
+                    // 12 pt between turns, matching the finished transcript. It
+                    // is also the space a gap marker needs above and below it.
+                    VStack(alignment: .leading, spacing: TranscriptLiveTurnView.turnSpacing) {
+                        ForEach(entries) { entry in
+                            TranscriptLiveEntryView(entry: entry).id(entry.id)
                         }
 
-                        if lines.isEmpty {
+                        if entries.isEmpty {
                             Text(localized("Listening…", locale: locale))
                                 .font(Self.lineMetrics.font)
                                 .foregroundStyle(AppColors.textTertiary)
@@ -282,11 +333,11 @@ struct LiveTranscriptSheet: View {
                     isFollowingLive = TranscriptSegmentPresentation
                         .followsLive(distanceFromBottom: distance)
                 }
-                .onChange(of: lines.last?.id) { _, _ in scrollToLive(proxy) }
-                .onChange(of: lines.last?.text) { _, _ in scrollToLive(proxy) }
+                .onChange(of: entries.last?.id) { _, _ in scrollToLive(proxy) }
+                .onChange(of: newestTurnText) { _, _ in scrollToLive(proxy) }
                 .onAppear { scrollToLive(proxy, animated: false) }
                 .overlay(alignment: .bottomTrailing) {
-                    if !isFollowingLive, !lines.isEmpty {
+                    if !isFollowingLive, !entries.isEmpty {
                         jumpToLivePill(proxy)
                     }
                 }
@@ -325,7 +376,10 @@ struct LiveTranscriptSheet: View {
             Text(localized("Live text stopped. The recording continues.", locale: locale))
                 .font(AppTypography.caption)
                 .foregroundStyle(AppColors.textTertiary)
-                .lineLimit(1)
+                // Two caption lines, and the row grows to hold them. A notice
+                // naming a capture channel does not fit on one.
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("note.page.capture.degraded")
         }
     }
@@ -362,10 +416,202 @@ struct LiveTranscriptSheet: View {
     }
 
     private func scrollToLive(_ proxy: ScrollViewProxy, animated: Bool = true) {
-        guard isFollowingLive, let last = lines.last?.id else { return }
+        guard isFollowingLive, let last = entries.last?.id else { return }
         withAnimation(animated && !reduceMotion ? AppTheme.Animation.fast : nil) {
             proxy.scrollTo(last, anchor: .bottom)
         }
+    }
+
+    // MARK: Announcements
+
+    /// Every speaker on screen whose label has been promoted, one entry per
+    /// speaker however many turns they hold.
+    private var promotedSpeakers: [LiveSpeakerRef] {
+        var seen: Set<String> = []
+        return entries.compactMap(\.turn).map(\.speaker).filter { speaker in
+            guard speaker.promotedAt != nil,
+                  let previous = speaker.previousDisplayName,
+                  !previous.isEmpty,
+                  !seen.contains(speaker.key)
+            else { return false }
+            seen.insert(speaker.key)
+            return true
+        }
+    }
+
+    /// Says who a speaker turned out to be, once. New turns are never
+    /// announced: a caption stream announced continuously is unusable.
+    private func announce(_ speakers: [LiveSpeakerRef]) {
+        for speaker in speakers where !announcedPromotions.contains(speaker.key) {
+            announcedPromotions.insert(speaker.key)
+            guard let previous = speaker.previousDisplayName else { continue }
+            let message = String(
+                format: localized("%1$@ is now %2$@.", locale: locale),
+                previous,
+                NoteCaptureState.speakerName(for: speaker, locale: locale)
+            )
+            // AppKit's announcement notification is the macOS live-region
+            // equivalent. The sheet posts it, not the note page, so a promotion
+            // is announced once when both live surfaces are on screen.
+            NSAccessibility.post(
+                element: NSApp as Any,
+                notification: .announcementRequested,
+                userInfo: [
+                    .announcement: message,
+                    .priority: NSAccessibilityPriorityLevel.high.rawValue,
+                ]
+            )
+        }
+    }
+}
+
+// MARK: - Entries
+
+/// One entry of the live transcript: a speaker turn, or the gap where cross
+/// talk cost the live engine some speech.
+///
+/// Both live surfaces draw this, so the capture sheet and the note page's
+/// transcript tab can never disagree about who said what.
+struct TranscriptLiveEntryView: View {
+    let entry: TranscriptLiveEntry
+
+    var body: some View {
+        switch entry {
+        case .turn(let turn):
+            TranscriptLiveTurnView(turn: turn)
+        case .droppedSpeech(_, let source, _):
+            TranscriptLiveDroppedSpeechRow(source: source)
+        }
+    }
+}
+
+/// One live turn: who is talking, when they started, and what they have said.
+struct TranscriptLiveTurnView: View {
+    /// The space between two turns, and the space a gap marker needs above and
+    /// below it. Same measure as the finished transcript's turn stack.
+    static let turnSpacing: CGFloat = 12
+
+    @Environment(\.locale) private var locale
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let turn: TranscriptLiveTurn
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            header
+
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(turn.lines) { line in
+                    TranscriptLiveLineText(line: line, isCurrentTurn: turn.isCurrent)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityIdentifier("note.page.capture.live.turn")
+    }
+
+    private var name: String {
+        NoteCaptureState.speakerName(for: turn.speaker, locale: locale)
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            // The dot only repeats the speaker the name beside it already gives.
+            Circle()
+                .fill(turn.speaker.isCurrentUser
+                      ? AppColors.accent
+                      : LibrarySpeakerColor.color(for: turn.speaker.key))
+                .frame(width: 6, height: 6)
+                .accessibilityHidden(true)
+
+            Text(name)
+                .font(AppTypography.labelSemibold)
+                .foregroundStyle(AppColors.textPrimary)
+                .contentTransition(reduceMotion ? .identity : .opacity)
+                .animation(reduceMotion ? nil : AppTheme.Animation.fast, value: name)
+                .overlay(alignment: .bottom) { promotionUnderline }
+                // The transition belongs outside the overlay: it is what draws
+                // and fades the rule as the emphasis window opens and closes.
+                .animation(
+                    reduceMotion ? nil : AppTheme.Animation.fast,
+                    value: turn.promotion?.isRecent
+                )
+
+            if let promotion = turn.promotion {
+                // The affix outlives the emphasis window on purpose: the sheet
+                // is collapsed by default and the reader is usually looking at
+                // the call window, so a 1.2 s cue alone carries nothing.
+                Text(String(format: localized("was %@", locale: locale), promotion.previousDisplayName))
+                    .font(AppTypography.caption)
+                    .foregroundStyle(AppColors.textTertiary)
+            }
+
+            Spacer(minLength: 8)
+
+            if let startOffset = turn.startOffset {
+                Text(TranscriptSegmentPresentation.timestampText(startOffset))
+                    .font(AppTypography.caption)
+                    .foregroundStyle(AppColors.textTertiary)
+                    .monospacedDigit()
+                    .environment(\.layoutDirection, .leftToRight)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var promotionUnderline: some View {
+        if turn.promotion?.isRecent == true, !reduceMotion {
+            Rectangle()
+                .fill(AppColors.accent)
+                .frame(height: 2)
+                .offset(y: 3)
+                .transition(.opacity)
+        }
+    }
+
+    /// One element per turn, read as a sentence. The tail the engine may still
+    /// rewrite is named rather than read as settled words.
+    private var accessibilityLabel: String {
+        var spoken: [String] = []
+        let settled = turn.lines.map(\.text).filter { !$0.isEmpty }.joined(separator: " ")
+        if !settled.isEmpty { spoken.append(settled) }
+        let tail = turn.lines.compactMap(\.tentativeTail).joined(separator: " ")
+        if !tail.isEmpty {
+            spoken.append(String(format: localized("Still hearing: %@", locale: locale), tail))
+        }
+        return String(
+            format: localized("%1$@ said: %2$@", locale: locale),
+            name,
+            spoken.joined(separator: " ")
+        )
+    }
+}
+
+/// The gap where the other channel was talking and the live engine was busy.
+/// One quiet line, no dot and no bubble: it is not a turn, it is a note about
+/// one that is missing.
+struct TranscriptLiveDroppedSpeechRow: View {
+    @Environment(\.locale) private var locale
+
+    let source: CaptureSourceKind
+
+    var body: some View {
+        Text(text)
+            .font(AppTypography.caption)
+            .foregroundStyle(AppColors.textTertiary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(text)
+            .accessibilityIdentifier("note.page.capture.live.dropped")
+    }
+
+    private var text: String {
+        NoteCaptureState.droppedSpeechText(
+            for: .channel(for: source),
+            locale: locale
+        )
     }
 }
 
@@ -379,6 +625,10 @@ struct TranscriptLiveLineText: View {
     )
 
     let line: TranscriptLiveLine
+    /// The turn's own currency. Every line of the newest turn reads in the
+    /// primary ink, so inside a turn the line's own flag does not decide the
+    /// colour. Nil leaves the line to speak for itself.
+    var isCurrentTurn: Bool?
 
     var body: some View {
         composed
@@ -390,7 +640,9 @@ struct TranscriptLiveLineText: View {
 
     private var composed: Text {
         let settled = Text(line.text)
-            .foregroundStyle(line.isCurrent ? AppColors.textPrimary : AppColors.textSecondary)
+            .foregroundStyle(
+                (isCurrentTurn ?? line.isCurrent) ? AppColors.textPrimary : AppColors.textSecondary
+            )
         guard let tail = line.tentativeTail else { return settled }
         let spacer = line.text.isEmpty ? "" : " "
         return settled + Text(spacer + tail).foregroundStyle(AppColors.textTertiary)

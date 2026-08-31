@@ -493,6 +493,216 @@ struct TranscriptSegmentPresentationTests {
         #expect(!TranscriptSegmentPresentation.followsLive(distanceFromBottom: 25))
         #expect(!TranscriptSegmentPresentation.followsLive(distanceFromBottom: 400))
     }
+
+    // MARK: - Live turns
+
+    private let now = Date(timeIntervalSince1970: 1_000_000)
+
+    private func textSpan(
+        _ id: Int,
+        speaker: LiveSpeakerRef,
+        text: String,
+        start: TimeInterval
+    ) -> LiveTranscriptSpan {
+        LiveTranscriptSpan(
+            id: id,
+            speaker: speaker,
+            text: text,
+            startOffset: start,
+            duration: 2,
+            boundaryReason: .endOfUtterance
+        )
+    }
+
+    private func droppedSpan(
+        _ id: Int,
+        speaker: LiveSpeakerRef,
+        start: TimeInterval
+    ) -> LiveTranscriptSpan {
+        LiveTranscriptSpan(
+            id: id,
+            kind: .droppedSpeech,
+            speaker: speaker,
+            text: "",
+            startOffset: start,
+            duration: 1.5,
+            boundaryReason: .crossTalkDropped
+        )
+    }
+
+    @Test func liveTurnsGroupConsecutiveSpansOfOneSpeakerAndCountTheirLines() throws {
+        let entries = TranscriptSegmentPresentation.liveEntries(
+            spans: [
+                textSpan(0, speaker: .currentUser, text: "We shipped it. The store held.", start: 0),
+                textSpan(1, speaker: .currentUser, text: "Nothing broke.", start: 3),
+                textSpan(2, speaker: .systemChannel, text: "Good, thanks.", start: 6),
+            ],
+            tentative: nil,
+            now: now
+        )
+
+        #expect(entries.count == 2)
+        let mine = try #require(entries.first?.turn)
+        let theirs = try #require(entries.last?.turn)
+
+        #expect(mine.speaker.key == LiveSpeakerRef.currentUser.key)
+        // One span is not one line: the turn's paragraphs are re-split on
+        // sentence ends, so two spans can read as three lines.
+        #expect(mine.lines.count == 3)
+        #expect(mine.lines.map(\.text) == [
+            "We shipped it.",
+            "The store held.",
+            "Nothing broke.",
+        ])
+        #expect(theirs.speaker.key == LiveSpeakerRef.systemChannel.key)
+        #expect(theirs.lines.map(\.text) == ["Good, thanks."])
+        #expect(mine.isCurrent == false)
+        #expect(theirs.isCurrent)
+        #expect(entries.map(\.id) == [0, 1])
+    }
+
+    @Test func liveTurnsPutTheTentativeTailOnTheNewestTurn() throws {
+        let spans = [
+            textSpan(0, speaker: .currentUser, text: "We shipped it.", start: 0),
+            textSpan(1, speaker: .systemChannel, text: "Good, thanks.", start: 3),
+        ]
+
+        let sameSpeaker = TranscriptSegmentPresentation.liveEntries(
+            spans: spans,
+            tentative: LiveTentativeSpan(speaker: .systemChannel, text: "and the store"),
+            now: now
+        )
+        #expect(sameSpeaker.count == 2)
+        let newest = try #require(sameSpeaker.last?.turn)
+        #expect(newest.lines.last?.tentativeTail == "and the store")
+        #expect(newest.isCurrent)
+        let settled = try #require(sameSpeaker.first?.turn)
+        #expect(settled.lines.allSatisfy { $0.tentativeTail == nil })
+
+        // A tail the other channel is speaking opens the newest turn itself.
+        let otherSpeaker = TranscriptSegmentPresentation.liveEntries(
+            spans: spans,
+            tentative: LiveTentativeSpan(speaker: .currentUser, text: "one more thing"),
+            now: now
+        )
+        #expect(otherSpeaker.count == 3)
+        let opened = try #require(otherSpeaker.last?.turn)
+        #expect(opened.speaker.key == LiveSpeakerRef.currentUser.key)
+        #expect(opened.lines.map(\.text) == [""])
+        #expect(opened.lines.last?.tentativeTail == "one more thing")
+        #expect(opened.isCurrent)
+    }
+
+    @Test func liveTurnsBoundLongUnpunctuatedTextInsideATurn() throws {
+        let words = (1...50).map { "word\($0)" }
+        let entries = TranscriptSegmentPresentation.liveEntries(
+            spans: [
+                textSpan(0, speaker: .systemChannel, text: words.joined(separator: " "), start: 0),
+            ],
+            tentative: nil,
+            now: now
+        )
+
+        let expected = [
+            Array(words[0..<24]).joined(separator: " "),
+            Array(words[24..<48]).joined(separator: " "),
+            Array(words[48..<50]).joined(separator: " "),
+        ]
+
+        #expect(entries.count == 1)
+        let turn = try #require(entries.first?.turn)
+        #expect(turn.lines.map(\.text) == expected)
+    }
+
+    @Test func liveEntriesDrawADroppedSpeechMarkerBetweenTurns() throws {
+        let entries = TranscriptSegmentPresentation.liveEntries(
+            spans: [
+                textSpan(0, speaker: .currentUser, text: "We shipped it.", start: 0),
+                droppedSpan(1, speaker: .systemChannel, start: 4),
+                textSpan(2, speaker: .currentUser, text: "Anyway.", start: 7),
+            ],
+            tentative: nil,
+            now: now
+        )
+
+        #expect(entries.count == 3)
+        #expect(entries[1] == .droppedSpeech(id: 1, source: .systemAudio, startOffset: 4))
+        // The marker closes the turn it interrupts, so the words on either side
+        // of the gap are not read as one continuous run.
+        #expect(entries[0].turn?.lines.map(\.text) == ["We shipped it."])
+        #expect(entries[2].turn?.lines.map(\.text) == ["Anyway."])
+        #expect(entries[2].turn?.isCurrent == true)
+        #expect(Set(entries.map(\.id)).count == 3)
+    }
+
+    @Test func everyTurnAboveTheCurrentOneCarriesAStartTime() throws {
+        let entries = TranscriptSegmentPresentation.liveEntries(
+            spans: [
+                textSpan(0, speaker: .currentUser, text: "We shipped it.", start: 0),
+                textSpan(1, speaker: .systemChannel, text: "Good, thanks.", start: 12),
+                textSpan(2, speaker: .currentUser, text: "Anyway.", start: 30),
+            ],
+            tentative: nil,
+            now: now
+        )
+
+        #expect(entries.compactMap { $0.turn?.startOffset } == [0, 12])
+        #expect(entries.last?.turn?.startOffset == nil)
+        #expect(entries.last?.turn?.isCurrent == true)
+    }
+
+    @Test func aCaptureThatHasHeardNothingHasNoTurns() {
+        #expect(TranscriptSegmentPresentation.liveEntries(spans: [], tentative: nil, now: now).isEmpty)
+        #expect(
+            TranscriptSegmentPresentation.liveEntries(
+                spans: [],
+                tentative: LiveTentativeSpan(speaker: .currentUser, text: "   "),
+                now: now
+            ).isEmpty
+        )
+    }
+
+    @Test func aPromotedTurnKeepsItsOldNameAndLosesOnlyTheEmphasis() throws {
+        let promotedAt = now.addingTimeInterval(-0.5)
+        let dana = LiveSpeakerRef(
+            key: "slot.2",
+            tier: .named,
+            slotNumber: 2,
+            displayName: "Dana",
+            promotedAt: promotedAt,
+            previousDisplayName: "Speaker 2"
+        )
+        let spans = [textSpan(0, speaker: dana, text: "We shipped it.", start: 0)]
+
+        let fresh = try #require(
+            TranscriptSegmentPresentation
+                .liveEntries(spans: spans, tentative: nil, now: now)
+                .first?.turn
+        )
+        #expect(fresh.promotion?.previousDisplayName == "Speaker 2")
+        #expect(fresh.promotion?.isRecent == true)
+
+        // The affix outlives the emphasis window; that is what carries the
+        // information for a reader who was looking at the call window.
+        let later = try #require(
+            TranscriptSegmentPresentation
+                .liveEntries(spans: spans, tentative: nil, now: now.addingTimeInterval(5))
+                .first?.turn
+        )
+        #expect(later.promotion?.previousDisplayName == "Speaker 2")
+        #expect(later.promotion?.isRecent == false)
+
+        let neverPromoted = try #require(
+            TranscriptSegmentPresentation
+                .liveEntries(
+                    spans: [textSpan(0, speaker: .systemChannel, text: "Hello.", start: 0)],
+                    tentative: nil,
+                    now: now
+                )
+                .first?.turn
+        )
+        #expect(neverPromoted.promotion == nil)
+    }
 }
 
 @Suite("Live transcript sheet geometry (WP5)")
