@@ -994,6 +994,8 @@ struct NoteCaptureControllerTests {
     @Test func stateKeepsAPanelFailureWithoutFailingTheCapture() {
         let state = NoteCaptureState()
         state.beginStarting(includesSystemAudio: false, origin: .mainWindow)
+        let sessionID = UUID()
+        state.bindSession(id: sessionID)
         state.beginCapturing(startedAt: Date(timeIntervalSinceReferenceDate: 100_000))
         state.beginFinalizing(.assembling)
         state.beginEnhancing()
@@ -1011,7 +1013,10 @@ struct NoteCaptureControllerTests {
                 == "The enhanced note could not be generated. Try again."
         )
 
-        state.clearEnhancementFailure()
+        state.clearEnhancementFailure(for: UUID())
+        #expect(state.enhancementFailureMessage != nil)
+
+        state.clearEnhancementFailure(for: sessionID)
         #expect(state.enhancementFailureMessage == nil)
     }
 

@@ -1706,6 +1706,7 @@ struct NotePageView: View {
         }
         isGeneratingPanel = true
         enhancementFailureMessage = nil
+        noteCaptureState?.clearEnhancementFailure(for: sessionID)
         Task { @MainActor in
             defer { isGeneratingPanel = false }
             let failure = await onGenerateEnhancedPanel(

@@ -169,7 +169,8 @@ final class NoteCaptureState {
         enhancementFailureMessage = message
     }
 
-    func clearEnhancementFailure() {
+    func clearEnhancementFailure(for sessionID: UUID) {
+        guard self.sessionID == sessionID else { return }
         enhancementFailureMessage = nil
     }
 
