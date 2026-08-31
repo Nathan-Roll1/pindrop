@@ -90,6 +90,15 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     /// a 4,096-frame 16 kHz tap), while the file-backed recorder still retains the
     /// complete waveform for offline finalization.
     nonisolated static let maximumBufferedAudioBuffers = 32
+    /// The diarizer's stream is shorter than the ASR one on purpose. Live labels
+    /// are provisional and the offline pass replaces them, so a backlog here is
+    /// worth dropping rather than working through late; the ASR stream is a
+    /// different stream and is never affected by it.
+    nonisolated static let maximumBufferedDiarizationBuffers = 16
+    /// Seconds of system audio between segment drains. `process()` runs about
+    /// twice a second, so draining on that cadence collects every new segment
+    /// without a main-actor hop for nothing.
+    nonisolated static let diarizationDrainSeconds: TimeInterval = 0.5
 
     private struct FinalizeStepTimedOut: Error {}
 
@@ -107,6 +116,14 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     private let normalizeText: (String) -> String
     private let isEffectivelyEmptyText: (String) -> Bool
     private let artifactLiveTranscriptionLimit: TimeInterval
+
+    /// How a capture gets its streaming diarizer.
+    ///
+    /// Returns nil when the model bundle is not on disk, which is the readiness
+    /// gate that keeps a download off the capture path. Nil means the capture
+    /// stays on channel labels for its whole life: `You` and `Call audio`, with
+    /// the finished note still naming everyone.
+    private let makeLiveDiarizationEngine: (@MainActor () -> LiveDiarizationEngine?)?
 
     /// The coordinator's post-stop LLM pass (it needs prompt presets and the
     /// enhancement service, which stay app-level). Wired via `configure` after
@@ -176,6 +193,10 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         let source: CaptureSourceKind
         let fedStart: TimeInterval
         let captureStart: TimeInterval
+        /// Uptime when the run opened. Inside a run the owner's buffers are
+        /// always forwarded, so capture seconds and wall seconds advance
+        /// together and the difference is how far behind the engine has fallen.
+        let wallStart: TimeInterval
     }
 
     /// The open ownership run, refreshed at every applied handover. Nil until the
@@ -190,6 +211,26 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     /// The last string handed to the durable checkpoint. A label-only span change
     /// reports the same text, and rewriting it would be a store write for nothing.
     private var lastCheckpointedCommittedText = ""
+
+    // MARK: Live speaker labels
+
+    /// The streaming diarizer for the running capture, or nil when this capture
+    /// has none. One per capture, unloaded at step 7 of the stop sequence.
+    private var liveDiarizationEngine: LiveDiarizationEngine?
+    /// The engine's own audio stream, separate from the ASR one on purpose.
+    private var diarizationStreamContinuation: AsyncStream<LiveDiarizationSamples>.Continuation?
+    private var diarizationConsumerTask: Task<Void, Never>?
+    /// Retains the bounded model load so teardown can wait for it rather than
+    /// race a load that lands after the capture stopped.
+    private var liveDiarizationLoadTask: Task<Void, Never>?
+    /// Slots, tiers, and the hysteresis that decides when a label may change.
+    private var liveSlotAttributor = LiveSlotAttributor()
+    /// True once live speaker labels stopped for this capture: the model was
+    /// missing, its load failed, the kill switch fired, or the capture is
+    /// stopping. Never clears inside a capture, so degradation is one way.
+    private var isLiveDiarizationStopped = false
+    /// Watches how far behind real time the live partials are running.
+    private var partialLatencyMonitor = LivePartialLatencyMonitor()
 
     /// True when live transcription for the active artifact capture stopped
     /// growing: the duration bound elapsed, or checkpoint persistence failed.
@@ -233,9 +274,11 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         normalizeText: @escaping (String) -> String,
         isEffectivelyEmptyText: @escaping (String) -> Bool,
         artifactLiveTranscriptionLimit: TimeInterval = StreamingSessionController
-            .defaultArtifactLiveTranscriptionLimit
+            .defaultArtifactLiveTranscriptionLimit,
+        makeLiveDiarizationEngine: (@MainActor () -> LiveDiarizationEngine?)? = nil
     ) {
         self.artifactLiveTranscriptionLimit = artifactLiveTranscriptionLimit
+        self.makeLiveDiarizationEngine = makeLiveDiarizationEngine
         self.transcriptionService = transcriptionService
         self.settingsStore = settingsStore
         self.dictionaryStore = dictionaryStore
@@ -367,6 +410,9 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
             // A run belongs to one capture: the engine's fed watermark restarts
             // at zero for every streaming session.
             liveOwnershipRun = nil
+            liveSlotAttributor = LiveSlotAttributor()
+            partialLatencyMonitor = LivePartialLatencyMonitor()
+            isLiveDiarizationStopped = false
             coordinator.beginSession(
                 outputSink: displaySink,
                 commitObserver: self,
@@ -376,6 +422,7 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
             refinementCoordinator = coordinator
             pumpEngine = transcriptionService.activeStreamingEngine
             attachAudioForwarding()
+            attachLiveDiarization(for: handle)
             scheduleArtifactLiveTranscriptionLimit(for: handle)
             Log.transcription.info("Artifact live transcription enabled for current note capture")
             return true
@@ -891,10 +938,12 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
             onPartial: { [weak self] emission in
                 guard let self else { return }
                 if let session, !self.owns(session) { return }
+                let captureTime = self.liveCaptureTime(forFedSeconds: emission.fedSeconds)
                 await self.refinementCoordinator?.ingestPartial(
                     emission.text,
-                    captureTime: self.liveCaptureTime(forFedSeconds: emission.fedSeconds)
+                    captureTime: captureTime
                 )
+                if let captureTime { self.recordPartialArrival(captureTime: captureTime) }
             },
             onFinalUtterance: { [weak self] emission in
                 guard let self else { return }
@@ -1065,9 +1114,11 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         guard isArtifactCaptureCurrent(handle), !isArtifactLiveTranscriptionStopped else { return }
         isArtifactLiveTranscriptionStopped = true
         audioRecorder.onLivePacket = nil
-        audioRecorder.onDiarizationBuffer = nil
         audioStreamContinuation?.finish()
         audioStreamContinuation = nil
+        // Steps 1 to 7 of the stop sequence for the live path. The durable spool
+        // keeps running, and the 45 s ring goes with the engine.
+        stopLiveDiarization(releasingEngine: true)
         Log.transcription.warning(
             "Live transcription stopped after \(Int(afterSeconds))s; durable recording continues"
         )
@@ -1125,6 +1176,183 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         }
     }
 
+    // MARK: - Private — live speaker labels
+
+    /// Whether this capture may run live speaker labels at all.
+    ///
+    /// Two gates today: the capture has to include system audio (the microphone
+    /// channel is already `You` at the highest confidence there is), and the
+    /// model bundle has to be on disk, which the factory checks. **P2.7 adds the
+    /// third gate here**: `settingsStore.liveSpeakerNamesEnabled`, which already
+    /// exists and defaults off. It belongs in this one predicate so a reader of
+    /// the settings row can find the code it turns off.
+    private var isLiveDiarizationAllowedForCapture: Bool {
+        guard let arbiter = audioRecorder.liveChannelArbiter else { return false }
+        return arbiter.liveSources.contains(.systemAudio)
+    }
+
+    /// Starts the bounded model load for one capture. The load never blocks the
+    /// capture starting: it runs on the engine's own executor and wires the audio
+    /// stream up only once it succeeds.
+    private func attachLiveDiarization(for handle: NoteCaptureHandle) {
+        guard isArtifactCaptureActive, !isLiveDiarizationStopped else { return }
+        guard isLiveDiarizationAllowedForCapture else { return }
+        guard let engine = makeLiveDiarizationEngine?() else {
+            // Not an error to the reader. The capture keeps channel labels and
+            // the finished note still names everyone.
+            Log.transcription.info(
+                "Live speaker labels off for this capture: the streaming speaker model is not ready"
+            )
+            isLiveDiarizationStopped = true
+            return
+        }
+
+        liveDiarizationEngine = engine
+        liveDiarizationLoadTask = Task { @MainActor [weak self] in
+            do {
+                try await engine.load()
+            } catch {
+                Log.transcription.error(
+                    "Live speaker labels unavailable: \(error.localizedDescription)"
+                )
+                await engine.unload()
+                self?.stopLiveDiarization(releasingEngine: true)
+                return
+            }
+            guard let self,
+                  self.isArtifactCaptureCurrent(handle),
+                  !self.isLiveDiarizationStopped,
+                  self.liveDiarizationEngine === engine
+            else {
+                await engine.unload()
+                return
+            }
+            self.startDiarizationForwarding(engine: engine)
+        }
+    }
+
+    /// Points the recorder's diarization sink at the engine, through its own
+    /// stream and its own detached consumer.
+    ///
+    /// Two streams, two consumers, on purpose. `SortformerDiarizer.process()` is
+    /// a synchronous CoreML call; awaiting it in the ASR consumer would
+    /// head-of-line block the next audio buffer by a full inference time, twice
+    /// a second, and the ASR stream's newest-wins policy would then drop real
+    /// speech out of the live transcript.
+    private func startDiarizationForwarding(engine: LiveDiarizationEngine) {
+        let (stream, continuation) = AsyncStream.makeStream(
+            of: LiveDiarizationSamples.self,
+            bufferingPolicy: .bufferingNewest(Self.maximumBufferedDiarizationBuffers)
+        )
+        diarizationStreamContinuation = continuation
+        let onSegments = diarizationSegmentHandler()
+        let drainSeconds = Self.diarizationDrainSeconds
+        diarizationConsumerTask = Task.detached(priority: .utility) {
+            var secondsSinceDrain: TimeInterval = 0
+            for await packet in stream {
+                if Task.isCancelled { break }
+                await engine.ingest(packet.samples[...], captureTime: packet.captureTime)
+                secondsSinceDrain += Double(packet.samples.count) / LiveDiarizationEngine.sampleRate
+                guard secondsSinceDrain >= drainSeconds else { continue }
+                secondsSinceDrain = 0
+                let segments = await engine.drainSegments()
+                if !segments.isEmpty { onSegments(segments) }
+            }
+        }
+        // Captured directly, like the packet continuation: going through self
+        // would re-enter the main actor from the capture thread.
+        audioRecorder.onDiarizationBuffer = { buffer, captureTime in
+            guard let samples = LiveDiarizationSamples(buffer: buffer, captureTime: captureTime)
+            else {
+                return
+            }
+            if case .dropped = continuation.yield(samples) {
+                Log.transcription.warning(
+                    "Live speaker audio backlog exceeded \(Self.maximumBufferedDiarizationBuffers); dropped oldest buffer"
+                )
+            }
+        }
+    }
+
+    /// What the diarizer's consumer does with new segments: one hop to the main
+    /// actor per drain, about twice a second, and only when something settled.
+    private func diarizationSegmentHandler() -> @Sendable ([LiveDiarizationEngine.SlotSegment]) -> Void {
+        { [weak self] segments in
+            Task { @MainActor [weak self] in
+                await self?.applyDiarizerSegments(segments)
+            }
+        }
+    }
+
+    /// Folds newly settled segments into the slot store and applies the one
+    /// speaker change they justify.
+    private func applyDiarizerSegments(
+        _ segments: [LiveDiarizationEngine.SlotSegment]
+    ) async {
+        guard !isLiveDiarizationStopped else { return }
+        await applySlotSegments(segments)
+    }
+
+    /// The same fold without the running-capture gate, so the last segments the
+    /// diarizer produces at stop still land.
+    private func applySlotSegments(
+        _ segments: [LiveDiarizationEngine.SlotSegment]
+    ) async {
+        guard isArtifactCaptureActive else { return }
+        let owner = liveOwnershipRun?.source ?? .microphone
+        guard let boundary = liveSlotAttributor.ingest(segments, owner: owner) else { return }
+        currentLiveSpeaker = boundary.speaker
+        await refinementCoordinator?.markBoundary(
+            .speakerChange,
+            speaker: boundary.speaker,
+            atCaptureTime: boundary.captureTime
+        )
+    }
+
+    /// Records how stale the audio behind one emission was, and fires the kill
+    /// switch when the live transcript has been trailing for three windows.
+    ///
+    /// This is the regression that actually matters: two CoreML models sharing
+    /// the Neural Engine can push partials behind real time, and a late
+    /// transcript costs a reader more than a missing label does. Live labels are
+    /// the part that gets dropped, and ASR recovers.
+    private func recordPartialArrival(captureTime: TimeInterval) {
+        guard !isLiveDiarizationStopped, liveDiarizationEngine != nil else { return }
+        guard let run = liveOwnershipRun else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        let staleness = (now - run.wallStart) - (captureTime - run.captureStart)
+        guard partialLatencyMonitor.record(staleness: staleness, at: now) else { return }
+        Log.transcription.error(
+            """
+            Live speaker labels paused: partial arrival latency stayed over \
+            \(LivePartialLatencyMonitor.budgetSeconds)s for \
+            \(LivePartialLatencyMonitor.consecutiveWindowLimit) windows. Labels freeze here \
+            and the live transcript recovers.
+            """
+        )
+        stopLiveDiarization(releasingEngine: true)
+    }
+
+    /// Ends live speaker labels for the rest of this capture. Slots freeze where
+    /// they are: a label already on screen is never taken away.
+    private func stopLiveDiarization(releasingEngine: Bool) {
+        isLiveDiarizationStopped = true
+        audioRecorder.onDiarizationBuffer = nil
+        diarizationStreamContinuation?.finish()
+        diarizationStreamContinuation = nil
+        guard releasingEngine else { return }
+        let consumerTask = diarizationConsumerTask
+        diarizationConsumerTask = nil
+        let engine = liveDiarizationEngine
+        liveDiarizationEngine = nil
+        guard let engine else { return }
+        // Lifecycle teardown, detached so a stop never waits on a model release.
+        Task.detached(priority: .utility) {
+            await consumerTask?.value
+            await engine.unload()
+        }
+    }
+
     /// What the pump does when a handover takes effect: one hop to the main
     /// actor, at the engine boundary the switch landed on, never per buffer.
     private func handoverApplicationHandler() -> @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) -> Void {
@@ -1169,13 +1397,21 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         liveOwnershipRun = LiveOwnershipRun(
             source: source,
             fedStart: fedSeconds,
-            captureStart: captureTime
+            captureStart: captureTime,
+            wallStart: ProcessInfo.processInfo.systemUptime
         )
+        partialLatencyMonitor.reset()
         if source == .systemAudio, isLiveMicrophoneOnly {
             isLiveMicrophoneOnly = false
             onArtifactLiveMicrophoneOnlyChanged?(false)
         }
-        let speaker = LiveSpeakerRef.channel(for: source)
+        // The diarizer keeps labelling the system stream while the microphone
+        // owns the engine, so the channel change is what carries the slot that
+        // was talking there. Without a slot this is `Call audio`, exactly as it
+        // was before live labels existed.
+        let speaker = source == .systemAudio && !isLiveDiarizationStopped
+            ? liveSlotAttributor.speakerForChannelChange(at: captureTime)
+            : LiveSpeakerRef.channel(for: source)
         guard currentLiveSpeaker != speaker else { return }
         currentLiveSpeaker = speaker
         await refinementCoordinator?.markBoundary(
@@ -1185,15 +1421,51 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         )
     }
 
+    /// The stop sequence, in order.
+    ///
+    /// The order is the whole point. Get it wrong and two diarizer model
+    /// instances are resident and contending for the Neural Engine at exactly
+    /// the finalize moment, beside Nemotron's offline retranscription pass.
     private func flushPendingAudioWork() async {
+        // 1. No new buffer can be enqueued on either stream.
         audioRecorder.onLivePacket = nil
         audioRecorder.onDiarizationBuffer = nil
+        isLiveDiarizationStopped = true
+
+        // 2. Finish the diarizer's stream and wait for its consumer to exit.
+        diarizationStreamContinuation?.finish()
+        diarizationStreamContinuation = nil
+        let loadTask = liveDiarizationLoadTask
+        liveDiarizationLoadTask = nil
+        await loadTask?.value
+        let diarizationConsumer = diarizationConsumerTask
+        diarizationConsumerTask = nil
+        await diarizationConsumer?.value
+
+        // 3. Finalize the diarizer and apply the last speaker change it found.
+        if let engine = liveDiarizationEngine {
+            await applySlotSegments(engine.finish())
+        }
+
+        // 4. Finish the ASR stream and wait for its consumer to exit.
         audioStreamContinuation?.finish()
         audioStreamContinuation = nil
         let consumerTask = audioConsumerTask
         audioConsumerTask = nil
         await consumerTask?.value
+
+        // 5. Close the last paragraph of the capture.
         await closeLiveAttributionTail()
+
+        // 6. Release the profile embedder, which is a stated precondition of the
+        //    offline pass rather than a best effort. Phase 2 wires it here.
+
+        // 7. Release the Sortformer bundle and its 45 s ring.
+        let engine = liveDiarizationEngine
+        liveDiarizationEngine = nil
+        await engine?.unload()
+
+        // 8. Then finalize may begin.
         pumpEngine = nil
         engineBoundarySignal = nil
     }
@@ -1224,7 +1496,10 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     /// the caller until it is awaited ahead of an engine reset.
     private func detachAudioForwarding(cancelPendingWork: Bool) -> Task<Void, Never>? {
         audioRecorder.onLivePacket = nil
-        audioRecorder.onDiarizationBuffer = nil
+        liveDiarizationLoadTask?.cancel()
+        liveDiarizationLoadTask = nil
+        diarizationConsumerTask?.cancel()
+        stopLiveDiarization(releasingEngine: true)
         detachEngineCallbacks()
         audioStreamContinuation?.finish()
         audioStreamContinuation = nil
@@ -1414,6 +1689,99 @@ private final class FinalizeTimeoutState<Output>: @unchecked Sendable {
         operationTask?.cancel()
         timeoutTask?.cancel()
         continuation?.resume(with: result)
+    }
+}
+
+// MARK: - Live diarization plumbing
+
+/// One system-audio buffer on its way to the streaming diarizer.
+///
+/// Copied to samples on the capture thread rather than carried as an
+/// `AVAudioPCMBuffer`: the recorder reuses its buffers, so a queued one can be
+/// overwritten before the diarizer reads it. The copy is one pass over a quarter
+/// second of 16 kHz mono.
+struct LiveDiarizationSamples: Sendable {
+    let samples: [Float]
+    let captureTime: TimeInterval
+
+    /// Nil for anything the diarizer cannot read at face value. It is fed with
+    /// `sourceSampleRate: nil`, so audio at another rate would be labelled at the
+    /// wrong times rather than resampled.
+    init?(buffer: AVAudioPCMBuffer, captureTime: TimeInterval) {
+        guard buffer.format.sampleRate == LiveDiarizationEngine.sampleRate,
+              buffer.frameLength > 0,
+              let channel = buffer.floatChannelData?[0]
+        else {
+            return nil
+        }
+        self.samples = Array(
+            UnsafeBufferPointer(start: channel, count: Int(buffer.frameLength))
+        )
+        self.captureTime = captureTime
+    }
+}
+
+/// How far behind real time the live partials are running, in windows.
+///
+/// The number that matters is not how long one partial took but whether the
+/// transcript keeps trailing the conversation. One slow partial is a hiccup;
+/// three windows of them is a regression the reader can feel, and live speaker
+/// labels are what gets dropped to end it.
+struct LivePartialLatencyMonitor {
+
+    /// Wall seconds per window. Long enough that a single stall cannot close a
+    /// window on its own, short enough that the limit is about a minute of a
+    /// visibly late transcript.
+    static let windowSeconds: TimeInterval = 20
+    /// A window with fewer partials than this says nothing about a percentile.
+    static let minimumSamplesPerWindow = 5
+    /// The streaming engine reports about 1.1 s behind real time by design.
+    /// Past this the transcript is visibly trailing the voices.
+    static let budgetSeconds: TimeInterval = 2.5
+    /// Consecutive over-budget windows before the kill switch fires.
+    static let consecutiveWindowLimit = 3
+
+    private var windowStart: TimeInterval?
+    private var staleness: [TimeInterval] = []
+    private var consecutiveOverBudgetWindows = 0
+
+    /// Records one arrival. True once the limit is crossed.
+    mutating func record(staleness value: TimeInterval, at wallTime: TimeInterval) -> Bool {
+        guard let start = windowStart else {
+            windowStart = wallTime
+            staleness = [value]
+            return false
+        }
+        staleness.append(value)
+        guard wallTime - start >= Self.windowSeconds else { return false }
+
+        let closed = staleness
+        windowStart = wallTime
+        staleness.removeAll(keepingCapacity: true)
+
+        // Silence is not a regression: no partials arrive while nobody talks.
+        guard closed.count >= Self.minimumSamplesPerWindow,
+              Self.percentile95(of: closed) > Self.budgetSeconds
+        else {
+            consecutiveOverBudgetWindows = 0
+            return false
+        }
+        consecutiveOverBudgetWindows += 1
+        return consecutiveOverBudgetWindows >= Self.consecutiveWindowLimit
+    }
+
+    /// Drops the open window when the ownership run it was measured against
+    /// changes. The consecutive count survives: a handover is not evidence that
+    /// the engine caught up.
+    mutating func reset() {
+        windowStart = nil
+        staleness.removeAll(keepingCapacity: true)
+    }
+
+    private static func percentile95(of values: [TimeInterval]) -> TimeInterval {
+        let sorted = values.sorted()
+        let rank = Int((0.95 * Double(sorted.count)).rounded(.up)) - 1
+        return sorted[min(max(rank, 0), sorted.count - 1)]
     }
 }
 

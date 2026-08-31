@@ -4042,13 +4042,13 @@ final class AudioRecorder {
     /// render loop delays main-actor delivery until the session ends). The closure
     /// must be thread-safe; it is set/cleared on the main actor between sessions.
     nonisolated(unsafe) var onLivePacket: ((LiveAudioPacket) -> Void)?
-    /// The streaming diarizer's own sink, unused until Phase 2.
+    /// The streaming diarizer's own sink, raised for every system-audio buffer
+    /// whichever channel owns the streaming engine.
     ///
-    /// It is declared here now because the diarizer must never share the ASR
-    /// stream: `SortformerDiarizer.process()` is a synchronous CoreML call, and
-    /// awaiting it in the ASR consumer would head-of-line block the next audio
-    /// buffer by a full inference time. Adding the second sink later would mean
-    /// reworking `LiveAudioPacket` and every consumer of it.
+    /// The diarizer must never share the ASR stream: `SortformerDiarizer.process()`
+    /// is a synchronous CoreML call, and awaiting it in the ASR consumer would
+    /// head-of-line block the next audio buffer by a full inference time. Same
+    /// thread rules as `onLivePacket`.
     nonisolated(unsafe) var onDiarizationBuffer: ((AVAudioPCMBuffer, TimeInterval) -> Void)?
 
     /// Which capture channel owns the one streaming engine, for the running
@@ -4714,6 +4714,13 @@ final class AudioRecorder {
         )
         let rms = AudioCaptureUtilities.shortTermRMS(buffer)
         let decision = arbiter.admit(source: source, rms: rms, captureTime: captureTime)
+        // The diarizer hears the whole system stream, whichever channel owns the
+        // streaming engine. Fed only what the engine took, its speaker cache
+        // would miss every voice that spoke while the microphone had the engine,
+        // and its frame clock would drift away from capture time for good.
+        if source == .systemAudio {
+            onDiarizationBuffer?(buffer, captureTime)
+        }
         // Drained whether or not anyone is listening. The live engine takes
         // seconds to load, and a marker for speech no engine existed to hear is
         // noise: it would draw a wall of gap lines above an empty transcript.

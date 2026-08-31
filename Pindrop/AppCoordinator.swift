@@ -997,7 +997,17 @@ final class AppCoordinator {
             audioRecorder: audioRecorder,
             captureSessionStore: captureSessionStore,
             normalizeText: { AppCoordinator.normalizedTranscriptionText($0) },
-            isEffectivelyEmptyText: { AppCoordinator.isTranscriptionEffectivelyEmpty($0) }
+            isEffectivelyEmptyText: { AppCoordinator.isTranscriptionEffectivelyEmpty($0) },
+            makeLiveDiarizationEngine: { [modelManager, modelStorageLocations] in
+                // Readiness is the gate that keeps a download off the capture
+                // path: the engine's load entry point fetches a missing or
+                // partial bundle, and a fetch from here is how a half-written
+                // model gets loaded mid-recording.
+                guard modelManager.isLiveDiarizationReady() else { return nil }
+                return PindropSpeech.LiveDiarizationEngine.forCapture(
+                    modelsDirectory: modelStorageLocations.fluidAudioModelsRoot
+                )
+            }
         )
         self.floatingIndicatorController = FloatingIndicatorController(
             state: floatingIndicatorState,

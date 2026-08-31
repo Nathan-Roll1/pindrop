@@ -189,6 +189,21 @@ public final class StreamingRefinementCoordinator {
 
     /// One per committed paragraph, in paragraph order.
     private var spanMetadata: [SpanMetadata] = []
+
+    /// Character offsets into `committedText` where a late speaker change cut a
+    /// paragraph in two. Ascending, each one inside the paragraph that was open
+    /// when the cut was made, and each one at the whitespace that already
+    /// separated the two words.
+    ///
+    /// A cut is recorded here instead of written into `committedText` because
+    /// the durable checkpoint requires every write to extend the previous one as
+    /// a prefix (`CaptureSessionStore.checkpointVoiceNoteLiveTranscript`).
+    /// Inserting one newline into settled characters would fail that check for
+    /// the rest of the capture and stop the transcript being persisted at all.
+    /// Spans stay exactly the pieces of `committedText`, separated by one
+    /// character each: the "\n" an appended boundary writes, or the whitespace a
+    /// cut lands on.
+    private var splitOffsets: [Int] = []
     private var droppedMarkers: [DroppedMarker] = []
     private var currentSpeaker: LiveSpeakerRef = .currentUser
     /// Capture time the open paragraph started at. Phase 1 learns a capture time
@@ -199,10 +214,17 @@ public final class StreamingRefinementCoordinator {
     private var nextSpanID = 0
 
     /// One raw-offset watermark: raw offset `rawOffset` had been committed by
-    /// capture time `captureTime`.
+    /// capture time `captureTime`, and `committedText` was `committedLength`
+    /// characters long at that moment.
+    ///
+    /// Both offsets are kept because they address different strings. The raw one
+    /// says how much of the engine's own cumulative output had arrived; the
+    /// committed one is where a late boundary has to cut, and the cleaner makes
+    /// the two lengths differ.
     struct RawOffsetStamp: Equatable {
         let rawOffset: Int
         let captureTime: TimeInterval
+        let committedLength: Int
     }
 
     /// Raw-offset watermarks, in commit order. Both fields are non-decreasing,
@@ -257,6 +279,7 @@ public final class StreamingRefinementCoordinator {
         self.preservesArtifactParagraphs = preservesArtifactParagraphs
         spanMetadata.removeAll()
         droppedMarkers.removeAll()
+        splitOffsets.removeAll()
         stamps.removeAll()
         latestCaptureTime = nil
         currentSpeaker = initialSpeaker
@@ -562,6 +585,129 @@ public final class StreamingRefinementCoordinator {
         }
     }
 
+    /// Closes the open paragraph at the point the audio of `captureTime` had
+    /// reached, and points everything after that point at `speaker`.
+    ///
+    /// This is the one boundary that arrives late. The streaming diarizer reports
+    /// a speaker change about a second after the audio that caused it, so the
+    /// text decoded in between is already committed under the previous speaker.
+    /// The stamps say where in `committedText` that audio landed, so the cut is
+    /// placed where the voice actually changed instead of where the news
+    /// arrived.
+    ///
+    /// Three bounds hold it honest:
+    ///
+    /// - Only the open paragraph is ever cut. A closed one is settled, and the
+    ///   reader has already read it under its header.
+    /// - A `captureTime` before the open paragraph starts clamps to that start
+    ///   and logs. History is never re-cut.
+    /// - `committedText` is never edited, only cut. The durable checkpoint takes
+    ///   every write as an extension of the previous one, so a character
+    ///   inserted into settled text would end persistence for the capture.
+    public func markBoundary(
+        _ reason: LiveTurnBoundaryReason,
+        speaker: LiveSpeakerRef,
+        atCaptureTime captureTime: TimeInterval
+    ) async {
+        guard isSessionActive, preservesArtifactParagraphs else { return }
+
+        let total = committedText.count
+        let openStart = openParagraphStartOffset()
+        // Nothing is open, so nothing can be cut: the next paragraph simply
+        // opens under the new speaker, which is the Phase 1 boundary exactly.
+        guard total > openStart, !spanMetadata.isEmpty else {
+            await markBoundary(reason, speaker: speaker, at: captureTime)
+            return
+        }
+
+        var cut = committedLength(atOrBefore: captureTime)
+        if cut < openStart {
+            Log.transcription.debug(
+                "StreamingRefinement: speaker boundary at \(captureTime)s precedes the open span; clamping to its start"
+            )
+            cut = openStart
+        }
+        // Every character committed so far was decoded from audio the boundary
+        // does not reach, so the outgoing speaker keeps all of it and the new one
+        // starts at the next commit.
+        if cut >= total {
+            await markBoundary(reason, speaker: speaker, at: captureTime)
+            return
+        }
+        // The whole open paragraph was decoded after the boundary, so it belongs
+        // to the incoming speaker entirely. Re-pointing it is not a relabel of
+        // history: this paragraph is still being written.
+        guard cut > openStart,
+              let separator = separatorOffset(atOrBefore: cut, notBefore: openStart + 1)
+        else {
+            retargetOpenSpan(to: speaker, startingAt: captureTime)
+            return
+        }
+        applySplit(at: separator, reason: reason, to: speaker, atCaptureTime: captureTime)
+    }
+
+    /// The last whitespace at or before `offset` and at or after `lowerBound`,
+    /// which is where a cut can land without breaking a word in half.
+    private func separatorOffset(atOrBefore offset: Int, notBefore lowerBound: Int) -> Int? {
+        guard lowerBound <= offset else { return nil }
+        let characters = Array(committedText)
+        var index = min(offset, characters.count - 1)
+        while index >= lowerBound {
+            if characters[index].isWhitespace { return index }
+            index -= 1
+        }
+        return nil
+    }
+
+    /// Cuts the open paragraph in two at `offset` and opens the second half
+    /// under `speaker`.
+    private func applySplit(
+        at offset: Int,
+        reason: LiveTurnBoundaryReason,
+        to speaker: LiveSpeakerRef,
+        atCaptureTime captureTime: TimeInterval
+    ) {
+        guard let openIndex = spanMetadata.indices.last else { return }
+        splitOffsets.append(offset)
+
+        let closed = spanMetadata[openIndex]
+        spanMetadata[openIndex].boundaryReason = reason
+        spanMetadata[openIndex].duration = max(0, captureTime - closed.startOffset)
+        spanMetadata.append(
+            SpanMetadata(
+                id: takeSpanID(),
+                speaker: speaker,
+                startOffset: max(closed.startOffset, captureTime),
+                duration: 0,
+                boundaryReason: .sessionEnd
+            )
+        )
+        // A marker recorded after the paragraph that just split now sits one
+        // paragraph further down.
+        for index in droppedMarkers.indices where droppedMarkers[index].paragraphIndex > openIndex {
+            droppedMarkers[index] = DroppedMarker(
+                span: droppedMarkers[index].span,
+                paragraphIndex: droppedMarkers[index].paragraphIndex + 1
+            )
+        }
+
+        currentSpeaker = speaker
+        pendingSpeaker = nil
+        currentSpanStartCaptureTime = max(currentSpanStartCaptureTime, captureTime)
+        notifyCommitObserverOfSpanChange()
+    }
+
+    /// Points the open paragraph at `speaker` without cutting it.
+    private func retargetOpenSpan(to speaker: LiveSpeakerRef, startingAt captureTime: TimeInterval) {
+        guard let openIndex = spanMetadata.indices.last else { return }
+        guard spanMetadata[openIndex].speaker != speaker else { return }
+        spanMetadata[openIndex].speaker = speaker
+        currentSpeaker = speaker
+        pendingSpeaker = nil
+        currentSpanStartCaptureTime = max(currentSpanStartCaptureTime, captureTime)
+        notifyCommitObserverOfSpanChange()
+    }
+
     /// Records speech the live engine never heard. Emits a `.droppedSpeech` span
     /// attributed to `speaker`, carrying no text, between the surrounding
     /// paragraphs. Does not touch `committedText`.
@@ -678,13 +824,49 @@ public final class StreamingRefinementCoordinator {
         return spans
     }
 
-    /// `committedText` split on the paragraph boundaries the artifact path
-    /// appends. The trailing boundary produces no empty last paragraph.
+    /// `committedText` cut at the paragraph boundaries the artifact path appends
+    /// and at every retroactive speaker-change split. The trailing boundary
+    /// produces no empty last paragraph.
     private func committedParagraphs() -> [String] {
         guard !committedText.isEmpty else { return [] }
-        var paragraphs = committedText.components(separatedBy: "\n")
-        if committedText.hasSuffix("\n") { paragraphs.removeLast() }
+        guard !splitOffsets.isEmpty else {
+            var paragraphs = committedText.components(separatedBy: "\n")
+            if committedText.hasSuffix("\n") { paragraphs.removeLast() }
+            return paragraphs
+        }
+
+        var paragraphs: [String] = []
+        var current = ""
+        var nextSplit = 0
+        for (offset, character) in committedText.enumerated() {
+            if nextSplit < splitOffsets.count, offset == splitOffsets[nextSplit] {
+                // The character sitting at a split offset is that cut's
+                // separator, exactly as "\n" is an appended boundary's.
+                paragraphs.append(current)
+                current = ""
+                nextSplit += 1
+                continue
+            }
+            if character.isNewline {
+                paragraphs.append(current)
+                current = ""
+                continue
+            }
+            current.append(character)
+        }
+        if !current.isEmpty { paragraphs.append(current) }
         return paragraphs
+    }
+
+    /// Offset of the first character of the paragraph still open, which is the
+    /// first character after the last cut of any kind.
+    private func openParagraphStartOffset() -> Int {
+        var start = 0
+        if let lastSplit = splitOffsets.last { start = lastSplit + 1 }
+        for (offset, character) in committedText.enumerated() where character.isNewline {
+            start = max(start, offset + 1)
+        }
+        return start
     }
 
     /// Keeps one metadata row per committed paragraph. Called after every append
@@ -734,13 +916,38 @@ public final class StreamingRefinementCoordinator {
         if let last = stamps.last, last.captureTime >= captureTime {
             stamps[stamps.count - 1] = RawOffsetStamp(
                 rawOffset: committedRawLength,
-                captureTime: last.captureTime
+                captureTime: last.captureTime,
+                committedLength: committedText.count
             )
             return
         }
         stamps.append(
-            RawOffsetStamp(rawOffset: committedRawLength, captureTime: captureTime)
+            RawOffsetStamp(
+                rawOffset: committedRawLength,
+                captureTime: captureTime,
+                committedLength: committedText.count
+            )
         )
+    }
+
+    /// How much of `committedText` had been decoded from audio at or before
+    /// `captureTime`. Zero when no emission that early was ever stamped.
+    ///
+    /// Binary search, valid because both stamp fields are non-decreasing.
+    private func committedLength(atOrBefore captureTime: TimeInterval) -> Int {
+        var low = 0
+        var high = stamps.count - 1
+        var answer = 0
+        while low <= high {
+            let middle = (low + high) / 2
+            if stamps[middle].captureTime <= captureTime {
+                answer = stamps[middle].committedLength
+                low = middle + 1
+            } else {
+                high = middle - 1
+            }
+        }
+        return answer
     }
 
     // MARK: - Idle commit timer

@@ -169,6 +169,16 @@ public actor LiveDiarizationEngine {
         )
     }
 
+    /// The engine one capture runs, with the shipping Sortformer factory.
+    ///
+    /// The factory is resolved here rather than through the initializer's
+    /// default argument on purpose: a default argument that builds a FluidAudio
+    /// type is emitted into every calling module, so the app target would have
+    /// to link FluidAudio itself to construct this.
+    public static func forCapture(modelsDirectory: URL) -> LiveDiarizationEngine {
+        LiveDiarizationEngine(modelsDirectory: modelsDirectory)
+    }
+
     // MARK: - Lifecycle
 
     /// Loads the CoreML bundle and runs one silent warm-up inference.

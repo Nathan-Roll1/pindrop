@@ -567,7 +567,14 @@ struct StreamingRefinementCoordinatorTests {
 
       await coord.ingestFinal("first thought second thought", captureTime: 6)
       #expect(coord.stamps == [
-         StreamingRefinementCoordinator.RawOffsetStamp(rawOffset: 28, captureTime: 6)
+         StreamingRefinementCoordinator.RawOffsetStamp(
+            rawOffset: 28,
+            captureTime: 6,
+            // The committed length is where a late boundary cuts. It counts the
+            // paragraph boundary this final appended, which is why it is one
+            // character past the raw offset.
+            committedLength: 29
+         )
       ])
    }
 
