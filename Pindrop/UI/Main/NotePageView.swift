@@ -69,6 +69,11 @@ struct NotePageView: View {
     /// turned out to live in this page's own bottom band: the questions are
     /// about the note on screen, and a source link is a scroll inside it.
     let noteChatService: NoteChatService?
+    /// Where a running speaker-model download reports itself. Only the setup
+    /// banner reads it.
+    let modelDownloadState: RecordingFeatureState?
+    /// Fetches both speaker bundles for the setup banner. Nil hides the action.
+    let onDownloadSpeakerModels: (() -> Void)?
 
     init(
         noteID: UUID,
@@ -78,7 +83,9 @@ struct NotePageView: View {
         onFinishNoteCapture: (() -> Void)? = nil,
         onCancelNoteCapture: (() -> Void)? = nil,
         onGenerateEnhancedPanel: NoteEnhancementHandler? = nil,
-        noteChatService: NoteChatService? = nil
+        noteChatService: NoteChatService? = nil,
+        modelDownloadState: RecordingFeatureState? = nil,
+        onDownloadSpeakerModels: (() -> Void)? = nil
     ) {
         self.noteID = noteID
         self.onBack = onBack
@@ -88,6 +95,8 @@ struct NotePageView: View {
         self.onCancelNoteCapture = onCancelNoteCapture
         self.onGenerateEnhancedPanel = onGenerateEnhancedPanel
         self.noteChatService = noteChatService
+        self.modelDownloadState = modelDownloadState
+        self.onDownloadSpeakerModels = onDownloadSpeakerModels
         _notes = Query(
             filter: #Predicate<NoteSchema.Note> { $0.id == noteID },
             sort: \NoteSchema.Note.updatedAt
@@ -223,8 +232,16 @@ struct NotePageView: View {
             isRecorded: views?.isRecorded ?? false,
             capture: capturePhase,
             hasUnreadEnhanced: hasUnreadEnhanced,
-            hasLiveText: hasLiveText
+            hasLiveText: hasLiveText,
+            liveLabelsDiffered: views?.transcript?.liveLabelsDiffered ?? false
         )
+    }
+
+    /// What the live speaker labels are doing, for the capture attached to this
+    /// note. Off for every other note, whatever the shell's one capture is up to.
+    private var liveSpeakerLabelStatus: LiveSpeakerLabelStatus {
+        guard capturePhase.isRecording, let noteCaptureState else { return .off }
+        return noteCaptureState.liveSpeakerLabelStatus
     }
 
     /// True once the running capture has heard something. Reading the live text
@@ -1006,6 +1023,57 @@ struct NotePageView: View {
             )
             .padding(.leading, textColumnInset)
         }
+
+        if let message = NotePagePresentation.liveSpeakerSetupMessage(
+            status: liveSpeakerLabelStatus,
+            locale: locale
+        ) {
+            // The component the Library and the Dictate page already use, not a
+            // second model-missing surface. Its action covers both speaker
+            // bundles, because a name needs the offline embedder too.
+            LiveSpeakerSetupBanner(
+                message: message,
+                downloadState: modelDownloadState,
+                onDownload: onDownloadSpeakerModels
+            )
+            .padding(.leading, textColumnInset)
+            .accessibilityIdentifier("note.page.speakers.setup")
+        }
+
+        if NotePagePresentation.showsSpeakerReconciliation(state: pageState) {
+            // Shown on every open until it is dismissed, because a long meeting
+            // finalizes minutes after stop and usually into an empty room. The
+            // dismissal is durable; nothing else on this page clears it.
+            InlineNotice(
+                kind: .info,
+                message: NotePagePresentation.speakerReconciliationMessage(locale: locale),
+                actionTitle: localized("Got it", locale: locale),
+                actionIdentifier: "note.page.speakers.reconciled.dismiss",
+                action: dismissSpeakerReconciliation
+            )
+            .padding(.leading, textColumnInset)
+            .accessibilityIdentifier("note.page.speakers.reconciled")
+        }
+    }
+
+    /// Forgets that the finished names differed from the live ones.
+    ///
+    /// The flag lives in the note's stored diarization payload, so this survives
+    /// quit and relaunch. A write that fails leaves the line up: showing it once
+    /// more is the safe direction, and the reader can dismiss it again.
+    private func dismissSpeakerReconciliation() {
+        guard let recordID = views?.captureState?.transcriptionRecordID else { return }
+        do {
+            try captureSessionStore.dismissLiveLabelReconciliation(
+                transcriptionRecordID: recordID
+            )
+        } catch {
+            Log.ui.warning(
+                "Speaker reconciliation dismissal failed: \(error.localizedDescription)"
+            )
+            return
+        }
+        Task { await refreshViews() }
     }
 
     /// The generated note: its sections, its citations, and where they came from.
@@ -2007,6 +2075,25 @@ private struct NoteTranscriptTurns: View {
             canSeek: canSeek,
             onSeek: onSeek,
             flashingSegmentID: flashingSegmentID
+        )
+    }
+}
+
+/// The note page's live-speaker setup banner.
+///
+/// Its own view so a model download's progress invalidates the banner and not
+/// the page around it, which hosts the editor.
+private struct LiveSpeakerSetupBanner: View {
+    let message: String
+    let downloadState: RecordingFeatureState?
+    let onDownload: (() -> Void)?
+
+    var body: some View {
+        DiarizationSetupIssueBanner(
+            message: message,
+            isDownloading: downloadState?.isDiarizationModelDownloading ?? false,
+            progress: downloadState?.diarizationModelDownloadProgress ?? 0,
+            onDownload: onDownload
         )
     }
 }

@@ -99,6 +99,13 @@ extension TranscriptionRecord {
         diarizationSegmentsJSON = try payload.encodedJSON()
     }
 
+    /// Clears the flag behind the "names were checked again" line, keeping every
+    /// other key the payload carries. No-op when there is no payload to clear.
+    public func clearLiveLabelsDiffered() throws {
+        guard let payload = diarizationPayload, payload.liveLabelsDiffered else { return }
+        diarizationSegmentsJSON = try payload.clearingLiveLabelsDiffered().encodedJSON()
+    }
+
     public var mediaLibrarySortName: String {
         preferredTitle ?? text
     }

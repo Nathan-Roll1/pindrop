@@ -1098,7 +1098,10 @@ final class AppCoordinator {
                 guard let self else { return nil }
                 return await self.handleGenerateEnhancedPanel(request)
             },
-            noteChatService: noteChatService
+            noteChatService: noteChatService,
+            onDownloadSpeakerModels: { [weak self] in
+                self?.handleDownloadSpeakerModels()
+            }
         )
         self.mainWindowController.configureTranscribeFeature(
             state: mediaTranscriptionState,
@@ -6504,6 +6507,65 @@ final class AppCoordinator {
                 self.mediaTranscriptionState.setSetupIssue(error.localizedDescription)
                 self.recordingState.setSetupIssue(error.localizedDescription)
             }
+        }
+    }
+
+    /// Fetches the speaker models the note page's setup banner offers.
+    ///
+    /// Both bundles, not only the streaming one. `.named` needs the offline
+    /// embedder, so a download that fetched the live model alone would leave
+    /// every slot reading "Speaker 2" with nothing left for the reader to press.
+    /// Bundles already on disk are skipped, and progress is reported across
+    /// whatever is actually missing.
+    private func handleDownloadSpeakerModels() {
+        guard !recordingState.isDiarizationModelDownloading else { return }
+
+        let pending = [FeatureModelType.liveDiarization, .diarization]
+            .filter { !modelManager.isFeatureModelDownloaded($0) }
+        guard !pending.isEmpty else {
+            noteCaptureState.clearLiveSpeakerSetupIssue()
+            return
+        }
+
+        recordingState.isDiarizationModelDownloading = true
+        recordingState.diarizationModelDownloadProgress = 0.0
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.recordingState.isDiarizationModelDownloading = false }
+
+            let total = Double(pending.count)
+            for (index, type) in pending.enumerated() {
+                do {
+                    try await self.modelManager.downloadFeatureModel(type) { [weak self] progress in
+                        guard let self else { return }
+                        self.recordingState.diarizationModelDownloadProgress =
+                            (Double(index) + progress) / total
+                    }
+                } catch {
+                    self.recordingState.diarizationModelDownloadProgress = 0.0
+                    self.recordingState.setSetupIssue(error.localizedDescription)
+                    return
+                }
+            }
+
+            await self.modelManager.refreshDownloadedFeatureModels()
+            self.recordingState.diarizationModelDownloadProgress = 0.0
+            for type in pending {
+                // Only what was actually fetched. The two flags are two
+                // settings: taking this download must not silently switch on a
+                // stage the person turned off.
+                guard type != .diarization || self.modelManager.isOfflineDiarizationReady()
+                else {
+                    continue
+                }
+                self.settingsStore.setFeatureEnabled(type, enabled: true)
+            }
+            self.recordingState.setupIssue = nil
+            // Nothing is loaded into the running capture: the rule that keeps a
+            // half-written bundle out of the capture path is the same rule that
+            // keeps this one at channel labels until the next recording.
+            self.noteCaptureState.clearLiveSpeakerSetupIssue()
         }
     }
 

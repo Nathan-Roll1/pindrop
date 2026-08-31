@@ -186,6 +186,14 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     /// the whole conversation.
     var onArtifactLiveMicrophoneOnlyChanged: ((Bool) -> Void)?
 
+    /// Observer for what the live speaker labels are doing. The note page draws
+    /// its setup banner from this; the live sheet draws its chip.
+    var onArtifactLiveSpeakerStatusChanged: ((LiveSpeakerLabelStatus) -> Void)?
+
+    /// Observer for "every diarizer slot is in use". Reported once per capture.
+    /// The live sheet states it as a capability and never as a headcount.
+    var onArtifactLiveSpeakerCapacityReached: (() -> Void)?
+
     /// The channel the live transcript is following right now. Set from the pump
     /// when a handover is applied, and read when the tentative tail needs a
     /// speaker to be drawn under.
@@ -250,6 +258,9 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     /// One promotion attempt at a time. Attempts are bounded but not instant,
     /// and two drains should not queue two passes over the same slots.
     private var isPromotionInFlight = false
+    /// True once the capacity chip has been asked for. Slots never close, so the
+    /// fact is reported once rather than on every drain that follows it.
+    private var didReportSlotCapacity = false
 
     /// True when live transcription for the active artifact capture stopped
     /// growing: the duration bound elapsed, or checkpoint persistence failed.
@@ -436,6 +447,7 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
             liveSlotAttributor = LiveSlotAttributor()
             partialLatencyMonitor = LivePartialLatencyMonitor()
             isLiveDiarizationStopped = false
+            didReportSlotCapacity = false
             coordinator.beginSession(
                 outputSink: displaySink,
                 commitObserver: self,
@@ -1203,15 +1215,32 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
 
     /// Whether this capture may run live speaker labels at all.
     ///
-    /// Two gates today: the capture has to include system audio (the microphone
-    /// channel is already `You` at the highest confidence there is), and the
-    /// model bundle has to be on disk, which the factory checks. **P2.7 adds the
-    /// third gate here**: `settingsStore.liveSpeakerNamesEnabled`, which already
-    /// exists and defaults off. It belongs in this one predicate so a reader of
-    /// the settings row can find the code it turns off.
+    /// Three gates: the setting is on, the capture includes system audio (the
+    /// microphone channel is already `You` at the highest confidence there is),
+    /// and the model bundle is on disk, which the factory checks. They live in
+    /// one predicate so a reader of the settings row can find the code it turns
+    /// off.
+    ///
+    /// `liveSpeakerNamesEnabled` is deliberately not `diarizationFeatureEnabled`:
+    /// that flag gates the finalize stage, and sharing one would mean turning
+    /// live labels off also strips the speakers out of the finished note.
     private var isLiveDiarizationAllowedForCapture: Bool {
         guard let arbiter = audioRecorder.liveChannelArbiter else { return false }
-        return arbiter.liveSources.contains(.systemAudio)
+        return Self.allowsLiveSpeakerLabels(
+            isEnabledInSettings: settingsStore.liveSpeakerNamesEnabled,
+            liveSources: arbiter.liveSources
+        )
+    }
+
+    /// The two gates that do not need a model on disk, as one decision.
+    ///
+    /// Static and pure so the rule can be read and tested without a recorder, a
+    /// settings store, or a downloaded bundle.
+    static func allowsLiveSpeakerLabels(
+        isEnabledInSettings: Bool,
+        liveSources: Set<CaptureSourceKind>
+    ) -> Bool {
+        isEnabledInSettings && liveSources.contains(.systemAudio)
     }
 
     /// Starts the bounded model load for one capture. The load never blocks the
@@ -1222,15 +1251,18 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         guard isLiveDiarizationAllowedForCapture else { return }
         guard let engine = makeLiveDiarizationEngine?() else {
             // Not an error to the reader. The capture keeps channel labels and
-            // the finished note still names everyone.
+            // the finished note still names everyone. The banner offers the
+            // download rather than starting one from the capture path.
             Log.transcription.info(
                 "Live speaker labels off for this capture: the streaming speaker model is not ready"
             )
             isLiveDiarizationStopped = true
+            onArtifactLiveSpeakerStatusChanged?(.modelMissing)
             return
         }
 
         liveDiarizationEngine = engine
+        onArtifactLiveSpeakerStatusChanged?(.running)
         liveDiarizationLoadTask = Task { @MainActor [weak self] in
             do {
                 try await engine.load()
@@ -1239,6 +1271,7 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
                     "Live speaker labels unavailable: \(error.localizedDescription)"
                 )
                 await engine.unload()
+                self?.onArtifactLiveSpeakerStatusChanged?(.loadFailed)
                 self?.stopLiveDiarization(releasingEngine: true)
                 return
             }
@@ -1313,9 +1346,11 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         )
         diarizationStreamContinuation = continuation
         let onSegments = diarizationSegmentHandler()
+        let onFellBehind = diarizationFellBehindHandler()
         let drainSeconds = Self.diarizationDrainSeconds
         diarizationConsumerTask = Task.detached(priority: .utility) {
             var secondsSinceDrain: TimeInterval = 0
+            var didReportFallingBehind = false
             for await packet in stream {
                 if Task.isCancelled { break }
                 await engine.ingest(packet.samples[...], captureTime: packet.captureTime)
@@ -1324,6 +1359,12 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
                 secondsSinceDrain = 0
                 let segments = await engine.drainSegments()
                 if !segments.isEmpty { onSegments(segments) }
+                // One extra read per drain until the rule fires, then none. The
+                // engine stops producing segments once it falls behind, so the
+                // pause cannot be learned from the segments themselves.
+                guard !didReportFallingBehind, await engine.isPaused else { continue }
+                didReportFallingBehind = true
+                onFellBehind()
             }
         }
         // Captured directly, like the packet continuation: going through self
@@ -1351,6 +1392,27 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         }
     }
 
+    /// What the consumer does when the engine's own fall-behind rule fires.
+    private func diarizationFellBehindHandler() -> @Sendable () -> Void {
+        { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.pauseLiveSpeakerLabels()
+            }
+        }
+    }
+
+    /// Freezes the live speaker labels for the rest of this capture and says so
+    /// once.
+    ///
+    /// Every label already on screen stays exactly where it is: degradation goes
+    /// toward a lower tier, never toward losing text and never toward taking a
+    /// name back. The finished note still names everyone.
+    private func pauseLiveSpeakerLabels() {
+        guard !isLiveDiarizationStopped else { return }
+        onArtifactLiveSpeakerStatusChanged?(.paused)
+        stopLiveDiarization(releasingEngine: true)
+    }
+
     /// Folds newly settled segments into the slot store and applies the one
     /// speaker change they justify.
     private func applyDiarizerSegments(
@@ -1368,7 +1430,12 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     ) async {
         guard isArtifactCaptureActive else { return }
         let owner = liveOwnershipRun?.source ?? .microphone
-        guard let boundary = liveSlotAttributor.ingest(segments, owner: owner) else { return }
+        let boundary = liveSlotAttributor.ingest(segments, owner: owner)
+        if !didReportSlotCapacity, liveSlotAttributor.isAtSlotCapacity {
+            didReportSlotCapacity = true
+            onArtifactLiveSpeakerCapacityReached?()
+        }
+        guard let boundary else { return }
         currentLiveSpeaker = boundary.speaker
         await refinementCoordinator?.markBoundary(
             .speakerChange,
@@ -1398,7 +1465,7 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
             and the live transcript recovers.
             """
         )
-        stopLiveDiarization(releasingEngine: true)
+        pauseLiveSpeakerLabels()
     }
 
     /// Ends live speaker labels for the rest of this capture. Slots freeze where

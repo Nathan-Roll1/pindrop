@@ -617,4 +617,35 @@ struct SettingsStoreTests {
 
         try await task.value
     }
+
+    @Test func liveSpeakerNamesDefaultOffPersistAndReset() {
+        let settingsStore = makeSettingsStore()
+        defer { cleanup(settingsStore) }
+
+        #expect(!settingsStore.liveSpeakerNamesEnabled)
+
+        settingsStore.liveSpeakerNamesEnabled = true
+        #expect(SettingsStore().liveSpeakerNamesEnabled)
+
+        settingsStore.resetAllSettings()
+        #expect(!settingsStore.liveSpeakerNamesEnabled)
+        #expect(!SettingsStore().liveSpeakerNamesEnabled)
+    }
+
+    /// Live speaker names and the finalize diarization stage are two settings.
+    /// Turning the live labels off must not strip the speakers out of the
+    /// finished note, which is the promise every degradation path here makes.
+    @Test func turningOffLiveSpeakerNamesLeavesTheFinalizeDiarizationStageEnabled() {
+        let settingsStore = makeSettingsStore()
+        defer { cleanup(settingsStore) }
+
+        settingsStore.diarizationFeatureEnabled = true
+        settingsStore.liveSpeakerNamesEnabled = true
+
+        settingsStore.setFeatureEnabled(.liveDiarization, enabled: false)
+
+        #expect(!settingsStore.liveSpeakerNamesEnabled)
+        #expect(settingsStore.diarizationFeatureEnabled)
+        #expect(settingsStore.isFeatureEnabled(.diarization))
+    }
 }

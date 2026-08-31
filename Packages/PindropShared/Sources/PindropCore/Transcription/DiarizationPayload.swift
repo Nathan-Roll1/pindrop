@@ -150,4 +150,17 @@ extension DiarizationPayload {
             liveLabelsDiffered: liveLabelsDiffered
         )
     }
+
+    /// The same payload with the reconciliation flag cleared.
+    ///
+    /// The dismissal has to be durable: the line is owed once, not once per
+    /// launch. Everything else the payload carries is kept, because the
+    /// mic-only ranges are still what makes the recorder "You".
+    public func clearingLiveLabelsDiffered() -> DiarizationPayload {
+        DiarizationPayload(
+            segments: segments,
+            micOnlyRanges: micOnlyRanges,
+            liveLabelsDiffered: false
+        )
+    }
 }

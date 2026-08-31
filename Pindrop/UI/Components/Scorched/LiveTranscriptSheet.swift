@@ -241,7 +241,7 @@ struct LiveTranscriptSheet: View {
                 chevron(systemImage: "chevron.up", label: localized("Show live transcript", locale: locale))
             }
 
-            degradedNotice
+            notices
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 10)
@@ -289,7 +289,7 @@ struct LiveTranscriptSheet: View {
 
             turnsColumn(entries)
 
-            degradedNotice
+            notices
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
         }
@@ -369,6 +369,16 @@ struct LiveTranscriptSheet: View {
 
     // MARK: Parts
 
+    /// Everything the sheet says about itself, under the transcript.
+    ///
+    /// Both lines wrap to two caption lines and the row grows to hold them, so
+    /// the collapsed sheet never truncates one of them into a half sentence.
+    @ViewBuilder
+    private var notices: some View {
+        degradedNotice
+        speakerLabelChip
+    }
+
     @ViewBuilder
     private var degradedNotice: some View {
         // The recording is unaffected when live text stops, so say both things
@@ -389,6 +399,23 @@ struct LiveTranscriptSheet: View {
                 ),
                 identifier: "note.page.capture.microphone.only"
             )
+        }
+    }
+
+    /// What the live speaker labels have to say for themselves, or nothing.
+    ///
+    /// Nothing is the usual answer. A slot that stops at "Speaker 2" is already
+    /// an honest label, so only a frozen label list and the four-voice ceiling
+    /// are worth a line.
+    @ViewBuilder
+    private var speakerLabelChip: some View {
+        if let message = NotePagePresentation.liveSpeakerChip(
+            status: state?.liveSpeakerLabelStatus ?? .off,
+            isAtSlotCapacity: state?.isLiveSpeakerSlotCapacityReached ?? false,
+            isOfflinePassScheduled: state?.isOfflineSpeakerPassScheduled ?? false,
+            locale: locale
+        ) {
+            noticeText(message, identifier: "note.page.capture.live.speakers")
         }
     }
 

@@ -233,6 +233,9 @@ struct MainWindow: View {
     let onImportMediaFiles: (([URL], TranscriptionJobOptions) -> Void)?
     let onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?
     let onDownloadDiarizationModel: (() -> Void)?
+    /// Fetches both speaker bundles for the note page's setup banner. Both, not
+    /// only the streaming one: a live name needs the offline embedder as well.
+    let onDownloadSpeakerModels: (() -> Void)?
     let onStartDictation: (() -> Void)?
     let onStopDictation: (() -> Void)?
     let onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
@@ -256,6 +259,7 @@ struct MainWindow: View {
         onImportMediaFiles: (([URL], TranscriptionJobOptions) -> Void)?,
         onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?,
         onDownloadDiarizationModel: (() -> Void)?,
+        onDownloadSpeakerModels: (() -> Void)? = nil,
         onStartDictation: (() -> Void)?,
         onStopDictation: (() -> Void)? = nil,
         onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?,
@@ -275,6 +279,7 @@ struct MainWindow: View {
         self.onImportMediaFiles = onImportMediaFiles
         self.onSubmitMediaLink = onSubmitMediaLink
         self.onDownloadDiarizationModel = onDownloadDiarizationModel
+        self.onDownloadSpeakerModels = onDownloadSpeakerModels
         self.onStartDictation = onStartDictation
         self.onStopDictation = onStopDictation
         self.onStartNoteCapture = onStartNoteCapture
@@ -476,7 +481,9 @@ struct MainWindow: View {
                     onFinishNoteCapture: onFinishNoteCapture,
                     onCancelNoteCapture: onCancelNoteCapture,
                     onGenerateEnhancedPanel: onGenerateEnhancedPanel,
-                    noteChatService: noteChatService
+                    noteChatService: noteChatService,
+                    modelDownloadState: recordingState,
+                    onDownloadSpeakerModels: onDownloadSpeakerModels
                 )
                 .accessibilityIdentifier("main.destination.note")
             }
@@ -972,6 +979,7 @@ final class MainWindowController {
     var onImportMediaFiles: (([URL], TranscriptionJobOptions) -> Void)?
     var onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?
     var onDownloadDiarizationModel: (() -> Void)?
+    var onDownloadSpeakerModels: (() -> Void)?
     var onStartDictation: (() -> Void)?
     var onStopDictation: (() -> Void)?
     var onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
@@ -1009,11 +1017,13 @@ final class MainWindowController {
         onFinishNoteCapture: (() -> Void)? = nil,
         onCancelNoteCapture: (() -> Void)? = nil,
         onGenerateEnhancedPanel: NoteEnhancementHandler? = nil,
-        noteChatService: NoteChatService? = nil
+        noteChatService: NoteChatService? = nil,
+        onDownloadSpeakerModels: (() -> Void)? = nil
     ) {
         self.floatingIndicatorState = floatingIndicatorState
         self.recordingState = recordingState
         self.noteCaptureState = noteCaptureState
+        self.onDownloadSpeakerModels = onDownloadSpeakerModels
         self.onStartDictation = onStartDictation
         self.onStopDictation = onStopDictation
         self.onStartNoteCapture = onStartNoteCapture
@@ -1104,6 +1114,7 @@ final class MainWindowController {
                 onImportMediaFiles: onImportMediaFiles,
                 onSubmitMediaLink: onSubmitMediaLink,
                 onDownloadDiarizationModel: onDownloadDiarizationModel,
+                onDownloadSpeakerModels: onDownloadSpeakerModels,
                 onStartDictation: onStartDictation,
                 onStopDictation: onStopDictation,
                 onStartNoteCapture: onStartNoteCapture,

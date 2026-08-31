@@ -876,4 +876,77 @@ struct CaptureSessionStoreNoteViewsTests {
         #expect(transcript.segments.map(\.speakerLabel) == ["Speaker 1", "Speaker 2"])
         #expect(transcript.segments.allSatisfy { !$0.isCurrentUser })
     }
+
+    // MARK: - The reconciliation line
+
+    @Test func aNoteWhoseLiveNamesDifferedCarriesTheReconciliationFlag() throws {
+        let recorded = try makeRecordedNote(segments: twoSpeakerSegments)
+        try attachTranscriptionRecord(
+            DiarizationPayload(
+                segments: twoSpeakerSegments(chunkDuration: recorded.chunkDuration),
+                liveLabelsDiffered: true
+            ),
+            to: recorded
+        )
+
+        let transcript = try #require(
+            try recorded.store.noteCaptureViews(noteID: recorded.noteID).transcript
+        )
+        #expect(transcript.liveLabelsDiffered)
+    }
+
+    @Test func aNoteWhoseLiveNamesHeldCarriesNoReconciliationFlag() throws {
+        let recorded = try makeRecordedNote(segments: twoSpeakerSegments)
+        try attachTranscriptionRecord(
+            DiarizationPayload(segments: twoSpeakerSegments(chunkDuration: recorded.chunkDuration)),
+            to: recorded
+        )
+
+        let transcript = try #require(
+            try recorded.store.noteCaptureViews(noteID: recorded.noteID).transcript
+        )
+        #expect(!transcript.liveLabelsDiffered)
+    }
+
+    /// Dismissal is durable, and it costs nothing else the payload carries: the
+    /// person who recorded the meeting has to stay "You" afterwards.
+    @Test func dismissingTheReconciliationLineClearsOnlyThatFlag() throws {
+        let recorded = try makeRecordedNote(segments: twoSpeakerSegments)
+        let recordID = try recorded.store.reserveMeetingTranscriptionRecordID(recorded.handle)
+        let context = ModelContext(recorded.container)
+        context.insert(
+            TranscriptionRecord(
+                id: recordID,
+                text: Self.twoSpeakerText,
+                duration: recorded.chunkDuration,
+                modelUsed: "catalog-model",
+                diarizationSegmentsJSON: try DiarizationPayload(
+                    segments: twoSpeakerSegments(chunkDuration: recorded.chunkDuration),
+                    micOnlyRanges: [MicOnlyRange(startTime: 0, endTime: recorded.chunkDuration / 2)],
+                    liveLabelsDiffered: true
+                ).encodedJSON()
+            )
+        )
+        try context.save()
+
+        try recorded.store.dismissLiveLabelReconciliation(transcriptionRecordID: recordID)
+
+        let transcript = try #require(
+            try recorded.store.noteCaptureViews(noteID: recorded.noteID).transcript
+        )
+        #expect(!transcript.liveLabelsDiffered)
+        // The mic-only ranges are what makes the recorder "You". Clearing one
+        // key must not rewrite the blob as a bare segment array.
+        #expect(transcript.segments.map(\.isCurrentUser) == [true, false])
+    }
+
+    /// A note whose capture never reached a library record still opens. Nothing
+    /// to clear is not a failure.
+    @Test func dismissingTheReconciliationLineOnAnUnknownRecordIsHarmless() throws {
+        let recorded = try makeRecordedNote(segments: twoSpeakerSegments)
+        try recorded.store.dismissLiveLabelReconciliation(transcriptionRecordID: UUID())
+        #expect(throws: Never.self) {
+            try recorded.store.noteCaptureViews(noteID: recorded.noteID)
+        }
+    }
 }

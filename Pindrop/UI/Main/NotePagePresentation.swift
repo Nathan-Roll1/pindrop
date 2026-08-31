@@ -89,6 +89,12 @@ struct NotePageState: Equatable, Sendable {
     /// The running capture has heard words. The transcript view can be opened on
     /// them before any of it is durable.
     var hasLiveText: Bool
+    /// The finished speaker names differ from the ones the live sheet showed,
+    /// and the reader has not dismissed the line saying so.
+    ///
+    /// Stored inside the note's diarization payload, so it is read fresh on
+    /// every open and survives quit and relaunch.
+    var liveLabelsDiffered: Bool
 
     init(
         hasPanels: Bool = false,
@@ -97,7 +103,8 @@ struct NotePageState: Equatable, Sendable {
         isRecorded: Bool = false,
         capture: NotePageCapturePhase = .none,
         hasUnreadEnhanced: Bool = false,
-        hasLiveText: Bool = false
+        hasLiveText: Bool = false,
+        liveLabelsDiffered: Bool = false
     ) {
         self.hasPanels = hasPanels
         self.hasTranscript = hasTranscript
@@ -106,6 +113,7 @@ struct NotePageState: Equatable, Sendable {
         self.capture = capture
         self.hasUnreadEnhanced = hasUnreadEnhanced
         self.hasLiveText = hasLiveText
+        self.liveLabelsDiffered = liveLabelsDiffered
     }
 
     /// A plain typed note: nothing was ever recorded into it.
@@ -473,6 +481,81 @@ enum NotePagePresentation {
     /// not a recording to replay yet.
     static func showsPlayAction(state: NotePageState, hasPlayableAudio: Bool) -> Bool {
         hasPlayableAudio && !state.capture.isActive
+    }
+
+    // MARK: Live speaker labels
+
+    /// The setup banner the note page owes a reader whose live speaker labels
+    /// never started. Nil when nothing is wrong that a download can fix.
+    ///
+    /// Both messages say the recording is unaffected, because it is: nothing is
+    /// fetched from the capture path, and the finished note still names
+    /// everyone from the offline pass.
+    static func liveSpeakerSetupMessage(
+        status: LiveSpeakerLabelStatus,
+        locale: Locale
+    ) -> String? {
+        switch status {
+        case .modelMissing:
+            localized(
+                "Live speaker names need the speaker model. Download it to name people while you record.",
+                locale: locale
+            )
+        case .loadFailed:
+            localized(
+                "The live speaker model could not be loaded. Recording continues, and the finished note still names everyone.",
+                locale: locale
+            )
+        case .off, .running, .paused:
+            nil
+        }
+    }
+
+    /// The quiet chip the live sheet draws under the transcript, or nil.
+    ///
+    /// Neither line states a fact the app cannot observe. The capacity chip
+    /// names what the feature covers and claims no headcount: slot churn rises
+    /// with overlap, so "more than four voices" would be asserted on two-person
+    /// calls. The paused chip promises a second pass only when finalize is
+    /// actually going to run one.
+    ///
+    /// Both fit the two caption lines the collapsed sheet row grows to hold.
+    static func liveSpeakerChip(
+        status: LiveSpeakerLabelStatus,
+        isAtSlotCapacity: Bool,
+        isOfflinePassScheduled: Bool,
+        locale: Locale
+    ) -> String? {
+        if status == .paused {
+            // Frozen labels outrank a full slot list: the reader needs to know
+            // the names stopped moving before they need to know the ceiling.
+            let paused = localized("Live speaker names paused.", locale: locale)
+            guard isOfflinePassScheduled else { return paused }
+            return paused + " " + localized(
+                "Pindrop checks the speakers again when the recording ends.",
+                locale: locale
+            )
+        }
+        guard status == .running, isAtSlotCapacity else { return nil }
+        return localized(
+            "Live names cover up to four voices. Pindrop checks every speaker again when the recording ends.",
+            locale: locale
+        )
+    }
+
+    /// True when the note owes the reader the line saying the speaker names were
+    /// checked again against the full recording.
+    ///
+    /// Read from the stored flag on every open, not from a one-shot signal: a
+    /// long meeting finalizes minutes after stop, usually while the reader is in
+    /// another app. A running capture is silent, because the flag it would draw
+    /// belongs to the capture before this one.
+    static func showsSpeakerReconciliation(state: NotePageState) -> Bool {
+        state.liveLabelsDiffered && !state.capture.isActive
+    }
+
+    static func speakerReconciliationMessage(locale: Locale) -> String {
+        localized("Speaker names were checked again against the full recording.", locale: locale)
     }
 
     // MARK: Footer

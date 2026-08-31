@@ -198,14 +198,15 @@ extension CaptureSessionStore {
             in: context
         )
         if !revisions.isEmpty {
-            let micOnlyRanges = try recordedMicOnlyRanges(
+            let payload = try recordedDiarizationPayload(
                 transcriptionRecordID: transcriptionRecordID,
                 in: context
             )
             if let snapshot = try finalTranscriptView(
                 revisions,
                 handle: handle,
-                micOnlyRanges: micOnlyRanges,
+                micOnlyRanges: payload?.micOnlyRanges ?? [],
+                liveLabelsDiffered: payload?.liveLabelsDiffered ?? false,
                 in: context
             ) {
                 return snapshot
@@ -214,27 +215,58 @@ extension CaptureSessionStore {
         return try liveTranscriptView(handle: handle, session: session, in: context)
     }
 
-    /// What the microphone channel knew during the capture, as finalization
-    /// recorded it beside the segments.
+    /// What the live path recorded beside the segments at finalization: the
+    /// mic-only ranges and whether the finished names differed from the live
+    /// ones.
     ///
-    /// Empty for every capture finalized before these ranges existed, and for
-    /// every capture that recorded none, and empty is exactly the old
+    /// Nil for every capture finalized before these keys existed and for every
+    /// capture that recorded none, and nil reads exactly like the old
     /// behaviour.
-    private func recordedMicOnlyRanges(
+    private func recordedDiarizationPayload(
         transcriptionRecordID: UUID?,
         in context: ModelContext
-    ) throws -> [MicOnlyRange] {
-        guard let transcriptionRecordID else { return [] }
-        var descriptor = FetchDescriptor<TranscriptionRecord>(
-            predicate: #Predicate<TranscriptionRecord> { $0.id == transcriptionRecordID }
-        )
-        descriptor.fetchLimit = 1
+    ) throws -> DiarizationPayload? {
+        guard let transcriptionRecordID else { return nil }
         do {
-            let record = try context.fetch(descriptor).first
-            return record?.diarizationPayload?.micOnlyRanges ?? []
+            return try transcriptionRecord(id: transcriptionRecordID, in: context)?
+                .diarizationPayload
         } catch {
             throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
         }
+    }
+
+    private func transcriptionRecord(
+        id: UUID,
+        in context: ModelContext
+    ) throws -> TranscriptionRecord? {
+        var descriptor = FetchDescriptor<TranscriptionRecord>(
+            predicate: #Predicate<TranscriptionRecord> { $0.id == id }
+        )
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
+    }
+
+    /// Forgets that the finished speaker names differed from the live ones.
+    ///
+    /// The flag lives inside `diarizationSegmentsJSON`, so dismissing the line
+    /// survives quit and relaunch. Nothing else in the payload is touched: the
+    /// mic-only ranges are still what makes the recorder "You". A record that is
+    /// not there is not an error; the note simply has nothing to clear.
+    public func dismissLiveLabelReconciliation(transcriptionRecordID: UUID) throws {
+        let context = ModelContext(modelContainer)
+        let record: TranscriptionRecord?
+        do {
+            record = try transcriptionRecord(id: transcriptionRecordID, in: context)
+        } catch {
+            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
+        }
+        guard let record else { return }
+        do {
+            try record.clearLiveLabelsDiffered()
+        } catch {
+            throw CaptureSessionStoreError.saveFailed(error.localizedDescription)
+        }
+        try save(context)
     }
 
     /// The final-transcript revisions that describe the capture once, ordered by
@@ -271,6 +303,7 @@ extension CaptureSessionStore {
         _ revisions: [CaptureTranscriptRevisionModel],
         handle: NoteCaptureHandle,
         micOnlyRanges: [MicOnlyRange],
+        liveLabelsDiffered: Bool,
         in context: ModelContext
     ) throws -> TranscriptViewSnapshot? {
         var spans: [TranscriptSpan] = []
@@ -328,7 +361,8 @@ extension CaptureSessionStore {
             segments: segments,
             duration: segments.map(\.endOffset).max() ?? 0,
             speakerCount: attributedKeys.count,
-            isLive: false
+            isLive: false,
+            liveLabelsDiffered: liveLabelsDiffered
         )
     }
 

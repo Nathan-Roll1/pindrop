@@ -763,6 +763,117 @@ struct NotePagePresentationTests {
         #expect(NotePagePresentation.viewTitle(.enhanced, locale: locale) == "Enhanced")
         #expect(NotePagePresentation.viewTitle(.transcript, locale: locale) == "Transcript")
     }
+
+    // MARK: - Live speaker labels
+
+    @Test func aMissingLiveSpeakerModelOffersTheDownload() {
+        #expect(
+            NotePagePresentation.liveSpeakerSetupMessage(status: .modelMissing, locale: locale)
+                == "Live speaker names need the speaker model. Download it to name people while you record."
+        )
+    }
+
+    @Test func aFailedLoadSaysTheRecordingContinues() {
+        #expect(
+            NotePagePresentation.liveSpeakerSetupMessage(status: .loadFailed, locale: locale)
+                == "The live speaker model could not be loaded. Recording continues, and the finished note still names everyone."
+        )
+    }
+
+    /// Only the two conditions a download can fix get a banner. Paused labels are
+    /// a chip on the live sheet, and labels that are simply off are not a fault.
+    @Test(arguments: [
+        LiveSpeakerLabelStatus.off,
+        .running,
+        .paused
+    ])
+    func statesADownloadCannotFixShowNoBanner(_ status: LiveSpeakerLabelStatus) {
+        #expect(NotePagePresentation.liveSpeakerSetupMessage(status: status, locale: locale) == nil)
+    }
+
+    @Test func theFourVoiceChipStatesTheCapabilityAndNotAHeadcount() throws {
+        let chip = try #require(
+            NotePagePresentation.liveSpeakerChip(
+                status: .running,
+                isAtSlotCapacity: true,
+                isOfflinePassScheduled: true,
+                locale: locale
+            )
+        )
+        #expect(
+            chip == "Live names cover up to four voices. Pindrop checks every speaker again when the recording ends."
+        )
+    }
+
+    @Test func runningLabelsBelowCapacitySayNothing() {
+        #expect(
+            NotePagePresentation.liveSpeakerChip(
+                status: .running,
+                isAtSlotCapacity: false,
+                isOfflinePassScheduled: true,
+                locale: locale
+            ) == nil
+        )
+    }
+
+    /// The promise of a second pass is only made when there is going to be one.
+    @Test func aPausedChipOnlyPromisesARecheckWhenTheOfflinePassIsScheduled() {
+        #expect(
+            NotePagePresentation.liveSpeakerChip(
+                status: .paused,
+                isAtSlotCapacity: false,
+                isOfflinePassScheduled: true,
+                locale: locale
+            ) == "Live speaker names paused. Pindrop checks the speakers again when the recording ends."
+        )
+        #expect(
+            NotePagePresentation.liveSpeakerChip(
+                status: .paused,
+                isAtSlotCapacity: false,
+                isOfflinePassScheduled: false,
+                locale: locale
+            ) == "Live speaker names paused."
+        )
+    }
+
+    /// Paused outranks capacity: a frozen label list is the more useful fact.
+    @Test func aPausedChipWinsOverTheCapacityChip() {
+        #expect(
+            NotePagePresentation.liveSpeakerChip(
+                status: .paused,
+                isAtSlotCapacity: true,
+                isOfflinePassScheduled: false,
+                locale: locale
+            ) == "Live speaker names paused."
+        )
+    }
+
+    // MARK: - The reconciliation line
+
+    @Test func theReconciliationLineShowsUntilTheStoredFlagIsCleared() {
+        var state = NotePageState(hasTranscript: true, isRecorded: true, liveLabelsDiffered: true)
+        #expect(NotePagePresentation.showsSpeakerReconciliation(state: state))
+
+        // Dismissal clears the stored flag, which is the whole of the state: a
+        // relaunch reads the same flag and draws the same answer.
+        state.liveLabelsDiffered = false
+        #expect(!NotePagePresentation.showsSpeakerReconciliation(state: state))
+    }
+
+    @Test func theReconciliationLineWaitsForTheCaptureToEnd() {
+        let state = NotePageState(
+            hasTranscript: true,
+            isRecorded: true,
+            capture: .capturing,
+            liveLabelsDiffered: true
+        )
+        #expect(!NotePagePresentation.showsSpeakerReconciliation(state: state))
+    }
+
+    @Test func aNoteWhoseNamesDidNotChangeSaysNothing() {
+        let state = NotePageState(hasTranscript: true, isRecorded: true)
+        #expect(!NotePagePresentation.showsSpeakerReconciliation(state: state))
+    }
 }
 
 @Suite("Note page capture phase binding (WP3)")

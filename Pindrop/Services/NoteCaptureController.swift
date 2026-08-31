@@ -296,6 +296,12 @@ final class NoteCaptureController {
         streamingSession.onArtifactLiveMicrophoneOnlyChanged = { [weak self] isMicrophoneOnly in
             self?.state.setLiveTranscriptMicrophoneOnly(isMicrophoneOnly)
         }
+        streamingSession.onArtifactLiveSpeakerStatusChanged = { [weak self] status in
+            self?.state.setLiveSpeakerLabelStatus(status)
+        }
+        streamingSession.onArtifactLiveSpeakerCapacityReached = { [weak self] in
+            self?.state.markLiveSpeakerSlotCapacityReached()
+        }
     }
 
     // MARK: - Start
@@ -366,6 +372,14 @@ final class NoteCaptureController {
             state.bindNote(id: noteID)
 
             let assignments = try captureStartAssignments(sessionID: handle.sessionID)
+            // Read here, not at finalize: a chip that promises the speakers are
+            // checked again has to know now whether that pass is going to run.
+            state.setOfflineSpeakerPassScheduled(
+                Self.offlineSpeakerPassIsScheduled(
+                    assignments: assignments,
+                    capturesSystemAudio: handle.capturesSystemAudio
+                )
+            )
             try ensureClaimCurrent(claim)
             let spoolPlan = try await mediaIngestionService.makeMeetingCaptureSpoolPlan(
                 sessionID: handle.sessionID,
@@ -2058,6 +2072,22 @@ final class NoteCaptureController {
         // Capture retries are represented by new attempts. Initial execution,
         // recovery, and every chunk share the durable first attempt.
         1
+    }
+
+    /// True when finalize will run the offline speaker pass for this capture.
+    ///
+    /// The same predicate finalize itself applies, read from the assignments the
+    /// capture started with. Speaker attribution needs at least two voices to be
+    /// worth its cost, so a microphone-only capture never schedules it.
+    static func offlineSpeakerPassIsScheduled(
+        assignments: [CaptureStageAssignment],
+        capturesSystemAudio: Bool
+    ) -> Bool {
+        guard capturesSystemAudio else { return false }
+        guard let diarization = assignments.first(where: { $0.stage == .diarization }) else {
+            return false
+        }
+        return captureAssignmentExecutionDecision(for: diarization) == .execute
     }
 
     static func captureAssignmentExecutionDecision(

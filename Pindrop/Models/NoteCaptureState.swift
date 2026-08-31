@@ -13,6 +13,28 @@
 import Foundation
 import PindropCore
 
+/// What the live speaker labels are doing, as the live surfaces draw it.
+///
+/// Only the degradations a reader can act on or is owed an explanation for are
+/// named here. A slot that never earns a real name says nothing at all, because
+/// "Speaker 2" is already an honest label.
+enum LiveSpeakerLabelStatus: Equatable, Sendable {
+    /// Never asked for: the capture records no system audio, or the setting is
+    /// off. The microphone channel is already `You` at full confidence.
+    case off
+    /// Labels are loading or running.
+    case running
+    /// The streaming speaker model is not on disk. Nothing is fetched from the
+    /// capture path, so the reader is offered the download instead.
+    case modelMissing
+    /// The bounded model load failed or ran out of time.
+    case loadFailed
+    /// Labels froze part way through and do not resume for this capture: the
+    /// diarizer fell behind, or the partial-latency kill switch fired. Every
+    /// label already on screen stays there.
+    case paused
+}
+
 @MainActor
 @Observable
 final class NoteCaptureState {
@@ -71,6 +93,17 @@ final class NoteCaptureState {
     /// which means the live text stopped growing: here the live text is growing
     /// and one side of the conversation is not in it.
     private(set) var isLiveTranscriptMicrophoneOnly = false
+    /// What the live speaker labels are doing. `off` for every capture that
+    /// never asked for them, which is every dictation and every note recorded
+    /// from the microphone alone.
+    private(set) var liveSpeakerLabelStatus: LiveSpeakerLabelStatus = .off
+    /// True once every diarizer slot is in use. The live sheet states this as a
+    /// capability and never as a headcount: the app has not counted the people
+    /// on the call, and a confident wrong count costs more trust than silence.
+    private(set) var isLiveSpeakerSlotCapacityReached = false
+    /// True when finalize will run the offline speaker pass for this capture.
+    /// Only then may a chip promise the speakers are checked again.
+    private(set) var isOfflineSpeakerPassScheduled = false
 
     /// The reader's view, built once per span change instead of once per render.
     /// Live partials redraw the sheet several times a second for the length of a
@@ -121,6 +154,9 @@ final class NoteCaptureState {
         liveTentative = nil
         isLiveTranscriptDegraded = false
         isLiveTranscriptMicrophoneOnly = false
+        liveSpeakerLabelStatus = .off
+        isLiveSpeakerSlotCapacityReached = false
+        isOfflineSpeakerPassScheduled = false
         enhancementFailureMessage = nil
     }
 
@@ -251,6 +287,38 @@ final class NoteCaptureState {
         isLiveTranscriptMicrophoneOnly = isMicrophoneOnly
     }
 
+    /// Records what the live speaker labels are doing.
+    func setLiveSpeakerLabelStatus(_ status: LiveSpeakerLabelStatus) {
+        guard liveSpeakerLabelStatus != status else { return }
+        liveSpeakerLabelStatus = status
+    }
+
+    /// Clears a setup fault once the models behind it are on disk.
+    ///
+    /// The labels stay off for the rest of this capture: nothing is loaded from
+    /// the capture path, and a half-written bundle is exactly what that rule
+    /// exists to keep out. The banner goes because its download was taken.
+    func clearLiveSpeakerSetupIssue() {
+        switch liveSpeakerLabelStatus {
+        case .modelMissing, .loadFailed:
+            liveSpeakerLabelStatus = .off
+        case .off, .running, .paused:
+            break
+        }
+    }
+
+    /// Says that every diarizer slot is now in use.
+    func markLiveSpeakerSlotCapacityReached() {
+        guard !isLiveSpeakerSlotCapacityReached else { return }
+        isLiveSpeakerSlotCapacityReached = true
+    }
+
+    /// Says whether finalize will run the offline speaker pass for this capture.
+    func setOfflineSpeakerPassScheduled(_ isScheduled: Bool) {
+        guard isOfflineSpeakerPassScheduled != isScheduled else { return }
+        isOfflineSpeakerPassScheduled = isScheduled
+    }
+
     /// Records the unsettled tail. Committed text arrives on its own path, so a
     /// tentative update never rewrites what was already settled.
     func updateLiveTentative(_ tentative: LiveTentativeSpan?) {
@@ -312,6 +380,9 @@ final class NoteCaptureState {
         liveTentative = nil
         isLiveTranscriptDegraded = false
         isLiveTranscriptMicrophoneOnly = false
+        liveSpeakerLabelStatus = .off
+        isLiveSpeakerSlotCapacityReached = false
+        isOfflineSpeakerPassScheduled = false
         enhancementFailureMessage = nil
     }
 }

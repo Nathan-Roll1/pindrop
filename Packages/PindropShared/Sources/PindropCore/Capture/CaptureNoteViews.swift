@@ -119,17 +119,26 @@ public struct TranscriptViewSnapshot: Sendable, Equatable {
     /// True while this is the uncommitted text of a capture that is still
     /// running. A live transcript is microphone-only and carries no timings.
     public let isLive: Bool
+    /// True when the finished names disagree with what the live sheet showed,
+    /// and the reader has not been told yet.
+    ///
+    /// Read from the stored payload on every open rather than delivered once:
+    /// a long meeting finalizes minutes after stop, usually while the reader is
+    /// in another app, so a transient signal reaches almost nobody.
+    public let liveLabelsDiffered: Bool
 
     public init(
         segments: [TranscriptSegmentSnapshot],
         duration: TimeInterval,
         speakerCount: Int,
-        isLive: Bool
+        isLive: Bool,
+        liveLabelsDiffered: Bool = false
     ) {
         self.segments = segments
         self.duration = duration
         self.speakerCount = speakerCount
         self.isLive = isLive
+        self.liveLabelsDiffered = liveLabelsDiffered
     }
 
     public var isEmpty: Bool {

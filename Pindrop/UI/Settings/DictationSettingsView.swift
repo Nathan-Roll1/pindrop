@@ -175,9 +175,9 @@ struct DictationSettingsView: View {
                 }
             }
 
-            // Speaker profiles summary
+            // Speakers
             SettingsGroupCard {
-                SettingsRow(showSeparator: false) {
+                SettingsRow(showSeparator: true) {
                     SettingsRowLabel(
                         title: localized("Speaker profiles", locale: locale),
                         subtitle: SpeakerProfileSummaryPresentation.summary(
@@ -196,6 +196,25 @@ struct DictationSettingsView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("settings.button.manageSpeakerProfiles")
+                }
+
+                // Live labels only. The finalize diarization stage keeps its own
+                // switch, so turning this off never strips the speakers out of a
+                // finished note.
+                SettingsRow(showSeparator: false) {
+                    SettingsRowLabel(
+                        title: localized("Name speakers while recording", locale: locale),
+                        subtitle: localized(
+                            "Show who is talking in the live transcript. Names are checked again when the recording ends.",
+                            locale: locale
+                        )
+                    )
+                } control: {
+                    SettingsToggle(
+                        isOn: $settings.liveSpeakerNamesEnabled,
+                        label: localized("Name speakers while recording", locale: locale)
+                    )
+                    .accessibilityIdentifier("settings.toggle.liveSpeakerNames")
                 }
             }
 

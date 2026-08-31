@@ -1329,6 +1329,39 @@ struct StreamingSessionControllerTests {
         #expect(insertedText == "Enhanced final text.")
     }
 
+    // MARK: - Live speaker labels
+
+    /// The settings row is the switch: off means the engine is never asked for,
+    /// so nothing loads and every label stays at its channel.
+    @Test func liveSpeakerLabelsStayOffWhileTheSettingIsOff() {
+        #expect(
+            !StreamingSessionController.allowsLiveSpeakerLabels(
+                isEnabledInSettings: false,
+                liveSources: [.microphone, .systemAudio]
+            )
+        )
+    }
+
+    /// A microphone-only capture pays nothing for a feature it cannot use: that
+    /// channel is already "You" at the highest confidence there is.
+    @Test func liveSpeakerLabelsStayOffWithoutSystemAudio() {
+        #expect(
+            !StreamingSessionController.allowsLiveSpeakerLabels(
+                isEnabledInSettings: true,
+                liveSources: [.microphone]
+            )
+        )
+    }
+
+    @Test func liveSpeakerLabelsRunOnAnEnabledCallCapture() {
+        #expect(
+            StreamingSessionController.allowsLiveSpeakerLabels(
+                isEnabledInSettings: true,
+                liveSources: [.microphone, .systemAudio]
+            )
+        )
+    }
+
 private struct PassthroughAudioPreprocessor: AudioPreprocessing {
     func process(audioData: Data, mode: AudioPreprocessingMode) async throws -> Data {
         audioData
