@@ -371,6 +371,10 @@ final class NoteCaptureController {
             try ensureClaimCurrent(claim)
             let didStartRecording = try await audioRecorder.startMeetingRecording(
                 spoolPlan: spoolPlan,
+                // The decode chunk sets the shortest time a channel may own the
+                // engine, and the profile is switchable at runtime, so it is read
+                // per capture rather than held by the recorder.
+                liveChunkProfile: settingsStore.streamingChunkProfile,
                 onChunkSealed: { [weak self] chunk in
                     Task { @MainActor [weak self] in
                         self?.recordSealedChunk(chunk, for: context)

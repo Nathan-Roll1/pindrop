@@ -101,7 +101,8 @@ struct AudioRecorderTests {
         )
         var receivedFrameLength: AVAudioFrameCount?
 
-        fixture.sut.onAudioBuffer = { buffer in
+        fixture.sut.onLivePacket = { packet in
+            guard case .buffer(let buffer, _, _) = packet else { return }
             receivedFrameLength = buffer.frameLength
         }
 
@@ -375,7 +376,8 @@ struct AudioRecorderTests {
         fixture.mockBackend.simulatedBuffers = [sampleBuffer]
 
         var deliveredBuffers = 0
-        fixture.sut.onAudioBuffer = { _ in
+        fixture.sut.onLivePacket = { packet in
+            guard case .buffer = packet else { return }
             deliveredBuffers += 1
         }
 
@@ -894,7 +896,7 @@ struct AudioRecorderTests {
 
     // MARK: - Live transcript during durable capture
 
-    @Test func sourceSeparatedCaptureForwardsSystemAudioForLiveTranscript() throws {
+    @Test func sourceSeparatedCaptureForwardsBothChannelsForLiveTranscript() throws {
         let microphone = MockAudioCaptureBackend(identifier: "microphone")
         let systemAudio = MockAudioCaptureBackend(identifier: "system")
         let backend = MixedAudioCaptureBackend(
@@ -914,13 +916,16 @@ struct AudioRecorderTests {
         let systemBuffer = try #require(
             MockAudioCaptureBackend.makeSynthesizedBuffer(format: systemAudio.targetFormat, frequency: 220)
         )
+        // The microphone used to be excluded whenever system audio was running,
+        // which is why a person's own voice never reached the live transcript of
+        // a meeting. Ownership of the streaming engine is the arbiter's call now.
         microphone.capturedOnBuffer?(microphoneBuffer)
-        #expect(forwarded.isEmpty)
         systemAudio.capturedOnBuffer?(systemBuffer)
         backend.cancelCapture()
 
-        #expect(forwarded.count == 1)
-        #expect(forwarded.first === systemBuffer)
+        #expect(forwarded.count == 2)
+        #expect(forwarded.first === microphoneBuffer)
+        #expect(forwarded.last === systemBuffer)
     }
 
     @Test func sourceSeparatedLiveTranscriptFallsBackWhenSystemAudioFails() throws {
@@ -951,26 +956,49 @@ struct AudioRecorderTests {
     @Test func durableCaptureForwardsSystemAudioToTheStreamingPump() async throws {
         let fixture = try makeFixture()
         let plan = makeSpoolPlan(includeSystemAudio: true)
-        var pumped: [AVAudioPCMBuffer] = []
-        fixture.sut.onAudioBuffer = { pumped.append($0) }
+        var pumpedSources: [CaptureSourceKind] = []
+        fixture.sut.onLivePacket = { packet in
+            guard case .buffer(_, let source, _) = packet else { return }
+            pumpedSources.append(source)
+        }
 
         try await fixture.sut.startMeetingRecording(spoolPlan: plan) { _ in }
-        let microphoneBuffer = try #require(
-            MockAudioCaptureBackend.makeSynthesizedBuffer(format: fixture.mockBackend.targetFormat)
-        )
-        let systemBuffer = try #require(
-            MockAudioCaptureBackend.makeSynthesizedBuffer(
-                format: fixture.mockSystemBackend.targetFormat,
-                frequency: 220
-            )
-        )
-        fixture.mockBackend.capturedOnBuffer?(microphoneBuffer)
-        fixture.mockSystemBackend.capturedOnBuffer?(systemBuffer)
+        // Both gates need a floor before either can read as speech, so the
+        // capture opens on room tone and only then does the far end talk.
+        try feedLiveBuffers(fixture: fixture, microphoneAmplitude: 0.001, systemAmplitude: 0.001, count: 3)
+        try feedLiveBuffers(fixture: fixture, microphoneAmplitude: 0.001, systemAmplitude: 0.5, count: 6)
         _ = try await fixture.sut.stopMeetingRecording()
-        fixture.sut.onAudioBuffer = nil
+        fixture.sut.onLivePacket = nil
 
-        #expect(pumped.count == 1)
-        #expect(pumped.first === systemBuffer)
+        #expect(!pumpedSources.isEmpty)
+        #expect(pumpedSources.allSatisfy { $0 == .systemAudio })
+    }
+
+    /// Feeds one interleaved run of buffers to both capture children, at the
+    /// amplitudes each channel is meant to carry.
+    private func feedLiveBuffers(
+        fixture: Fixture,
+        microphoneAmplitude: Float,
+        systemAmplitude: Float,
+        count: Int
+    ) throws {
+        for _ in 0..<count {
+            let microphoneBuffer = try #require(
+                MockAudioCaptureBackend.makeSynthesizedBuffer(
+                    format: fixture.mockBackend.targetFormat,
+                    amplitude: microphoneAmplitude
+                )
+            )
+            let systemBuffer = try #require(
+                MockAudioCaptureBackend.makeSynthesizedBuffer(
+                    format: fixture.mockSystemBackend.targetFormat,
+                    frequency: 220,
+                    amplitude: systemAmplitude
+                )
+            )
+            fixture.mockBackend.capturedOnBuffer?(microphoneBuffer)
+            fixture.mockSystemBackend.capturedOnBuffer?(systemBuffer)
+        }
     }
 
     @Test func micOnlyDurableCaptureSpoolsTheMicrophoneAndNeverStartsSystemAudio() async throws {

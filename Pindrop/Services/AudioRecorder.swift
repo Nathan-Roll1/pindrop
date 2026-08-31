@@ -8,6 +8,7 @@
 //  Portable mode/config/error/backend contracts live in PindropSpeech.
 //
 
+import Accelerate
 import Foundation
 import AVFoundation
 import CoreAudio
@@ -225,6 +226,23 @@ extension AudioCaptureUtilities {
         guard sampleCount > 0 else { return 0 }
         let rms = sqrt(sum / Float(sampleCount))
         return min(1.0 as Float, rms * 15)
+    }
+
+    /// One buffer's short-term RMS, unnormalized.
+    ///
+    /// Runs on the producing source's Core Audio IO thread, outside every lock:
+    /// the speaker gate and the echo correlation both read it, and neither may
+    /// hold a lock while a filter runs.
+    static func shortTermRMS(_ buffer: AVAudioPCMBuffer) -> Float {
+        let frameLength = vDSP_Length(buffer.frameLength)
+        guard frameLength > 0,
+              buffer.format.commonFormat == .pcmFormatFloat32,
+              let channelData = buffer.floatChannelData else {
+            return 0
+        }
+        var value: Float = 0
+        vDSP_rmsqv(channelData[0], 1, &value, frameLength)
+        return value.isFinite ? value : 0
     }
 
     static func data(from buffer: AVAudioPCMBuffer) -> Data? {
@@ -3258,18 +3276,21 @@ final class MixedAudioCaptureBackend: SourceSeparatedAudioCaptureBackend, Meetin
         }
     }
 
+    /// Delivers one child's buffer to the live path.
+    ///
+    /// This used to exclude the microphone whenever system audio was running,
+    /// which is why a person's own voice never reached the live transcript of a
+    /// meeting. Both children are admitted now: which one owns the streaming
+    /// engine is `LiveChannelArbiter`'s decision, made one level up on the same
+    /// capture thread, and each source carries its own meter pair so two IO
+    /// threads no longer share filter state.
     private func forwardLiveBuffer(
         source: CaptureSourceKind,
         buffer: AVAudioPCMBuffer,
         deliver: (AVAudioPCMBuffer) -> Void
     ) {
         let shouldDeliver = stateLock.withLock {
-            switch source {
-            case .microphone:
-                return !state.isStarting && state.microphone.isActive && !state.systemAudio.isActive
-            case .systemAudio:
-                return state.systemAudio.isActive
-            }
+            !state.isStarting && sourceStateLocked(source).isActive
         }
         if shouldDeliver {
             deliver(buffer)
@@ -3920,6 +3941,74 @@ private final class AudioCaptureCallbackLease: @unchecked Sendable {
     }
 }
 
+// MARK: - Live audio packets
+
+/// What the live pump carries. A handover and a dropped-speech interval are
+/// events, not audio: the consumer acts on them without decoding anything.
+enum LiveAudioPacket: @unchecked Sendable {
+    case buffer(AVAudioPCMBuffer, source: CaptureSourceKind, captureTime: TimeInterval)
+    /// The arbiter decided on a handover. The consumer holds it pending and
+    /// applies it at the next engine-produced boundary, or force-flushes at
+    /// `handoverCeilingSeconds`.
+    case handoverPending(to: CaptureSourceKind, atCaptureTime: TimeInterval)
+    /// The non-owner spoke for longer than `droppedSpeechSeconds`.
+    case droppedSpeech(source: CaptureSourceKind, startCaptureTime: TimeInterval, duration: TimeInterval)
+}
+
+// MARK: - Capture time
+
+/// Capture time for one live session: seconds since the session started.
+///
+/// Inside one channel time advances by that channel's own frame count, because
+/// a channel's samples are the only clock that describes its own audio exactly.
+/// Each channel is anchored to the instant its first buffer arrived, because the
+/// two taps do not start together: the system tap is slower to deliver than the
+/// input device, and an unanchored frame count would read that start skew as an
+/// acoustic lag and deny every microphone claim to the echo gate.
+///
+/// A channel's counters are touched only from that channel's own capture
+/// callback, which is serial, so they carry no lock. Nothing here allocates.
+final class LiveCaptureTimeline: @unchecked Sendable {
+    private final class Channel {
+        var anchor: TimeInterval?
+        var elapsed: TimeInterval = 0
+    }
+
+    private let microphone = Channel()
+    private let systemAudio = Channel()
+    private let startNanoseconds = DispatchTime.now().uptimeNanoseconds
+
+    /// The capture time of this buffer's first sample, then advances the channel
+    /// past the samples it carries.
+    func advance(
+        source: CaptureSourceKind,
+        frameCount: Int,
+        sampleRate: Double
+    ) -> TimeInterval {
+        let channel = channel(for: source)
+        let anchor: TimeInterval
+        if let existing = channel.anchor {
+            anchor = existing
+        } else {
+            let elapsedNanoseconds = DispatchTime.now().uptimeNanoseconds &- startNanoseconds
+            anchor = TimeInterval(elapsedNanoseconds) / 1_000_000_000
+            channel.anchor = anchor
+        }
+        let start = anchor + channel.elapsed
+        if frameCount > 0, sampleRate > 0 {
+            channel.elapsed += TimeInterval(frameCount) / sampleRate
+        }
+        return start
+    }
+
+    private func channel(for source: CaptureSourceKind) -> Channel {
+        switch source {
+        case .microphone: microphone
+        case .systemAudio: systemAudio
+        }
+    }
+}
+
 // MARK: - AudioRecorder
 
 @MainActor
@@ -3949,10 +4038,28 @@ final class AudioRecorder {
     
     var onAudioLevel: ((Float) -> Void)?
     /// Invoked directly on the audio capture thread — the streaming pump yields the
-    /// buffer into an AsyncStream and must not wait for a main-thread slot (a busy
+    /// packet into an AsyncStream and must not wait for a main-thread slot (a busy
     /// render loop delays main-actor delivery until the session ends). The closure
     /// must be thread-safe; it is set/cleared on the main actor between sessions.
-    nonisolated(unsafe) var onAudioBuffer: ((AVAudioPCMBuffer) -> Void)?
+    nonisolated(unsafe) var onLivePacket: ((LiveAudioPacket) -> Void)?
+    /// The streaming diarizer's own sink, unused until Phase 2.
+    ///
+    /// It is declared here now because the diarizer must never share the ASR
+    /// stream: `SortformerDiarizer.process()` is a synchronous CoreML call, and
+    /// awaiting it in the ASR consumer would head-of-line block the next audio
+    /// buffer by a full inference time. Adding the second sink later would mean
+    /// reworking `LiveAudioPacket` and every consumer of it.
+    nonisolated(unsafe) var onDiarizationBuffer: ((AVAudioPCMBuffer, TimeInterval) -> Void)?
+
+    /// Which capture channel owns the one streaming engine, for the running
+    /// session. The consumer reads it to acknowledge an applied handover.
+    ///
+    /// Written on the main actor before any capture callback can run, then read
+    /// from the capture thread and from the pump's consumer task. The arbiter
+    /// keeps its own lock over scalar state and never takes `stateLock`.
+    nonisolated(unsafe) private(set) var liveChannelArbiter: LiveChannelArbiter?
+    /// Capture time for the running session. Same lifetime rules as the arbiter.
+    nonisolated(unsafe) private var liveCaptureTimeline: LiveCaptureTimeline?
 
     /// When true, microphone sessions also keep a native-rate mono copy for
     /// retention-quality encoding. Set per session by the coordinator (retention on).
@@ -3998,6 +4105,7 @@ final class AudioRecorder {
     @discardableResult
     func startMeetingRecording(
         spoolPlan: MeetingCaptureSpoolPlan,
+        liveChunkProfile: StreamingChunkProfile = .standard,
         onChunkSealed: @escaping (SealedAudioSourceChunk) -> Void
     ) async throws -> Bool {
         if isRecording || isStartingRecording {
@@ -4054,6 +4162,10 @@ final class AudioRecorder {
             )
             let sourceMeters = self.sourceMeters
             let meterDelivery = self.meterDelivery
+            let (arbiter, timeline) = armLiveChannelArbitration(
+                mode: captureMode,
+                chunkProfile: liveChunkProfile
+            )
             try startSourceTaggedCapture(
                 captureBackend,
                 singleSource: singleCaptureSource(for: captureMode),
@@ -4061,9 +4173,15 @@ final class AudioRecorder {
                     guard callbackLease.isActive else { return }
                     let bands = sourceMeters.meter(buffer, from: source)
                     guard callbackLease.isActive else { return }
-                    // The mixed backend normally forwards system audio for the live
-                    // preview. Durable spooling keeps both source streams separate.
-                    self?.onAudioBuffer?(buffer)
+                    // Both children reach the live path. The arbiter decides which
+                    // one owns the streaming engine; durable spooling keeps both
+                    // source streams separate either way.
+                    self?.emitLivePackets(
+                        for: buffer,
+                        from: source,
+                        arbiter: arbiter,
+                        timeline: timeline
+                    )
                     meterDelivery.note(bands: bands) { [weak self, callbackLease] level, deliveredBands in
                         guard callbackLease.isActive else { return }
                         if let level {
@@ -4114,7 +4232,10 @@ final class AudioRecorder {
     }
 
     @discardableResult
-    func startRecording(configuration: AudioRecordingConfiguration) async throws -> Bool {
+    func startRecording(
+        configuration: AudioRecordingConfiguration,
+        liveChunkProfile: StreamingChunkProfile = .standard
+    ) async throws -> Bool {
         if isRecording || isStartingRecording {
             return false
         }
@@ -4160,6 +4281,10 @@ final class AudioRecorder {
         do {
             let sourceMeters = self.sourceMeters
             let meterDelivery = self.meterDelivery
+            let (arbiter, timeline) = armLiveChannelArbitration(
+                mode: configuration.mode,
+                chunkProfile: liveChunkProfile
+            )
             try startSourceTaggedCapture(
                 captureBackend,
                 singleSource: singleCaptureSource(for: configuration.mode),
@@ -4169,7 +4294,12 @@ final class AudioRecorder {
                     guard callbackLease.isActive else { return }
                     // Raw buffers go straight to the streaming pump from the capture
                     // thread; only UI-facing meters hop to the main actor.
-                    self?.onAudioBuffer?(buffer)
+                    self?.emitLivePackets(
+                        for: buffer,
+                        from: source,
+                        arbiter: arbiter,
+                        timeline: timeline
+                    )
                     meterDelivery.note(bands: bands) { [weak self, callbackLease] level, deliveredBands in
                         guard callbackLease.isActive else { return }
                         if let level {
@@ -4535,6 +4665,76 @@ final class AudioRecorder {
             onAudioLevel: { onAudioLevel($0, singleSource) },
             onError: onError
         )
+    }
+
+    /// Arms channel arbitration for one session. Called on the main actor before
+    /// the first capture callback can run.
+    private func armLiveChannelArbitration(
+        mode: AudioRecordingMode,
+        chunkProfile: StreamingChunkProfile
+    ) -> (arbiter: LiveChannelArbiter, timeline: LiveCaptureTimeline) {
+        let arbiter = LiveChannelArbiter(
+            sources: Self.liveSourceSet(for: mode),
+            chunkProfile: chunkProfile
+        )
+        let timeline = LiveCaptureTimeline()
+        liveChannelArbiter = arbiter
+        liveCaptureTimeline = timeline
+        return (arbiter, timeline)
+    }
+
+    /// Every channel that can reach the streaming engine in one session. A set
+    /// of one means the arbiter's rule 1 applies: that channel owns the engine
+    /// for the whole session, with no gate and no echo check.
+    private static func liveSourceSet(for mode: AudioRecordingMode) -> Set<CaptureSourceKind> {
+        switch mode {
+        case .microphone: [.microphone]
+        case .systemAudio: [.systemAudio]
+        case .microphoneAndSystemAudio: [.microphone, .systemAudio]
+        }
+    }
+
+    /// The whole capture-thread live path for one buffer.
+    ///
+    /// Everything here runs on the producing source's Core Audio IO thread. The
+    /// RMS, the speaker gate, and the echo correlation are computed outside every
+    /// lock, and nothing on this path takes `stateLock`: that lock is also held
+    /// from the main actor during teardown, and a realtime thread parked behind
+    /// main-actor work is a dropout.
+    nonisolated private func emitLivePackets(
+        for buffer: AVAudioPCMBuffer,
+        from source: CaptureSourceKind,
+        arbiter: LiveChannelArbiter,
+        timeline: LiveCaptureTimeline
+    ) {
+        let captureTime = timeline.advance(
+            source: source,
+            frameCount: Int(buffer.frameLength),
+            sampleRate: buffer.format.sampleRate
+        )
+        let rms = AudioCaptureUtilities.shortTermRMS(buffer)
+        let decision = arbiter.admit(source: source, rms: rms, captureTime: captureTime)
+        guard let emit = onLivePacket else { return }
+
+        for interval in arbiter.takeDroppedSpeechIntervals() {
+            emit(
+                .droppedSpeech(
+                    source: interval.source,
+                    startCaptureTime: interval.startCaptureTime,
+                    duration: interval.duration
+                )
+            )
+        }
+
+        switch decision {
+        case .drop:
+            return
+        case .handoverPending(let target):
+            emit(.handoverPending(to: target, atCaptureTime: captureTime))
+        case .forward:
+            break
+        }
+        emit(.buffer(buffer, source: source, captureTime: captureTime))
     }
 
     /// The one source a single-source backend captures for the whole session.

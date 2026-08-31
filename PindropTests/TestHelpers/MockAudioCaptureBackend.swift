@@ -207,7 +207,8 @@ final class MockAudioCaptureBackend: MeetingAudioCaptureBackend {
     static func makeSynthesizedBuffer(
         format: AVAudioFormat,
         frameCount: AVAudioFrameCount = 1600,
-        frequency: Float = 440.0
+        frequency: Float = 440.0,
+        amplitude: Float = 0.5
     ) -> AVAudioPCMBuffer? {
         guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
             return nil
@@ -219,7 +220,7 @@ final class MockAudioCaptureBackend: MeetingAudioCaptureBackend {
 
         for frame in 0..<Int(frameCount) {
             let sample = sin(2.0 * Float.pi * frequency * Float(frame) / sampleRate)
-            channelData[0][frame] = sample * 0.5
+            channelData[0][frame] = sample * amplitude
         }
 
         return buffer

@@ -576,7 +576,7 @@ struct StreamingSessionControllerTests {
         let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
         let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1)!
         buffer.frameLength = 1
-        audioRecorder.onAudioBuffer?(buffer)
+        audioRecorder.onLivePacket?(.buffer(buffer, source: .microphone, captureTime: 0))
         await directPumpGate.waitUntilConsumerEntered()
 
         controller.cancelDetached() // T1: waits for the direct consumer.
@@ -922,7 +922,10 @@ struct StreamingSessionControllerTests {
         #expect(controller.isArtifactCaptureActive)
         await controller.finishArtifactCapture(for: handle)
         let recovery = try #require(store.voiceNoteRecoveryCandidates().first)
-        #expect(recovery.latestLiveCheckpoint?.committedText == "Hello artifact")
+        // The trailing newline is the paragraph boundary an artifact session
+        // closes at every end-of-utterance final. It is what the durable
+        // checkpoint holds, and Phase 1's spans are derived from it.
+        #expect(recovery.latestLiveCheckpoint?.committedText == "Hello artifact\n")
 
         #expect(!controller.isArtifactCaptureActive)
         #expect(engine.stopCallCount == 1)
@@ -1060,7 +1063,7 @@ struct StreamingSessionControllerTests {
         #expect(!revisions.isEmpty)
         #expect(revisions.allSatisfy { $0.sourceID == handle.microphoneSourceID })
         #expect(!revisions.contains { $0.sourceID == systemAudioSourceID })
-        #expect(revisions.last?.text == "Hello meeting")
+        #expect(revisions.last?.text == "Hello meeting\n")
         #expect(!controller.isArtifactCaptureActive)
     }
 
@@ -1097,7 +1100,7 @@ struct StreamingSessionControllerTests {
         )
 
         #expect(await controller.beginArtifactCapture(for: handle, assignment: assignment))
-        #expect(audioRecorder.onAudioBuffer != nil)
+        #expect(audioRecorder.onLivePacket != nil)
         #expect(!controller.isArtifactLiveTranscriptionStopped)
 
         try await Task.sleep(for: .milliseconds(300))
@@ -1105,7 +1108,7 @@ struct StreamingSessionControllerTests {
         // The live transcript stops growing; the capture itself stays active so the
         // durable spool keeps running and the ordinary finish path still applies.
         #expect(controller.isArtifactLiveTranscriptionStopped)
-        #expect(audioRecorder.onAudioBuffer == nil)
+        #expect(audioRecorder.onLivePacket == nil)
         #expect(controller.isArtifactCaptureActive)
 
         await controller.finishArtifactCapture(for: handle)
@@ -1150,7 +1153,7 @@ struct StreamingSessionControllerTests {
         try await Task.sleep(for: .milliseconds(300))
 
         #expect(!controller.isArtifactLiveTranscriptionStopped)
-        #expect(audioRecorder.onAudioBuffer != nil)
+        #expect(audioRecorder.onLivePacket != nil)
 
         await controller.finishArtifactCapture(for: handle)
         #expect(!controller.isArtifactCaptureActive)

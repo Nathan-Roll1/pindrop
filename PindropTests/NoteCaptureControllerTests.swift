@@ -950,6 +950,65 @@ struct NoteCaptureControllerTests {
 
     // MARK: - Observable state
 
+    // MARK: - Live transcript
+
+    @Test func aMeetingCaptureShowsBothChannelsInTheLiveTranscript() async throws {
+        let fixture = try makeFixture()
+        var pumpedSources: [CaptureSourceKind] = []
+        fixture.audioRecorder.onLivePacket = { packet in
+            guard case .buffer(_, let source, _) = packet else { return }
+            pumpedSources.append(source)
+        }
+        let plan = MeetingCaptureSpoolPlan(
+            libraryRootURL: fixture.libraryRoot,
+            sessionID: UUID(),
+            microphoneSourceID: UUID(),
+            systemAudioSourceID: UUID()
+        )
+
+        try await fixture.audioRecorder.startMeetingRecording(spoolPlan: plan) { _ in }
+        // Room tone first: each channel reads speech against its own tracked
+        // floor, and neither has a floor before its first buffer.
+        try feedLiveBuffers(fixture, microphoneAmplitude: 0.001, systemAmplitude: 0.001, count: 3)
+        // The far end talks, then stops and the person recording answers.
+        try feedLiveBuffers(fixture, microphoneAmplitude: 0.001, systemAmplitude: 0.5, count: 20)
+        try feedLiveBuffers(fixture, microphoneAmplitude: 0.5, systemAmplitude: 0.001, count: 12)
+        _ = try await fixture.audioRecorder.stopMeetingRecording()
+        fixture.audioRecorder.onLivePacket = nil
+
+        #expect(pumpedSources.contains(.systemAudio))
+        // The regression this phase exists to fix: with system audio running, the
+        // microphone used to be excluded from the live path entirely.
+        #expect(pumpedSources.contains(.microphone))
+    }
+
+    /// Feeds one interleaved run of buffers to both capture children, at the
+    /// amplitudes each channel is meant to carry. One buffer is 100 ms.
+    private func feedLiveBuffers(
+        _ fixture: Fixture,
+        microphoneAmplitude: Float,
+        systemAmplitude: Float,
+        count: Int
+    ) throws {
+        for _ in 0..<count {
+            let microphoneBuffer = try #require(
+                MockAudioCaptureBackend.makeSynthesizedBuffer(
+                    format: fixture.microphoneBackend.targetFormat,
+                    amplitude: microphoneAmplitude
+                )
+            )
+            let systemBuffer = try #require(
+                MockAudioCaptureBackend.makeSynthesizedBuffer(
+                    format: fixture.systemAudioBackend.targetFormat,
+                    frequency: 220,
+                    amplitude: systemAmplitude
+                )
+            )
+            fixture.microphoneBackend.capturedOnBuffer?(microphoneBuffer)
+            fixture.systemAudioBackend.capturedOnBuffer?(systemBuffer)
+        }
+    }
+
     @Test func stateWalksIdleToCapturingToFinalizingToCompleted() {
         let state = NoteCaptureState()
         #expect(state.phase == .idle)
