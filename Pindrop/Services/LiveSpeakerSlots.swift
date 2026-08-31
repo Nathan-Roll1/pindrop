@@ -195,6 +195,12 @@ struct LiveSlotAttributor {
         return true
     }
 
+    /// Slots that could still earn a name, in slot order. A named slot is never
+    /// re-checked, so it is not here.
+    func slotsBelowNamedTier() -> [LiveSpeakerSlot] {
+        slots.keys.sorted().compactMap { slots[$0] }.filter { $0.speaker.tier < .named }
+    }
+
     func speaker(forSlotNumber number: Int?) -> LiveSpeakerRef {
         guard let number, let slot = slots[number] else { return .systemChannel }
         return slot.speaker

@@ -125,6 +125,15 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     /// the finished note still naming everyone.
     private let makeLiveDiarizationEngine: (@MainActor () -> LiveDiarizationEngine?)?
 
+    /// How a capture gets its profile embedder. Nil when the offline speaker
+    /// bundle is missing, and then slots stop at `.provisional` for the whole
+    /// capture: `.named` depends on a second optional model.
+    private let makeLiveSpeakerEmbedder: (@MainActor () -> (any LiveSpeakerEmbedding)?)?
+
+    /// Reads participant profiles for a live promotion. Never written to: the
+    /// live path records no training evidence.
+    private weak var speakerIdentityMatcher: (any LiveSpeakerProfileMatching)?
+
     /// The coordinator's post-stop LLM pass (it needs prompt presets and the
     /// enhancement service, which stay app-level). Wired via `configure` after
     /// AppCoordinator finishes initializing; nil means "no enhancement".
@@ -232,6 +241,16 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     /// Watches how far behind real time the live partials are running.
     private var partialLatencyMonitor = LivePartialLatencyMonitor()
 
+    /// The profile embedder for the running capture. Loaded lazily at the first
+    /// promotion attempt and released at step 6 of the stop sequence.
+    private var liveSpeakerEmbedder: (any LiveSpeakerEmbedding)?
+    /// Decides when a slot has earned a name. Nil when this capture cannot
+    /// promote anything, which leaves every slot at `Speaker N`.
+    private var liveSpeakerPromoter: LiveSpeakerPromoter?
+    /// One promotion attempt at a time. Attempts are bounded but not instant,
+    /// and two drains should not queue two passes over the same slots.
+    private var isPromotionInFlight = false
+
     /// True when live transcription for the active artifact capture stopped
     /// growing: the duration bound elapsed, or checkpoint persistence failed.
     /// The durable spool is unaffected; only the live text is incomplete.
@@ -275,10 +294,14 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         isEffectivelyEmptyText: @escaping (String) -> Bool,
         artifactLiveTranscriptionLimit: TimeInterval = StreamingSessionController
             .defaultArtifactLiveTranscriptionLimit,
-        makeLiveDiarizationEngine: (@MainActor () -> LiveDiarizationEngine?)? = nil
+        makeLiveDiarizationEngine: (@MainActor () -> LiveDiarizationEngine?)? = nil,
+        makeLiveSpeakerEmbedder: (@MainActor () -> (any LiveSpeakerEmbedding)?)? = nil,
+        speakerIdentityMatcher: (any LiveSpeakerProfileMatching)? = nil
     ) {
         self.artifactLiveTranscriptionLimit = artifactLiveTranscriptionLimit
         self.makeLiveDiarizationEngine = makeLiveDiarizationEngine
+        self.makeLiveSpeakerEmbedder = makeLiveSpeakerEmbedder
+        self.speakerIdentityMatcher = speakerIdentityMatcher
         self.transcriptionService = transcriptionService
         self.settingsStore = settingsStore
         self.dictionaryStore = dictionaryStore
@@ -1228,6 +1251,50 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
                 return
             }
             self.startDiarizationForwarding(engine: engine)
+            self.startSpeakerPromotion(engine: engine)
+        }
+    }
+
+    /// Arms profile promotion for this capture, if both optional models are
+    /// present. Without it, slots stop at `Speaker N`, which the live sheet says
+    /// nothing about: it is already an honest label.
+    private func startSpeakerPromotion(engine: LiveDiarizationEngine) {
+        guard let embedder = makeLiveSpeakerEmbedder?(), let matcher = speakerIdentityMatcher else {
+            Log.transcription.info(
+                "Live speaker names stay provisional for this capture: no profile embedder"
+            )
+            return
+        }
+        liveSpeakerEmbedder = embedder
+        let locale = settingsStore.selectedAppLocale.locale
+        liveSpeakerPromoter = LiveSpeakerPromoter(
+            embedder: embedder,
+            matcher: matcher,
+            clip: { start, end in await engine.clip(from: start, to: end) },
+            previousDisplayName: { NoteCaptureState.speakerName(for: $0, locale: locale) }
+        )
+    }
+
+    /// Gives every slot that has said enough a chance at a real name.
+    ///
+    /// A promotion repoints the whole slot at once, so a reader sees one
+    /// consistent transcript rather than a name that starts partway down.
+    private func attemptLiveSpeakerPromotions() async {
+        guard let promoter = liveSpeakerPromoter, !isPromotionInFlight else { return }
+        isPromotionInFlight = true
+        defer { isPromotionInFlight = false }
+
+        for slot in liveSlotAttributor.slotsBelowNamedTier() {
+            guard !isLiveDiarizationStopped else { return }
+            guard let promoted = await promoter.promotion(for: slot) else { continue }
+            guard isArtifactCaptureActive,
+                  liveSlotAttributor.promote(slotNumber: slot.number, to: promoted)
+            else {
+                continue
+            }
+            if currentLiveSpeaker.key == promoted.key { currentLiveSpeaker = promoted }
+            await refinementCoordinator?.relabelSpeaker(slotKey: promoted.key, to: promoted)
+            Log.transcription.info("Live speaker slot \(slot.number) promoted to a profile name")
         }
     }
 
@@ -1291,6 +1358,7 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
     ) async {
         guard !isLiveDiarizationStopped else { return }
         await applySlotSegments(segments)
+        await attemptLiveSpeakerPromotions()
     }
 
     /// The same fold without the running-capture gate, so the last segments the
@@ -1345,11 +1413,16 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         diarizationConsumerTask = nil
         let engine = liveDiarizationEngine
         liveDiarizationEngine = nil
-        guard let engine else { return }
+        liveSpeakerPromoter = nil
+        let embedder = liveSpeakerEmbedder
+        liveSpeakerEmbedder = nil
+        guard engine != nil || embedder != nil else { return }
         // Lifecycle teardown, detached so a stop never waits on a model release.
+        // The embedder goes first, as it does in the ordered stop sequence.
         Task.detached(priority: .utility) {
             await consumerTask?.value
-            await engine.unload()
+            await embedder?.unload()
+            await engine?.unload()
         }
     }
 
@@ -1457,8 +1530,14 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
         // 5. Close the last paragraph of the capture.
         await closeLiveAttributionTail()
 
-        // 6. Release the profile embedder, which is a stated precondition of the
-        //    offline pass rather than a best effort. Phase 2 wires it here.
+        // 6. Release the profile embedder. This is a stated precondition of the
+        //    offline pass, not a best effort: its models and the offline pass's
+        //    are the same bundle, and two resident copies contend for the Neural
+        //    Engine at exactly the finalize moment.
+        liveSpeakerPromoter = nil
+        let embedder = liveSpeakerEmbedder
+        liveSpeakerEmbedder = nil
+        await embedder?.unload()
 
         // 7. Release the Sortformer bundle and its 45 s ring.
         let engine = liveDiarizationEngine

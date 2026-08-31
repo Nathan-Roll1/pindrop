@@ -158,6 +158,7 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		BC44C77F1DDD43BFAD8A88BD /* HistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDDC77E732664A859279FEC9 /* HistoryStore.swift */; };
 		LIVECHANARBBUILD01 /* LiveChannelArbiter.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVECHANARBFILE01 /* LiveChannelArbiter.swift */; };
 		LIVESLOTSBUILD01 /* LiveSpeakerSlots.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVESLOTSFILE01 /* LiveSpeakerSlots.swift */; };
+		LIVEPROMOTERBUILD01 /* LiveSpeakerPromoter.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVEPROMOTERFILE01 /* LiveSpeakerPromoter.swift */; };
 		ORBINDBUILD001A2B3C4D5E6F70 /* OrbFloatingIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORBINDFILE001A2B3C4D5E6F71 /* OrbFloatingIndicator.swift */; };
 		NOTCHINDBUILD01A2B3C4D5E6 /* FloatingIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTCHINDFILE01A2B3C4D5E6 /* FloatingIndicator.swift */; };
 		BUBBLEINDBUILD01A2B3C4D5 /* CaretBubbleFloatingIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BUBBLEINDFILE01A2B3C4D5E /* CaretBubbleFloatingIndicator.swift */; };
@@ -169,6 +170,7 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		LIVECHANARBTESTBUILD01 /* LiveChannelArbiterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVECHANARBTESTFILE01 /* LiveChannelArbiterTests.swift */; };
 		LIVEAUDIOPUMPTESTBUILD1 /* LiveAudioPumpTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVEAUDIOPUMPTESTFILE1 /* LiveAudioPumpTests.swift */; };
 		LIVEATTRTESTBUILD01 /* LiveAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVEATTRTESTFILE01 /* LiveAttributionTests.swift */; };
+		LIVEPROMOTESTBUILD01 /* LiveSpeakerPromotionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVEPROMOTESTFILE01 /* LiveSpeakerPromotionTests.swift */; };
 		WP3MDGRAMMARTESTBUILD01 /* MarkdownBlockGrammarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP3MDGRAMMARTESTFILE01A /* MarkdownBlockGrammarTests.swift */; };
 		WP3NOTEPAGEPRESTESTBUILD /* NotePagePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP3NOTEPAGEPRESTESTFILE0 /* NotePagePresentationTests.swift */; };
 		RBNOTEFABTESTBUILD000001 /* NoteFABPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = RBNOTEFABTESTFILE0000001 /* NoteFABPresentationTests.swift */; };
@@ -436,11 +438,13 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 		CDDC77E732664A859279FEC9 /* HistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStore.swift; sourceTree = "<group>"; };
 		LIVECHANARBFILE01 /* LiveChannelArbiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveChannelArbiter.swift; sourceTree = "<group>"; };
 		LIVESLOTSFILE01 /* LiveSpeakerSlots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSpeakerSlots.swift; sourceTree = "<group>"; };
+		LIVEPROMOTERFILE01 /* LiveSpeakerPromoter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSpeakerPromoter.swift; sourceTree = "<group>"; };
 		COORDFLW02A2B3C4D5E6F /* AppCoordinatorContextFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorContextFlowTests.swift; sourceTree = "<group>"; };
 		NOTECAPCTRLTESTFILE01 /* NoteCaptureControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCaptureControllerTests.swift; sourceTree = "<group>"; };
 		LIVECHANARBTESTFILE01 /* LiveChannelArbiterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveChannelArbiterTests.swift; sourceTree = "<group>"; };
 		LIVEAUDIOPUMPTESTFILE1 /* LiveAudioPumpTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveAudioPumpTests.swift; sourceTree = "<group>"; };
 		LIVEATTRTESTFILE01 /* LiveAttributionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveAttributionTests.swift; sourceTree = "<group>"; };
+		LIVEPROMOTESTFILE01 /* LiveSpeakerPromotionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSpeakerPromotionTests.swift; sourceTree = "<group>"; };
 		WP3MDGRAMMARTESTFILE01A /* MarkdownBlockGrammarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlockGrammarTests.swift; sourceTree = "<group>"; };
 		WP3NOTEPAGEPRESTESTFILE0 /* NotePagePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotePagePresentationTests.swift; sourceTree = "<group>"; };
 		RBNOTEFABTESTFILE0000001 /* NoteFABPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteFABPresentationTests.swift; sourceTree = "<group>"; };
@@ -677,6 +681,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				CDDC77E732664A859279FEC9 /* HistoryStore.swift */,
 				LIVECHANARBFILE01 /* LiveChannelArbiter.swift */,
 				LIVESLOTSFILE01 /* LiveSpeakerSlots.swift */,
+				LIVEPROMOTERFILE01 /* LiveSpeakerPromoter.swift */,
 				TRXPRTFILE01A2B3C4D5E6 /* TranscriptExportService.swift */,
 				NOTEAPPLISTENFILE01A2B3 /* NoteAppendListeningState.swift */,
 				CTXCAPT02A2B3C4D5E6F7 /* ContextCaptureService.swift */,
@@ -878,6 +883,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				LIVECHANARBTESTFILE01 /* LiveChannelArbiterTests.swift */,
 				LIVEAUDIOPUMPTESTFILE1 /* LiveAudioPumpTests.swift */,
 				LIVEATTRTESTFILE01 /* LiveAttributionTests.swift */,
+				LIVEPROMOTESTFILE01 /* LiveSpeakerPromotionTests.swift */,
 				WP3MDGRAMMARTESTFILE01A /* MarkdownBlockGrammarTests.swift */,
 				WP3NOTEPAGEPRESTESTFILE0 /* NotePagePresentationTests.swift */,
 				RBNOTEFABTESTFILE0000001 /* NoteFABPresentationTests.swift */,
@@ -1303,6 +1309,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				LIVECHANARBTESTBUILD01 /* LiveChannelArbiterTests.swift in Sources */,
 				LIVEAUDIOPUMPTESTBUILD1 /* LiveAudioPumpTests.swift in Sources */,
 				LIVEATTRTESTBUILD01 /* LiveAttributionTests.swift in Sources */,
+				LIVEPROMOTESTBUILD01 /* LiveSpeakerPromotionTests.swift in Sources */,
 				WP3MDGRAMMARTESTBUILD01 /* MarkdownBlockGrammarTests.swift in Sources */,
 				WP3NOTEPAGEPRESTESTBUILD /* NotePagePresentationTests.swift in Sources */,
 				RBNOTEFABTESTBUILD000001 /* NoteFABPresentationTests.swift in Sources */,
@@ -1349,6 +1356,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				BC44C77F1DDD43BFAD8A88BD /* HistoryStore.swift in Sources */,
 				LIVECHANARBBUILD01 /* LiveChannelArbiter.swift in Sources */,
 				LIVESLOTSBUILD01 /* LiveSpeakerSlots.swift in Sources */,
+				LIVEPROMOTERBUILD01 /* LiveSpeakerPromoter.swift in Sources */,
 				TRXPRTBUILD01A2B3C4D5E6 /* TranscriptExportService.swift in Sources */,
 				TRXDTLACCESSBUILD01A2B3 /* TranscriptionDetailAccess.swift in Sources */,
 				8D0F64A2A0A44CE9B6B5A002 /* SettingsWindowController.swift in Sources */,

@@ -18,7 +18,12 @@ import PindropCore
 public final class FluidSpeakerDiarizer: PindropCore.SpeakerDiarizer {
 
     /// Fixed offline Community-1 clustering threshold selected by the diarization quality benchmark.
-    public static let offlineClusteringThreshold: Double = 0.60
+    ///
+    /// Nonisolated because the live path's own embedder has to run the same
+    /// number from its own actor. Two copies of it would let the live and
+    /// offline passes cluster differently and produce embeddings that are not
+    /// comparable.
+    nonisolated public static let offlineClusteringThreshold: Double = 0.60
 
     nonisolated private static let requiredSampleRate = 16_000
     nonisolated private static let expectedEmbeddingDimension = 256

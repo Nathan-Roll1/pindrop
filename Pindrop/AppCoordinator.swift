@@ -1007,7 +1007,17 @@ final class AppCoordinator {
                 return PindropSpeech.LiveDiarizationEngine.forCapture(
                     modelsDirectory: modelStorageLocations.fluidAudioModelsRoot
                 )
-            }
+            },
+            makeLiveSpeakerEmbedder: { [modelManager, modelStorageLocations] in
+                // `.named` needs a second optional model. Without it slots stop
+                // at "Speaker 2", and the readiness check here is what keeps the
+                // embedder from fetching it from the capture path.
+                guard modelManager.isOfflineDiarizationReady() else { return nil }
+                return PindropSpeech.LiveSpeakerEmbedder(
+                    modelsDirectory: modelStorageLocations.fluidAudioModelsRoot
+                )
+            },
+            speakerIdentityMatcher: speakerIdentityService
         )
         self.floatingIndicatorController = FloatingIndicatorController(
             state: floatingIndicatorState,

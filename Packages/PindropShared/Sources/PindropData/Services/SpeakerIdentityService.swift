@@ -66,6 +66,21 @@ public final class SpeakerIdentityService: SpeakerIdentityManaging {
     private static let minimumSimilarityForAutoMatch: Float = 0.72
     private static let minimumSimilarityMarginForAutoMatch: Float = 0.08
 
+    /// The same two gates for a name put on screen **while** a recording runs.
+    ///
+    /// Higher than the offline pair on purpose. Those two were tuned against
+    /// embeddings of long, aggregated per-speaker audio from a whole recording.
+    /// A live label is decided from a three to six second slice of conference
+    /// codec audio, which scores differently, and a wrong name shown for forty
+    /// minutes costs more than no name at all.
+    ///
+    /// Conservative placeholders. The calibration run in section 8.3 of the live
+    /// attribution design measures the real distribution over held-out clips and
+    /// replaces both numbers. Until then, staying at `Speaker 2` is the safe
+    /// answer and this pair is chosen to give it often.
+    public static let liveMinimumSimilarityForAutoMatch: Float = 0.80
+    public static let liveMinimumSimilarityMarginForAutoMatch: Float = 0.12
+
     private let modelContext: ModelContext
     private var hasEnsuredCurrentEmbeddingSpace = false
 
@@ -130,55 +145,78 @@ public final class SpeakerIdentityService: SpeakerIdentityManaging {
         return snapshot
     }
 
+    /// The closest profiles to one embedding, best first, with no threshold
+    /// applied.
+    ///
+    /// The thresholds belong to the caller because they differ by path: the
+    /// offline pass uses the pair tuned for whole-recording embeddings, and the
+    /// live path uses its own, higher, pair. Returning the ranking rather than a
+    /// verdict is what lets both live in one place each.
+    public func rankedMatches(for embedding: [Float], limit: Int = 2) throws -> [SpeakerIdentityMatch] {
+        try ensureCurrentEmbeddingSpace()
+        guard limit > 0, !embedding.isEmpty, embedding.allSatisfy(\.isFinite) else { return [] }
+        do {
+            return rankedMatches(
+                for: embedding,
+                against: try loadDecodedCurrentCentroids(),
+                limit: limit
+            )
+        } catch let error as SpeakerIdentityError {
+            throw error
+        } catch {
+            throw SpeakerIdentityError.fetchFailed(error.localizedDescription)
+        }
+    }
+
     private func match(
         _ embedding: [Float],
         against snapshot: [DecodedCentroid]
     ) -> SpeakerIdentityMatch? {
-        guard !embedding.isEmpty, embedding.allSatisfy(\.isFinite) else { return nil }
-
-        var best: SpeakerIdentityMatch?
-        var secondBest: SpeakerIdentityMatch?
-
-        for profile in snapshot {
-            guard profile.centroid.count == embedding.count else { continue }
-
-            let similarity = cosineSimilarity(between: embedding, and: profile.centroid)
-            guard similarity.isFinite else { continue }
-
-            let candidate = SpeakerIdentityMatch(
-                profileID: profile.profileID,
-                displayName: profile.displayName,
-                similarity: similarity
-            )
-            // Keep only best/second-best without sorting. Equal similarities retain the
-            // earlier profile (matches stable sort of the original scored list).
-            if let currentBest = best {
-                if similarity > currentBest.similarity {
-                    secondBest = currentBest
-                    best = candidate
-                } else if let currentSecond = secondBest {
-                    if similarity > currentSecond.similarity {
-                        secondBest = candidate
-                    }
-                } else {
-                    secondBest = candidate
-                }
-            } else {
-                best = candidate
-            }
-        }
-
-        guard let bestMatch = best,
+        let ranked = rankedMatches(for: embedding, against: snapshot, limit: 2)
+        guard let bestMatch = ranked.first,
               bestMatch.similarity >= Self.minimumSimilarityForAutoMatch else {
             return nil
         }
-
-        if let secondBest,
-           (bestMatch.similarity - secondBest.similarity) < Self.minimumSimilarityMarginForAutoMatch {
+        if ranked.count > 1,
+           (bestMatch.similarity - ranked[1].similarity) < Self.minimumSimilarityMarginForAutoMatch {
             return nil
         }
-
         return bestMatch
+    }
+
+    /// Scores one embedding against every centroid of the current space, best
+    /// first. Equal similarities keep the earlier profile, which is the order
+    /// the profiles were fetched in.
+    private func rankedMatches(
+        for embedding: [Float],
+        against snapshot: [DecodedCentroid],
+        limit: Int
+    ) -> [SpeakerIdentityMatch] {
+        guard !embedding.isEmpty, embedding.allSatisfy(\.isFinite) else { return [] }
+
+        var scored: [(order: Int, match: SpeakerIdentityMatch)] = []
+        scored.reserveCapacity(snapshot.count)
+        for (order, profile) in snapshot.enumerated() {
+            guard profile.centroid.count == embedding.count else { continue }
+            let similarity = cosineSimilarity(between: embedding, and: profile.centroid)
+            guard similarity.isFinite else { continue }
+            scored.append(
+                (
+                    order,
+                    SpeakerIdentityMatch(
+                        profileID: profile.profileID,
+                        displayName: profile.displayName,
+                        similarity: similarity
+                    )
+                )
+            )
+        }
+        scored.sort { lhs, rhs in
+            lhs.match.similarity == rhs.match.similarity
+                ? lhs.order < rhs.order
+                : lhs.match.similarity > rhs.match.similarity
+        }
+        return scored.prefix(limit).map(\.match)
     }
 
     public func learnFromProfileAssignments(
