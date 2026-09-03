@@ -787,9 +787,9 @@ public final class CaptureSessionStore {
 
         // The recorded source kinds are the source rows this call creates, so
         // the intent can never claim a source the session does not own.
-        let requestedSourceKinds: [CaptureSourceKind] = includeSystemAudio
-            ? [.microphone, .systemAudio]
-            : [.microphone]
+        let requestedSourceKinds = CaptureIntent.requestedSourceKinds(
+            includeSystemAudio: includeSystemAudio
+        )
         let intent: CaptureIntent? = try intentRequest.map { request in
             do {
                 return try request.intent(

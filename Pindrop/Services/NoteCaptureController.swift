@@ -349,17 +349,10 @@ final class NoteCaptureController {
         let microphoneDisplayName = AudioDeviceManager.inputDevices()
             .first(where: { $0.uid == preferredInputUID })?
             .displayName ?? "Microphone"
-        // A capture that makes its own note only learns the note identifier once
-        // the note is committed, so the intent starts as `newNote` and is bound
-        // a moment later. A capture aimed at an existing note says so now.
         let handle = try captureSessionStore.startNoteCapture(
             startedAt: startedAt,
             includeSystemAudio: request.includeSystemAudio,
-            intent: CaptureIntentRequest(
-                destination: request.noteID == nil ? .newNote : .existingNote,
-                destinationNoteID: request.noteID,
-                origin: origin
-            ),
+            intent: request.captureIntentRequest(origin: origin),
             microphoneDisplayName: microphoneDisplayName,
             systemAudioDisplayName: request.includeSystemAudio ? "System Audio" : nil
         )

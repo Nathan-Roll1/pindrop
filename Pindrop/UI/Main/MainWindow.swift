@@ -143,6 +143,48 @@ struct NoteCaptureRequest: Equatable, Sendable {
     }
 }
 
+/// The two starts the menu bar offers, and the durable intent they record.
+///
+/// `CaptureIntent` needs a session identifier, which no caller has before the
+/// store creates the session, so the presets live on the start request instead
+/// and fix the source list. The store binds them to the session it creates.
+extension NoteCaptureRequest {
+    /// A note that records a call: the microphone and the system output.
+    ///
+    /// It sets no template preset, so an enhanced meeting note reads exactly
+    /// like one started with system audio before the menu bar row was renamed.
+    /// The meeting template arrives with the picker that lets a reader see
+    /// which template ran and change it.
+    static func meetingNote(noteID: UUID? = nil) -> NoteCaptureRequest {
+        NoteCaptureRequest(noteID: noteID, includeSystemAudio: true)
+    }
+
+    /// A note that records only the person holding the machine.
+    static func soloNote(noteID: UUID? = nil) -> NoteCaptureRequest {
+        NoteCaptureRequest(noteID: noteID, includeSystemAudio: false)
+    }
+
+    /// The sources this start creates, which is what the capture store records
+    /// as the intent's requested sources.
+    var requestedSourceKinds: [CaptureSourceKind] {
+        CaptureIntent.requestedSourceKinds(includeSystemAudio: includeSystemAudio)
+    }
+
+    /// The durable intent this start records, from the surface that asked.
+    ///
+    /// A capture that makes its own note only learns the note identifier once
+    /// the note is committed, so the intent starts as `newNote` and is bound a
+    /// moment later. A capture aimed at an existing note says so now. No caller
+    /// requests a template preset yet.
+    func captureIntentRequest(origin: CaptureIntentOrigin) -> CaptureIntentRequest {
+        CaptureIntentRequest(
+            destination: noteID == nil ? .newNote : .existingNote,
+            destinationNoteID: noteID,
+            origin: origin
+        )
+    }
+}
+
 struct LibraryOpenRequest: Equatable, Sendable {
     let recordID: UUID
     let generation: UInt

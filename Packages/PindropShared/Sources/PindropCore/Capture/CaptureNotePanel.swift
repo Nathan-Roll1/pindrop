@@ -182,6 +182,15 @@ public struct CaptureIntent: Codable, Sendable, Equatable, Identifiable {
     public var requestsSystemAudio: Bool {
         requestedSourceKinds.contains(.systemAudio)
     }
+
+    /// The sources a note capture records, in the order the store creates them.
+    ///
+    /// One rule, read by the store that writes the source rows and by the menu
+    /// bar rows that offer a capture, so a menu row and the durable intent can
+    /// never disagree about what was requested.
+    public static func requestedSourceKinds(includeSystemAudio: Bool) -> [CaptureSourceKind] {
+        includeSystemAudio ? [.microphone, .systemAudio] : [.microphone]
+    }
 }
 
 /// One capture intent before the store gives it a session identity.

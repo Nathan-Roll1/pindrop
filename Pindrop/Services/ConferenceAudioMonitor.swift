@@ -78,8 +78,12 @@ final class ConferenceAudioMonitor {
     /// True between `start()` and `stop()`. The Watch-for-calls setting owns this.
     private(set) var isWatching = false
 
-    /// Raised on every change of `detectedCall`, including back to nil.
-    var onDetectedCallChange: ((DetectedConferenceCall?) -> Void)?
+    /// Called on every change of `detectedCall`, including back to nil.
+    ///
+    /// A list, not one slot: two surfaces follow a call, the menu bar rows and
+    /// the invitation controller, and a single slot lets the second one silently
+    /// replace the first.
+    private var detectedCallObservers: [(DetectedConferenceCall?) -> Void] = []
 
     private let probe: any ConferenceAudioProcessProbe
     private let now: () -> Date
@@ -113,6 +117,12 @@ final class ConferenceAudioMonitor {
     }
 
     // MARK: Control
+
+    /// Follows every change of `detectedCall`. Observers are never removed:
+    /// each one lives as long as the app does.
+    func addDetectedCallObserver(_ observer: @escaping (DetectedConferenceCall?) -> Void) {
+        detectedCallObservers.append(observer)
+    }
 
     func start() {
         guard !isWatching else { return }
@@ -217,7 +227,9 @@ final class ConferenceAudioMonitor {
         if let call {
             Log.audio.info("Conference call detected in \(call.bundleIdentifier)")
         }
-        onDetectedCallChange?(call)
+        for observer in detectedCallObservers {
+            observer(call)
+        }
     }
 
     private func setPolling(enabled: Bool) {

@@ -59,7 +59,7 @@ struct ConferenceAudioMonitorTests {
             conferenceProcess("us.zoom.xos", input: true, output: true)
         ])
         var reported: [String?] = []
-        harness.sut.onDetectedCallChange = { reported.append($0?.bundleIdentifier) }
+        harness.sut.addDetectedCallObserver { reported.append($0?.bundleIdentifier) }
 
         harness.sut.start()
         await harness.scheduler.tick()

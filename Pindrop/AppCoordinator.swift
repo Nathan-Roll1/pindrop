@@ -989,9 +989,18 @@ final class AppCoordinator {
         self.recordingState = RecordingFeatureState()
         self.mediaTranscriptionState = MediaTranscriptionFeatureState()
 
+        // System audio availability is the whole gate on the meeting feature:
+        // below macOS 14.2 there is no call to record, so the monitor is never
+        // built and every meeting affordance stays absent.
+        let conferenceMonitor = audioRecorder.isSystemAudioCaptureAvailable
+            ? ConferenceAudioMonitor()
+            : nil
+        self.conferenceAudioMonitor = conferenceMonitor
+
         self.statusBarController = StatusBarController(
             audioRecorder: audioRecorder,
-            settingsStore: settingsStore
+            settingsStore: settingsStore,
+            conferenceAudioMonitor: conferenceMonitor
         )
         self.floatingIndicatorState = FloatingIndicatorState()
         self.liveTranscriptState = LiveTranscriptState()
@@ -6324,11 +6333,10 @@ final class AppCoordinator {
     }
 
     private func setupConferenceCallMonitoring() {
-        // System audio availability is the whole gate: below macOS 14.2 there is
-        // no call to record, so there is nothing to watch for.
-        guard audioRecorder.isSystemAudioCaptureAvailable else { return }
-        let monitor = ConferenceAudioMonitor()
-        conferenceAudioMonitor = monitor
+        // The monitor is built in `init`, because the status bar menu takes it
+        // as an initializer argument. Nil means this machine cannot capture
+        // system audio, so there is nothing to watch for.
+        guard let monitor = conferenceAudioMonitor else { return }
 
         let controller = MeetingInvitationController(
             monitor: monitor,
@@ -6343,10 +6351,7 @@ final class AppCoordinator {
             self.mainWindowController.show()
             // A notification action is not a person reaching for a menu, so the
             // recorded intent says `.automation`.
-            _ = self.handleStartNoteCapture(
-                NoteCaptureRequest(includeSystemAudio: true),
-                origin: .automation
-            )
+            _ = self.handleStartNoteCapture(.meetingNote(), origin: .automation)
         }
         meetingInvitationController = controller
         controller.start()

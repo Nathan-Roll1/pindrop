@@ -107,6 +107,7 @@ final class MeetingInvitationController {
     private var declinedBundleIdentifiers: Set<String> = []
     private var isAskArmed = false
     private var isPresentingAsk = false
+    private var isStarted = false
 
     init(
         monitor: ConferenceAudioMonitor,
@@ -130,10 +131,13 @@ final class MeetingInvitationController {
 
     /// Subscribes to the monitor.
     ///
-    /// The monitor has one handler slot. A later observer chains through here
-    /// rather than assigning over it.
+    /// The monitor's observers are additive, so the menu bar rows keep their own
+    /// subscription. A second call would add a second observer, and a second
+    /// observer would post the same alert twice, so this runs once.
     func start() {
-        monitor.onDetectedCallChange = { [weak self] call in
+        guard !isStarted else { return }
+        isStarted = true
+        monitor.addDetectedCallObserver { [weak self] call in
             Task { @MainActor [weak self] in
                 await self?.handleDetectedCall(call)
             }
