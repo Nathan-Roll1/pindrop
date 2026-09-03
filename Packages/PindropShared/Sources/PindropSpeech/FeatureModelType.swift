@@ -107,9 +107,13 @@ public enum FeatureModelType: String, CaseIterable, Identifiable, Codable, Senda
         case .diarization:
             return "speaker-diarization-coreml"
         case .liveDiarization:
-            // Matches `Repo.sortformer.folderName`, which is where
-            // DownloadUtils materializes the streaming Sortformer bundle.
-            return "diar-streaming-sortformer-coreml"
+            // `Repo.sortformer.folderName`, which is where DownloadUtils
+            // materializes the streaming Sortformer bundle and where
+            // SortformerModels reads it back. It is not the HuggingFace repo
+            // name ("diar-streaming-sortformer-coreml"): readiness pointed at
+            // the repo name stays false after a good download, so the download
+            // reports itself incomplete and live labels never turn on.
+            return "sortformer"
         case .streaming:
             return StreamingChunkProfile.standard.repoFolderName
         }

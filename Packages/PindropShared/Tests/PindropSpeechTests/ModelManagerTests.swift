@@ -430,7 +430,11 @@ struct ModelManagerTests {
     @Test func liveDiarizationIsNotRequired() {
         #expect(!FeatureModelType.liveDiarization.isRequired)
         #expect(!FeatureModelType.required.contains(.liveDiarization))
-        #expect(FeatureModelType.liveDiarization.repoFolderName == "diar-streaming-sortformer-coreml")
+        // `Repo.sortformer.folderName` is "sortformer", which is where
+        // DownloadUtils writes the bundle and where SortformerModels reads it
+        // back. "diar-streaming-sortformer-coreml" is the HuggingFace repo name,
+        // and readiness pointed at that name never sees a finished download.
+        #expect(FeatureModelType.liveDiarization.repoFolderName == "sortformer")
     }
 
     @Test func liveDiarizationReadinessNeedsTheModelBundle() async throws {
