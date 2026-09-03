@@ -12,6 +12,7 @@ import Combine
 import AVFoundation
 import AppKit
 import os.log
+import UserNotifications
 import PindropCore
 import PindropAI
 import PindropData
@@ -834,6 +835,10 @@ final class AppCoordinator {
     /// Watches audio process state for a conference call. Nil when system audio
     /// capture is unavailable, which is the one gate on every meeting affordance.
     private(set) var conferenceAudioMonitor: ConferenceAudioMonitor?
+    /// Offers to record a detected call. Nil for the same reason the monitor is.
+    private(set) var meetingInvitationController: MeetingInvitationController?
+    /// The notification centre holds its delegate weakly, so the app holds it here.
+    private var userNotificationDelegate: AppUserNotificationDelegate?
     private var lastEscapeSignalTime: Date?
     private let duplicateEscapeSignalThreshold: TimeInterval = 0.08
     /// First press of a double-Escape cancel sequence; cleared on cancel/finish.
@@ -1300,6 +1305,7 @@ final class AppCoordinator {
             setupEscapeKeyMonitor()
             setupModifierKeyMonitor()
             setupInputDeviceMonitoring()
+            setupUserNotificationRouting()
             setupConferenceCallMonitoring()
         } else {
             Log.app.debug("Skipping global hotkey and key monitor setup in test environment")
@@ -6299,12 +6305,58 @@ final class AppCoordinator {
         setupInputMuteMonitoring()
     }
 
+    /// Installs the app's single `UNUserNotificationCenter` delegate.
+    ///
+    /// Set here rather than inside the meeting setup below, because Sparkle's
+    /// update reminder needs this delegate on every machine, including the ones
+    /// that cannot record a call at all.
+    private func setupUserNotificationRouting() {
+        let delegate = AppUserNotificationDelegate(
+            onCallAction: { [weak self] action in
+                Task { @MainActor in
+                    self?.meetingInvitationController?.handleNotificationAction(action)
+                }
+            },
+            forwardedDelegate: updateService.sparkleNotificationDelegate
+        )
+        userNotificationDelegate = delegate
+        UNUserNotificationCenter.current().delegate = delegate
+    }
+
     private func setupConferenceCallMonitoring() {
         // System audio availability is the whole gate: below macOS 14.2 there is
         // no call to record, so there is nothing to watch for.
         guard audioRecorder.isSystemAudioCaptureAvailable else { return }
         let monitor = ConferenceAudioMonitor()
         conferenceAudioMonitor = monitor
+
+        let controller = MeetingInvitationController(
+            monitor: monitor,
+            settingsStore: settingsStore,
+            notifier: MeetingCallNotificationCenter(),
+            askPresenter: AlertManager.shared,
+            isCaptureRunning: { [weak self] in self?.isCaptureBusy ?? false },
+            isMainWindowVisible: { [weak self] in self?.mainWindowController.isVisible ?? false }
+        )
+        controller.onRecordCall = { [weak self] in
+            guard let self else { return }
+            self.mainWindowController.show()
+            // A notification action is not a person reaching for a menu, so the
+            // recorded intent says `.automation`.
+            _ = self.handleStartNoteCapture(
+                NoteCaptureRequest(includeSystemAudio: true),
+                origin: .automation
+            )
+        }
+        meetingInvitationController = controller
+        controller.start()
+
+        // The first detected call almost always happens with the call app in
+        // front, so the one-time ask waits for the main window to come up.
+        mainWindowController.onDidPresent = { [weak controller] in
+            Task { @MainActor in await controller?.presentPendingAskIfNeeded() }
+        }
+
         // The Watch-for-calls setting owns start and stop from P3.4. Until then
         // the monitor runs whenever the machine can record a call.
         monitor.start()
@@ -7388,6 +7440,7 @@ final class AppCoordinator {
         inputMuteMonitor = nil
         conferenceAudioMonitor?.stop()
         conferenceAudioMonitor = nil
+        meetingInvitationController = nil
         inputDeviceListMonitor?.stop()
         inputDeviceListMonitor = nil
         floatingIndicatorFocusTracker.stop()

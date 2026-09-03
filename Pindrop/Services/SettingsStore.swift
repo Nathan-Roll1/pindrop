@@ -326,6 +326,18 @@ final class SettingsStore: ObservableObject, AppSettingsProviding {
    /// promise that the finished note still names everyone.
    @AppStorage("liveSpeakerNamesEnabled", store: SettingsStoreRuntime.appStorageStore)
    var liveSpeakerNamesEnabled: Bool = false
+
+   // MARK: Meetings
+
+   /// Sends a notification when a call is detected. Off by default, because it
+   /// is the one meeting affordance that needs a system permission.
+   @AppStorage("notifyWhenCallStarts", store: SettingsStoreRuntime.appStorageStore)
+   var notifyWhenCallStarts: Bool = false
+   /// True once the one-time "Pindrop noticed a call." ask has an answer,
+   /// whichever answer it was. The ask never appears again.
+   @AppStorage("callNotificationAskAnswered", store: SettingsStoreRuntime.appStorageStore)
+   var callNotificationAskAnswered: Bool = false
+
    /// Picks the Nemotron chunk variant used by the streaming backend. OFF (default)
    /// maps to the 1120ms variant — NVIDIA's original export, best accuracy. ON maps to
    /// the 560ms variant — snappier partials at comparable accuracy, double the encoder
@@ -957,6 +969,10 @@ final class SettingsStore: ObservableObject, AppSettingsProviding {
       streamingLowLatencyMode = false
       diarizationFeatureEnabled = false
       liveSpeakerNamesEnabled = false
+      // Meetings: no notification and no answered ask, so a test never posts an
+      // alert and never opens a modal.
+      notifyWhenCallStarts = false
+      callNotificationAskAnswered = false
       themeMode = Defaults.themeMode
       lightThemePresetID = Defaults.lightThemePresetID
       darkThemePresetID = Defaults.darkThemePresetID

@@ -988,6 +988,9 @@ final class MainWindowController {
     var onGenerateEnhancedPanel: NoteEnhancementHandler?
     var noteChatService: NoteChatService?
     var onOpenSettings: ((SettingsTab) -> Void)?
+    /// Raised every time the window is put on screen, however it was reached.
+    /// The one-time call notification ask waits for this.
+    var onDidPresent: (() -> Void)?
     private var noteCaptureState: NoteCaptureState?
 
     /// The main app window, if created. Used by list keyboard monitors for identity checks.
@@ -1181,7 +1184,7 @@ final class MainWindowController {
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         DispatchQueue.main.async { self.positionTrafficLights() }
-
+        onDidPresent?()
     }
 
     /// Positions standard traffic lights in the leading-sidebar top pad (spec §3).

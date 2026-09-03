@@ -172,9 +172,13 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		CONFCATBUILD0000000001 /* ConferenceAppCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = CONFCATFILE0000000001 /* ConferenceAppCatalog.swift */; };
 		CONFPROBEBUILD000000001 /* ConferenceAudioProcessProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = CONFPROBEFILE000000001 /* ConferenceAudioProcessProbe.swift */; };
 		CONFMONBUILD0000000001 /* ConferenceAudioMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = CONFMONFILE0000000001 /* ConferenceAudioMonitor.swift */; };
+		MEETINVCTRLBUILD0000001 /* MeetingInvitationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = MEETINVCTRLFILE0000001 /* MeetingInvitationController.swift */; };
+		MEETNOTIFBUILD000000001 /* MeetingCallNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = MEETNOTIFFILE000000001 /* MeetingCallNotifications.swift */; };
 		CONFMONTESTBUILD00000001 /* ConferenceAudioMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CONFMONTESTFILE00000001 /* ConferenceAudioMonitorTests.swift */; };
 		CONFINTTESTBUILD00000001 /* ConferenceAudioProcessProbeIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CONFINTTESTFILE00000001 /* ConferenceAudioProcessProbeIntegrationTests.swift */; };
 		MOCKCONFPROBEBUILD000001 /* MockConferenceAudioProcessProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = MOCKCONFPROBEFILE000001 /* MockConferenceAudioProcessProbe.swift */; };
+		MEETINVTESTBUILD0000001 /* MeetingInvitationControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = MEETINVTESTFILE0000001 /* MeetingInvitationControllerTests.swift */; };
+		MOCKMEETNOTIFBUILD00001 /* MockMeetingCallNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = MOCKMEETNOTIFFILE00001 /* MockMeetingCallNotifier.swift */; };
 		LIVEATTRTESTBUILD01 /* LiveAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVEATTRTESTFILE01 /* LiveAttributionTests.swift */; };
 		LIVEPROMOTESTBUILD01 /* LiveSpeakerPromotionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVEPROMOTESTFILE01 /* LiveSpeakerPromotionTests.swift */; };
 		LIVELATTESTBUILD01 /* LivePartialLatencyMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVELATTESTFILE01 /* LivePartialLatencyMonitorTests.swift */; };
@@ -453,9 +457,13 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 		CONFCATFILE0000000001 /* ConferenceAppCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConferenceAppCatalog.swift; sourceTree = "<group>"; };
 		CONFPROBEFILE000000001 /* ConferenceAudioProcessProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConferenceAudioProcessProbe.swift; sourceTree = "<group>"; };
 		CONFMONFILE0000000001 /* ConferenceAudioMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConferenceAudioMonitor.swift; sourceTree = "<group>"; };
+		MEETINVCTRLFILE0000001 /* MeetingInvitationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingInvitationController.swift; sourceTree = "<group>"; };
+		MEETNOTIFFILE000000001 /* MeetingCallNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingCallNotifications.swift; sourceTree = "<group>"; };
 		CONFMONTESTFILE00000001 /* ConferenceAudioMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConferenceAudioMonitorTests.swift; sourceTree = "<group>"; };
 		CONFINTTESTFILE00000001 /* ConferenceAudioProcessProbeIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConferenceAudioProcessProbeIntegrationTests.swift; sourceTree = "<group>"; };
 		MOCKCONFPROBEFILE000001 /* MockConferenceAudioProcessProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockConferenceAudioProcessProbe.swift; sourceTree = "<group>"; };
+		MEETINVTESTFILE0000001 /* MeetingInvitationControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingInvitationControllerTests.swift; sourceTree = "<group>"; };
+		MOCKMEETNOTIFFILE00001 /* MockMeetingCallNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockMeetingCallNotifier.swift; sourceTree = "<group>"; };
 		LIVEATTRTESTFILE01 /* LiveAttributionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveAttributionTests.swift; sourceTree = "<group>"; };
 		LIVEPROMOTESTFILE01 /* LiveSpeakerPromotionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSpeakerPromotionTests.swift; sourceTree = "<group>"; };
 		LIVELATTESTFILE01 /* LivePartialLatencyMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePartialLatencyMonitorTests.swift; sourceTree = "<group>"; };
@@ -697,6 +705,8 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				CONFCATFILE0000000001 /* ConferenceAppCatalog.swift */,
 				CONFPROBEFILE000000001 /* ConferenceAudioProcessProbe.swift */,
 				CONFMONFILE0000000001 /* ConferenceAudioMonitor.swift */,
+				MEETINVCTRLFILE0000001 /* MeetingInvitationController.swift */,
+				MEETNOTIFFILE000000001 /* MeetingCallNotifications.swift */,
 				LIVESLOTSFILE01 /* LiveSpeakerSlots.swift */,
 				LIVEPROMOTERFILE01 /* LiveSpeakerPromoter.swift */,
 				TRXPRTFILE01A2B3C4D5E6 /* TranscriptExportService.swift */,
@@ -901,6 +911,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				LIVEAUDIOPUMPTESTFILE1 /* LiveAudioPumpTests.swift */,
 				CONFMONTESTFILE00000001 /* ConferenceAudioMonitorTests.swift */,
 				CONFINTTESTFILE00000001 /* ConferenceAudioProcessProbeIntegrationTests.swift */,
+				MEETINVTESTFILE0000001 /* MeetingInvitationControllerTests.swift */,
 				LIVEATTRTESTFILE01 /* LiveAttributionTests.swift */,
 				LIVEPROMOTESTFILE01 /* LiveSpeakerPromotionTests.swift */,
 				LIVELATTESTFILE01 /* LivePartialLatencyMonitorTests.swift */,
@@ -1072,6 +1083,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				MOCKPERM02A2B3C4D5E6F /* MockPermissionProvider.swift */,
 				MOCKCAPT02A2B3C4D5E6F /* MockAudioCaptureBackend.swift */,
 				MOCKCONFPROBEFILE000001 /* MockConferenceAudioProcessProbe.swift */,
+				MOCKMEETNOTIFFILE00001 /* MockMeetingCallNotifier.swift */,
 			);
 			path = TestHelpers;
 			sourceTree = "<group>";
@@ -1332,6 +1344,8 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				CONFMONTESTBUILD00000001 /* ConferenceAudioMonitorTests.swift in Sources */,
 				CONFINTTESTBUILD00000001 /* ConferenceAudioProcessProbeIntegrationTests.swift in Sources */,
 				MOCKCONFPROBEBUILD000001 /* MockConferenceAudioProcessProbe.swift in Sources */,
+				MEETINVTESTBUILD0000001 /* MeetingInvitationControllerTests.swift in Sources */,
+				MOCKMEETNOTIFBUILD00001 /* MockMeetingCallNotifier.swift in Sources */,
 				LIVEATTRTESTBUILD01 /* LiveAttributionTests.swift in Sources */,
 				LIVEPROMOTESTBUILD01 /* LiveSpeakerPromotionTests.swift in Sources */,
 				LIVELATTESTBUILD01 /* LivePartialLatencyMonitorTests.swift in Sources */,
@@ -1383,6 +1397,8 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				CONFCATBUILD0000000001 /* ConferenceAppCatalog.swift in Sources */,
 				CONFPROBEBUILD000000001 /* ConferenceAudioProcessProbe.swift in Sources */,
 				CONFMONBUILD0000000001 /* ConferenceAudioMonitor.swift in Sources */,
+				MEETINVCTRLBUILD0000001 /* MeetingInvitationController.swift in Sources */,
+				MEETNOTIFBUILD000000001 /* MeetingCallNotifications.swift in Sources */,
 				LIVESLOTSBUILD01 /* LiveSpeakerSlots.swift in Sources */,
 				LIVEPROMOTERBUILD01 /* LiveSpeakerPromoter.swift in Sources */,
 				TRXPRTBUILD01A2B3C4D5E6 /* TranscriptExportService.swift in Sources */,

@@ -179,6 +179,24 @@ final class AlertManager {
         alert.runModal()
     }
 
+    /// The one-time ask that makes the call notification findable.
+    ///
+    /// Modal, like every other ask in this file, and shown only when the main
+    /// window is already up: the caller keeps it away from a live call and a
+    /// live recording.
+    func presentCallNotificationAsk() -> Bool {
+        let alert = makeAlert(style: .informational)
+        alert.messageText = localized("Pindrop noticed a call.", locale: locale)
+        alert.informativeText = localized(
+            "Do you want a notification when a call starts?",
+            locale: locale
+        )
+        alert.addButton(withTitle: localized("Notify me", locale: locale))
+        alert.addButton(withTitle: localized("No thanks", locale: locale))
+
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
     private func openAccessibilitySettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
@@ -193,3 +211,5 @@ final class AlertManager {
         }
     }
 }
+
+extension AlertManager: MeetingCallAskPresenting {}

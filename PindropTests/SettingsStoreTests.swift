@@ -228,6 +228,8 @@ struct SettingsStoreTests {
         #expect(!store.telemetryEnabled)
         #expect(store.telemetryConsentPromptVersion == 0)
         #expect(!store.voiceIsolationEnabled)
+        #expect(!store.notifyWhenCallStarts)
+        #expect(!store.callNotificationAskAnswered)
     }
 
     @Test func testVoiceIsolationDefaultsOffPersistsAndResets() {
