@@ -74,10 +74,26 @@ public final class SpeakerIdentityService: SpeakerIdentityManaging {
     /// codec audio, which scores differently, and a wrong name shown for forty
     /// minutes costs more than no name at all.
     ///
-    /// Conservative placeholders. The calibration run in section 8.3 of the live
-    /// attribution design measures the real distribution over held-out clips and
-    /// replaces both numbers. Until then, staying at `Speaker 2` is the safe
-    /// answer and this pair is chosen to give it often.
+    /// The section 8.3 calibration run was made on 2026-09-03 and did **not**
+    /// justify moving either number, so both stand.
+    ///
+    /// `LiveSpeakerEmbedderCalibrationTests` over the only committed fixture,
+    /// AMI EN2002a 0 to 60 s, cannot produce the cross-speaker half of the
+    /// measurement. It is a four speaker meeting mix in which every reference
+    /// segment is crossed by another speaker, and the clean stretches left over
+    /// are C 3.92 s and 3.38 s, B 2.67 s, and A 1.59 s and 1.58 s. At promotion
+    /// length that is two clips, both speaker C: same-speaker 0.812, and no
+    /// cross-speaker pair at all. Relaxing the clip floor to 1.5 s only to get a
+    /// reading gave same-speaker n=2 at 0.812 against cross-speaker n=2 spanning
+    /// 0.808 to 0.855. The cross-speaker maximum lands **above** the
+    /// same-speaker value there, so those distributions do not separate and
+    /// cannot set a floor.
+    ///
+    /// Both numbers therefore stay where the design put them, above the offline
+    /// pair. Loosening toward 0.72 and 0.08 on evidence this thin would trade a
+    /// safe missing name for a possible wrong one. Tightening on n=2 short clips
+    /// would be just as unfounded. A fixture with clean single-speaker spans for
+    /// two or more speakers is what unblocks a real measurement.
     public static let liveMinimumSimilarityForAutoMatch: Float = 0.80
     public static let liveMinimumSimilarityMarginForAutoMatch: Float = 0.12
 

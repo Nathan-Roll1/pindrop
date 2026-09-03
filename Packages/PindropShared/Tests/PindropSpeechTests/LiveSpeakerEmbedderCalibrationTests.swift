@@ -159,34 +159,60 @@ struct LiveSpeakerEmbedderCalibrationTests {
         // Everything above is measurement. The assertion is only that the run
         // produced numbers to read: an empty run is the one outcome a merge gate
         // must never report as a pass.
-        #expect(!sameSpeaker.isEmpty)
-        #expect(!crossSpeaker.isEmpty)
+        //
+        // The messages name which of the two ways a run can come back empty
+        // happened. They need different fixes, and an operator told to read
+        // numbers off this run has to know which one it is: a fixture with no
+        // clean spans of promotion length needs a better fixture, while clean
+        // spans that embed to nothing need a look at the offline bundle.
+        let census = "clips=\(clips.count) embeddedPerSpeaker=\(embeddingsBySpeaker.mapValues(\.count))"
+        let sameSpeakerShortfall = "no same-speaker pair. \(census). A speaker needs at least two"
+            + " clean clips of \(Self.minimumClipSeconds) s or longer for a held-out centroid."
+        let crossSpeakerShortfall = "no cross-speaker pair. \(census). Two speakers need clean"
+            + " clips before a threshold can reject anything."
+        #expect(!sameSpeaker.isEmpty, "\(sameSpeakerShortfall)")
+        #expect(!crossSpeaker.isEmpty, "\(crossSpeakerShortfall)")
     }
 
     // MARK: - Clips
 
-    /// Reference segments of promotion length that no other speaker overlaps.
+    /// Spans of promotion length that no other speaker overlaps.
     ///
     /// Overlapped audio would describe two voices, and an embedding of two
     /// voices is exactly the measurement error this run exists to avoid.
+    ///
+    /// Every other speaker's reference interval is subtracted from each segment
+    /// rather than the whole segment being discarded when anything touches it.
+    /// In a meeting corpus a long turn is nearly always crossed by a short
+    /// backchannel somewhere, so the whole-segment rule throws away the clean
+    /// stretches on either side of it and can report no clips at all.
     private static func singleSpeakerClips(
         in reference: [ReferenceSegment],
         audio: [Float]
     ) -> [Clip] {
         var clips: [Clip] = []
         for segment in reference.sorted(by: { $0.start < $1.start }) {
-            let overlapped = reference.contains { other in
-                other.speaker != segment.speaker
-                    && other.start < segment.end
-                    && other.end > segment.start
+            var clean: [(TimeInterval, TimeInterval)] = [(segment.start, segment.end)]
+            for other in reference where other.speaker != segment.speaker {
+                var remaining: [(TimeInterval, TimeInterval)] = []
+                for span in clean {
+                    if other.end <= span.0 || other.start >= span.1 {
+                        remaining.append(span)
+                        continue
+                    }
+                    if other.start > span.0 { remaining.append((span.0, min(other.start, span.1))) }
+                    if other.end < span.1 { remaining.append((max(other.end, span.0), span.1)) }
+                }
+                clean = remaining
             }
-            guard !overlapped else { continue }
-            let duration = min(segment.end - segment.start, maximumClipSeconds)
-            guard duration >= minimumClipSeconds else { continue }
-            let first = Int(segment.start * sampleRate)
-            let last = min(audio.count, first + Int(duration * sampleRate))
-            guard first >= 0, last > first else { continue }
-            clips.append(Clip(speaker: segment.speaker, samples: Array(audio[first..<last])))
+            for span in clean {
+                let duration = min(span.1 - span.0, maximumClipSeconds)
+                guard duration >= minimumClipSeconds else { continue }
+                let first = Int(span.0 * sampleRate)
+                let last = min(audio.count, first + Int(duration * sampleRate))
+                guard first >= 0, last > first else { continue }
+                clips.append(Clip(speaker: segment.speaker, samples: Array(audio[first..<last])))
+            }
         }
         return clips
     }

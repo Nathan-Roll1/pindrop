@@ -124,7 +124,14 @@ public actor LiveDiarizationEngine {
     private static let processBatchSeconds: TimeInterval = 0.48
     private static let ringSeconds: TimeInterval = 45
     private static let warmUpSeconds: TimeInterval = 1.2
-    private static let loadTimeoutSeconds: TimeInterval = 3
+    /// Measured on an M5 Pro against the balanced v2.1 bundle already on disk:
+    /// 3.120 s and 3.145 s for a warm load, and 62.998 s for the first call that
+    /// also downloaded. The design's original 3 s bound was under the warm load,
+    /// so every capture timed out and degraded to channel labels. 10 s is about
+    /// three times the warm load, which leaves headroom for Neural Engine
+    /// contention while still refusing a load slow enough to be downloading.
+    /// Readiness is what keeps downloads off the capture path; this is a backstop.
+    private static let loadTimeoutSeconds: TimeInterval = 10
     /// Consecutive over-budget steps before the engine gives up feeding.
     private static let fallBehindStepLimit = 5
 
