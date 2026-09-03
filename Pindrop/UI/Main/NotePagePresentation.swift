@@ -63,6 +63,17 @@ enum NotePageCapturePhase: Equatable, Sendable {
         }
     }
 
+    /// True between the stop and a finished note: the recording is over and the
+    /// durable transcript does not exist yet.
+    var isSettling: Bool {
+        switch self {
+        case .finalizing, .enhancing:
+            true
+        case .none, .starting, .capturing, .failed:
+            false
+        }
+    }
+
     var finalizationStage: NotePageFinalizationStage? {
         guard case .finalizing(let stage, _) = self else { return nil }
         return stage
@@ -264,11 +275,16 @@ enum NotePagePresentation {
             )
         }
 
-        if !state.isTranscriptDeleted, state.hasTranscript || state.capture.isRecording {
+        if !state.isTranscriptDeleted,
+           state.hasTranscript
+               || state.capture.isRecording
+               || (state.capture.isSettling && state.hasLiveText) {
             // A recording that has already been heard can be read live, before
-            // any of it is durable. Nothing said yet means nothing to open.
+            // any of it is durable. Nothing said yet means nothing to open. The
+            // same holds through finalize: dropping the segment there would take
+            // the reader off the text this phase exists to keep on screen.
             let isReadable = state.hasTranscript
-                || (state.capture.isRecording && state.hasLiveText)
+                || ((state.capture.isRecording || state.capture.isSettling) && state.hasLiveText)
             segments.append(
                 NotePageSegment(
                     kind: .transcript,
@@ -457,8 +473,26 @@ enum NotePagePresentation {
 
     /// While the recording runs, the transcript view draws the live text. The
     /// durable spans, with their timings and speakers, only exist afterwards.
+    ///
+    /// So the live text keeps being drawn past the stop. Finalize writes the
+    /// transcript record at the end of a run that takes minutes on a long
+    /// meeting, and this predicate used to flip the moment the microphone
+    /// closed: the reader watched everything they had been reading vanish. The
+    /// finished transcript takes over the moment it exists.
     static func isTranscriptLive(state: NotePageState) -> Bool {
-        state.capture.isRecording
+        if state.capture.isRecording { return true }
+        return state.capture.isSettling && !state.hasTranscript
+    }
+
+    /// The line over the live turns once the recording stopped. It says the text
+    /// is real and that it is not the finished transcript yet. Nil while the
+    /// recording runs, and nil once the durable transcript exists.
+    static func settlingTranscriptNotice(state: NotePageState, locale: Locale) -> String? {
+        guard state.capture.isSettling, !state.hasTranscript else { return nil }
+        return localized(
+            "Transcript so far. Pindrop is checking it against the recording.",
+            locale: locale
+        )
     }
 
     /// True when the view on screen can answer a search. The typed notes always
@@ -638,6 +672,11 @@ enum NotePagePresentation {
             // A running recording is live whether or not the store has caught up
             // with it, so the footer never claims a length for a transcript that
             // is still growing.
+            if let settling = settlingTranscriptNotice(state: state, locale: locale) {
+                // Past the stop nothing fills in as you speak any more, and the
+                // finished length is not known until the record is written.
+                return NotePageFooter(leading: settling, trailing: nil)
+            }
             if facts.isTranscriptLive || isTranscriptLive(state: state) {
                 return NotePageFooter(
                     leading: localized("The transcript fills in as you speak.", locale: locale),

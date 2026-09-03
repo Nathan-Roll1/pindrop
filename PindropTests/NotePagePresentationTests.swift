@@ -141,6 +141,43 @@ struct NotePagePresentationTests {
         ))
     }
 
+    @Test func aFinalizingCaptureWithLiveSpansAndNoDurableTranscriptStillShowsText() {
+        // P4.3: `isTranscriptLive` used to flip at stop, so a reader watched a
+        // 50-minute meeting's transcript go blank for minutes while finalize
+        // ran. The live turns are still in memory, so they stay on screen.
+        for phase in [
+            NotePageCapturePhase.finalizing(.transcribing, progress: 0.4),
+            .enhancing
+        ] {
+            let state = NotePageState(capture: phase, hasLiveText: true)
+            #expect(NotePagePresentation.isTranscriptLive(state: state))
+            // The transcript stays reachable, or there is nothing to draw it in.
+            let transcript = segment(.transcript, in: state)
+            #expect(transcript?.isEnabled == true)
+            #expect(NotePagePresentation.resolvedKind(
+                requested: .transcript,
+                state: state,
+                locale: locale
+            ) == .transcript)
+            #expect(NotePagePresentation.settlingTranscriptNotice(state: state, locale: locale)
+                == "Transcript so far. Pindrop is checking it against the recording.")
+        }
+    }
+
+    @Test func theFinishedTranscriptTakesOverAsSoonAsDurableSegmentsExist() {
+        let settling = NotePageState(
+            hasTranscript: true,
+            capture: .enhancing,
+            hasLiveText: true
+        )
+        #expect(!NotePagePresentation.isTranscriptLive(state: settling))
+        #expect(NotePagePresentation.settlingTranscriptNotice(state: settling, locale: locale) == nil)
+
+        // And a capture that never said anything has no live turns to keep.
+        let silent = NotePageState(capture: .finalizing(.sealingAudio, progress: nil))
+        #expect(segment(.transcript, in: silent) == nil)
+    }
+
     @Test func everyReadableViewCanBeSearched() {
         // Live text has no durable spans yet, so the transcript view waits.
         let recording = NotePageState(capture: .capturing, hasLiveText: true)

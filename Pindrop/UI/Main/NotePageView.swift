@@ -255,8 +255,12 @@ struct NotePageView: View {
     /// True once the running capture has heard something. Reading the live text
     /// here costs this page one invalidation per committed sentence, which is
     /// what it takes to offer the Transcript view during the recording.
+    ///
+    /// Asked through finalize as well: the spans stay in memory past the stop,
+    /// and they are the only transcript there is until the record is written.
     private var hasLiveText: Bool {
-        guard capturePhase.isRecording, let noteCaptureState else { return false }
+        guard capturePhase.isRecording || capturePhase.isSettling,
+              let noteCaptureState else { return false }
         // Asked as a question about the spans, not about their joined text: this
         // page hosts the editor, and joining the whole transcript to test it for
         // emptiness is work proportional to the recording, several times a second.
@@ -1178,10 +1182,23 @@ struct NotePageView: View {
     @ViewBuilder
     private var transcriptCanvas: some View {
         if NotePagePresentation.isTranscriptLive(state: pageState) {
-            LiveTranscriptLines(state: noteCaptureState)
-                .padding(.leading, textColumnInset)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityIdentifier("note.page.transcript.live")
+            VStack(alignment: .leading, spacing: 10) {
+                if let notice = NotePagePresentation.settlingTranscriptNotice(
+                    state: pageState,
+                    locale: locale
+                ) {
+                    Text(notice)
+                        .font(AppTypography.caption)
+                        .foregroundStyle(AppColors.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("note.page.transcript.settling")
+                }
+
+                LiveTranscriptLines(state: noteCaptureState)
+            }
+            .padding(.leading, textColumnInset)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("note.page.transcript.live")
         } else {
             NoteTranscriptTurns(
                 presentation: transcriptPresentation,
