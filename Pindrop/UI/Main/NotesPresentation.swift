@@ -82,6 +82,23 @@ struct NoteRowCaptureFacts: Equatable, Sendable {
     var isMeetingCapture: Bool
     var hasEnhancedArtifact: Bool
     var duration: TimeInterval?
+    /// An interruption stopped the recording and startup recovery finished it.
+    /// Derived per page from the capture failure records, never stored.
+    var isRecovered: Bool
+
+    init(
+        hasCaptureLink: Bool,
+        isMeetingCapture: Bool,
+        hasEnhancedArtifact: Bool,
+        duration: TimeInterval?,
+        isRecovered: Bool = false
+    ) {
+        self.hasCaptureLink = hasCaptureLink
+        self.isMeetingCapture = isMeetingCapture
+        self.hasEnhancedArtifact = hasEnhancedArtifact
+        self.duration = duration
+        self.isRecovered = isRecovered
+    }
 
     static let none = NoteRowCaptureFacts(
         hasCaptureLink: false,
@@ -145,6 +162,12 @@ enum NoteRowPresentation {
         facts.hasEnhancedArtifact
     }
 
+    /// A note whose recording was interrupted and finished by startup recovery
+    /// says so, because its words arrived without anybody watching.
+    static func showsRecoveredChip(facts: NoteRowCaptureFacts) -> Bool {
+        facts.isRecovered
+    }
+
     /// Mono duration lane. Sub-second and missing durations render nothing so
     /// typed notes leave the lane empty instead of showing "0:00".
     static func durationText(_ duration: TimeInterval?) -> String {
@@ -191,6 +214,9 @@ enum NoteRowPresentation {
             return parts.filter { !$0.isEmpty }.joined(separator: ", ")
         }
 
+        if showsRecoveredChip(facts: facts) {
+            parts.append(localized("Recovered", locale: locale))
+        }
         if showsEnhancedBadge(facts: facts) {
             parts.append(localized("Enhanced", locale: locale))
         }

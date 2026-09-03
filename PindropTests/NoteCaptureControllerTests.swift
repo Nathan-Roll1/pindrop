@@ -929,23 +929,235 @@ struct NoteCaptureControllerTests {
         #expect(!NoteCaptureController.shouldContinueRecovery(after: CancellationError()))
     }
 
-    @Test func recoveryLeavesMicrophoneOnlyCapturesForTheirDeliveryStep() async throws {
+    /// Renamed from `recoveryLeavesMicrophoneOnlyCapturesForTheirDeliveryStep`.
+    /// That test pinned the gap this commit closes: recovery skipped every
+    /// microphone-only capture for want of an agreed destination, so its words
+    /// stayed in an interrupted session forever.
+    @Test func recoveryDeliversMicrophoneOnlyCaptures() async throws {
         let fixture = try makeFixture()
-        _ = try await fixture.controller.startNote(
-            request: NoteCaptureRequest(includeSystemAudio: false),
-            origin: .hotkey
-        )
-        await fixture.controller.checkpointForTermination()
+        let handle = try await makeInterruptedMicrophoneCapture(in: fixture)
+        #expect(!handle.capturesSystemAudio)
         #expect(try fixture.captureSessionStore.noteCaptureRecoveryCandidates().count == 1)
 
         await fixture.controller.recoverInterruptedCaptures()
 
-        // Delivering a recovered microphone-only note is P7's job. Until then the
-        // session stays interrupted rather than being finalized with nowhere
-        // agreed to put its transcript.
         let session = try #require(try sessions(in: fixture.container).first)
-        #expect(session.stateRawValue == CaptureSessionState.interrupted.rawValue)
-        #expect(try fixture.captureSessionStore.noteCaptureRecoveryCandidates().count == 1)
+        #expect(session.stateRawValue == CaptureSessionState.completed.rawValue)
+        let recordID = try #require(session.transcriptionRecordID)
+        let record = try #require(try fixture.historyStore.fetchRecord(with: recordID))
+        #expect(record.text == "the roof needs replacing before winter")
+        #expect(try fixture.captureSessionStore.noteCaptureRecoveryCandidates().isEmpty)
+    }
+
+    // MARK: - Recovery delivery
+
+    /// An interrupted microphone-only capture, as a crash leaves one: a durable
+    /// intent, committed live text, spooled audio on disk, and no batch model to
+    /// re-transcribe with.
+    ///
+    /// The disabled batch assignment is what makes the committed live text the
+    /// recovered transcript, so what lands in the note is a value the test
+    /// chose. The audio is real, because recovery rebuilds its inventory from
+    /// the spool and a capture with no completed source cannot finish.
+    @discardableResult
+    private func makeInterruptedMicrophoneCapture(
+        in fixture: Fixture,
+        destination: CaptureIntentDestination = .newNote,
+        destinationNoteID: UUID? = nil,
+        origin: CaptureIntentOrigin = .mainWindow,
+        bindsAnchor: Bool = true,
+        committedText: String = "the roof needs replacing before winter"
+    ) async throws -> PindropCore.NoteCaptureHandle {
+        let store = fixture.captureSessionStore
+        let handle = try store.startNoteCapture(
+            includeSystemAudio: false,
+            intent: CaptureIntentRequest(
+                destination: destination,
+                destinationNoteID: destinationNoteID,
+                origin: origin
+            )
+        )
+        try freezeAssignments(in: store, sessionID: handle.sessionID)
+        if bindsAnchor {
+            if let destinationNoteID {
+                _ = try store.ensureMeetingHumanAnchor(handle, noteID: destinationNoteID)
+            } else {
+                let anchor = try store.ensureMeetingHumanAnchor(handle, title: "Untitled Note")
+                try store.updateIntentDestination(
+                    sessionID: handle.sessionID,
+                    noteID: anchor.noteID
+                )
+            }
+        }
+        _ = try store.checkpointVoiceNoteLiveTranscript(
+            for: handle,
+            committedText: committedText
+        )
+        try await spoolMicrophoneAudio(in: fixture, handle: handle)
+        try store.interruptMeetingCapture(
+            handle,
+            errorDomain: "Pindrop",
+            errorCode: "test-crash",
+            message: "Note capture was interrupted by application shutdown and can be resumed."
+        )
+        return handle
+    }
+
+    /// Writes real spooled microphone chunks for one capture and leaves them on
+    /// disk, exactly as an interrupted recording does.
+    private func spoolMicrophoneAudio(
+        in fixture: Fixture,
+        handle: PindropCore.NoteCaptureHandle
+    ) async throws {
+        let plan = MeetingCaptureSpoolPlan(
+            libraryRootURL: fixture.libraryRoot,
+            sessionID: handle.sessionID,
+            microphoneSourceID: handle.microphoneSourceID,
+            systemAudioSourceID: nil
+        )
+        fixture.microphoneBackend.simulatedBuffers = [
+            try #require(
+                MockAudioCaptureBackend.makeSynthesizedBuffer(
+                    format: fixture.microphoneBackend.targetFormat
+                )
+            )
+        ]
+        try await fixture.audioRecorder.startMeetingRecording(spoolPlan: plan) { _ in }
+        let stopResult = try await fixture.audioRecorder.stopMeetingRecording()
+        // Checkpointed as a live capture checkpoints them. An inventory that
+        // discovers a chunk the store never saw invalidates the revisions of
+        // that chunk's sequence, which is where the committed live text lives.
+        for chunk in stopResult.sealedChunks {
+            try fixture.captureSessionStore.recordSealedMeetingChunk(handle, chunk: chunk)
+        }
+    }
+
+    private func makeNote(in fixture: Fixture, title: String) async throws -> UUID {
+        try await fixture.notesStore.create(title: title, content: "").id
+    }
+
+    @Test func aRecoveredCaptureFinalizesIntoItsBoundNote() async throws {
+        let fixture = try makeFixture()
+        let noteID = try await makeNote(in: fixture, title: "Roof repair")
+        let handle = try await makeInterruptedMicrophoneCapture(
+            in: fixture,
+            destination: .existingNote,
+            destinationNoteID: noteID
+        )
+
+        await fixture.controller.recoverInterruptedCaptures()
+
+        let session = try #require(try sessions(in: fixture.container).first)
+        #expect(session.stateRawValue == CaptureSessionState.completed.rawValue)
+        #expect(try fixture.captureSessionStore.meetingHumanAnchor(handle)?.noteID == noteID)
+        let views = try fixture.captureSessionStore.noteCaptureViews(noteID: noteID)
+        #expect(views.captureState?.transcriptionRecordID != nil)
+        #expect(views.transcript != nil)
+        // The note the person picked keeps its own title.
+        #expect(try fixture.notesStore.fetch(id: noteID).title == "Roof repair")
+    }
+
+    @Test func aRecoveredCaptureWithNoBoundNoteCreatesOne() async throws {
+        let fixture = try makeFixture()
+        let handle = try await makeInterruptedMicrophoneCapture(in: fixture, bindsAnchor: false)
+        #expect(try fixture.notesStore.fetchAll().isEmpty)
+
+        await fixture.controller.recoverInterruptedCaptures()
+
+        let anchor = try #require(try fixture.captureSessionStore.meetingHumanAnchor(handle))
+        let note = try fixture.notesStore.fetch(id: anchor.noteID)
+        // Created through the auto-naming path, which starts every capture note
+        // untitled and renames it after the transcript exists.
+        #expect(note.title == "Untitled Note" || !note.title.isEmpty)
+        let session = try #require(try sessions(in: fixture.container).first)
+        #expect(session.stateRawValue == CaptureSessionState.completed.rawValue)
+        // The intent now names the note recovery made, so a second pass agrees.
+        let intent = try fixture.captureSessionStore.fetchCaptureIntent(sessionID: handle.sessionID)
+        #expect(intent?.destinationNoteID == anchor.noteID)
+    }
+
+    @Test func aRecoveredCaptureWhoseNoteWasDeletedCreatesANewOne() async throws {
+        let fixture = try makeFixture()
+        let noteID = try await makeNote(in: fixture, title: "Roof repair")
+        let handle = try await makeInterruptedMicrophoneCapture(
+            in: fixture,
+            destination: .existingNote,
+            destinationNoteID: noteID
+        )
+        // Deleted behind the store's own guard: `NotesStore.delete` protects an
+        // anchor whose capture is unfinished, so the only way to reach this
+        // state is a store that lost the note. The transcript still must land.
+        let context = ModelContext(fixture.container)
+        let doomed = try #require(
+            try context.fetch(
+                FetchDescriptor<NoteSchema.Note>(predicate: #Predicate { $0.id == noteID })
+            ).first
+        )
+        context.delete(doomed)
+        try context.save()
+
+        await fixture.controller.recoverInterruptedCaptures()
+
+        let anchor = try #require(try fixture.captureSessionStore.meetingHumanAnchor(handle))
+        #expect(anchor.noteID != noteID)
+        let session = try #require(try sessions(in: fixture.container).first)
+        #expect(session.stateRawValue == CaptureSessionState.completed.rawValue)
+        let views = try fixture.captureSessionStore.noteCaptureViews(noteID: anchor.noteID)
+        #expect(views.transcript != nil)
+    }
+
+    @Test func aRecoveredCaptureNeverRaisesAWindow() async throws {
+        let fixture = try makeFixture()
+        // Started from the main window, which is the origin that does open a
+        // note when a live capture creates one. Recovery still opens nothing.
+        try await makeInterruptedMicrophoneCapture(in: fixture, origin: .mainWindow)
+
+        await fixture.controller.recoverInterruptedCaptures()
+
+        let session = try #require(try sessions(in: fixture.container).first)
+        #expect(session.stateRawValue == CaptureSessionState.completed.rawValue)
+        // Both shell callbacks open a window. Recovery raises neither: the note
+        // waits in the library for whenever the reader goes looking.
+        #expect(fixture.arbiter.createdNoteIDs.isEmpty)
+        #expect(fixture.arbiter.producedRecordIDs.isEmpty)
+    }
+
+    @Test func aRecoveredNoteIsIdentifiedWithoutAnyNewModelField() async throws {
+        let fixture = try makeFixture()
+        let handle = try await makeInterruptedMicrophoneCapture(in: fixture)
+        let noteID = try #require(
+            try fixture.captureSessionStore.meetingHumanAnchor(handle)?.noteID
+        )
+        #expect(
+            try fixture.captureSessionStore
+                .noteCaptureViews(noteID: noteID).captureState?.wasRecovered == false
+        )
+
+        await fixture.controller.recoverInterruptedCaptures()
+
+        // Derived from the interruption record recovery stamped, not from a
+        // field on any `@Model`: the schema stays at V15.
+        let context = ModelContext(fixture.container)
+        let recovered = try context.fetch(
+            CaptureFailureRecordModel.recoveredInterruptionsDescriptor()
+        )
+        #expect(recovered.map(\.sessionID) == [handle.sessionID])
+        #expect(
+            try fixture.captureSessionStore
+                .noteCaptureViews(noteID: noteID).captureState?.wasRecovered == true
+        )
+    }
+
+    @Test func recoveryOfTheSameCaptureTwiceDeliversItOnce() async throws {
+        let fixture = try makeFixture()
+        let handle = try await makeInterruptedMicrophoneCapture(in: fixture)
+
+        await fixture.controller.recoverInterruptedCaptures()
+        await fixture.controller.recoverInterruptedCaptures()
+
+        #expect(try fixture.notesStore.fetchAll().count == 1)
+        #expect(try fixture.captureSessionStore.meetingHumanAnchor(handle) != nil)
+        #expect(try fixture.captureSessionStore.noteCaptureRecoveryCandidates().isEmpty)
     }
 
     // MARK: - Observable state

@@ -163,6 +163,11 @@ public struct NoteCaptureSessionSnapshot: Sendable, Equatable {
     /// the recorded audio file, so it is how a note page finds something to
     /// play. Nil while the capture is still running and when it never finished.
     public let transcriptionRecordID: UUID?
+    /// An interruption stopped this capture and startup recovery finished it.
+    ///
+    /// Derived on every read from the capture's failure records, never stored:
+    /// the note page says so in one line, and the library row wears one chip.
+    public let wasRecovered: Bool
 
     public init(
         handle: NoteCaptureHandle,
@@ -170,7 +175,8 @@ public struct NoteCaptureSessionSnapshot: Sendable, Equatable {
         state: CaptureSessionState,
         startedAt: Date?,
         endedAt: Date?,
-        transcriptionRecordID: UUID? = nil
+        transcriptionRecordID: UUID? = nil,
+        wasRecovered: Bool = false
     ) {
         self.handle = handle
         self.mode = mode
@@ -178,6 +184,7 @@ public struct NoteCaptureSessionSnapshot: Sendable, Equatable {
         self.startedAt = startedAt
         self.endedAt = endedAt
         self.transcriptionRecordID = transcriptionRecordID
+        self.wasRecovered = wasRecovered
     }
 
     public var capturesSystemAudio: Bool {

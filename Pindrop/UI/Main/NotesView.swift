@@ -394,11 +394,20 @@ struct NotesView: View {
                     .lineLimit(1)
                     .frame(width: 220, alignment: .leading)
 
-                Text(preview)
-                    .font(AppTypography.body)
-                    .foregroundStyle(AppColors.textSecondary)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                // The chip rides in the flexible preview lane: every other lane
+                // is a fixed width the boards pin, so a chip in one of those
+                // would move the numbers on every row that has no chip.
+                HStack(spacing: 8) {
+                    if NoteRowPresentation.showsRecoveredChip(facts: facts) {
+                        recoveredChip
+                    }
+
+                    Text(preview)
+                        .font(AppTypography.body)
+                        .foregroundStyle(AppColors.textSecondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 if let live {
                     // The clock ticks inside the row, so a running recording
@@ -476,6 +485,17 @@ struct NotesView: View {
         ))
         .accessibilityAddTraits(.isButton)
         .contextMenu { noteContextMenu(note) }
+    }
+
+    /// The chip a recovered note wears: its recording was interrupted and
+    /// startup recovery finished it, with nobody watching.
+    private var recoveredChip: some View {
+        Text(localized("Recovered", locale: locale))
+            .font(AppTypography.badge)
+            .foregroundStyle(AppColors.textSecondary)
+            .padding(.vertical, 2)
+            .padding(.horizontal, 8)
+            .background(Capsule(style: .continuous).fill(AppColors.mutedSurface))
     }
 
     private var enhancedBadge: some View {
@@ -674,28 +694,79 @@ private struct NoteRowFactsKey: Equatable {
 @MainActor
 struct NoteRowFactsProvider {
     let modelContext: ModelContext
+    /// Reads the capture sessions startup recovery finished.
+    ///
+    /// Injected so the query budget is provable. The `Recovered` chip is
+    /// derived rather than stored, and this page draws every note, so the read
+    /// runs once per page and never once per row.
+    let readRecoveredSessionIDs: () -> Set<UUID>
+
+    init(
+        modelContext: ModelContext,
+        readRecoveredSessionIDs: (() -> Set<UUID>)? = nil
+    ) {
+        self.modelContext = modelContext
+        self.readRecoveredSessionIDs = readRecoveredSessionIDs
+            ?? { Self.recoveredSessionIDs(in: modelContext) }
+    }
 
     func facts(for notes: [NoteSchema.Note]) -> [UUID: NoteRowCaptureFacts] {
         guard !notes.isEmpty else { return [:] }
 
         let records = linkedRecords(for: notes)
         let enhancedNoteIDs = enhancedNoteIDs()
-        let (linkedNoteIDs, generatedNoteIDs) = noteReferenceIDs()
+        let references = noteReferenceIndex()
+        let recoveredNoteIDs = Self.recoveredNoteIDs(
+            recoveredSessionIDs: readRecoveredSessionIDs(),
+            noteIDsBySession: references.noteIDsBySession
+        )
 
         var result: [UUID: NoteRowCaptureFacts] = [:]
         result.reserveCapacity(notes.count)
         for note in notes {
             let record = note.sourceTranscriptionID.flatMap { records[$0] }
-            let hasLink = record != nil || linkedNoteIDs.contains(note.id)
+            let hasLink = record != nil || references.linked.contains(note.id)
             result[note.id] = NoteRowCaptureFacts(
                 hasCaptureLink: hasLink,
                 isMeetingCapture: record?.kind == .manualCapture,
                 hasEnhancedArtifact: enhancedNoteIDs.contains(note.id)
-                    || generatedNoteIDs.contains(note.id),
-                duration: record?.duration
+                    || references.generated.contains(note.id),
+                duration: record?.duration,
+                isRecovered: recoveredNoteIDs.contains(note.id)
             )
         }
         return result
+    }
+
+    /// The notes a recovered capture delivered into.
+    ///
+    /// Pure, so the derivation can be read without a store: a note is recovered
+    /// when a capture session bound to it was recovered.
+    static func recoveredNoteIDs(
+        recoveredSessionIDs: Set<UUID>,
+        noteIDsBySession: [UUID: [UUID]]
+    ) -> Set<UUID> {
+        guard !recoveredSessionIDs.isEmpty else { return [] }
+        var noteIDs: Set<UUID> = []
+        for sessionID in recoveredSessionIDs {
+            for noteID in noteIDsBySession[sessionID] ?? [] {
+                noteIDs.insert(noteID)
+            }
+        }
+        return noteIDs
+    }
+
+    /// One fetch of the recovered interruptions behind the whole page.
+    private static func recoveredSessionIDs(in modelContext: ModelContext) -> Set<UUID> {
+        do {
+            let records = try modelContext.fetch(
+                CaptureFailureRecordModel.recoveredInterruptionsDescriptor()
+            )
+            return Set(records.map(\.sessionID))
+        } catch {
+            Log.ui.error("Failed to fetch recovered captures: \(error.localizedDescription)")
+            return []
+        }
     }
 
     private struct LinkedRecord {
@@ -734,24 +805,34 @@ struct NoteRowFactsProvider {
     }
 
     /// Every note a capture references, plus the legacy generated notes that
-    /// stand in for an enhanced artifact until WP6 migrates them onto panels.
-    private func noteReferenceIDs() -> (linked: Set<UUID>, generated: Set<UUID>) {
+    /// stand in for an enhanced artifact until WP6 migrates them onto panels,
+    /// plus the session each note is bound to for the recovered derivation.
+    /// One pass, because all three lanes read the same references.
+    private func noteReferenceIndex() -> NoteReferenceIndex {
         do {
             let references = try modelContext.fetch(FetchDescriptor<CaptureNoteReferenceModel>())
-            var linked: Set<UUID> = []
-            var generated: Set<UUID> = []
+            var index = NoteReferenceIndex()
             for reference in references {
-                linked.insert(reference.noteID)
+                index.linked.insert(reference.noteID)
                 if reference.roleRawValue == CaptureNoteRole.generated.rawValue {
-                    generated.insert(reference.noteID)
+                    index.generated.insert(reference.noteID)
                 }
+                index.noteIDsBySession[reference.sessionID, default: []].append(reference.noteID)
             }
-            return (linked, generated)
+            return index
         } catch {
             Log.ui.error("Failed to fetch capture note references: \(error.localizedDescription)")
-            return ([], [])
+            return NoteReferenceIndex()
         }
     }
+}
+
+/// One pass over the capture-to-note references, shared by the row lanes that
+/// read them.
+private struct NoteReferenceIndex {
+    var linked: Set<UUID> = []
+    var generated: Set<UUID> = []
+    var noteIDsBySession: [UUID: [UUID]] = [:]
 }
 
 // MARK: - Search draft intent

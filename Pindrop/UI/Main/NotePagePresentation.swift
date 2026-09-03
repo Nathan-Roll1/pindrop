@@ -109,6 +109,9 @@ struct NotePageState: Equatable, Sendable {
     /// Stored inside the note's diarization payload, so it is read fresh on
     /// every open and survives quit and relaunch.
     var liveLabelsDiffered: Bool
+    /// An interruption stopped this note's recording and startup recovery
+    /// finished it. Derived from the capture's failure records on every read.
+    var wasRecovered: Bool
 
     init(
         hasPanels: Bool = false,
@@ -118,7 +121,8 @@ struct NotePageState: Equatable, Sendable {
         capture: NotePageCapturePhase = .none,
         hasUnreadEnhanced: Bool = false,
         hasLiveText: Bool = false,
-        liveLabelsDiffered: Bool = false
+        liveLabelsDiffered: Bool = false,
+        wasRecovered: Bool = false
     ) {
         self.hasPanels = hasPanels
         self.hasTranscript = hasTranscript
@@ -128,6 +132,7 @@ struct NotePageState: Equatable, Sendable {
         self.hasUnreadEnhanced = hasUnreadEnhanced
         self.hasLiveText = hasLiveText
         self.liveLabelsDiffered = liveLabelsDiffered
+        self.wasRecovered = wasRecovered
     }
 
     /// A plain typed note: nothing was ever recorded into it.
@@ -608,6 +613,21 @@ enum NotePagePresentation {
 
     static func speakerReconciliationMessage(locale: Locale) -> String {
         localized("Speaker names were checked again against the full recording.", locale: locale)
+    }
+
+    /// The line a recovered note carries, or nil for every note whose recording
+    /// finished normally.
+    ///
+    /// A recovered capture is finished by startup recovery, with nobody
+    /// watching, so the page has to say where the words came from. A capture
+    /// running right now is silent: the state it would report belongs to the
+    /// capture before this one.
+    static func recoveredMessage(state: NotePageState, locale: Locale) -> String? {
+        guard state.wasRecovered, !state.capture.isActive else { return nil }
+        return localized(
+            "Recovered from a recording that was interrupted.",
+            locale: locale
+        )
     }
 
     // MARK: Footer

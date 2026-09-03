@@ -591,3 +591,37 @@ public final class CaptureFailureRecordModel {
         self.recoveryDispositionRawValue = recoveryDisposition.rawValue
     }
 }
+
+extension CaptureFailureRecordModel {
+    /// Every interruption a recovery pass finished, newest first.
+    ///
+    /// The `Recovered` state a reader sees is derived from exactly this and is
+    /// never stored: no phase of this work adds a field to a V15 model. Only
+    /// `interruptMeetingCapture` writes a failure record with no pipeline stage,
+    /// and only `recoverMeetingForFinalization` stamps `recoveredAt` on one, so
+    /// a retried chunk failure never reads as a recovered capture.
+    ///
+    /// One fetch answers a whole library page: read the session identifiers into
+    /// a set, then test each row against it.
+    public static func recoveredInterruptionsDescriptor() -> FetchDescriptor<CaptureFailureRecordModel> {
+        FetchDescriptor<CaptureFailureRecordModel>(
+            predicate: #Predicate<CaptureFailureRecordModel> {
+                $0.recoveredAt != nil && $0.stageRawValue == nil
+            },
+            sortBy: [SortDescriptor(\.occurredAt, order: .reverse)]
+        )
+    }
+
+    /// The same derivation, narrowed to one capture session, for a note page.
+    public static func recoveredInterruptionsDescriptor(
+        sessionID: UUID
+    ) -> FetchDescriptor<CaptureFailureRecordModel> {
+        var descriptor = FetchDescriptor<CaptureFailureRecordModel>(
+            predicate: #Predicate<CaptureFailureRecordModel> {
+                $0.sessionID == sessionID && $0.recoveredAt != nil && $0.stageRawValue == nil
+            }
+        )
+        descriptor.fetchLimit = 1
+        return descriptor
+    }
+}

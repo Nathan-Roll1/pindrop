@@ -1141,11 +1141,11 @@ public final class CaptureSessionStore {
         }
     }
 
-    /// The durable-spool subset of `noteCaptureRecoveryCandidates()`.
+    /// The system-audio subset of `noteCaptureRecoveryCandidates()`.
     ///
-    /// Legacy shim for the startup finalization consumer: only a capture that
-    /// records system audio spools through the meeting pipeline today. Mic-only
-    /// note captures wait for the intent-driven consumer.
+    /// Startup recovery reads the unfiltered list: it delivers a microphone-only
+    /// capture into the note the durable intent names. This narrower read is
+    /// kept for callers that mean the meeting case specifically.
     public func meetingRecoveryCandidates() throws -> [NoteCaptureRecoverySnapshot] {
         try noteCaptureRecoveryCandidates().filter { $0.handle.capturesSystemAudio }
     }
@@ -1620,6 +1620,31 @@ public final class CaptureSessionStore {
         }
         context.delete(reference)
         context.delete(note)
+        try save(context)
+        return true
+    }
+
+    /// Removes a human-anchor reference whose note no longer exists.
+    ///
+    /// Recovery must never lose a transcript to a note that is gone. A
+    /// reference pointing at a missing note is the only thing standing between
+    /// the capture and a replacement anchor, and it points at nothing. A
+    /// reference whose note is still there is left exactly as it is. Returns
+    /// `true` when a reference was removed.
+    @discardableResult
+    public func discardMissingAnchorNoteReference(
+        _ handle: NoteCaptureHandle
+    ) throws -> Bool {
+        let context = ModelContext(modelContainer)
+        _ = try fetchOwnedNoteCapture(for: handle, in: context)
+        let references = try meetingNoteReferences(sessionID: handle.sessionID, in: context)
+        var didRemove = false
+        for reference in references where (try? reference.resolvedRole()) == .humanAnchor {
+            guard try fetchNote(id: reference.noteID, in: context) == nil else { continue }
+            context.delete(reference)
+            didRemove = true
+        }
+        guard didRemove else { return false }
         try save(context)
         return true
     }

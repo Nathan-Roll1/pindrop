@@ -6,6 +6,9 @@
 //
 
 import Foundation
+import PindropCore
+import PindropData
+import SwiftData
 import Testing
 @testable import Pindrop
 
@@ -106,6 +109,57 @@ struct NotesPresentationTests {
                 duration: nil
             ))
         )
+    }
+
+    @Test func recoveredChipShowsOnlyForARecoveredCapture() {
+        #expect(NoteRowPresentation.showsRecoveredChip(facts: .none) == false)
+        #expect(
+            NoteRowPresentation.showsRecoveredChip(facts: NoteRowCaptureFacts(
+                hasCaptureLink: true,
+                isMeetingCapture: false,
+                hasEnhancedArtifact: false,
+                duration: nil,
+                isRecovered: true
+            ))
+        )
+    }
+
+    /// The list draws every note, so the derivation reads the recovered
+    /// captures once for the whole page and tests set membership per row.
+    @MainActor
+    @Test func theRecoveredChipIsDerivedWithOneFetchPerPage() throws {
+        final class ReadCounter {
+            var count = 0
+        }
+
+        let container = try PindropModelContainerFactory.makeInMemoryContainer()
+        let context = ModelContext(container)
+        let recoveredSessionID = UUID()
+        let ordinarySessionID = UUID()
+        var notes: [NoteSchema.Note] = []
+        for index in 0..<6 {
+            let note = NoteSchema.Note(title: "Note \(index)", content: "")
+            context.insert(note)
+            context.insert(CaptureNoteReferenceModel(
+                sessionID: index == 0 ? recoveredSessionID : ordinarySessionID,
+                noteID: note.id,
+                role: .humanAnchor
+            ))
+            notes.append(note)
+        }
+        try context.save()
+
+        let counter = ReadCounter()
+        let provider = NoteRowFactsProvider(modelContext: context) {
+            counter.count += 1
+            return [recoveredSessionID]
+        }
+
+        let facts = provider.facts(for: notes)
+
+        #expect(counter.count == 1)
+        #expect(facts[notes[0].id]?.isRecovered == true)
+        #expect(facts.values.filter(\.isRecovered).count == 1)
     }
 
     @Test func durationLaneStaysEmptyWithoutARecording() {

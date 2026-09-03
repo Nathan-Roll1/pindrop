@@ -238,7 +238,8 @@ struct NotePageView: View {
             capture: capturePhase,
             hasUnreadEnhanced: hasUnreadEnhanced,
             hasLiveText: hasLiveText,
-            liveLabelsDiffered: views?.transcript?.liveLabelsDiffered ?? false
+            liveLabelsDiffered: views?.transcript?.liveLabelsDiffered ?? false,
+            wasRecovered: views?.captureState?.wasRecovered ?? false
         )
     }
 
@@ -1039,6 +1040,14 @@ struct NotePageView: View {
 
     @ViewBuilder
     private var notices: some View {
+        if let message = NotePagePresentation.recoveredMessage(state: pageState, locale: locale) {
+            // First line on the page: it explains how everything under it got
+            // here. Nothing dismisses it, because it stays true.
+            InlineNotice(kind: .info, message: message)
+                .padding(.leading, textColumnInset)
+                .accessibilityIdentifier("note.page.recovered")
+        }
+
         if let errorMessage {
             InlineNotice(
                 kind: .error,

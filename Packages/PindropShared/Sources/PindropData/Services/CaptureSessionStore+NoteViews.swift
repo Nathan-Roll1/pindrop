@@ -66,7 +66,10 @@ extension CaptureSessionStore {
             state: session.state,
             startedAt: session.startedAt,
             endedAt: session.endedAt,
-            transcriptionRecordID: sessionModel.transcriptionRecordID
+            transcriptionRecordID: sessionModel.transcriptionRecordID,
+            // One fetch for one note page, because the recovered state is
+            // derived from the failure records rather than written on the note.
+            wasRecovered: try wasRecovered(sessionID: sessionID, in: context)
         )
 
         let transcript = transcriptDeletedAt == nil
@@ -87,6 +90,20 @@ extension CaptureSessionStore {
             storedSelection: viewState?.resolvedSelection(),
             transcriptDeletedAt: transcriptDeletedAt
         )
+    }
+
+    /// True when startup recovery finished an interruption for this capture.
+    ///
+    /// The single derivation lives on `CaptureFailureRecordModel`, so this page
+    /// and the library list cannot disagree about which notes are recovered.
+    private func wasRecovered(sessionID: UUID, in context: ModelContext) throws -> Bool {
+        do {
+            return try context.fetch(
+                CaptureFailureRecordModel.recoveredInterruptionsDescriptor(sessionID: sessionID)
+            ).isEmpty == false
+        } catch {
+            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
+        }
     }
 
     // MARK: - Library cross-link

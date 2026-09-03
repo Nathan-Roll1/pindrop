@@ -944,6 +944,31 @@ struct NotePagePresentationTests {
         let state = NotePageState(hasTranscript: true, isRecorded: true)
         #expect(!NotePagePresentation.showsSpeakerReconciliation(state: state))
     }
+
+    // MARK: - The recovered line
+
+    @Test func aRecoveredNoteSaysWhereItsWordsCameFrom() {
+        let state = NotePageState(hasTranscript: true, isRecorded: true, wasRecovered: true)
+        #expect(
+            NotePagePresentation.recoveredMessage(state: state, locale: locale)
+                == "Recovered from a recording that was interrupted."
+        )
+    }
+
+    @Test func aNoteThatFinishedNormallySaysNothingAboutRecovery() {
+        let state = NotePageState(hasTranscript: true, isRecorded: true)
+        #expect(NotePagePresentation.recoveredMessage(state: state, locale: locale) == nil)
+    }
+
+    @Test func aRunningCaptureNeverDrawsTheRecoveredLine() {
+        let state = NotePageState(
+            hasTranscript: true,
+            isRecorded: true,
+            capture: .capturing,
+            wasRecovered: true
+        )
+        #expect(NotePagePresentation.recoveredMessage(state: state, locale: locale) == nil)
+    }
 }
 
 @Suite("Note page capture phase binding (WP3)")

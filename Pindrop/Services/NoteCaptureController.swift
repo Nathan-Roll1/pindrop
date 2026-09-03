@@ -853,10 +853,10 @@ final class NoteCaptureController {
     /// live); the lifecycle owns what it does, because every step here is the
     /// same durable step a live finish takes.
     ///
-    /// Only captures that recorded system audio are recovered. A microphone-only
-    /// note keeps its interrupted session instead: the plan defers delivering
-    /// those to P7, and finalizing one now would produce a transcript with
-    /// nowhere agreed to put it.
+    /// Every interrupted note capture is recovered, whatever it recorded. A
+    /// microphone-only capture used to be left behind for want of an agreed
+    /// destination; the durable intent is that agreement, and
+    /// `resolveRecoveryDestinationNote` reads it.
     func recoverInterruptedCaptures() async {
         recoveryGeneration &+= 1
         let generation = recoveryGeneration
@@ -894,7 +894,7 @@ final class NoteCaptureController {
 
         let candidates: [PindropData.NoteCaptureRecoverySnapshot]
         do {
-            candidates = try captureSessionStore.meetingRecoveryCandidates()
+            candidates = try captureSessionStore.noteCaptureRecoveryCandidates()
         } catch {
             Log.app.warning("Note capture recovery candidates unavailable: \(error.localizedDescription)")
             return
@@ -907,7 +907,7 @@ final class NoteCaptureController {
                     throw CancellationError()
                 }
                 recoveryHandle = candidate.handle
-                try await recover(candidate.handle, generation: generation)
+                try await recover(candidate, generation: generation)
             } catch let failure as MeetingNoteGenerationFailure {
                 guard Self.shouldContinueRecovery(after: failure) else { return }
                 guard isRecoveryCurrent(generation: generation, handle: candidate.handle) else {
@@ -939,21 +939,22 @@ final class NoteCaptureController {
     }
 
     /// Runs one recovered capture through the same durable steps a live finish
-    /// takes: anchor, interruption record, finalization inventory, then finalize.
+    /// takes: destination, interruption record, finalization inventory, then
+    /// finalize.
+    ///
+    /// Nothing here raises a window. The person is doing something else, and a
+    /// capture they did not ask to see again lands in the library and waits.
     private func recover(
-        _ handle: PindropCore.NoteCaptureHandle,
+        _ candidate: PindropData.NoteCaptureRecoverySnapshot,
         generation: UInt64
     ) async throws {
+        let handle = candidate.handle
         let operationGuard: () throws -> Void = { [self] in
             try ensureRecoveryCurrent(generation: generation, handle: handle)
         }
 
         try operationGuard()
-        _ = try captureSessionStore.ensureMeetingHumanAnchor(
-            handle,
-            title: untitledNoteTitle,
-            at: .now
-        )
+        _ = try resolveRecoveryDestinationNote(for: candidate, at: .now)
         try operationGuard()
         try captureSessionStore.interruptMeetingCapture(
             handle,
@@ -991,6 +992,51 @@ final class NoteCaptureController {
             expectedSpeakerCount: nil,
             operationGuard: operationGuard
         )
+    }
+
+    /// The note a recovered capture delivers into.
+    ///
+    /// The anchor the capture bound before it stopped wins: that is the note
+    /// the person watched, whether they picked it or the capture made it. Past
+    /// that the durable intent is the only record of where the words belong.
+    /// A destination that is gone costs a title, never the transcript, so a
+    /// fresh note is made instead of failing the recovery.
+    private func resolveRecoveryDestinationNote(
+        for candidate: PindropData.NoteCaptureRecoverySnapshot,
+        at timestamp: Date
+    ) throws -> UUID {
+        let handle = candidate.handle
+        if let anchor = try? captureSessionStore.meetingHumanAnchor(handle) {
+            return anchor.noteID
+        }
+
+        // Either the capture stopped before it bound a note, or the note it
+        // bound was deleted and left a reference pointing at nothing. That
+        // reference is what would block the replacement.
+        try captureSessionStore.discardMissingAnchorNoteReference(handle)
+
+        if let boundNoteID = candidate.intent?.destinationNoteID,
+           (try? notesStore.fetch(id: boundNoteID)) != nil,
+           let anchor = try? captureSessionStore.ensureMeetingHumanAnchor(
+               handle,
+               noteID: boundNoteID,
+               at: timestamp
+           ) {
+            return anchor.noteID
+        }
+
+        let anchor = try captureSessionStore.ensureMeetingHumanAnchor(
+            handle,
+            title: untitledNoteTitle,
+            at: timestamp
+        )
+        // Only a capture that never bound a note gets its intent pointed at the
+        // note recovery made. Rewriting a destination somebody chose would be a
+        // lie about what the capture was for, so that one is left alone.
+        if let intent = candidate.intent, intent.destinationNoteID == nil {
+            bindIntentDestination(sessionID: handle.sessionID, noteID: anchor.noteID)
+        }
+        return anchor.noteID
     }
 
     /// Invalidates any recovery pass still in flight, so a shutdown cannot race
