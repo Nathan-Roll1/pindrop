@@ -888,7 +888,6 @@ open:
   _self: "Open"
   history: "Open History"
   note: "Open note"
-  in_new_window: "Open in new window"
   library: "Open Library"
   logs_in_finder: "Open Logs in Finder"
   original_link: "Open original link"

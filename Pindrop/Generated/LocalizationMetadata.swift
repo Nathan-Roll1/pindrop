@@ -1956,7 +1956,6 @@ enum LocalizationMetadata {
         "Open Notes": "pillars_open_notes",
         "Open Settings": "open_settings",
         "Open System Settings": "open_system_settings",
-        "Open in new window": "open_in_new_window",
         "Open note": "open_note",
         "Open original link": "open_original_link",
         "Open progress": "open_progress",

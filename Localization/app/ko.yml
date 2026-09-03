@@ -849,7 +849,6 @@ open:
   settings: "설정 열기"
   settings_fd7108f8: "설정 열기"
   system_settings: "시스템 설정 열기"
-  in_new_window: "새 창에서 열기"
   note: "메모 열기"
 openai:
   _self: "OpenAI"

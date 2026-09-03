@@ -849,7 +849,6 @@ open:
   settings: "פתח את ההגדרות"
   settings_fd7108f8: "פתח את ההגדרות"
   system_settings: "פתח את הגדרות מערכת"
-  in_new_window: "פתיחה בחלון חדש"
   note: "פתיחת הפתק"
 openai:
   _self: "OpenAI"

@@ -849,7 +849,6 @@ open:
   settings: "Nyissa meg a Beállítások lehetőséget"
   settings_fd7108f8: "Nyissa meg a beállításokat"
   system_settings: "Nyissa meg a Rendszerbeállítások"
-  in_new_window: "Megnyitás új ablakban"
   note: "Jegyzet megnyitása"
 openai:
   _self: "OpenAI"

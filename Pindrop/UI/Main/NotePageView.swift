@@ -700,9 +700,6 @@ struct NotePageView: View {
 
     private var overflowMenu: some View {
         Menu {
-            Button(localized("Open in new window", locale: locale)) {}
-                .disabled(!headerActions.canOpenInNewWindow)
-
             if headerActions.canSaveAsNote {
                 Button(localized("Save as Note", locale: locale), action: saveEnhancedPanelAsNote)
             }

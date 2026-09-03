@@ -849,7 +849,6 @@ open:
   settings: "開啟設定"
   settings_fd7108f8: "開啟設定"
   system_settings: "開啟系統設定"
-  in_new_window: "在新視窗中打開"
   note: "打開筆記"
 openai:
   _self: "OpenAI"

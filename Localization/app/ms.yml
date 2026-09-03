@@ -849,7 +849,6 @@ open:
   settings: "Buka Tetapan"
   settings_fd7108f8: "Buka tetapan"
   system_settings: "Buka Tetapan Sistem"
-  in_new_window: "Buka dalam tetingkap baharu"
   note: "Buka nota"
 openai:
   _self: "OpenAI"

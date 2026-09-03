@@ -849,7 +849,6 @@ open:
   settings: "Öppna Inställningar"
   settings_fd7108f8: "Öppna inställningar"
   system_settings: "Öppna Systeminställningar"
-  in_new_window: "Öppna i ett nytt fönster"
   note: "Öppna anteckningen"
 openai:
   _self: "OpenAI"

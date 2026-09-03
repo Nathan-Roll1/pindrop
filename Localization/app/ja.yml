@@ -849,7 +849,6 @@ open:
   settings: "設定を開く"
   settings_fd7108f8: "設定を開く"
   system_settings: "システム設定を開く"
-  in_new_window: "新しいウインドウで開く"
   note: "メモを開く"
 openai:
   _self: "OpenAI"

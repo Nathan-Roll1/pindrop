@@ -860,7 +860,6 @@ open:
   settings: "Otwórz Ustawienia"
   settings_fd7108f8: "Otwórz ustawienia"
   system_settings: "Otwórz Ustawienia systemowe"
-  in_new_window: "Otwórz w nowym oknie"
   note: "Otwórz notatkę"
 openai:
   _self: "OpenAI"

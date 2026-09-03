@@ -849,7 +849,6 @@ open:
   settings: "Apri Impostazioni"
   settings_fd7108f8: "Apri le impostazioni"
   system_settings: "Apri Impostazioni di sistema"
-  in_new_window: "Apri in una nuova finestra"
   note: "Apri la nota"
 openai:
   _self: "OpenAI"

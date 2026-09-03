@@ -849,7 +849,6 @@ open:
   settings: "Buka Pengaturan"
   settings_fd7108f8: "Buka pengaturan"
   system_settings: "Buka Pengaturan Sistem"
-  in_new_window: "Buka di jendela baru"
   note: "Buka catatan"
 openai:
   _self: "__TETAP_BUKA__"

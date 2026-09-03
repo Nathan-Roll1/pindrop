@@ -849,7 +849,6 @@ open:
   settings: "Otevřete Nastavení"
   settings_fd7108f8: "Otevřete nastavení"
   system_settings: "Otevřete Nastavení systému"
-  in_new_window: "Otevřít v novém okně"
   note: "Otevřít poznámku"
 openai:
   _self: "OpenAI"

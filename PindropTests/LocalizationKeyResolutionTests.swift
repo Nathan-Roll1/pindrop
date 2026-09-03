@@ -51,7 +51,6 @@ struct LocalizationKeyResolutionTests {
         "Record with system audio",
         "More recording options",
         "More note actions",
-        "Open in new window",
         "Cancel recording",
         "Delete transcript",
         "Delete this note",

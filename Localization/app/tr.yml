@@ -849,7 +849,6 @@ open:
   settings: "Ayarları Aç"
   settings_fd7108f8: "Ayarları aç"
   system_settings: "Sistem Ayarlarını Aç"
-  in_new_window: "Yeni pencerede aç"
   note: "Notu aç"
 openai:
   _self: "OpenAI"

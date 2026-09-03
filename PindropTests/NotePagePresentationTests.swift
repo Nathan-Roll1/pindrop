@@ -366,8 +366,6 @@ struct NotePagePresentationTests {
         let plain = NotePagePresentation.headerActions(state: .plainNote, selection: .humanNotes)
         #expect(!plain.canDeleteTranscript)
         #expect(plain.canDeleteNote)
-        // The pop-out lands in WP8; the item is present and inert until then.
-        #expect(!plain.canOpenInNewWindow)
     }
 
     @Test func cancelIsOfferedOnlyWhileAudioIsStillBeingRecorded() {

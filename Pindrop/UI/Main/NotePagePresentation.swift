@@ -206,9 +206,6 @@ struct NoteSpeakersPopoverContent: Equatable, Sendable {
 struct NotePageHeaderActions: Equatable, Sendable {
     /// Shown only when no capture is attached to this note.
     var showsRecordButton: Bool
-    /// Reserved for WP8. Always present in the menu, always disabled here, so
-    /// the menu does not change shape when the pop-out lands.
-    var canOpenInNewWindow: Bool
     /// A generated panel is on screen and can be copied into a note of its own.
     var canSaveAsNote: Bool
     var canDeleteTranscript: Bool
@@ -449,7 +446,6 @@ enum NotePagePresentation {
         NotePageHeaderActions(
             // A failed capture is over: the person can start another one.
             showsRecordButton: !state.capture.isActive,
-            canOpenInNewWindow: false,
             canSaveAsNote: state.hasPanels && selection == .enhanced,
             canDeleteTranscript: state.hasTranscript && !state.isTranscriptDeleted,
             // A failed phase can still be recoverable in durable state. Only the

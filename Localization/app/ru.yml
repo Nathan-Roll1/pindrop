@@ -849,7 +849,6 @@ open:
   settings: "Открыть настройки"
   settings_fd7108f8: "Открыть настройки"
   system_settings: "Открыть настройки системы"
-  in_new_window: "Открыть в новом окне"
   note: "Открыть заметку"
 openai:
   _self: "OpenAI"

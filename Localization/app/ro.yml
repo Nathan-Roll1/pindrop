@@ -849,7 +849,6 @@ open:
   settings: "Deschide Setări"
   settings_fd7108f8: "Deschideți setările"
   system_settings: "Deschide Setări sistem"
-  in_new_window: "Deschide într-o fereastră nouă"
   note: "Deschide notița"
 openai:
   _self: "OpenAI"

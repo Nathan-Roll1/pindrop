@@ -849,7 +849,6 @@ open:
   settings: "खुली सेटिंग"
   settings_fd7108f8: "खुली सेटिंग"
   system_settings: "सिस्टम सेटिंग्स खोलें"
-  in_new_window: "नई विंडो में खोलें"
   note: "नोट खोलें"
 openai:
   _self: "ओपनएआई"

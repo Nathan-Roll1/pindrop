@@ -849,7 +849,6 @@ open:
   settings: "Avaa Asetukset"
   settings_fd7108f8: "Avaa asetukset"
   system_settings: "Avaa Järjestelmäasetukset"
-  in_new_window: "Avaa uudessa ikkunassa"
   note: "Avaa muistiinpano"
 openai:
   _self: "OpenAI"

@@ -849,7 +849,6 @@ open:
   settings: "Ανοίξτε τις Ρυθμίσεις"
   settings_fd7108f8: "Ανοίξτε τις ρυθμίσεις"
   system_settings: "Ανοίξτε τις Ρυθμίσεις συστήματος"
-  in_new_window: "Άνοιγμα σε νέο παράθυρο"
   note: "Άνοιγμα σημείωσης"
 openai:
   _self: "OpenAI"

@@ -850,7 +850,6 @@ open:
   settings: "সেটিংস খুলুন"
   settings_fd7108f8: "সেটিংস খুলুন"
   system_settings: "সিস্টেম সেটিংস খুলুন"
-  in_new_window: "নতুন উইন্ডোতে খুলুন"
   note: "নোট খুলুন"
 openai:
   _self: "OpenAI"

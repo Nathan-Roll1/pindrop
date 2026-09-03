@@ -849,7 +849,6 @@ open:
   settings: "Mở Cài đặt"
   settings_fd7108f8: "Mở cài đặt"
   system_settings: "Mở cài đặt hệ thống"
-  in_new_window: "Mở trong cửa sổ mới"
   note: "Mở ghi chú"
 openai:
   _self: "OpenAI"
