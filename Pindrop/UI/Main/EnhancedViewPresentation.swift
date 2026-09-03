@@ -202,6 +202,10 @@ struct EnhancedMenuContent: Equatable, Sendable {
     let headerTitle: String
     /// The overline above the template rows.
     let templatesTitle: String
+    /// What the panel on screen was written with, when no template wrote it. A
+    /// checked row says which template ran; nothing says nothing, so this line
+    /// says it instead. Nil when a template is set.
+    let emptyTemplateMessage: String?
     let templates: [EnhancedMenuRow]
     /// The rows under the second hairline: manage, and create.
     let actions: [EnhancedMenuRow]
@@ -545,6 +549,12 @@ enum EnhancedViewPresentation {
         return EnhancedMenuContent(
             headerTitle: localized("Enhanced notes", locale: locale),
             templatesTitle: localized("Templates", locale: locale),
+            emptyTemplateMessage: selected == nil
+                ? localized(
+                    "No template. The note is written as plain notes.",
+                    locale: locale
+                )
+                : nil,
             templates: templates,
             actions: [
                 EnhancedMenuRow(

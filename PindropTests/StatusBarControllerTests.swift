@@ -277,7 +277,7 @@ struct StatusBarControllerTests {
         #expect(menu.items.firstIndex { $0.title == startRecordingTitle } == startRecordingIndex)
     }
 
-    @Test func newMeetingNoteRequestsBothSourcesAndNoTemplate() async throws {
+    @Test func newMeetingNoteRequestsBothSourcesAndTheMeetingTemplate() async throws {
         let settingsStore = SettingsStore()
         settingsStore.resetAllSettings()
         defer { settingsStore.resetAllSettings() }
@@ -318,20 +318,47 @@ struct StatusBarControllerTests {
         let request = try #require(requests.first)
         #expect(request.requestedSourceKinds == [.microphone, .systemAudio])
 
-        // Phase 3 changes the sources, not the shape of the enhanced note: a
-        // meeting note carries no template preset, so it reads exactly like the
-        // system-audio note the renamed row used to start.
+        // A meeting note is now shaped by the meeting template. Phase 3 left it
+        // template-neutral on purpose; the template arrives in the same release
+        // as the picker that names it and lets a reader change it.
         // The origin itself is chosen by the coordinator closure this menu is
         // wired to (`.menuBar` there, `.automation` from the notification), so
         // reading back the value this line just supplied would prove nothing.
         let intentRequest = request.captureIntentRequest(origin: .menuBar)
-        #expect(intentRequest.requestedTemplatePresetIdentifier == nil)
+        #expect(
+            intentRequest.requestedTemplatePresetIdentifier
+                == BuiltInPresets.meetingNotes.identifier
+        )
         let intent = try intentRequest.intent(
             sessionID: UUID(),
             requestedSourceKinds: request.requestedSourceKinds
         )
         #expect(intent.requestedSourceKinds == [.microphone, .systemAudio])
-        #expect(intent.requestedTemplatePresetIdentifier == nil)
+        #expect(
+            intent.requestedTemplatePresetIdentifier == BuiltInPresets.meetingNotes.identifier
+        )
+    }
+
+    /// The meeting template and the picker ship together (decision 45): a note
+    /// whose shape changed is only honest if the reader can see which template
+    /// changed it. A note that records one person keeps no template at all.
+    @Test func theMeetingIntentCarriesTheMeetingTemplateOnlyOnceThePickerExists() throws {
+        let meeting = NoteCaptureRequest.meetingNote(recordsSystemAudio: true)
+        #expect(meeting.templatePresetIdentifier == BuiltInPresets.meetingNotes.identifier)
+        let meetingIntent = try meeting
+            .captureIntentRequest(origin: .menuBar)
+            .intent(sessionID: UUID(), requestedSourceKinds: meeting.requestedSourceKinds)
+        #expect(
+            meetingIntent.requestedTemplatePresetIdentifier
+                == BuiltInPresets.meetingNotes.identifier
+        )
+
+        let solo = NoteCaptureRequest.soloNote()
+        #expect(solo.templatePresetIdentifier == nil)
+        let soloIntent = try solo
+            .captureIntentRequest(origin: .menuBar)
+            .intent(sessionID: UUID(), requestedSourceKinds: solo.requestedSourceKinds)
+        #expect(soloIntent.requestedTemplatePresetIdentifier == nil)
     }
 
     @Test func meetingRowsAreAbsentWithoutSystemAudioCapture() async throws {

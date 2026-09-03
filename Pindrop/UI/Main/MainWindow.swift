@@ -131,15 +131,26 @@ enum NotesRoute: Equatable, Sendable {
 
 /// One start request for a note that records. `noteID` is `nil` when the capture
 /// should create its own note; `includeSystemAudio` selects the second source.
+///
+/// `templatePresetIdentifier` is the template the finished note is written with.
+/// It is chosen before the capture starts, because the enhanced panel is written
+/// the moment finalization ends, with nobody necessarily watching.
 struct NoteCaptureRequest: Equatable, Sendable {
     var noteID: UUID?
     var includeSystemAudio: Bool
     var expectedSpeakerCount: Int?
+    var templatePresetIdentifier: String?
 
-    init(noteID: UUID? = nil, includeSystemAudio: Bool = false, expectedSpeakerCount: Int? = nil) {
+    init(
+        noteID: UUID? = nil,
+        includeSystemAudio: Bool = false,
+        expectedSpeakerCount: Int? = nil,
+        templatePresetIdentifier: String? = nil
+    ) {
         self.noteID = noteID
         self.includeSystemAudio = includeSystemAudio
         self.expectedSpeakerCount = expectedSpeakerCount
+        self.templatePresetIdentifier = templatePresetIdentifier
     }
 }
 
@@ -152,19 +163,23 @@ extension NoteCaptureRequest {
     /// A note that records a call: the microphone, and the system output when
     /// the Meetings section says so.
     ///
-    /// It sets no template preset, so an enhanced meeting note reads exactly
-    /// like one started with system audio before the menu bar row was renamed.
-    /// The meeting template arrives with the picker that lets a reader see
-    /// which template ran and change it.
+    /// It carries the meeting template, so a call is written as meeting notes.
+    /// The template ships with the picker in the note page header, which is what
+    /// lets a reader see which template ran and pick another one.
     ///
     /// `recordsSystemAudio` has no default: every caller reads
     /// `SettingsStore.recordSystemAudioInMeetingNotes`, and a default here would
     /// let a new caller quietly ignore it.
     static func meetingNote(noteID: UUID? = nil, recordsSystemAudio: Bool) -> NoteCaptureRequest {
-        NoteCaptureRequest(noteID: noteID, includeSystemAudio: recordsSystemAudio)
+        NoteCaptureRequest(
+            noteID: noteID,
+            includeSystemAudio: recordsSystemAudio,
+            templatePresetIdentifier: BuiltInPresets.meetingNotes.identifier
+        )
     }
 
-    /// A note that records only the person holding the machine.
+    /// A note that records only the person holding the machine. It stays
+    /// template-neutral: one person talking is not a meeting.
     static func soloNote(noteID: UUID? = nil) -> NoteCaptureRequest {
         NoteCaptureRequest(noteID: noteID, includeSystemAudio: false)
     }
@@ -179,12 +194,14 @@ extension NoteCaptureRequest {
     ///
     /// A capture that makes its own note only learns the note identifier once
     /// the note is committed, so the intent starts as `newNote` and is bound a
-    /// moment later. A capture aimed at an existing note says so now. No caller
-    /// requests a template preset yet.
+    /// moment later. A capture aimed at an existing note says so now. The
+    /// template travels with the intent, so a capture recovered after a crash is
+    /// written with the template the person picked before it.
     func captureIntentRequest(origin: CaptureIntentOrigin) -> CaptureIntentRequest {
         CaptureIntentRequest(
             destination: noteID == nil ? .newNote : .existingNote,
             destinationNoteID: noteID,
+            requestedTemplatePresetIdentifier: templatePresetIdentifier,
             origin: origin
         )
     }

@@ -143,6 +143,9 @@ struct NotePageView: View {
     @State private var isGeneratingPanel = false
     @State private var enhancementFailureMessage: String?
     @State private var recordIncludesSystemAudio = false
+    /// The template the next recording asks for, picked in the record dropdown
+    /// before the capture starts. Nil writes the note with no template.
+    @State private var recordTemplateIdentifier: String?
     @State private var expectedSpeakerCount: Int?
     @State private var pendingTranscriptDeletion = false
     @State private var pendingNoteDeletion = false
@@ -614,6 +617,11 @@ struct NotePageView: View {
                     recordIncludesSystemAudio = true
                     startCapture(includeSystemAudio: true)
                 }
+
+                if !templatePresets.isEmpty {
+                    Divider()
+                    recordTemplateMenu
+                }
             } label: {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 10, weight: .semibold))
@@ -635,6 +643,47 @@ struct NotePageView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(AppColors.border, lineWidth: 1)
+        )
+    }
+
+    /// The template the next recording is written with.
+    ///
+    /// Picking one records the choice and nothing else: the Record button is
+    /// what starts the capture. The choice has to be made before the start,
+    /// because the enhanced note is written the moment finalization ends and
+    /// nobody is necessarily watching by then.
+    ///
+    /// The rows are the ones the header menu shows, in the same order, so a
+    /// template sits in one place wherever it is picked.
+    private var recordTemplateMenu: some View {
+        Menu(localized("Template", locale: locale)) {
+            Toggle(
+                localized("No template. The note is written as plain notes.", locale: locale),
+                isOn: recordTemplateChoice(nil)
+            )
+
+            Divider()
+
+            ForEach(
+                EnhancedViewPresentation.templateMenuItems(
+                    presets: templatePresets,
+                    selected: recordTemplateIdentifier
+                )
+            ) { item in
+                Toggle(item.name, isOn: recordTemplateChoice(item.id))
+            }
+        }
+    }
+
+    /// One row of the record dropdown's Template submenu. The rows are one
+    /// choice, not a set, so turning the picked one off does nothing.
+    private func recordTemplateChoice(_ identifier: String?) -> Binding<Bool> {
+        Binding(
+            get: { recordTemplateIdentifier == identifier },
+            set: { isOn in
+                guard isOn else { return }
+                recordTemplateIdentifier = identifier
+            }
         )
     }
 
@@ -1859,7 +1908,8 @@ struct NotePageView: View {
             NoteCaptureRequest(
                 noteID: noteID,
                 includeSystemAudio: includeSystemAudio,
-                expectedSpeakerCount: expectedSpeakerCount
+                expectedSpeakerCount: expectedSpeakerCount,
+                templatePresetIdentifier: recordTemplateIdentifier
             )
         )
         if !accepted {

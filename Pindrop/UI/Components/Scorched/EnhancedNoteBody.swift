@@ -355,6 +355,18 @@ struct EnhancedMenuPanel: View {
                 .padding(.horizontal, 10)
                 .padding(.bottom, 4)
 
+            // No row is checked when no template wrote the panel, so the state
+            // is said in words above the list rather than left as an absence.
+            if let emptyTemplateMessage = content.emptyTemplateMessage {
+                Text(emptyTemplateMessage)
+                    .font(AppTypography.caption)
+                    .foregroundStyle(AppColors.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 6)
+                    .accessibilityIdentifier("note.page.enhanced.menu.noTemplate")
+            }
+
             ForEach(content.templates) { row in
                 menuRow(row)
             }

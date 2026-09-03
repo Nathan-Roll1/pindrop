@@ -125,7 +125,12 @@ struct LocalizationKeyResolutionTests {
         "Pindrop noticed a call.",
         "Do you want a notification when a call starts?",
         "Notify me",
-        "No thanks"
+        "No thanks",
+        // Template picker. "Template" slugs onto the same key as the shipped
+        // "Template: %@" chip, which is the collision class this suite exists
+        // for, so it is pinned from the day the string is called.
+        "Template",
+        "No template. The note is written as plain notes."
     ])
     func sourceStringsResolveToThemselvesInEnglish(_ source: String) {
         #expect(localized(source, locale: en) == source)

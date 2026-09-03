@@ -774,4 +774,22 @@ struct EnhancedViewPresentationTests {
         #expect(menu.actions.map(\.action) == [.manageTemplates, .newTemplate])
         #expect(menu.regenerateHelp == "Write this note again")
     }
+
+    /// A panel written with no template checks no row, so the menu says what
+    /// that means instead of leaving the reader to read an absence.
+    @Test func theDropdownSaysWhatNoTemplateMeans() {
+        let none = EnhancedViewPresentation.menu(
+            presets: dropdownPresets,
+            selected: nil,
+            locale: locale
+        )
+        #expect(none.emptyTemplateMessage == "No template. The note is written as plain notes.")
+
+        let picked = EnhancedViewPresentation.menu(
+            presets: dropdownPresets,
+            selected: "meeting",
+            locale: locale
+        )
+        #expect(picked.emptyTemplateMessage == nil)
+    }
 }
