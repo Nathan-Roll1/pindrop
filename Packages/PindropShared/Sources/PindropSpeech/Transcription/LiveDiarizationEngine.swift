@@ -125,13 +125,18 @@ public actor LiveDiarizationEngine {
     private static let ringSeconds: TimeInterval = 45
     private static let warmUpSeconds: TimeInterval = 1.2
     /// Measured on an M5 Pro against the balanced v2.1 bundle already on disk:
-    /// 3.120 s and 3.145 s for a warm load, and 62.998 s for the first call that
-    /// also downloaded. The design's original 3 s bound was under the warm load,
-    /// so every capture timed out and degraded to channel labels. 10 s is about
-    /// three times the warm load, which leaves headroom for Neural Engine
-    /// contention while still refusing a load slow enough to be downloading.
-    /// Readiness is what keeps downloads off the capture path; this is a backstop.
-    private static let loadTimeoutSeconds: TimeInterval = 10
+    /// 3.120 s and 3.145 s for a warm load alone, and 62.998 s for the first
+    /// call that also downloaded. The design's original 3 s bound was under the
+    /// warm load, so every capture timed out and degraded to channel labels. A
+    /// 10 s bound then tripped in the gated run whenever a Nemotron load ran at
+    /// the same time, which is what a cold first capture looks like, and the
+    /// reader would have been told the model could not be loaded. 30 s absorbs
+    /// that contention and still sits well under the measured download, which
+    /// is the one load this bound exists to refuse. The load runs concurrently
+    /// with capture start, so a slow load only delays labels; it never delays
+    /// audio. Readiness is what keeps downloads off the capture path; this is a
+    /// backstop.
+    private static let loadTimeoutSeconds: TimeInterval = 30
     /// Consecutive over-budget steps before the engine gives up feeding.
     private static let fallBehindStepLimit = 5
 
