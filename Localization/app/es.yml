@@ -783,6 +783,7 @@ no:
   results_found: "No se encontraron resultados"
   settings_found: "No se encontraron ajustes"
   speech_detected_try_speaking_closer_to_your: "No se detectó voz. Prueba a hablar más cerca del micrófono."
+  template_the_note_is_written_as_plain_notes: "Sin plantilla. La nota se escribe como notas simples."
   thanks: "No, gracias"
   transcriptions_yet: "Aún no hay transcripciones"
   vocabulary_words: "No hay palabras de vocabulario"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Mostrar la transcripción en vivo"
   in_transcript: "Mostrar en la transcripción"
+  the_transcript_so_far: "Mostrar la transcripción hasta ahora"
   who_is_talking_in_the_live_transcript_names: "Muestra quién habla en la transcripción en vivo. Los nombres se revisan otra vez cuando termina la grabación."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Se muestra como un orbe de cristal líquido en la esquina de la pantalla"
@@ -1261,6 +1263,7 @@ status:
   _self: "Estado"
 still:
   hearing: "Sigue escuchando: %@"
+  working_long_recordings_take_a_while: "Sigue en marcha. Las grabaciones largas tardan un rato."
 stop:
   listening: "Dejar de escuchar"
   recording: "Stop Recording"
@@ -1787,6 +1790,7 @@ see:
   where_this_came_from: "Ver de dónde viene esto"
 template:
   _self: "Plantilla: %@"
+  3ec1ae06: "Plantilla"
 templates:
   _self: "Plantillas"
 there:
@@ -1794,8 +1798,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Todavía no hay nada que preguntar. Graba o escribe algo primero."
 transcribing:
   _self: "Transcribiendo"
+  failed_the_recording_is_saved_try_a: "La transcripción falló. La grabación está guardada. Vuelve a intentarlo o abre el audio desde la nota."
 transcript:
   _self: "Transcripción"
+  so_far_pindrop_is_checking_it_against: "Transcripción hasta ahora. Pindrop la está comparando con la grabación."
   source: "Fuente de transcripción %@"
 was:
   _self: "antes %@"
@@ -1829,3 +1835,10 @@ thinking:
   _self: "Pensando…"
 write:
   this_note_again: "Volver a escribir esta nota"
+matching:
+  names: "Asignando nombres"
+skipped:
+  _self: "Omitido"
+recovered:
+  _self: "Recuperada"
+  from_a_recording_that_was_interrupted: "Recuperada de una grabación que se interrumpió."

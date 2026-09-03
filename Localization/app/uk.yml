@@ -783,6 +783,7 @@ no:
   results_found: "Результатів не знайдено"
   settings_found: "Налаштувань не знайдено"
   speech_detected_try_speaking_closer_to_your: "Мовлення не виявлено. Спробуйте говорити ближче до мікрофона."
+  template_the_note_is_written_as_plain_notes: "Без шаблона. Нотатка пишеться як звичайні нотатки."
   thanks: "Ні, дякую"
   transcriptions_yet: "Транскрипцій ще немає"
   vocabulary_words: "Немає словникових слів"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Показати живий транскрипт"
   in_transcript: "Показати в транскрипті"
+  the_transcript_so_far: "Показати транскрипт наразі"
   who_is_talking_in_the_live_transcript_names: "Показує в живому транскрипті, хто говорить. Імена перевіряються ще раз, коли запис завершується."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Відображається як сфера з рідкого скла в куті екрана"
@@ -1261,6 +1263,7 @@ status:
   _self: "Статус"
 still:
   hearing: "Ще чує: %@"
+  working_long_recordings_take_a_while: "Робота триває. Довгі записи потребують часу."
 stop:
   listening: "Зупинити прослуховування"
   recording: "Зупинити запис"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Подивитися, звідки це"
 template:
   _self: "Шаблон: %@"
+  3ec1ae06: "Шаблон"
 templates:
   _self: "Шаблони"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Поки що немає про що запитувати. Спершу щось запишіть або напишіть."
 transcribing:
   _self: "Розшифрування"
+  failed_the_recording_is_saved_try_a: "Не вдалося розшифрувати. Запис збережено. Спробуйте ще раз або відкрийте аудіо з нотатки."
 transcript:
   _self: "Транскрипт"
+  so_far_pindrop_is_checking_it_against: "Транскрипт наразі. Pindrop звіряє його із записом."
   source: "Джерело транскрипта %@"
 was:
   _self: "раніше %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Думає…"
 write:
   this_note_again: "Переписати цю нотатку"
+matching:
+  names: "Зіставлення імен"
+skipped:
+  _self: "Пропущено"
+recovered:
+  _self: "Відновлено"
+  from_a_recording_that_was_interrupted: "Відновлено з перерваного запису."

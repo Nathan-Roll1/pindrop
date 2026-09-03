@@ -783,6 +783,7 @@ no:
   results_found: "Nu s-au găsit rezultate"
   settings_found: "Nu s-au găsit setări"
   speech_detected_try_speaking_closer_to_your: "Nu s-a detectat nicio vorbire. Încercați să vorbiți mai aproape de microfon."
+  template_the_note_is_written_as_plain_notes: "Fără șablon. Notița se scrie ca notițe simple."
   thanks: "Nu, mulțumesc"
   transcriptions_yet: "Nicio transcriere încă"
   vocabulary_words: "Fără cuvinte de vocabular"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Arată transcrierea în direct"
   in_transcript: "Afișați în transcriere"
+  the_transcript_so_far: "Arată transcrierea de până acum"
   who_is_talking_in_the_live_transcript_names: "Arată cine vorbește în transcrierea în direct. Numele sunt verificate din nou când se termină înregistrarea."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Se afișează ca o sferă de sticlă lichidă în colțul ecranului"
@@ -1261,6 +1263,7 @@ status:
   _self: "Stare"
 still:
   hearing: "Încă ascultă: %@"
+  working_long_recordings_take_a_while: "Încă lucrează. Înregistrările lungi durează o vreme."
 stop:
   listening: "Oprește ascultarea"
   recording: "Opriți înregistrarea"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Vedeți de unde provine"
 template:
   _self: "Șablon: %@"
+  3ec1ae06: "Șablon"
 templates:
   _self: "Șabloane"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Încă nu este nimic de întrebat. Înregistrați sau scrieți ceva mai întâi."
 transcribing:
   _self: "Se transcrie"
+  failed_the_recording_is_saved_try_a: "Transcrierea a eșuat. Înregistrarea este salvată. Încercați din nou sau deschideți sunetul din notiță."
 transcript:
   _self: "Transcriere"
+  so_far_pindrop_is_checking_it_against: "Transcrierea de până acum. Pindrop o verifică față de înregistrare."
   source: "Sursa transcrierii %@"
 was:
   _self: "anterior %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Se gândește…"
 write:
   this_note_again: "Rescrieți această notiță"
+matching:
+  names: "Se potrivesc numele"
+skipped:
+  _self: "Omis"
+recovered:
+  _self: "Recuperată"
+  from_a_recording_that_was_interrupted: "Recuperată dintr-o înregistrare întreruptă."

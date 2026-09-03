@@ -783,6 +783,7 @@ no:
   results_found: "Δεν βρέθηκαν αποτελέσματα"
   settings_found: "Δεν βρέθηκαν ρυθμίσεις"
   speech_detected_try_speaking_closer_to_your: "Δεν εντοπίστηκε ομιλία. Δοκιμάστε να μιλήσετε πιο κοντά στο μικρόφωνο."
+  template_the_note_is_written_as_plain_notes: "Χωρίς πρότυπο. Η σημείωση γράφεται ως απλές σημειώσεις."
   thanks: "Όχι, ευχαριστώ"
   transcriptions_yet: "Δεν υπάρχουν ακόμη μεταγραφές"
   vocabulary_words: "Χωρίς λεξιλογικές λέξεις"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Εμφάνιση ζωντανής απομαγνητοφώνησης"
   in_transcript: "Εμφάνιση στο απομαγνητοφωνημένο κείμενο"
+  the_transcript_so_far: "Εμφάνιση της απομαγνητοφώνησης μέχρι τώρα"
   who_is_talking_in_the_live_transcript_names: "Δείχνει ποιος μιλάει στη ζωντανή απομαγνητοφώνηση. Τα ονόματα ελέγχονται ξανά όταν τελειώσει η εγγραφή."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Εμφανίζεται ως σφαίρα από υγρό γυαλί στη γωνία της οθόνης"
@@ -1261,6 +1263,7 @@ status:
   _self: "Κατάσταση"
 still:
   hearing: "Ακούει ακόμη: %@"
+  working_long_recordings_take_a_while: "Συνεχίζεται. Οι μεγάλες εγγραφές θέλουν λίγη ώρα."
 stop:
   listening: "Διακοπή ακρόασης"
   recording: "Διακοπή εγγραφής"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Δείτε από πού προήλθε αυτό"
 template:
   _self: "Πρότυπο: %@"
+  3ec1ae06: "Πρότυπο"
 templates:
   _self: "Πρότυπα"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Δεν υπάρχει ακόμη τίποτα να ρωτήσετε. Ηχογραφήστε ή γράψτε κάτι πρώτα."
 transcribing:
   _self: "Απομαγνητοφώνηση"
+  failed_the_recording_is_saved_try_a: "Η απομαγνητοφώνηση απέτυχε. Η εγγραφή έχει αποθηκευτεί. Δοκιμάστε ξανά ή ανοίξτε τον ήχο από τη σημείωση."
 transcript:
   _self: "Απομαγνητοφώνηση"
+  so_far_pindrop_is_checking_it_against: "Η απομαγνητοφώνηση μέχρι τώρα. Το Pindrop την ελέγχει με βάση την εγγραφή."
   source: "Πηγή απομαγνητοφώνησης %@"
 was:
   _self: "πρώην %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Σκέφτεται…"
 write:
   this_note_again: "Ξαναγράψτε αυτή τη σημείωση"
+matching:
+  names: "Αντιστοίχιση ονομάτων"
+skipped:
+  _self: "Παραλείφθηκε"
+recovered:
+  _self: "Ανακτήθηκε"
+  from_a_recording_that_was_interrupted: "Ανακτήθηκε από εγγραφή που διακόπηκε."

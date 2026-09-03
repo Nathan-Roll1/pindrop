@@ -783,6 +783,7 @@ no:
   results_found: "Nenhum resultado encontrado"
   settings_found: "Nenhuma configuração encontrada"
   speech_detected_try_speaking_closer_to_your: "Nenhuma fala detectada. Tente falar mais perto do microfone."
+  template_the_note_is_written_as_plain_notes: "Sem modelo. A nota é escrita como notas simples."
   thanks: "Não, obrigado"
   transcriptions_yet: "Ainda não há transcrições"
   vocabulary_words: "Sem palavras de vocabulário"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Mostrar a transcrição ao vivo"
   in_transcript: "Mostrar na transcrição"
+  the_transcript_so_far: "Mostrar a transcrição até agora"
   who_is_talking_in_the_live_transcript_names: "Mostra quem está falando na transcrição ao vivo. Os nomes são conferidos de novo quando a gravação termina."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Aparece como um orbe de vidro líquido no canto da tela"
@@ -1261,6 +1263,7 @@ status:
   _self: "Status"
 still:
   hearing: "Ainda ouvindo: %@"
+  working_long_recordings_take_a_while: "Ainda processando. Gravações longas demoram um pouco."
 stop:
   listening: "Parar de ouvir"
   recording: "Pare de gravar"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Ver de onde isso veio"
 template:
   _self: "Modelo: %@"
+  3ec1ae06: "Modelo"
 templates:
   _self: "Modelos"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Ainda não há nada para perguntar. Grave ou escreva algo primeiro."
 transcribing:
   _self: "Transcrevendo"
+  failed_the_recording_is_saved_try_a: "A transcrição falhou. A gravação está salva. Tente de novo ou abra o áudio pela nota."
 transcript:
   _self: "Transcrição"
+  so_far_pindrop_is_checking_it_against: "Transcrição até agora. O Pindrop está conferindo com a gravação."
   source: "Fonte da transcrição %@"
 was:
   _self: "antes %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Pensando…"
 write:
   this_note_again: "Reescrever esta nota"
+matching:
+  names: "Associando nomes"
+skipped:
+  _self: "Ignorado"
+recovered:
+  _self: "Recuperada"
+  from_a_recording_that_was_interrupted: "Recuperada de uma gravação que foi interrompida."

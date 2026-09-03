@@ -783,6 +783,7 @@ no:
   results_found: "لم يتم العثور على نتائج"
   settings_found: "لم يتم العثور على إعدادات"
   speech_detected_try_speaking_closer_to_your: "لم يتم اكتشاف أي كلام. حاول التحدث بالقرب من الميكروفون."
+  template_the_note_is_written_as_plain_notes: "بلا قالب. تُكتب الملاحظة كملاحظات عادية."
   thanks: "لا، شكرًا"
   transcriptions_yet: "لا يوجد نسخ بعد"
   vocabulary_words: "لا توجد كلمات المفردات"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "إظهار النص المباشر"
   in_transcript: "إظهار في النص"
+  the_transcript_so_far: "إظهار النص حتى الآن"
   who_is_talking_in_the_live_transcript_names: "أظهر من يتحدث في النص المباشر. يُعاد التحقق من الأسماء عند انتهاء التسجيل."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "يظهر ككرة زجاجية سائلة في زاوية الشاشة"
@@ -1261,6 +1263,7 @@ status:
   _self: "حالة"
 still:
   hearing: "قيد الاستماع: %@"
+  working_long_recordings_take_a_while: "العمل جارٍ. التسجيلات الطويلة تستغرق وقتًا."
 stop:
   listening: "إيقاف الاستماع"
   recording: "إيقاف التسجيل"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "عرض مصدر هذا"
 template:
   _self: "القالب: %@"
+  3ec1ae06: "القالب"
 templates:
   _self: "القوالب"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "لا يوجد شيء لسؤاله بعد. سجّل أو اكتب شيئًا أولًا."
 transcribing:
   _self: "جارٍ النسخ"
+  failed_the_recording_is_saved_try_a: "فشل النسخ. التسجيل محفوظ. حاول مرة أخرى، أو افتح الصوت من الملاحظة."
 transcript:
   _self: "النص"
+  so_far_pindrop_is_checking_it_against: "النص حتى الآن. يتحقق Pindrop منه مقابل التسجيل."
   source: "مصدر النص %@"
 was:
   _self: "سابقًا %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "التفكير…"
 write:
   this_note_again: "إعادة كتابة هذه الملاحظة"
+matching:
+  names: "جارٍ مطابقة الأسماء"
+skipped:
+  _self: "تم التخطي"
+recovered:
+  _self: "مستعادة"
+  from_a_recording_that_was_interrupted: "تمت الاستعادة من تسجيل انقطع."

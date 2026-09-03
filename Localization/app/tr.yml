@@ -783,6 +783,7 @@ no:
   results_found: "Sonuç bulunamadı"
   settings_found: "Hiçbir ayar bulunamadı"
   speech_detected_try_speaking_closer_to_your: "Konuşma algılanmadı. Mikrofona daha yakın konuşmayı deneyin."
+  template_the_note_is_written_as_plain_notes: "Şablon yok. Not, düz notlar olarak yazılır."
   thanks: "Hayır, teşekkürler"
   transcriptions_yet: "Henüz transkripsiyon yok"
   vocabulary_words: "Kelime Bilgisi Yok"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Canlı deşifreyi göster"
   in_transcript: "Dökümde göster"
+  the_transcript_so_far: "Şimdiye kadarki deşifreyi göster"
   who_is_talking_in_the_live_transcript_names: "Canlı deşifrede kimin konuştuğunu gösterir. Adlar kayıt bitince yeniden denetlenir."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Ekranın köşesinde sıvı cam küre olarak görünür"
@@ -1261,6 +1263,7 @@ status:
   _self: "Durum"
 still:
   hearing: "Hâlâ duyuluyor: %@"
+  working_long_recordings_take_a_while: "Hâlâ çalışıyor. Uzun kayıtlar biraz sürer."
 stop:
   listening: "Dinlemeyi durdur"
   recording: "Kaydı Durdur"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Bunun nereden geldiğini gör"
 template:
   _self: "Şablon: %@"
+  3ec1ae06: "Şablon"
 templates:
   _self: "Şablonlar"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Henüz sorulacak bir şey yok. Önce bir şey kaydedin veya yazın."
 transcribing:
   _self: "Deşifre ediliyor"
+  failed_the_recording_is_saved_try_a: "Deşifre başarısız oldu. Kayıt saklandı. Tekrar deneyin veya sesi nottan açın."
 transcript:
   _self: "Deşifre"
+  so_far_pindrop_is_checking_it_against: "Şimdiye kadarki deşifre. Pindrop bunu kayıtla karşılaştırıyor."
   source: "Deşifre kaynağı %@"
 was:
   _self: "önceden %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Düşünüyor…"
 write:
   this_note_again: "Bu notu yeniden yaz"
+matching:
+  names: "Adlar eşleştiriliyor"
+skipped:
+  _self: "Atlandı"
+recovered:
+  _self: "Kurtarıldı"
+  from_a_recording_that_was_interrupted: "Kesintiye uğrayan bir kayıttan kurtarıldı."

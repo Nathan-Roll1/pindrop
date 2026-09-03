@@ -783,6 +783,7 @@ no:
   results_found: "Tidak ada hasil yang ditemukan"
   settings_found: "Tidak ada pengaturan yang ditemukan"
   speech_detected_try_speaking_closer_to_your: "Tidak ada suara yang terdeteksi. Coba bicara lebih dekat dengan mikrofon Anda."
+  template_the_note_is_written_as_plain_notes: "Tanpa templat. Catatan ditulis sebagai catatan biasa."
   thanks: "Tidak, terima kasih"
   transcriptions_yet: "Belum ada transkripsi"
   vocabulary_words: "Tidak Ada Kata Kosakata"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Tampilkan transkrip langsung"
   in_transcript: "Tampilkan di transkrip"
+  the_transcript_so_far: "Tampilkan transkrip sejauh ini"
   who_is_talking_in_the_live_transcript_names: "Tampilkan siapa yang berbicara di transkrip langsung. Nama diperiksa lagi saat rekaman selesai."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Muncul sebagai bola kaca cair di sudut layar"
@@ -1261,6 +1263,7 @@ status:
   _self: "Status"
 still:
   hearing: "Masih mendengar: %@"
+  working_long_recordings_take_a_while: "Masih berjalan. Rekaman panjang butuh waktu."
 stop:
   listening: "Berhenti mendengarkan"
   recording: "Berhenti Merekam"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Lihat asal ini"
 template:
   _self: "Templat: %@"
+  3ec1ae06: "Templat"
 templates:
   _self: "Templat"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Belum ada yang bisa ditanyakan. Rekam atau tulis sesuatu dulu."
 transcribing:
   _self: "Mentranskripsi"
+  failed_the_recording_is_saved_try_a: "Transkripsi gagal. Rekaman tersimpan. Coba lagi, atau buka audio dari catatan."
 transcript:
   _self: "Transkrip"
+  so_far_pindrop_is_checking_it_against: "Transkrip sejauh ini. Pindrop sedang mencocokkannya dengan rekaman."
   source: "Sumber transkrip %@"
 was:
   _self: "sebelumnya %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Berpikir…"
 write:
   this_note_again: "Tulis ulang catatan ini"
+matching:
+  names: "Mencocokkan nama"
+skipped:
+  _self: "Dilewati"
+recovered:
+  _self: "Dipulihkan"
+  from_a_recording_that_was_interrupted: "Dipulihkan dari rekaman yang terputus."

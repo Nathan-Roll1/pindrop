@@ -783,6 +783,7 @@ no:
   results_found: "Nebyly nalezeny žádné výsledky"
   settings_found: "Nebylo nalezeno žádné nastavení"
   speech_detected_try_speaking_closer_to_your: "Nebyla zjištěna žádná řeč. Zkuste mluvit blíž k mikrofonu."
+  template_the_note_is_written_as_plain_notes: "Bez šablony. Poznámka se píše jako běžné poznámky."
   thanks: "Ne, děkuji"
   transcriptions_yet: "Zatím žádné přepisy"
   vocabulary_words: "Žádná slova slovní zásoby"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Zobrazit živý přepis"
   in_transcript: "Zobrazit v přepisu"
+  the_transcript_so_far: "Zobrazit dosavadní přepis"
   who_is_talking_in_the_live_transcript_names: "Ukáže v živém přepisu, kdo mluví. Jména se po skončení nahrávání ověří znovu."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Zobrazuje se jako koule z tekutého skla v rohu obrazovky"
@@ -1261,6 +1263,7 @@ status:
   _self: "Postavení"
 still:
   hearing: "Stále slyší: %@"
+  working_long_recordings_take_a_while: "Stále to běží. Dlouhé nahrávky chvíli trvají."
 stop:
   listening: "Ukončit poslech"
   recording: "Zastavit nahrávání"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Zobrazit, odkud to pochází"
 template:
   _self: "Šablona: %@"
+  3ec1ae06: "Šablona"
 templates:
   _self: "Šablony"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Zatím se není na co ptát. Nejdřív něco nahrajte nebo napište."
 transcribing:
   _self: "Přepisování"
+  failed_the_recording_is_saved_try_a: "Přepis se nezdařil. Nahrávka je uložená. Zkuste to znovu, nebo otevřete zvuk z poznámky."
 transcript:
   _self: "Přepis"
+  so_far_pindrop_is_checking_it_against: "Dosavadní přepis. Pindrop ho porovnává s nahrávkou."
   source: "Zdroj přepisu %@"
 was:
   _self: "dříve %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Přemýšlím…"
 write:
   this_note_again: "Napsat tuto poznámku znovu"
+matching:
+  names: "Přiřazování jmen"
+skipped:
+  _self: "Přeskočeno"
+recovered:
+  _self: "Obnoveno"
+  from_a_recording_that_was_interrupted: "Obnoveno z nahrávky, která byla přerušena."

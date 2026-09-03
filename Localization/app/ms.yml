@@ -783,6 +783,7 @@ no:
   results_found: "Tiada hasil ditemui"
   settings_found: "Tiada tetapan ditemui"
   speech_detected_try_speaking_closer_to_your: "Tiada pertuturan dikesan. Cuba bercakap lebih dekat dengan mikrofon anda."
+  template_the_note_is_written_as_plain_notes: "Tiada templat. Nota ditulis sebagai nota biasa."
   thanks: "Tidak, terima kasih"
   transcriptions_yet: "Tiada transkripsi lagi"
   vocabulary_words: "Tiada Perbendaharaan Kata"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Tunjukkan transkrip langsung"
   in_transcript: "Tunjukkan dalam transkrip"
+  the_transcript_so_far: "Tunjukkan transkrip setakat ini"
   who_is_talking_in_the_live_transcript_names: "Tunjukkan siapa yang bercakap dalam transkrip langsung. Nama disemak semula apabila rakaman tamat."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Dipaparkan sebagai orb kaca cecair di penjuru skrin"
@@ -1261,6 +1263,7 @@ status:
   _self: "Status"
 still:
   hearing: "Masih mendengar: %@"
+  working_long_recordings_take_a_while: "Masih berjalan. Rakaman panjang mengambil masa."
 stop:
   listening: "Berhenti mendengar"
   recording: "Hentikan Rakaman"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Lihat dari mana ini datang"
 template:
   _self: "Templat: %@"
+  3ec1ae06: "Templat"
 templates:
   _self: "Templat"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Belum ada apa-apa untuk ditanya. Rakam atau tulis sesuatu dahulu."
 transcribing:
   _self: "Mentranskrip"
+  failed_the_recording_is_saved_try_a: "Transkripsi gagal. Rakaman disimpan. Cuba lagi, atau buka audio daripada nota."
 transcript:
   _self: "Transkrip"
+  so_far_pindrop_is_checking_it_against: "Transkrip setakat ini. Pindrop sedang menyemaknya dengan rakaman."
   source: "Sumber transkrip %@"
 was:
   _self: "sebelumnya %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Sedang berfikir…"
 write:
   this_note_again: "Tulis semula nota ini"
+matching:
+  names: "Memadankan nama"
+skipped:
+  _self: "Dilangkau"
+recovered:
+  _self: "Dipulihkan"
+  from_a_recording_that_was_interrupted: "Dipulihkan daripada rakaman yang terputus."

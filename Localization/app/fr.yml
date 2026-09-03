@@ -783,6 +783,7 @@ no:
   results_found: "Aucun résultat trouvé"
   settings_found: "Aucun paramètre trouvé"
   speech_detected_try_speaking_closer_to_your: "Aucune parole détectée. Essayez de parler plus près du microphone."
+  template_the_note_is_written_as_plain_notes: "Aucun modèle. La note est rédigée comme des notes simples."
   thanks: "Non merci"
   transcriptions_yet: "Pas encore de transcriptions"
   vocabulary_words: "Aucun mot de vocabulaire"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Afficher la transcription en direct"
   in_transcript: "Afficher dans la transcription"
+  the_transcript_so_far: "Afficher la transcription jusqu’ici"
   who_is_talking_in_the_live_transcript_names: "Affiche qui parle dans la transcription en direct. Les noms sont revérifiés à la fin de l'enregistrement."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "S'affiche sous forme d'orbe en verre liquide dans le coin de l'écran"
@@ -1261,6 +1263,7 @@ status:
   _self: "Statut"
 still:
   hearing: "Écoute encore : %@"
+  working_long_recordings_take_a_while: "Toujours en cours. Les longs enregistrements prennent du temps."
 stop:
   listening: "Arrêter l'écoute"
   recording: "Arrêter l'enregistrement"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Voir d'où cela provient"
 template:
   _self: "Modèle : %@"
+  3ec1ae06: "Modèle"
 templates:
   _self: "Modèles"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Il n'y a encore rien à demander. Enregistrez ou écrivez d'abord quelque chose."
 transcribing:
   _self: "Transcription en cours"
+  failed_the_recording_is_saved_try_a: "La transcription a échoué. L'enregistrement est conservé. Réessayez ou ouvrez l'audio depuis la note."
 transcript:
   _self: "Transcription"
+  so_far_pindrop_is_checking_it_against: "Transcription jusqu’ici. Pindrop la compare à l’enregistrement."
   source: "Source de transcription %@"
 was:
   _self: "avant %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Réflexion en cours…"
 write:
   this_note_again: "Réécrire cette note"
+matching:
+  names: "Association des noms"
+skipped:
+  _self: "Ignoré"
+recovered:
+  _self: "Récupérée"
+  from_a_recording_that_was_interrupted: "Récupérée depuis un enregistrement interrompu."

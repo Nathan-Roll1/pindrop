@@ -783,6 +783,7 @@ no:
   results_found: "Nincs találat"
   settings_found: "Nem találhatók beállítások"
   speech_detected_try_speaking_closer_to_your: "Nem érzékeltünk beszédet. Próbáljon közelebb beszélni a mikrofonjához."
+  template_the_note_is_written_as_plain_notes: "Nincs sablon. A jegyzet egyszerű jegyzetként készül."
   thanks: "Nem, köszönöm"
   transcriptions_yet: "Még nincsenek átiratok"
   vocabulary_words: "Nincs szótár"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Élő átirat megjelenítése"
   in_transcript: "Megjelenítés az átiratban"
+  the_transcript_so_far: "Eddigi átirat megjelenítése"
   who_is_talking_in_the_live_transcript_names: "Megmutatja az élő átiratban, ki beszél. A neveket a felvétel végén újra ellenőrizzük."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Folyékony üveggömbként jelenik meg a képernyő sarkában"
@@ -1261,6 +1263,7 @@ status:
   _self: "Állapot"
 still:
   hearing: "Még hallja: %@"
+  working_long_recordings_take_a_while: "Még dolgozik. A hosszú felvételek eltartanak egy ideig."
 stop:
   listening: "Figyelés leállítása"
   recording: "Felvétel leállítása"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Nézze meg, honnan származik"
 template:
   _self: "Sablon: %@"
+  3ec1ae06: "Sablon"
 templates:
   _self: "Sablonok"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Még nincs mit kérdezni. Előbb vegyen fel vagy írjon valamit."
 transcribing:
   _self: "Átírás"
+  failed_the_recording_is_saved_try_a: "Az átírás nem sikerült. A felvétel mentve van. Próbálja újra, vagy nyissa meg a hangot a jegyzetből."
 transcript:
   _self: "Átirat"
+  so_far_pindrop_is_checking_it_against: "Az eddigi átirat. A Pindrop összeveti a felvétellel."
   source: "Átirat forrása: %@"
 was:
   _self: "korábban %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Gondolkodik…"
 write:
   this_note_again: "Jegyzet újraírása"
+matching:
+  names: "Nevek egyeztetése"
+skipped:
+  _self: "Kihagyva"
+recovered:
+  _self: "Helyreállítva"
+  from_a_recording_that_was_interrupted: "Egy megszakadt felvételből helyreállítva."

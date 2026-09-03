@@ -783,6 +783,7 @@ no:
   results_found: "Keine Ergebnisse gefunden"
   settings_found: "Keine Einstellungen gefunden"
   speech_detected_try_speaking_closer_to_your: "Keine Sprache erkannt. Versuchen Sie, näher am Mikrofon zu sprechen."
+  template_the_note_is_written_as_plain_notes: "Keine Vorlage. Die Notiz wird als einfache Notizen geschrieben."
   thanks: "Nein, danke"
   transcriptions_yet: "Noch keine Transkriptionen"
   vocabulary_words: "Keine Vokabelwörter"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Live-Transkript einblenden"
   in_transcript: "Im Transkript anzeigen"
+  the_transcript_so_far: "Bisheriges Transkript anzeigen"
   who_is_talking_in_the_live_transcript_names: "Zeigt im Live-Transkript, wer spricht. Die Namen werden erneut geprüft, wenn die Aufnahme endet."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Wird als Orb aus flüssigem Glas in der Bildschirmecke angezeigt"
@@ -1261,6 +1263,7 @@ status:
   _self: "Status"
 still:
   hearing: "Hört noch: %@"
+  working_long_recordings_take_a_while: "Läuft noch. Lange Aufnahmen dauern eine Weile."
 stop:
   listening: "Zuhören beenden"
   recording: "Aufnahme stoppen"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Zeigen, woher das stammt"
 template:
   _self: "Vorlage: %@"
+  3ec1ae06: "Vorlage"
 templates:
   _self: "Vorlagen"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Es gibt noch nichts zu fragen. Nehmen Sie zuerst etwas auf, oder schreiben Sie etwas."
 transcribing:
   _self: "Transkription läuft"
+  failed_the_recording_is_saved_try_a: "Die Transkription ist fehlgeschlagen. Die Aufnahme ist gespeichert. Versuchen Sie es erneut, oder öffnen Sie das Audio aus der Notiz."
 transcript:
   _self: "Transkript"
+  so_far_pindrop_is_checking_it_against: "Bisheriges Transkript. Pindrop gleicht es mit der Aufnahme ab."
   source: "Transkriptquelle %@"
 was:
   _self: "zuvor %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Denke nach…"
 write:
   this_note_again: "Diese Notiz erneut schreiben"
+matching:
+  names: "Namen werden zugeordnet"
+skipped:
+  _self: "Übersprungen"
+recovered:
+  _self: "Wiederhergestellt"
+  from_a_recording_that_was_interrupted: "Aus einer unterbrochenen Aufnahme wiederhergestellt."

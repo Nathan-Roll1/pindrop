@@ -783,6 +783,7 @@ no:
   results_found: "Tuloksia ei löytynyt"
   settings_found: "Asetuksia ei löytynyt"
   speech_detected_try_speaking_closer_to_your: "Puhetta ei havaittu. Kokeile puhua lähempänä mikrofonia."
+  template_the_note_is_written_as_plain_notes: "Ei mallia. Muistiinpano kirjoitetaan tavallisina muistiinpanoina."
   thanks: "Ei kiitos"
   transcriptions_yet: "Ei vielä transkriptioita"
   vocabulary_words: "Ei sanastoa"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Näytä reaaliaikainen tekstitys"
   in_transcript: "Näytä tekstityksessä"
+  the_transcript_so_far: "Näytä tähänastinen tekstitys"
   who_is_talking_in_the_live_transcript_names: "Näyttää reaaliaikaisessa tekstityksessä, kuka puhuu. Nimet tarkistetaan uudelleen, kun tallennus päättyy."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Näkyy nestelasisena pallona näytön kulmassa"
@@ -1261,6 +1263,7 @@ status:
   _self: "Status"
 still:
   hearing: "Kuulee vielä: %@"
+  working_long_recordings_take_a_while: "Työ jatkuu. Pitkät tallenteet vievät hetken."
 stop:
   listening: "Lopeta kuuntelu"
   recording: "Lopeta tallennus"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Katso, mistä tämä on peräisin"
 template:
   _self: "Malli: %@"
+  3ec1ae06: "Malli"
 templates:
   _self: "Mallit"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Ei ole vielä mitään kysyttävää. Tallenna tai kirjoita ensin jotain."
 transcribing:
   _self: "Litteroidaan"
+  failed_the_recording_is_saved_try_a: "Litterointi epäonnistui. Tallenne on tallessa. Yritä uudelleen tai avaa ääni muistiinpanosta."
 transcript:
   _self: "Tekstitys"
+  so_far_pindrop_is_checking_it_against: "Tähänastinen tekstitys. Pindrop tarkistaa sen tallennetta vasten."
   source: "Tekstityksen lähde %@"
 was:
   _self: "aiemmin %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Ajattelee…"
 write:
   this_note_again: "Kirjoita tämä muistiinpano uudelleen"
+matching:
+  names: "Yhdistetään nimiä"
+skipped:
+  _self: "Ohitettu"
+recovered:
+  _self: "Palautettu"
+  from_a_recording_that_was_interrupted: "Palautettu tallenteesta, joka keskeytyi."

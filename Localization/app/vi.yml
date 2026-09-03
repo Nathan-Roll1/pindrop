@@ -783,6 +783,7 @@ no:
   results_found: "Không tìm thấy kết quả nào"
   settings_found: "Không tìm thấy cài đặt nào"
   speech_detected_try_speaking_closer_to_your: "Không phát hiện giọng nói. Hãy thử nói gần micrô hơn."
+  template_the_note_is_written_as_plain_notes: "Không dùng mẫu. Ghi chú được viết dưới dạng ghi chú thường."
   thanks: "Không, cảm ơn"
   transcriptions_yet: "Chưa có phiên âm"
   vocabulary_words: "Không có từ vựng"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Hiện bản chép lời trực tiếp"
   in_transcript: "Hiện trong bản chép lời"
+  the_transcript_so_far: "Hiện bản chép lời cho đến nay"
   who_is_talking_in_the_live_transcript_names: "Hiện ai đang nói trong bản chép lời trực tiếp. Tên được kiểm tra lại khi bản ghi kết thúc."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Hiển thị dưới dạng quả cầu thủy tinh lỏng ở góc màn hình"
@@ -1261,6 +1263,7 @@ status:
   _self: "Trạng thái"
 still:
   hearing: "Vẫn đang nghe: %@"
+  working_long_recordings_take_a_while: "Vẫn đang xử lý. Bản ghi dài cần một lúc."
 stop:
   listening: "Dừng nghe"
   recording: "Dừng ghi"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Xem thông tin này đến từ đâu"
 template:
   _self: "Mẫu: %@"
+  3ec1ae06: "Mẫu"
 templates:
   _self: "Mẫu"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Chưa có gì để hỏi. Hãy ghi âm hoặc viết gì đó trước."
 transcribing:
   _self: "Đang chép lời"
+  failed_the_recording_is_saved_try_a: "Chép lời không thành công. Bản ghi đã được lưu. Thử lại, hoặc mở âm thanh từ ghi chú."
 transcript:
   _self: "Bản chép lời"
+  so_far_pindrop_is_checking_it_against: "Bản chép lời cho đến nay. Pindrop đang đối chiếu với bản ghi."
   source: "Nguồn bản chép lời %@"
 was:
   _self: "trước là %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Đang suy nghĩ…"
 write:
   this_note_again: "Viết lại ghi chú này"
+matching:
+  names: "Đang khớp tên"
+skipped:
+  _self: "Đã bỏ qua"
+recovered:
+  _self: "Đã khôi phục"
+  from_a_recording_that_was_interrupted: "Đã khôi phục từ một bản ghi bị gián đoạn."

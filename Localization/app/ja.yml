@@ -783,6 +783,7 @@ no:
   results_found: "結果が見つかりませんでした"
   settings_found: "設定が見つかりません"
   speech_detected_try_speaking_closer_to_your: "音声が検出されませんでした。マイクに近づいて話してみてください。"
+  template_the_note_is_written_as_plain_notes: "テンプレートなし。メモはプレーンなメモとして書かれます。"
   thanks: "いいえ、結構です"
   transcriptions_yet: "転写はまだありません"
   vocabulary_words: "語彙がありません"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "ライブ文字起こしを表示"
   in_transcript: "文字起こしに表示"
+  the_transcript_so_far: "これまでの文字起こしを表示"
   who_is_talking_in_the_live_transcript_names: "ライブ文字起こしに誰が話しているかを表示します。名前は録音が終わるともう一度確認されます。"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "画面の隅にリキッドガラスのオーブとして表示されます"
@@ -1261,6 +1263,7 @@ status:
   _self: "状態"
 still:
   hearing: "認識中: %@"
+  working_long_recordings_take_a_while: "まだ処理中です。長い録音は時間がかかります。"
 stop:
   listening: "聞き取りを停止"
   recording: "録音を停止する"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "この情報の出どころを見る"
 template:
   _self: "テンプレート: %@"
+  3ec1ae06: "テンプレート"
 templates:
   _self: "テンプレート"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "まだ質問できる内容がありません。先に録音するか何か書いてください。"
 transcribing:
   _self: "文字起こし中"
+  failed_the_recording_is_saved_try_a: "文字起こしに失敗しました。録音は保存されています。もう一度お試しになるか、メモから音声を開いてください。"
 transcript:
   _self: "文字起こし"
+  so_far_pindrop_is_checking_it_against: "これまでの文字起こしです。Pindrop が録音と照合しています。"
   source: "文字起こしのソース %@"
 was:
   _self: "以前は%@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "考え中…"
 write:
   this_note_again: "このメモを書き直す"
+matching:
+  names: "名前を照合中"
+skipped:
+  _self: "スキップ"
+recovered:
+  _self: "復元済み"
+  from_a_recording_that_was_interrupted: "中断された録音から復元しました。"

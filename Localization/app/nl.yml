@@ -783,6 +783,7 @@ no:
   results_found: "Geen resultaten gevonden"
   settings_found: "Geen instellingen gevonden"
   speech_detected_try_speaking_closer_to_your: "Geen spraak gedetecteerd. Probeer dichter bij je microfoon te praten."
+  template_the_note_is_written_as_plain_notes: "Geen sjabloon. De notitie wordt als gewone notities geschreven."
   thanks: "Nee, bedankt"
   transcriptions_yet: "Nog geen transcripties"
   vocabulary_words: "Geen woordenschatwoorden"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Live transcript tonen"
   in_transcript: "Weergeven in transcript"
+  the_transcript_so_far: "Transcript tot nu toe tonen"
   who_is_talking_in_the_live_transcript_names: "Toont in het live transcript wie er praat. De namen worden opnieuw gecontroleerd als de opname stopt."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Wordt weergegeven als een orb van vloeibaar glas in de hoek van het scherm"
@@ -1261,6 +1263,7 @@ status:
   _self: "Status"
 still:
   hearing: "Hoort nog: %@"
+  working_long_recordings_take_a_while: "Nog bezig. Lange opnamen duren even."
 stop:
   listening: "Stop met luisteren"
   recording: "Stop met opnemen"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Bekijk waar dit vandaan komt"
 template:
   _self: "Sjabloon: %@"
+  3ec1ae06: "Sjabloon"
 templates:
   _self: "Sjablonen"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Er is nog niets om te vragen. Neem eerst iets op of schrijf iets."
 transcribing:
   _self: "Transcriberen"
+  failed_the_recording_is_saved_try_a: "Transcriberen is mislukt. De opname is bewaard. Probeer het opnieuw of open de audio vanuit de notitie."
 transcript:
   _self: "Transcript"
+  so_far_pindrop_is_checking_it_against: "Transcript tot nu toe. Pindrop controleert het aan de hand van de opname."
   source: "Transcriptbron %@"
 was:
   _self: "eerder %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Denkt na…"
 write:
   this_note_again: "Deze notitie opnieuw schrijven"
+matching:
+  names: "Namen koppelen"
+skipped:
+  _self: "Overgeslagen"
+recovered:
+  _self: "Hersteld"
+  from_a_recording_that_was_interrupted: "Hersteld uit een opname die werd onderbroken."

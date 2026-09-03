@@ -783,6 +783,7 @@ no:
   results_found: "कोई परिणाम नहीं मिला"
   settings_found: "कोई सेटिंग नहीं मिली"
   speech_detected_try_speaking_closer_to_your: "कोई आवाज़ नहीं मिली। कृपया अपने माइक्रोफ़ोन के करीब बोलने का प्रयास करें।"
+  template_the_note_is_written_as_plain_notes: "कोई टेम्पलेट नहीं। नोट सादे नोट्स के रूप में लिखा जाता है।"
   thanks: "नहीं, धन्यवाद"
   transcriptions_yet: "अभी तक कोई प्रतिलेखन नहीं"
   vocabulary_words: "कोई शब्दावली शब्द नहीं"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "लाइव प्रतिलेख दिखाएँ"
   in_transcript: "प्रतिलेख में दिखाएँ"
+  the_transcript_so_far: "अब तक का प्रतिलेख दिखाएँ"
   who_is_talking_in_the_live_transcript_names: "लाइव प्रतिलेख में दिखाएँ कि कौन बोल रहा है। रिकॉर्डिंग खत्म होने पर नाम फिर से जाँचे जाते हैं।"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "स्क्रीन के कोने में तरल कांच के गोले के रूप में दिखता है"
@@ -1261,6 +1263,7 @@ status:
   _self: "स्थिति"
 still:
   hearing: "अभी भी सुन रहा है: %@"
+  working_long_recordings_take_a_while: "काम अब भी चल रहा है। लंबी रिकॉर्डिंग में कुछ समय लगता है।"
 stop:
   listening: "सुनना बंद करें"
   recording: "रिकॉर्डिंग बंद करें"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "देखें यह कहाँ से आया"
 template:
   _self: "टेम्पलेट: %@"
+  3ec1ae06: "टेम्पलेट"
 templates:
   _self: "टेम्पलेट"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "अभी पूछने के लिए कुछ नहीं है। पहले कुछ रिकॉर्ड करें या लिखें।"
 transcribing:
   _self: "प्रतिलेखन हो रहा है"
+  failed_the_recording_is_saved_try_a: "प्रतिलेखन विफल रहा। रिकॉर्डिंग सहेजी गई है। दोबारा कोशिश करें, या नोट से ऑडियो खोलें।"
 transcript:
   _self: "प्रतिलेख"
+  so_far_pindrop_is_checking_it_against: "अब तक का प्रतिलेख। Pindrop इसे रिकॉर्डिंग से मिलाकर जाँच रहा है।"
   source: "प्रतिलेख का स्रोत %@"
 was:
   _self: "पहले %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "सोच रहा है…"
 write:
   this_note_again: "यह नोट फिर से लिखें"
+matching:
+  names: "नाम मिलाए जा रहे हैं"
+skipped:
+  _self: "छोड़ा गया"
+recovered:
+  _self: "पुनर्प्राप्त"
+  from_a_recording_that_was_interrupted: "बाधित हुई रिकॉर्डिंग से पुनर्प्राप्त किया गया।"

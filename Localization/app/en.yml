@@ -832,6 +832,7 @@ no:
   results_found: "No results found"
   settings_found: "No settings found"
   speech_detected_try_speaking_closer_to_your: "No speech detected. Try speaking closer to your microphone."
+  template_the_note_is_written_as_plain_notes: "No template. The note is written as plain notes."
   thanks: "No thanks"
   transcriptions_yet: "No transcriptions yet"
   transcripts_audio_prompts_file_names_or_perso: "No transcripts, audio, prompts, file names, or personal content — ever."
@@ -1256,6 +1257,7 @@ show:
   in_transcript: "Show in transcript"
   live_transcript: "Show live transcript"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  the_transcript_so_far: "Show the transcript so far"
   who_is_talking_in_the_live_transcript_names: "Show who is talking in the live transcript. Names are checked again when the recording ends."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Shows as a liquid glass orb in the corner of the screen"
@@ -1332,6 +1334,7 @@ status:
   _self: "Status"
 still:
   hearing: "Still hearing: %@"
+  working_long_recordings_take_a_while: "Still working. Long recordings take a while."
 stop:
   listening: "Stop listening"
   recording: "Stop Recording"
@@ -1448,9 +1451,11 @@ transcribed:
   words: "Transcribed words"
 transcript:
   _self: "Transcript"
+  so_far_pindrop_is_checking_it_against: "Transcript so far. Pindrop is checking it against the recording."
   source: "Transcript source %@"
 transcribing:
   _self: "Transcribing"
+  failed_the_recording_is_saved_try_a: "Transcribing failed. The recording is saved. Try again, or open the audio from the note."
 transcription:
   _self: "Transcription"
   backend: "Transcription backend"
@@ -1845,3 +1850,11 @@ helpful:
   _self: "Helpful"
 template:
   _self: "Template: %@"
+  3ec1ae06: "Template"
+matching:
+  names: "Matching names"
+skipped:
+  _self: "Skipped"
+recovered:
+  _self: "Recovered"
+  from_a_recording_that_was_interrupted: "Recovered from a recording that was interrupted."

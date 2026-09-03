@@ -783,6 +783,7 @@ no:
   results_found: "검색결과가 없습니다"
   settings_found: "설정을 찾을 수 없습니다."
   speech_detected_try_speaking_closer_to_your: "음성이 감지되지 않았습니다. 마이크에 더 가까이에서 말해 보세요."
+  template_the_note_is_written_as_plain_notes: "템플릿 없음. 메모는 일반 메모로 작성됩니다."
   thanks: "괜찮습니다"
   transcriptions_yet: "아직 스크립트가 없습니다."
   vocabulary_words: "어휘 없음"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "실시간 대본 보기"
   in_transcript: "대본에 표시"
+  the_transcript_so_far: "지금까지의 대본 보기"
   who_is_talking_in_the_live_transcript_names: "실시간 대본에 누가 말하는지 표시합니다. 이름은 녹음이 끝나면 다시 확인합니다."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "화면 모서리에 리퀴드 글래스 오브로 표시됩니다"
@@ -1261,6 +1263,7 @@ status:
   _self: "상태"
 still:
   hearing: "계속 듣는 중: %@"
+  working_long_recordings_take_a_while: "아직 처리 중입니다. 긴 녹음은 시간이 걸립니다."
 stop:
   listening: "듣기 중지"
   recording: "녹음 중지"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "이 정보의 출처 보기"
 template:
   _self: "템플릿: %@"
+  3ec1ae06: "템플릿"
 templates:
   _self: "템플릿"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "아직 질문할 내용이 없습니다. 먼저 녹음하거나 무언가를 작성하세요."
 transcribing:
   _self: "전사 중"
+  failed_the_recording_is_saved_try_a: "전사에 실패했습니다. 녹음은 저장되어 있습니다. 다시 시도하거나 메모에서 오디오를 여세요."
 transcript:
   _self: "대본"
+  so_far_pindrop_is_checking_it_against: "지금까지의 대본입니다. Pindrop이 녹음과 대조하고 있습니다."
   source: "대본 출처 %@"
 was:
   _self: "이전 %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "생각 중…"
 write:
   this_note_again: "이 메모 다시 쓰기"
+matching:
+  names: "이름 대조 중"
+skipped:
+  _self: "건너뜀"
+recovered:
+  _self: "복구됨"
+  from_a_recording_that_was_interrupted: "중단된 녹음에서 복구했습니다."

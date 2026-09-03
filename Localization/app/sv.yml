@@ -783,6 +783,7 @@ no:
   results_found: "Inga resultat hittades"
   settings_found: "Inga inställningar hittades"
   speech_detected_try_speaking_closer_to_your: "Inget tal upptäckt. Försök tala närmare mikrofonen."
+  template_the_note_is_written_as_plain_notes: "Ingen mall. Anteckningen skrivs som vanliga anteckningar."
   thanks: "Nej tack"
   transcriptions_yet: "Inga transkriptioner ännu"
   vocabulary_words: "Inga ordförråd"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Visa livetranskriptet"
   in_transcript: "Visa i transkript"
+  the_transcript_so_far: "Visa transkriptet hittills"
   who_is_talking_in_the_live_transcript_names: "Visar i livetranskriptet vem som talar. Namnen kontrolleras igen när inspelningen slutar."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Visas som en kula av flytande glas i hörnet av skärmen"
@@ -1261,6 +1263,7 @@ status:
   _self: "Status"
 still:
   hearing: "Hör fortfarande: %@"
+  working_long_recordings_take_a_while: "Arbetar fortfarande. Långa inspelningar tar en stund."
 stop:
   listening: "Sluta lyssna"
   recording: "Stoppa inspelning"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Se var det här kommer ifrån"
 template:
   _self: "Mall: %@"
+  3ec1ae06: "Mall"
 templates:
   _self: "Mallar"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Det finns inget att fråga om ännu. Spela in eller skriv något först."
 transcribing:
   _self: "Transkriberar"
+  failed_the_recording_is_saved_try_a: "Transkriptionen misslyckades. Inspelningen är sparad. Försök igen, eller öppna ljudet från anteckningen."
 transcript:
   _self: "Transkript"
+  so_far_pindrop_is_checking_it_against: "Transkriptet hittills. Pindrop stämmer av det mot inspelningen."
   source: "Transkriptkälla %@"
 was:
   _self: "tidigare %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Tänker…"
 write:
   this_note_again: "Skriv den här anteckningen igen"
+matching:
+  names: "Matchar namn"
+skipped:
+  _self: "Överhoppat"
+recovered:
+  _self: "Återställd"
+  from_a_recording_that_was_interrupted: "Återställd från en inspelning som avbröts."

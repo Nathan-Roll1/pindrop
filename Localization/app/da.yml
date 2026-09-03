@@ -783,6 +783,7 @@ no:
   results_found: "Ingen resultater fundet"
   settings_found: "Ingen indstillinger fundet"
   speech_detected_try_speaking_closer_to_your: "Ingen tale registreret. Prøv at tale tættere på mikrofonen."
+  template_the_note_is_written_as_plain_notes: "Ingen skabelon. Noten skrives som almindelige noter."
   thanks: "Nej tak"
   transcriptions_yet: "Ingen transskriptioner endnu"
   vocabulary_words: "Ingen ordforråd"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Vis liveudskriften"
   in_transcript: "Vis i udskrift"
+  the_transcript_so_far: "Vis udskriften indtil nu"
   who_is_talking_in_the_live_transcript_names: "Vis i liveudskriften, hvem der taler. Navnene tjekkes igen, når optagelsen slutter."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Vises som en kugle af flydende glas i hjørnet af skærmen"
@@ -1261,6 +1263,7 @@ status:
   _self: "Status"
 still:
   hearing: "Hører stadig: %@"
+  working_long_recordings_take_a_while: "Arbejder stadig. Lange optagelser tager et stykke tid."
 stop:
   listening: "Stop med at lytte"
   recording: "Stop optagelse"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Se, hvor dette kommer fra"
 template:
   _self: "Skabelon: %@"
+  3ec1ae06: "Skabelon"
 templates:
   _self: "Skabeloner"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Der er endnu ikke noget at spørge om. Optag eller skriv noget først."
 transcribing:
   _self: "Transskriberer"
+  failed_the_recording_is_saved_try_a: "Transskriptionen mislykkedes. Optagelsen er gemt. Prøv igen, eller åbn lyden fra noten."
 transcript:
   _self: "Udskrift"
+  so_far_pindrop_is_checking_it_against: "Udskriften indtil nu. Pindrop tjekker den mod optagelsen."
   source: "Udskriftskilde %@"
 was:
   _self: "tidligere %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Tænker…"
 write:
   this_note_again: "Skriv denne note igen"
+matching:
+  names: "Matcher navne"
+skipped:
+  _self: "Sprunget over"
+recovered:
+  _self: "Gendannet"
+  from_a_recording_that_was_interrupted: "Gendannet fra en optagelse, der blev afbrudt."

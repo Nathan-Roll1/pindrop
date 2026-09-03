@@ -783,6 +783,7 @@ no:
   results_found: "Ingen resultater funnet"
   settings_found: "Ingen innstillinger funnet"
   speech_detected_try_speaking_closer_to_your: "Ingen tale oppdaget. Prøv å snakke nærmere mikrofonen."
+  template_the_note_is_written_as_plain_notes: "Ingen mal. Notatet skrives som vanlige notater."
   thanks: "Nei takk"
   transcriptions_yet: "Ingen transkripsjoner ennå"
   vocabulary_words: "Ingen ordforråd"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Vis direktetranskriptet"
   in_transcript: "Vis i transkripsjonen"
+  the_transcript_so_far: "Vis transkriptet så langt"
   who_is_talking_in_the_live_transcript_names: "Vis i direktetranskriptet hvem som snakker. Navnene sjekkes på nytt når opptaket slutter."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Vises som en kule av flytende glass i hjørnet av skjermen"
@@ -1261,6 +1263,7 @@ status:
   _self: "Status"
 still:
   hearing: "Hører fortsatt: %@"
+  working_long_recordings_take_a_while: "Jobber fortsatt. Lange opptak tar litt tid."
 stop:
   listening: "Stopp lytting"
   recording: "Stopp opptak"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Se hvor dette kommer fra"
 template:
   _self: "Mal: %@"
+  3ec1ae06: "Mal"
 templates:
   _self: "Maler"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Det er ennå ikke noe å spørre om. Ta opp eller skriv noe først."
 transcribing:
   _self: "Transkriberer"
+  failed_the_recording_is_saved_try_a: "Transkripsjonen mislyktes. Opptaket er lagret. Prøv igjen, eller åpne lyden fra notatet."
 transcript:
   _self: "Transkript"
+  so_far_pindrop_is_checking_it_against: "Transkriptet så langt. Pindrop sjekker det mot opptaket."
   source: "Transkriptkilde %@"
 was:
   _self: "tidligere %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Tenker…"
 write:
   this_note_again: "Skriv dette notatet på nytt"
+matching:
+  names: "Matcher navn"
+skipped:
+  _self: "Hoppet over"
+recovered:
+  _self: "Gjenopprettet"
+  from_a_recording_that_was_interrupted: "Gjenopprettet fra et opptak som ble avbrutt."

@@ -783,6 +783,7 @@ no:
   results_found: "לא נמצאו תוצאות"
   settings_found: "לא נמצאו הגדרות"
   speech_detected_try_speaking_closer_to_your: "לא זוהה דיבור. נסה לדבר קרוב יותר למיקרופון."
+  template_the_note_is_written_as_plain_notes: "ללא תבנית. הפתק נכתב כהערות פשוטות."
   thanks: "לא, תודה"
   transcriptions_yet: "עדיין אין תעתיקים"
   vocabulary_words: "אין מילים אוצר מילים"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "הצגת התמליל החי"
   in_transcript: "הצגה בתמליל"
+  the_transcript_so_far: "הצגת התמליל עד כה"
   who_is_talking_in_the_live_transcript_names: "הצגת מי מדבר בתמליל החי. השמות נבדקים שוב בסיום ההקלטה."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "מוצג ככדור זכוכית נוזלית בפינת המסך"
@@ -1261,6 +1263,7 @@ status:
   _self: "סטָטוּס"
 still:
   hearing: "עדיין בהאזנה: %@"
+  working_long_recordings_take_a_while: "עדיין עובד. הקלטות ארוכות לוקחות זמן."
 stop:
   listening: "הפסק האזנה"
   recording: "עצור את ההקלטה"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "לראות מאיפה זה הגיע"
 template:
   _self: "תבנית: %@"
+  3ec1ae06: "תבנית"
 templates:
   _self: "תבניות"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "עדיין אין מה לשאול. הקליטו או כתבו משהו קודם."
 transcribing:
   _self: "מתמלל"
+  failed_the_recording_is_saved_try_a: "התמלול נכשל. ההקלטה נשמרה. נסו שוב, או פתחו את האודיו מתוך הפתק."
 transcript:
   _self: "תמליל"
+  so_far_pindrop_is_checking_it_against: "התמליל עד כה. Pindrop בודק אותו מול ההקלטה."
   source: "מקור התמליל %@"
 was:
   _self: "לשעבר %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "חושב…"
 write:
   this_note_again: "לכתוב את הפתק הזה מחדש"
+matching:
+  names: "מתאים שמות"
+skipped:
+  _self: "דולג"
+recovered:
+  _self: "שוחזר"
+  from_a_recording_that_was_interrupted: "שוחזר מהקלטה שהופסקה."

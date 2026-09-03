@@ -784,6 +784,7 @@ no:
   results_found: "কোন ফলাফল পাওয়া যায়নি"
   settings_found: "কোনো সেটিংস পাওয়া যায়নি"
   speech_detected_try_speaking_closer_to_your: "কোনো কথা শনাক্ত হয়নি। মাইক্রোফোনের কাছাকাছি কথা বলার চেষ্টা করুন।"
+  template_the_note_is_written_as_plain_notes: "কোনও টেমপ্লেট নয়। নোটটি সাধারণ নোট হিসেবে লেখা হয়।"
   thanks: "না, ধন্যবাদ"
   transcriptions_yet: "এখনও কোন প্রতিলিপি"
   vocabulary_words: "কোন ভোকাবুলারি শব্দ নেই"
@@ -1189,6 +1190,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "লাইভ প্রতিলিপি দেখান"
   in_transcript: "প্রতিলিপিতে দেখান"
+  the_transcript_so_far: "এখন পর্যন্ত প্রতিলিপি দেখান"
   who_is_talking_in_the_live_transcript_names: "লাইভ প্রতিলিপিতে কে কথা বলছে তা দেখান। রেকর্ডিং শেষ হলে নাম আবার যাচাই করা হয়।"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "স্ক্রিনের কোণে একটি তরল কাচের গোলক হিসেবে দেখায়"
@@ -1266,6 +1268,7 @@ status:
   _self: "স্ট্যাটাস"
 still:
   hearing: "এখনও শোনা হচ্ছে: %@"
+  working_long_recordings_take_a_while: "এখনও কাজ চলছে। দীর্ঘ রেকর্ডিংয়ে কিছুটা সময় লাগে।"
 stop:
   listening: "শোনা বন্ধ করুন"
   recording: "রেকর্ডিং বন্ধ করুন"
@@ -1796,6 +1799,7 @@ see:
   where_this_came_from: "এটি কোথা থেকে এসেছে দেখুন"
 template:
   _self: "টেমপ্লেট: %@"
+  3ec1ae06: "টেমপ্লেট"
 templates:
   _self: "টেমপ্লেট"
 there:
@@ -1803,8 +1807,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "এখনও জিজ্ঞাসা করার মতো কিছু নেই। প্রথমে কিছু রেকর্ড করুন বা লিখুন।"
 transcribing:
   _self: "প্রতিলিপি চলছে"
+  failed_the_recording_is_saved_try_a: "প্রতিলিপি করা যায়নি। রেকর্ডিং সংরক্ষিত আছে। আবার চেষ্টা করুন, বা নোট থেকে অডিও খুলুন।"
 transcript:
   _self: "প্রতিলিপি"
+  so_far_pindrop_is_checking_it_against: "এখন পর্যন্ত প্রতিলিপি। Pindrop এটি রেকর্ডিংয়ের সঙ্গে মিলিয়ে দেখছে।"
   source: "প্রতিলিপির উৎস %@"
 was:
   _self: "পূর্বে %@"
@@ -1838,3 +1844,10 @@ thinking:
   _self: "ভাবছে…"
 write:
   this_note_again: "এই নোটটি আবার লিখুন"
+matching:
+  names: "নাম মেলানো হচ্ছে"
+skipped:
+  _self: "এড়িয়ে যাওয়া হয়েছে"
+recovered:
+  _self: "পুনরুদ্ধার করা"
+  from_a_recording_that_was_interrupted: "বাধাপ্রাপ্ত একটি রেকর্ডিং থেকে পুনরুদ্ধার করা হয়েছে।"

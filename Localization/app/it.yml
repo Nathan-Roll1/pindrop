@@ -783,6 +783,7 @@ no:
   results_found: "Nessun risultato trovato"
   settings_found: "Nessuna impostazione trovata"
   speech_detected_try_speaking_closer_to_your: "Nessuna voce rilevata. Prova a parlare più vicino al microfono."
+  template_the_note_is_written_as_plain_notes: "Nessun modello. La nota è scritta come note semplici."
   thanks: "No, grazie"
   transcriptions_yet: "Nessuna trascrizione ancora"
   vocabulary_words: "Nessuna parola del vocabolario"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Mostra la trascrizione dal vivo"
   in_transcript: "Mostra nella trascrizione"
+  the_transcript_so_far: "Mostra la trascrizione finora"
   who_is_talking_in_the_live_transcript_names: "Mostra chi parla nella trascrizione dal vivo. I nomi vengono ricontrollati quando la registrazione finisce."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Appare come una sfera di vetro liquido nell'angolo dello schermo"
@@ -1261,6 +1263,7 @@ status:
   _self: "Stato"
 still:
   hearing: "Ancora in ascolto: %@"
+  working_long_recordings_take_a_while: "Ancora in corso. Le registrazioni lunghe richiedono tempo."
 stop:
   listening: "Interrompi ascolto"
   recording: "Interrompi la registrazione"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Vedi da dove proviene"
 template:
   _self: "Modello: %@"
+  3ec1ae06: "Modello"
 templates:
   _self: "Modelli"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Non c'è ancora nulla da chiedere. Registra o scrivi prima qualcosa."
 transcribing:
   _self: "Trascrizione in corso"
+  failed_the_recording_is_saved_try_a: "Trascrizione non riuscita. La registrazione è salvata. Riprova oppure apri l’audio dalla nota."
 transcript:
   _self: "Trascrizione"
+  so_far_pindrop_is_checking_it_against: "Trascrizione finora. Pindrop la sta confrontando con la registrazione."
   source: "Sorgente della trascrizione %@"
 was:
   _self: "prima %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Sto pensando…"
 write:
   this_note_again: "Riscrivi questa nota"
+matching:
+  names: "Abbinamento dei nomi"
+skipped:
+  _self: "Saltato"
+recovered:
+  _self: "Recuperata"
+  from_a_recording_that_was_interrupted: "Recuperata da una registrazione interrotta."

@@ -783,6 +783,7 @@ no:
   results_found: "Результаты не найдены"
   settings_found: "Настройки не найдены"
   speech_detected_try_speaking_closer_to_your: "Речь не обнаружена. Попробуйте говорить ближе к микрофону."
+  template_the_note_is_written_as_plain_notes: "Без шаблона. Заметка пишется как обычные заметки."
   thanks: "Нет, спасибо"
   transcriptions_yet: "Транскрипций пока нет"
   vocabulary_words: "Нет словарных слов"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "Показать живой транскрипт"
   in_transcript: "Показать в транскрипте"
+  the_transcript_so_far: "Показать транскрипт на данный момент"
   who_is_talking_in_the_live_transcript_names: "Показывает в живом транскрипте, кто говорит. Имена проверяются ещё раз, когда запись заканчивается."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Отображается как сфера из жидкого стекла в углу экрана"
@@ -1261,6 +1263,7 @@ status:
   _self: "Статус"
 still:
   hearing: "Ещё слышит: %@"
+  working_long_recordings_take_a_while: "Работа продолжается. Длинные записи занимают время."
 stop:
   listening: "Остановить прослушивание"
   recording: "Остановить запись"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "Посмотреть, откуда это взято"
 template:
   _self: "Шаблон: %@"
+  3ec1ae06: "Шаблон"
 templates:
   _self: "Шаблоны"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Пока нечего спрашивать. Сначала запишите или напишите что-нибудь."
 transcribing:
   _self: "Расшифровка"
+  failed_the_recording_is_saved_try_a: "Расшифровка не удалась. Запись сохранена. Попробуйте снова или откройте аудио из заметки."
 transcript:
   _self: "Транскрипт"
+  so_far_pindrop_is_checking_it_against: "Транскрипт на данный момент. Pindrop сверяет его с записью."
   source: "Источник транскрипта %@"
 was:
   _self: "ранее %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "Думает…"
 write:
   this_note_again: "Переписать эту заметку"
+matching:
+  names: "Сопоставление имён"
+skipped:
+  _self: "Пропущено"
+recovered:
+  _self: "Восстановлено"
+  from_a_recording_that_was_interrupted: "Восстановлено из прерванной записи."

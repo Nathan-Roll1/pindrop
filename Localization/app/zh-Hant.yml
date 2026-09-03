@@ -783,6 +783,7 @@ no:
   results_found: "未找到結果"
   settings_found: "未找到設定"
   speech_detected_try_speaking_closer_to_your: "未偵測到語音。請嘗試靠近麥克風說話。"
+  template_the_note_is_written_as_plain_notes: "不使用範本。筆記以一般筆記的形式寫成。"
   thanks: "不用了"
   transcriptions_yet: "尚無轉錄"
   vocabulary_words: "無詞彙詞"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "顯示即時逐字稿"
   in_transcript: "在逐字稿中顯示"
+  the_transcript_so_far: "顯示目前的逐字稿"
   who_is_talking_in_the_live_transcript_names: "在即時逐字稿中顯示誰在說話。錄音結束後會重新核對名稱。"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "以液態玻璃光球的形式顯示在螢幕角落"
@@ -1261,6 +1263,7 @@ status:
   _self: "狀態"
 still:
   hearing: "仍在辨識：%@"
+  working_long_recordings_take_a_while: "仍在處理。較長的錄音需要一些時間。"
 stop:
   listening: "停止聆聽"
   recording: "停止錄製"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "查看這則資訊的來源"
 template:
   _self: "範本：%@"
+  3ec1ae06: "範本"
 templates:
   _self: "範本"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "目前還沒有可提問的內容。請先錄音或寫點內容。"
 transcribing:
   _self: "轉錄中"
+  failed_the_recording_is_saved_try_a: "轉錄失敗。錄音已儲存。請重試，或從筆記中開啟音訊。"
 transcript:
   _self: "逐字稿"
+  so_far_pindrop_is_checking_it_against: "目前的逐字稿。Pindrop 正在與錄音核對。"
   source: "逐字稿來源 %@"
 was:
   _self: "原為 %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "思考中…"
 write:
   this_note_again: "重新寫這則筆記"
+matching:
+  names: "正在比對姓名"
+skipped:
+  _self: "已跳過"
+recovered:
+  _self: "已復原"
+  from_a_recording_that_was_interrupted: "已從中斷的錄音中復原。"

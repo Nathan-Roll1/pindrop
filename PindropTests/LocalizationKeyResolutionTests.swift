@@ -71,6 +71,7 @@ struct LocalizationKeyResolutionTests {
         "Sealing audio",
         "Transcribing",
         "Identifying speakers",
+        "Matching names",
         "Writing note",
         // Enhanced view.
         "Enhanced note",
@@ -129,15 +130,25 @@ struct LocalizationKeyResolutionTests {
         // "Template: %@" chip, which is the collision class this suite exists
         // for, so it is pinned from the day the string is called.
         "Template",
-        "No template. The note is written as plain notes."
+        "No template. The note is written as plain notes.",
+        // Stage checklist detail, stall line, and failed row.
+        "Skipped",
+        "Still working. Long recordings take a while.",
+        "Show the transcript so far",
+        "Transcribing failed. The recording is saved. Try again, or open the audio from the note.",
+        // Note page and library, after the recording stops.
+        "Transcript so far. Pindrop is checking it against the recording.",
+        "Recovered from a recording that was interrupted.",
+        "Recovered"
     ])
     func sourceStringsResolveToThemselvesInEnglish(_ source: String) {
         #expect(localized(source, locale: en) == source)
     }
 
-    /// The live attribution copy names a channel and a gap in the live text, and
-    /// the meeting copy names a call and asks a question, so a reader who does
-    /// not read English learns nothing from the untranslated source. `localized`
+    /// The live attribution copy names a channel and a gap in the live text, the
+    /// meeting copy names a call and asks a question, and the pipeline copy says
+    /// what the app is still doing with a recording, so a reader who does not
+    /// read English learns nothing from the untranslated source. `localized`
     /// falls back to the English key when a locale lacks the string, which makes
     /// a missing translation invisible on screen and visible only here.
     @Test(arguments: LocalizationMetadata.supportedLocales.filter { $0 != "en" })
@@ -185,7 +196,20 @@ struct LocalizationKeyResolutionTests {
         "Pindrop noticed a call.",
         "Do you want a notification when a call starts?",
         "Notify me",
-        "No thanks"
+        "No thanks",
+        // Pipeline stages, the stall and failure lines, the template picker, and
+        // the recovered note. The four shipped stage names are left out: they
+        // were translated before Phase 4 and are only reused here.
+        "Matching names",
+        "Skipped",
+        "Still working. Long recordings take a while.",
+        "Show the transcript so far",
+        "Transcribing failed. The recording is saved. Try again, or open the audio from the note.",
+        "Transcript so far. Pindrop is checking it against the recording.",
+        "Recovered from a recording that was interrupted.",
+        "Recovered",
+        "Template",
+        "No template. The note is written as plain notes."
     ]
 
     /// The lowercase running copy and the capitalised stat label are two strings,

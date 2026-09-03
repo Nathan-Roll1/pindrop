@@ -794,6 +794,7 @@ no:
   results_found: "Nie znaleziono żadnych wyników"
   settings_found: "Nie znaleziono ustawień"
   speech_detected_try_speaking_closer_to_your: "Nie wykryto mowy. Spróbuj mówić bliżej mikrofonu."
+  template_the_note_is_written_as_plain_notes: "Bez szablonu. Notatka powstaje jako zwykłe notatki."
   thanks: "Nie, dziękuję"
   transcriptions_yet: "Nie ma jeszcze transkrypcji"
   vocabulary_words: "Brak słów ze słownika"
@@ -1232,6 +1233,7 @@ show:
   the_main_window_and_open_the_library: "Pokaż główne okno i otwórz Bibliotekę."
   live_transcript: "Pokaż transkrypcję na żywo"
   in_transcript: "Pokaż w transkrypcji"
+  the_transcript_so_far: "Pokaż dotychczasową transkrypcję"
   who_is_talking_in_the_live_transcript_names: "Pokazuje w transkrypcji na żywo, kto mówi. Imiona są sprawdzane ponownie po zakończeniu nagrania."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Wyświetla się jako kula w stylu Liquid Glass w rogu ekranu"
@@ -1310,6 +1312,7 @@ status:
   _self: "Status"
 still:
   hearing: "Nadal słyszy: %@"
+  working_long_recordings_take_a_while: "Wciąż trwa. Długie nagrania zajmują chwilę."
 stop:
   listening: "Zatrzymaj nasłuchiwanie"
   recording: "Zatrzymaj nagrywanie"
@@ -1885,6 +1888,7 @@ see:
   where_this_came_from: "Zobacz, skąd to pochodzi"
 template:
   _self: "Szablon: %@"
+  3ec1ae06: "Szablon"
 templates:
   _self: "Szablony"
 there:
@@ -1892,8 +1896,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "Na razie nie ma o co pytać. Najpierw coś nagraj lub napisz."
 transcribing:
   _self: "Przepisywanie"
+  failed_the_recording_is_saved_try_a: "Przepisywanie nie powiodło się. Nagranie jest zapisane. Spróbuj ponownie albo otwórz dźwięk z notatki."
 transcript:
   _self: "Transkrypcja"
+  so_far_pindrop_is_checking_it_against: "Dotychczasowa transkrypcja. Pindrop porównuje ją z nagraniem."
   source: "Źródło transkrypcji %@"
 was:
   _self: "wcześniej %@"
@@ -1927,3 +1933,10 @@ thinking:
   _self: "Myśli…"
 write:
   this_note_again: "Napisz tę notatkę ponownie"
+matching:
+  names: "Dopasowywanie imion"
+skipped:
+  _self: "Pominięto"
+recovered:
+  _self: "Odzyskana"
+  from_a_recording_that_was_interrupted: "Odzyskano z nagrania, które zostało przerwane."

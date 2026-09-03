@@ -783,6 +783,7 @@ no:
   results_found: "未找到结果"
   settings_found: "未找到设置"
   speech_detected_try_speaking_closer_to_your: "未检测到语音。请尝试靠近麦克风说话。"
+  template_the_note_is_written_as_plain_notes: "不使用模板。笔记以普通笔记的形式写成。"
   thanks: "不用了"
   transcriptions_yet: "尚无转录"
   vocabulary_words: "无词汇词"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "显示实时转录"
   in_transcript: "在转录内容中显示"
+  the_transcript_so_far: "显示目前的转录"
   who_is_talking_in_the_live_transcript_names: "在实时转录中显示谁在说话。录音结束后会重新核对姓名。"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "以液态玻璃光球的形式显示在屏幕角落"
@@ -1261,6 +1263,7 @@ status:
   _self: "状态"
 still:
   hearing: "仍在识别：%@"
+  working_long_recordings_take_a_while: "仍在处理。较长的录音需要一些时间。"
 stop:
   listening: "停止聆听"
   recording: "停止录制"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "查看这条信息的来源"
 template:
   _self: "模板：%@"
+  3ec1ae06: "模板"
 templates:
   _self: "模板"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "目前还没有可提问的内容。请先录音或写点内容。"
 transcribing:
   _self: "转录中"
+  failed_the_recording_is_saved_try_a: "转录失败。录音已保存。请重试，或从笔记中打开音频。"
 transcript:
   _self: "转录"
+  so_far_pindrop_is_checking_it_against: "目前的转录。Pindrop 正在与录音核对。"
   source: "转录来源 %@"
 was:
   _self: "原为 %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "思考中…"
 write:
   this_note_again: "重新写这条笔记"
+matching:
+  names: "正在匹配姓名"
+skipped:
+  _self: "已跳过"
+recovered:
+  _self: "已恢复"
+  from_a_recording_that_was_interrupted: "已从中断的录音中恢复。"

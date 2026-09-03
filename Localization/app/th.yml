@@ -783,6 +783,7 @@ no:
   results_found: "ไม่พบผลลัพธ์"
   settings_found: "ไม่พบการตั้งค่า"
   speech_detected_try_speaking_closer_to_your: "ไม่พบคำพูด ลองพูดให้ใกล้ไมโครโฟนมากขึ้น"
+  template_the_note_is_written_as_plain_notes: "ไม่ใช้เทมเพลต โน้ตจะถูกเขียนเป็นโน้ตธรรมดา"
   thanks: "ไม่เป็นไร ขอบคุณ"
   transcriptions_yet: "ยังไม่มีการถอดเสียงเป็นคำ"
   vocabulary_words: "ไม่มีคำศัพท์"
@@ -1185,6 +1186,7 @@ show:
   the_main_window_and_open_the_library: "Show the main window and open the Library."
   live_transcript: "แสดงข้อความถอดเสียงสด"
   in_transcript: "แสดงในข้อความถอดเสียง"
+  the_transcript_so_far: "แสดงข้อความถอดเสียงจนถึงตอนนี้"
   who_is_talking_in_the_live_transcript_names: "แสดงว่าใครกำลังพูดในข้อความถอดเสียงสด ชื่อจะถูกตรวจอีกครั้งเมื่อการบันทึกสิ้นสุด"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "แสดงเป็นออร์บแก้วเหลวที่มุมหน้าจอ"
@@ -1261,6 +1263,7 @@ status:
   _self: "สถานะ"
 still:
   hearing: "ยังได้ยิน: %@"
+  working_long_recordings_take_a_while: "ยังทำงานอยู่ การบันทึกที่ยาวใช้เวลาสักครู่"
 stop:
   listening: "หยุดฟัง"
   recording: "หยุดการบันทึก"
@@ -1788,6 +1791,7 @@ see:
   where_this_came_from: "ดูที่มาของสิ่งนี้"
 template:
   _self: "เทมเพลต: %@"
+  3ec1ae06: "เทมเพลต"
 templates:
   _self: "เทมเพลต"
 there:
@@ -1795,8 +1799,10 @@ there:
   is_nothing_to_ask_about_yet_record_or_writ: "ยังไม่มีอะไรให้ถาม บันทึกหรือเขียนอะไรบางอย่างก่อน"
 transcribing:
   _self: "กำลังถอดเสียง"
+  failed_the_recording_is_saved_try_a: "การถอดเสียงล้มเหลว การบันทึกถูกเก็บไว้แล้ว ลองอีกครั้ง หรือเปิดเสียงจากโน้ต"
 transcript:
   _self: "ข้อความถอดเสียง"
+  so_far_pindrop_is_checking_it_against: "ข้อความถอดเสียงจนถึงตอนนี้ Pindrop กำลังตรวจสอบกับการบันทึก"
   source: "แหล่งข้อความถอดเสียง %@"
 was:
   _self: "เดิม %@"
@@ -1830,3 +1836,10 @@ thinking:
   _self: "กำลังคิด…"
 write:
   this_note_again: "เขียนโน้ตนี้ใหม่"
+matching:
+  names: "กำลังจับคู่ชื่อ"
+skipped:
+  _self: "ข้ามแล้ว"
+recovered:
+  _self: "กู้คืนแล้ว"
+  from_a_recording_that_was_interrupted: "กู้คืนจากการบันทึกที่ถูกขัดจังหวะ"
