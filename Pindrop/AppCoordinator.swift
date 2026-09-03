@@ -221,6 +221,7 @@ struct SettingsObservationSnapshot: Equatable {
     let mcpServerEnabled: Bool
     let mcpServerPort: Int
     let dictationAudioRetention: DictationAudioRetention
+    let watchForCalls: Bool
 }
 
 enum RecordingStopRoute: Equatable {
@@ -2452,7 +2453,8 @@ final class AppCoordinator {
             ),
             mcpServerEnabled: settingsStore.mcpServerEnabled,
             mcpServerPort: settingsStore.mcpServerPort,
-            dictationAudioRetention: settingsStore.dictationAudioRetention
+            dictationAudioRetention: settingsStore.dictationAudioRetention,
+            watchForCalls: settingsStore.watchForCalls
         )
     }
     private func observeSettings() {
@@ -2532,6 +2534,10 @@ final class AppCoordinator {
 
                     if previousSnapshot.dictationAudioRetention != snapshot.dictationAudioRetention {
                         self.dictationAudioRetentionService.applyRetentionPolicyChange()
+                    }
+
+                    if previousSnapshot.watchForCalls != snapshot.watchForCalls {
+                        self.applyWatchForCallsSetting()
                     }
 
                     self.statusBarController.updateDynamicItems()
@@ -6336,7 +6342,13 @@ final class AppCoordinator {
         // The monitor is built in `init`, because the status bar menu takes it
         // as an initializer argument. Nil means this machine cannot capture
         // system audio, so there is nothing to watch for.
-        guard let monitor = conferenceAudioMonitor else { return }
+        guard let monitor = conferenceAudioMonitor else {
+            settingsWindowController.configureMeetings(
+                isAvailable: false,
+                invitationController: nil
+            )
+            return
+        }
 
         let controller = MeetingInvitationController(
             monitor: monitor,
@@ -6351,7 +6363,12 @@ final class AppCoordinator {
             self.mainWindowController.show()
             // A notification action is not a person reaching for a menu, so the
             // recorded intent says `.automation`.
-            _ = self.handleStartNoteCapture(.meetingNote(), origin: .automation)
+            _ = self.handleStartNoteCapture(
+                .meetingNote(
+                    recordsSystemAudio: self.settingsStore.recordSystemAudioInMeetingNotes
+                ),
+                origin: .automation
+            )
         }
         meetingInvitationController = controller
         controller.start()
@@ -6362,9 +6379,25 @@ final class AppCoordinator {
             Task { @MainActor in await controller?.presentPendingAskIfNeeded() }
         }
 
-        // The Watch-for-calls setting owns start and stop from P3.4. Until then
-        // the monitor runs whenever the machine can record a call.
-        monitor.start()
+        settingsWindowController.configureMeetings(
+            isAvailable: true,
+            invitationController: controller
+        )
+
+        applyWatchForCallsSetting()
+    }
+
+    /// Starts or stops the conference monitor from the Meetings setting.
+    ///
+    /// Stopping publishes "no call", which is what takes "Record this call" out
+    /// of the menu and the dot off the status item.
+    private func applyWatchForCallsSetting() {
+        guard let monitor = conferenceAudioMonitor else { return }
+        if settingsStore.watchForCalls {
+            monitor.start()
+        } else {
+            monitor.stop()
+        }
     }
 
     private func setupInputMuteMonitoring() {

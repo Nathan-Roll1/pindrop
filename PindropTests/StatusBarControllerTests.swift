@@ -201,7 +201,7 @@ struct StatusBarControllerTests {
         menu.performActionForItem(at: meetingNoteIndex)
         menu.performActionForItem(at: newNoteIndex)
 
-        #expect(requests == [.meetingNote(), .soloNote()])
+        #expect(requests == [.meetingNote(recordsSystemAudio: true), .soloNote()])
         #expect(requests.map(\.requestedSourceKinds) == [
             [.microphone, .systemAudio],
             [.microphone]
@@ -304,7 +304,12 @@ struct StatusBarControllerTests {
         menu.performActionForItem(at: recordCallIndex)
 
         // Both meeting entries start the same capture.
-        #expect(requests == [.meetingNote(), .meetingNote()])
+        #expect(
+            requests == [
+                .meetingNote(recordsSystemAudio: true),
+                .meetingNote(recordsSystemAudio: true),
+            ]
+        )
 
         let request = try #require(requests.first)
         #expect(request.requestedSourceKinds == [.microphone, .systemAudio])
@@ -321,6 +326,34 @@ struct StatusBarControllerTests {
         #expect(intent.requestedSourceKinds == [.microphone, .systemAudio])
         #expect(intent.requestedTemplatePresetIdentifier == nil)
         #expect(intent.origin == .menuBar)
+    }
+
+    @Test func meetingNoteFollowsTheRecordSystemAudioSetting() throws {
+        let settingsStore = SettingsStore()
+        settingsStore.resetAllSettings()
+        defer { settingsStore.resetAllSettings() }
+
+        settingsStore.recordSystemAudioInMeetingNotes = false
+        let sut = try makeStatusBarController(settingsStore: settingsStore)
+        var requests: [NoteCaptureRequest] = []
+        sut.configureNoteCapture { request in
+            requests.append(request)
+            return true
+        }
+
+        let locale = settingsStore.selectedAppLocale.locale
+        let menu = sut.menuForTesting()
+        let meetingNoteIndex = try #require(
+            menu.items.firstIndex { $0.title == localized("New meeting note", locale: locale) }
+        )
+        menu.performActionForItem(at: meetingNoteIndex)
+
+        // The Meetings row is the one control over what a meeting note records,
+        // so with it off the meeting row asks for the microphone alone.
+        #expect(requests == [.meetingNote(recordsSystemAudio: false)])
+        let request = try #require(requests.first)
+        #expect(!request.includeSystemAudio)
+        #expect(request.requestedSourceKinds == [.microphone])
     }
 
     @Test func newNoteRequestsTheMicrophoneOnly() throws {

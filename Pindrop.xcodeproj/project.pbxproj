@@ -111,6 +111,7 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		TELEMCONVIEWBUILD01A2B3C4D5E6F /* TelemetryConsentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TELEMCONVIEWFILE01A2B3C4D5E6F /* TelemetryConsentView.swift */; };
 		TELEMCONWINBUILD01A2B3C4D5E6F /* TelemetryConsentWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = TELEMCONWINFILE01A2B3C4D5E6F /* TelemetryConsentWindowController.swift */; };
 		PRIVSETVIEWBUILD01A2B3C4D5E6F /* PrivacySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = PRIVSETVIEWFILE01A2B3C4D5E6F /* PrivacySettingsView.swift */; };
+		MEETSETVIEWBUILD0000001 /* MeetingsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = MEETSETVIEWFILE0000001 /* MeetingsSettingsView.swift */; };
 		TELEMSVCTESTBUILD01A2B3C4D5E6F /* TelemetryServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TELEMSVCTESTFILE01A2B3C4D5E6F /* TelemetryServiceTests.swift */; };
 		TELEMCONTESTBUILD01A2B3C4D5E6F /* TelemetryConsentServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TELEMCONTESTFILE01A2B3C4D5E6F /* TelemetryConsentServiceTests.swift */; };
 		SHAREDDOMAINPRESBUILD01 /* SharedDomainPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = SHAREDDOMAINPRESFILE01 /* SharedDomainPresentation.swift */; };
@@ -407,6 +408,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 		TELEMCONVIEWFILE01A2B3C4D5E6F /* TelemetryConsentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryConsentView.swift; sourceTree = "<group>"; };
 		TELEMCONWINFILE01A2B3C4D5E6F /* TelemetryConsentWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryConsentWindowController.swift; sourceTree = "<group>"; };
 		PRIVSETVIEWFILE01A2B3C4D5E6F /* PrivacySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacySettingsView.swift; sourceTree = "<group>"; };
+		MEETSETVIEWFILE0000001 /* MeetingsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingsSettingsView.swift; sourceTree = "<group>"; };
 		TELEMSVCTESTFILE01A2B3C4D5E6F /* TelemetryServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryServiceTests.swift; sourceTree = "<group>"; };
 		TELEMCONTESTFILE01A2B3C4D5E6F /* TelemetryConsentServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryConsentServiceTests.swift; sourceTree = "<group>"; };
 		SHAREDDOMAINPRESFILE01 /* SharedDomainPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedDomainPresentation.swift; sourceTree = "<group>"; };
@@ -792,6 +794,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				SETTPRESENTFILE01A2B3 /* SettingsPresentation.swift */,
 				SETTCHROMEFILE01A2B3C /* SettingsChrome.swift */,
 				8D0F64A2A0A44CE9B6B5A003 /* DictationSettingsView.swift */,
+				MEETSETVIEWFILE0000001 /* MeetingsSettingsView.swift */,
 				8B0A66F0A9C04230977FF4F8 /* GeneralSettingsView.swift */,
 				THEMESETTINGSFILE01A2B3C4D5E6F /* ThemeSettingsView.swift */,
 				DBCE211FE788482E9E1A68F5 /* HotkeysSettingsView.swift */,
@@ -1405,6 +1408,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				TRXDTLACCESSBUILD01A2B3 /* TranscriptionDetailAccess.swift in Sources */,
 				8D0F64A2A0A44CE9B6B5A002 /* SettingsWindowController.swift in Sources */,
 				8D0F64A2A0A44CE9B6B5A004 /* DictationSettingsView.swift in Sources */,
+				MEETSETVIEWBUILD0000001 /* MeetingsSettingsView.swift in Sources */,
 				SETTINGSCOMPBUILD01A2B3C4D5E6F /* SettingsComponents.swift in Sources */,
 				0588BEAA2351458CB276E230 /* GeneralSettingsView.swift in Sources */,
 				THEMESETTINGSBUILD01A2B3C4D5E6F /* ThemeSettingsView.swift in Sources */,

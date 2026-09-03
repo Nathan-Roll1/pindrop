@@ -14,6 +14,21 @@ import PindropMedia
 @Suite
 struct SettingsPresentationTests {
 
+    // MARK: - Tab visibility
+
+    @Test func meetingsTabIsHiddenWithoutSystemAudioCapture() {
+        let withMeetings = SettingsTab.visibleCases(isMeetingSectionAvailable: true)
+        #expect(withMeetings == SettingsTab.allCases)
+        // Meetings sits right after Dictation, where a reader looks for it.
+        #expect(withMeetings.firstIndex(of: .meetings) == withMeetings.firstIndex(of: .dictation)! + 1)
+
+        // No system audio capture means no call to record, so the whole section
+        // goes, rows and tab together. Every other tab stays, in order.
+        let withoutMeetings = SettingsTab.visibleCases(isMeetingSectionAvailable: false)
+        #expect(!withoutMeetings.contains(.meetings))
+        #expect(withoutMeetings == SettingsTab.allCases.filter { $0 != .meetings })
+    }
+
     // MARK: - Retention picker labels
 
     @Test func retentionPickerOrderIsOff7_30Forever() {

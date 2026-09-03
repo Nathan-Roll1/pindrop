@@ -149,14 +149,19 @@ struct NoteCaptureRequest: Equatable, Sendable {
 /// store creates the session, so the presets live on the start request instead
 /// and fix the source list. The store binds them to the session it creates.
 extension NoteCaptureRequest {
-    /// A note that records a call: the microphone and the system output.
+    /// A note that records a call: the microphone, and the system output when
+    /// the Meetings section says so.
     ///
     /// It sets no template preset, so an enhanced meeting note reads exactly
     /// like one started with system audio before the menu bar row was renamed.
     /// The meeting template arrives with the picker that lets a reader see
     /// which template ran and change it.
-    static func meetingNote(noteID: UUID? = nil) -> NoteCaptureRequest {
-        NoteCaptureRequest(noteID: noteID, includeSystemAudio: true)
+    ///
+    /// `recordsSystemAudio` has no default: every caller reads
+    /// `SettingsStore.recordSystemAudioInMeetingNotes`, and a default here would
+    /// let a new caller quietly ignore it.
+    static func meetingNote(noteID: UUID? = nil, recordsSystemAudio: Bool) -> NoteCaptureRequest {
+        NoteCaptureRequest(noteID: noteID, includeSystemAudio: recordsSystemAudio)
     }
 
     /// A note that records only the person holding the machine.

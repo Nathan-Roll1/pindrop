@@ -120,6 +120,12 @@ final class SettingsStore: ObservableObject, AppSettingsProviding {
       static let noteEnhancementPrompt = AIEnhancementDefaults.notePrompt
       static let mentionTemplateOverridesJSON = "{}"
 
+      /// Meetings. Watching for calls costs one property listener and reads no
+      /// content, so it ships on; the notification that needs a permission does
+      /// not (see `notifyWhenCallStarts`).
+      static let watchForCalls = true
+      static let recordSystemAudioInMeetingNotes = true
+
       enum Hotkeys {
          static let toggleHotkey = "⌥Space"
          static let toggleHotkeyCode = 49
@@ -329,10 +335,21 @@ final class SettingsStore: ObservableObject, AppSettingsProviding {
 
    // MARK: Meetings
 
+   /// Runs `ConferenceAudioMonitor`, which is what puts "Record this call" in the
+   /// menu. Turning it off stops the monitor and takes that row away.
+   ///
+   /// The whole section is hidden on a machine that cannot capture system audio,
+   /// because there is no call to record there.
+   @AppStorage("watchForCalls", store: SettingsStoreRuntime.appStorageStore)
+   var watchForCalls: Bool = Defaults.watchForCalls
    /// Sends a notification when a call is detected. Off by default, because it
    /// is the one meeting affordance that needs a system permission.
    @AppStorage("notifyWhenCallStarts", store: SettingsStoreRuntime.appStorageStore)
    var notifyWhenCallStarts: Bool = false
+   /// The sources a meeting note asks for. Off makes a meeting note record the
+   /// microphone alone, which is the only difference it makes.
+   @AppStorage("recordSystemAudioInMeetingNotes", store: SettingsStoreRuntime.appStorageStore)
+   var recordSystemAudioInMeetingNotes: Bool = Defaults.recordSystemAudioInMeetingNotes
    /// True once the one-time "Pindrop noticed a call." ask has an answer,
    /// whichever answer it was. The ask never appears again.
    @AppStorage("callNotificationAskAnswered", store: SettingsStoreRuntime.appStorageStore)
@@ -969,10 +986,14 @@ final class SettingsStore: ObservableObject, AppSettingsProviding {
       streamingLowLatencyMode = false
       diarizationFeatureEnabled = false
       liveSpeakerNamesEnabled = false
-      // Meetings: no notification and no answered ask, so a test never posts an
-      // alert and never opens a modal.
+      // Meetings: no monitor, no notification and no answered ask, so a test
+      // never reads Core Audio, never posts an alert and never opens a modal.
+      watchForCalls = false
       notifyWhenCallStarts = false
       callNotificationAskAnswered = false
+      // This key starts nothing; it only shapes the sources a meeting note asks
+      // for, so the reset restores the shipping value rather than clearing it.
+      recordSystemAudioInMeetingNotes = Defaults.recordSystemAudioInMeetingNotes
       themeMode = Defaults.themeMode
       lightThemePresetID = Defaults.lightThemePresetID
       darkThemePresetID = Defaults.darkThemePresetID

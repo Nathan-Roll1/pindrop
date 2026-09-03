@@ -718,6 +718,37 @@ struct SettingsStoreCaptureAssignmentResolverTests {
         }
     }
 
+    /// The Meetings row and the finalize diarization stage are two settings, not
+    /// one. Binding them would mean turning off live names silently strips the
+    /// speakers out of the finished note.
+    @Test func turningOffLiveSpeakerNamesLeavesTheFinalizeDiarizationStageEnabled() throws {
+        let fixture = try makeFixture()
+        defer { fixture.cleanup() }
+        let resolver = fixture.makeResolver()
+        try makeDiarizationReady(fixture)
+
+        fixture.settings.diarizationFeatureEnabled = true
+        fixture.settings.liveSpeakerNamesEnabled = true
+        let withLiveNames = try resolver.select(
+            stage: .diarization,
+            attempt: 1,
+            activeBatchModelName: nil
+        )
+        #expect(withLiveNames.providerKind == .localDiarization)
+
+        fixture.settings.liveSpeakerNamesEnabled = false
+        let withoutLiveNames = try resolver.select(
+            stage: .diarization,
+            attempt: 2,
+            activeBatchModelName: nil
+        )
+        #expect(withoutLiveNames.providerKind == .localDiarization)
+        #expect(withoutLiveNames.providerIdentifier == withLiveNames.providerIdentifier)
+        #expect(withoutLiveNames.modelIdentifier == withLiveNames.modelIdentifier)
+        #expect(try preview(.diarization, fixture: fixture).state == .ready)
+        #expect(fixture.settings.diarizationFeatureEnabled)
+    }
+
     @Test func resetRestoresCaptureStageDefaults() throws {
         let fixture = try makeFixture()
         defer { fixture.cleanup() }

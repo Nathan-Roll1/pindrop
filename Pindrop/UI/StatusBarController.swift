@@ -675,7 +675,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func startNewMeetingNote() {
-        _ = onStartNoteCapture?(.meetingNote())
+        _ = onStartNoteCapture?(meetingNoteRequest())
     }
 
     @objc private func startNewNote() {
@@ -685,7 +685,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     /// The detected call and "New meeting note" start the same capture. This row
     /// exists to say so at the moment it is true.
     @objc private func recordDetectedCall() {
-        _ = onStartNoteCapture?(.meetingNote())
+        _ = onStartNoteCapture?(meetingNoteRequest())
+    }
+
+    /// The Meetings section owns what a meeting note records, so both meeting
+    /// rows read it at the moment they are pressed.
+    private func meetingNoteRequest() -> NoteCaptureRequest {
+        .meetingNote(recordsSystemAudio: settingsStore.recordSystemAudioInMeetingNotes)
     }
 
     @objc private func copyLastTranscript() {

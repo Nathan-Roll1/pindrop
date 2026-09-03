@@ -230,6 +230,34 @@ struct SettingsStoreTests {
         #expect(!store.voiceIsolationEnabled)
         #expect(!store.notifyWhenCallStarts)
         #expect(!store.callNotificationAskAnswered)
+        #expect(!store.watchForCalls)
+        #expect(store.recordSystemAudioInMeetingNotes)
+    }
+
+    @Test func testMeetingSettingsShipOnAndResetToTheirTestModeValues() {
+        let settingsStore = makeSettingsStore()
+        defer { cleanup(settingsStore) }
+
+        // A fresh install watches for calls. Only the reset path turns it off,
+        // so no test ever starts a Core Audio monitor.
+        SettingsStore.backingUserDefaults.removeObject(forKey: "watchForCalls")
+        SettingsStore.backingUserDefaults.removeObject(forKey: "recordSystemAudioInMeetingNotes")
+        #expect(SettingsStore().watchForCalls)
+        #expect(SettingsStore().recordSystemAudioInMeetingNotes)
+
+        settingsStore.watchForCalls = true
+        settingsStore.recordSystemAudioInMeetingNotes = false
+        let reloaded = SettingsStore()
+        #expect(reloaded.watchForCalls)
+        #expect(!reloaded.recordSystemAudioInMeetingNotes)
+
+        settingsStore.resetAllSettings()
+        #expect(!settingsStore.watchForCalls)
+        // Recording system audio in a meeting note starts nothing on its own, so
+        // the reset restores the shipping value and the preset stays honest.
+        #expect(settingsStore.recordSystemAudioInMeetingNotes)
+        #expect(!SettingsStore().watchForCalls)
+        #expect(SettingsStore().recordSystemAudioInMeetingNotes)
     }
 
     @Test func testVoiceIsolationDefaultsOffPersistsAndResets() {
