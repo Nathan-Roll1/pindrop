@@ -831,6 +831,9 @@ final class AppCoordinator {
     private var modifierEventTapRecoveryTask: Task<Void, Never>?
     private var inputDeviceListMonitor: AudioDeviceListMonitor?
     private var inputMuteMonitor: InputMuteMonitor?
+    /// Watches audio process state for a conference call. Nil when system audio
+    /// capture is unavailable, which is the one gate on every meeting affordance.
+    private(set) var conferenceAudioMonitor: ConferenceAudioMonitor?
     private var lastEscapeSignalTime: Date?
     private let duplicateEscapeSignalThreshold: TimeInterval = 0.08
     /// First press of a double-Escape cancel sequence; cleared on cancel/finish.
@@ -1297,6 +1300,7 @@ final class AppCoordinator {
             setupEscapeKeyMonitor()
             setupModifierKeyMonitor()
             setupInputDeviceMonitoring()
+            setupConferenceCallMonitoring()
         } else {
             Log.app.debug("Skipping global hotkey and key monitor setup in test environment")
         }
@@ -6295,6 +6299,17 @@ final class AppCoordinator {
         setupInputMuteMonitoring()
     }
 
+    private func setupConferenceCallMonitoring() {
+        // System audio availability is the whole gate: below macOS 14.2 there is
+        // no call to record, so there is nothing to watch for.
+        guard audioRecorder.isSystemAudioCaptureAvailable else { return }
+        let monitor = ConferenceAudioMonitor()
+        conferenceAudioMonitor = monitor
+        // The Watch-for-calls setting owns start and stop from P3.4. Until then
+        // the monitor runs whenever the machine can record a call.
+        monitor.start()
+    }
+
     private func setupInputMuteMonitoring() {
         let muteMonitor = InputMuteMonitor(
             preferredDeviceUID: settingsStore.selectedInputDeviceUID
@@ -7371,6 +7386,8 @@ final class AppCoordinator {
 
         inputMuteMonitor?.stop()
         inputMuteMonitor = nil
+        conferenceAudioMonitor?.stop()
+        conferenceAudioMonitor = nil
         inputDeviceListMonitor?.stop()
         inputDeviceListMonitor = nil
         floatingIndicatorFocusTracker.stop()

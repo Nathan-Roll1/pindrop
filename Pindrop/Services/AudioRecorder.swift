@@ -4035,7 +4035,17 @@ final class AudioRecorder {
     var targetFormat: AVAudioFormat {
         activeCaptureBackend?.targetFormat ?? microphoneCaptureBackend.targetFormat
     }
-    
+
+    /// True when this machine can capture system audio at all.
+    ///
+    /// The single availability answer for every meeting affordance. System audio
+    /// has required macOS 14.2 since it shipped, so below that there is no call
+    /// to record and nothing to offer. Conference detection adds no second axis:
+    /// a process-object read that fails on 14.2 or 14.3 means no call detected.
+    var isSystemAudioCaptureAvailable: Bool {
+        systemAudioCaptureBackend != nil
+    }
+
     var onAudioLevel: ((Float) -> Void)?
 
     /// Guards the two live sinks below, and nothing else.
