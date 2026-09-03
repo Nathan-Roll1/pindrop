@@ -170,6 +170,7 @@ MODELSPRESENTTESTBUILD01A2 /* ModelsPresentationTests.swift in Sources */ = {isa
 		NOTECAPCTRLTESTBUILD01 /* NoteCaptureControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTECAPCTRLTESTFILE01 /* NoteCaptureControllerTests.swift */; };
 		LIVECHANARBTESTBUILD01 /* LiveChannelArbiterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVECHANARBTESTFILE01 /* LiveChannelArbiterTests.swift */; };
 		LIVEAUDIOPUMPTESTBUILD1 /* LiveAudioPumpTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LIVEAUDIOPUMPTESTFILE1 /* LiveAudioPumpTests.swift */; };
+		NOTECAPTURESTATETESTBUILD1 /* NoteCaptureStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NOTECAPTURESTATETESTFILE1 /* NoteCaptureStateTests.swift */; };
 		CONFCATBUILD0000000001 /* ConferenceAppCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = CONFCATFILE0000000001 /* ConferenceAppCatalog.swift */; };
 		CONFPROBEBUILD000000001 /* ConferenceAudioProcessProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = CONFPROBEFILE000000001 /* ConferenceAudioProcessProbe.swift */; };
 		CONFMONBUILD0000000001 /* ConferenceAudioMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = CONFMONFILE0000000001 /* ConferenceAudioMonitor.swift */; };
@@ -456,6 +457,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 		NOTECAPCTRLTESTFILE01 /* NoteCaptureControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCaptureControllerTests.swift; sourceTree = "<group>"; };
 		LIVECHANARBTESTFILE01 /* LiveChannelArbiterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveChannelArbiterTests.swift; sourceTree = "<group>"; };
 		LIVEAUDIOPUMPTESTFILE1 /* LiveAudioPumpTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveAudioPumpTests.swift; sourceTree = "<group>"; };
+		NOTECAPTURESTATETESTFILE1 /* NoteCaptureStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCaptureStateTests.swift; sourceTree = "<group>"; };
 		CONFCATFILE0000000001 /* ConferenceAppCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConferenceAppCatalog.swift; sourceTree = "<group>"; };
 		CONFPROBEFILE000000001 /* ConferenceAudioProcessProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConferenceAudioProcessProbe.swift; sourceTree = "<group>"; };
 		CONFMONFILE0000000001 /* ConferenceAudioMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConferenceAudioMonitor.swift; sourceTree = "<group>"; };
@@ -912,6 +914,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				NOTECAPCTRLTESTFILE01 /* NoteCaptureControllerTests.swift */,
 				LIVECHANARBTESTFILE01 /* LiveChannelArbiterTests.swift */,
 				LIVEAUDIOPUMPTESTFILE1 /* LiveAudioPumpTests.swift */,
+				NOTECAPTURESTATETESTFILE1 /* NoteCaptureStateTests.swift */,
 				CONFMONTESTFILE00000001 /* ConferenceAudioMonitorTests.swift */,
 				CONFINTTESTFILE00000001 /* ConferenceAudioProcessProbeIntegrationTests.swift */,
 				MEETINVTESTFILE0000001 /* MeetingInvitationControllerTests.swift */,
@@ -1344,6 +1347,7 @@ MODELSPRESENTTESTFILE01A2 /* ModelsPresentationTests.swift */ = {isa = PBXFileRe
 				NOTECAPCTRLTESTBUILD01 /* NoteCaptureControllerTests.swift in Sources */,
 				LIVECHANARBTESTBUILD01 /* LiveChannelArbiterTests.swift in Sources */,
 				LIVEAUDIOPUMPTESTBUILD1 /* LiveAudioPumpTests.swift in Sources */,
+				NOTECAPTURESTATETESTBUILD1 /* NoteCaptureStateTests.swift in Sources */,
 				CONFMONTESTBUILD00000001 /* ConferenceAudioMonitorTests.swift in Sources */,
 				CONFINTTESTBUILD00000001 /* ConferenceAudioProcessProbeIntegrationTests.swift in Sources */,
 				MOCKCONFPROBEBUILD000001 /* MockConferenceAudioProcessProbe.swift in Sources */,

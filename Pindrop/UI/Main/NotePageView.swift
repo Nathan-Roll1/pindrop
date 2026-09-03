@@ -157,6 +157,8 @@ struct NotePageView: View {
     /// The templates the menu offers, in their stored order.
     @State private var templatePresets: [TemplateMenuPreset] = []
     @State private var isPresetSheetPresented = false
+    /// True while the stall action's read-only transcript is open.
+    @State private var isStalledTranscriptPresented = false
     /// True when the preset sheet was opened to make a template, not to read the
     /// list of them.
     @State private var presetSheetStartsCreating = false
@@ -360,6 +362,9 @@ struct NotePageView: View {
         }
         .sheet(isPresented: $isPresetSheetPresented, onDismiss: refreshTemplatePresets) {
             PresetManagementSheet(startsCreating: presetSheetStartsCreating)
+        }
+        .sheet(isPresented: $isStalledTranscriptPresented) {
+            stalledTranscriptSheet
         }
         .confirmationDialog(
             localized("Delete this transcript?", locale: locale),
@@ -1255,32 +1260,108 @@ struct NotePageView: View {
     @ViewBuilder
     private func captureDockContent(now: Date, canvasHeight: CGFloat) -> some View {
         let elapsed = elapsedText(now: now)
-        if let stage = capturePhase.finalizationStage {
+        // One checklist covers both phases. A reader who stopped a long meeting
+        // needs the whole pipeline, not the one word it is on, and enhancing is
+        // the last row of the same list.
+        if let state = noteCaptureState, capturePhase.finalizationStage != nil {
             StageProgressRow(
-                stage: NotePagePresentation.stageTitle(stage, locale: locale),
-                completedStages: NotePagePresentation.completedStages(
-                    before: stage,
+                stage: NotePagePresentation.stageTitle(
+                    capturePhase.finalizationStage ?? .sealingAudio,
                     locale: locale
                 ),
                 elapsedText: elapsed,
-                progress: capturePhase.finalizationProgress,
-                caption: NotePagePresentation.finalizingCaption(locale: locale)
+                caption: NotePagePresentation.finalizingCaption(locale: locale),
+                steps: finalizationSteps(state: state)
             )
             .accessibilityIdentifier("note.page.capture.finalizing")
-        } else if capturePhase == .enhancing {
+        } else if let state = noteCaptureState, capturePhase == .enhancing {
             StageProgressRow(
                 stage: NotePagePresentation.stageTitle(.assembling, locale: locale),
-                completedStages: NotePagePresentation.completedStages(
-                    before: .assembling,
-                    locale: locale
-                ),
                 elapsedText: elapsed,
-                caption: NotePagePresentation.finalizingCaption(locale: locale)
+                caption: NotePagePresentation.finalizingCaption(locale: locale),
+                steps: finalizationSteps(state: state)
             )
             .accessibilityIdentifier("note.page.capture.enhancing")
         } else {
             captureDockBlock(now: now, canvasHeight: canvasHeight)
         }
+    }
+
+    /// The checklist rows, with the stall line and the failure sentence attached
+    /// to the step they belong to.
+    private func finalizationSteps(state: NoteCaptureState) -> [StageProgressStep] {
+        let isStalled = state.isFinalizationStalled
+        return state.finalizationChecklist.map { row in
+            let title = NotePagePresentation.stepTitle(row.step, locale: locale)
+            switch row.status {
+            case .pending:
+                return StageProgressStep(id: row.step.rawValue, title: title, status: .pending)
+            case .done:
+                return StageProgressStep(id: row.step.rawValue, title: title, status: .done)
+            case .skipped:
+                return StageProgressStep(
+                    id: row.step.rawValue,
+                    title: title,
+                    status: .skipped,
+                    detail: NotePagePresentation.skippedStepLabel(locale: locale)
+                )
+            case .running(let progress):
+                return StageProgressStep(
+                    id: row.step.rawValue,
+                    title: title,
+                    status: .running(progress),
+                    detail: isStalled ? NotePagePresentation.stallMessage(locale: locale) : nil,
+                    action: isStalled
+                        ? StageProgressStep.Action(
+                            title: NotePagePresentation.stallActionTitle(locale: locale),
+                            perform: { isStalledTranscriptPresented = true }
+                        )
+                        : nil
+                )
+            case .failed(let message):
+                return StageProgressStep(
+                    id: row.step.rawValue,
+                    title: title,
+                    status: .failed,
+                    detail: NotePagePresentation.failedStepMessage(
+                        row.step,
+                        failure: message,
+                        locale: locale
+                    )
+                )
+            }
+        }
+    }
+
+    /// What the stall action opens: the committed live text, read-only. Every
+    /// word of it is already durable in the checkpoint, so offering it claims
+    /// nothing the capture cannot keep.
+    private var stalledTranscriptSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(NotePagePresentation.viewTitle(.transcript, locale: locale))
+                .font(AppTypography.labelStrong)
+                .foregroundStyle(AppColors.textPrimary)
+
+            ScrollView {
+                Text(noteCaptureState?.liveTranscriptForCopy(locale: locale) ?? "")
+                    .font(AppTypography.transcriptBody)
+                    .foregroundStyle(AppColors.textPrimary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            HStack {
+                Spacer()
+                Button(localized("Done", locale: locale)) {
+                    isStalledTranscriptPresented = false
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 440, minHeight: 340)
+        .background(AppColors.contentBackground)
+        .accessibilityIdentifier("note.page.capture.stalled.transcript")
     }
 
     /// The dock is one connected block: the live transcript sheet on top, the

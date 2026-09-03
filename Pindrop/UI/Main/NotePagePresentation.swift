@@ -26,6 +26,9 @@ enum NotePageFinalizationStage: String, Equatable, Sendable, CaseIterable {
     case sealingAudio
     case transcribing
     case diarizing
+    /// The profile-matching pass. It always ran inside finalize; before the
+    /// checklist it had no name and nothing on screen said it was happening.
+    case matchingSpeakers
     case assembling
 }
 
@@ -688,9 +691,57 @@ enum NotePagePresentation {
             localized("Transcribing", locale: locale)
         case .diarizing:
             localized("Identifying speakers", locale: locale)
+        case .matchingSpeakers:
+            localized("Matching names", locale: locale)
         case .assembling:
             localized("Writing note", locale: locale)
         }
+    }
+
+    /// The same vocabulary, keyed by the checklist's step. `.enhancing` is a
+    /// capture phase rather than a finalization stage, and it reuses the stage
+    /// the enhanced panel is written in.
+    static func stepTitle(_ step: FinalizationStep, locale: Locale) -> String {
+        switch step {
+        case .sealingAudio: stageTitle(.sealingAudio, locale: locale)
+        case .transcribing: stageTitle(.transcribing, locale: locale)
+        case .diarizing: stageTitle(.diarizing, locale: locale)
+        case .matchingSpeakers: stageTitle(.matchingSpeakers, locale: locale)
+        case .assembling, .enhancing: stageTitle(.assembling, locale: locale)
+        }
+    }
+
+    /// The word a step that does not apply to this capture is drawn with.
+    static func skippedStepLabel(locale: Locale) -> String {
+        localized("Skipped", locale: locale)
+    }
+
+    /// What a step that has reported nothing for the stall window says. It
+    /// claims no time and offers no cancel: the work is still running.
+    static func stallMessage(locale: Locale) -> String {
+        localized("Still working. Long recordings take a while.", locale: locale)
+    }
+
+    /// The action beside the stall line. The committed live text is already
+    /// durable in the checkpoint, so this is a real thing to offer.
+    static func stallActionTitle(locale: Locale) -> String {
+        localized("Show the transcript so far", locale: locale)
+    }
+
+    /// What a failed step says. Transcription is the one failure where the
+    /// reader needs to be told the recording survived, because that is the step
+    /// where losing it would matter most. Every other step shows the text the
+    /// failed phase already carries rather than inventing a second sentence.
+    static func failedStepMessage(
+        _ step: FinalizationStep,
+        failure: String,
+        locale: Locale
+    ) -> String {
+        guard step == .transcribing else { return failure }
+        return localized(
+            "Transcribing failed. The recording is saved. Try again, or open the audio from the note.",
+            locale: locale
+        )
     }
 
     /// What already finished, so a long finalization shows progress rather than
@@ -703,7 +754,7 @@ enum NotePagePresentation {
             localized("Audio sealed", locale: locale)
         case .diarizing:
             localized("Transcription done", locale: locale)
-        case .assembling:
+        case .matchingSpeakers, .assembling:
             localized("Speakers identified", locale: locale)
         }
     }
@@ -769,6 +820,8 @@ extension NotePageCapturePhase {
                 self = .finalizing(.transcribing, progress: progress)
             case .diarizing(let progress):
                 self = .finalizing(.diarizing, progress: progress)
+            case .matchingSpeakers:
+                self = .finalizing(.matchingSpeakers, progress: nil)
             case .assembling:
                 self = .finalizing(.assembling, progress: nil)
             }

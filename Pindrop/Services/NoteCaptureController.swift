@@ -1418,7 +1418,15 @@ final class NoteCaptureController {
                 sequences: missingFinalASRSequences
             )
         }
-        setFinalizingStage(.assembling, for: handle)
+        // The name work of finalize, reported so the reader can see it. The
+        // per-chunk profile match runs inside `transcribeMeetingChunk`, which is
+        // one opaque call from here; the merge is where those matched profiles
+        // are carried across chunk boundaries into the transcript that is kept,
+        // and where the live labels are compared against them. Only a capture
+        // that diarized has any of it to do.
+        if diarizationEnabled {
+            setFinalizingStage(.matchingSpeakers, for: handle)
+        }
         let refreshedOutputs: [TranscriptionChunkOutput] = refreshedPlan.completedASRCheckpoints.compactMap { checkpoint in
             guard let workItem = workItems.first(where: { $0.sequence == checkpoint.sequence }) else {
                 return nil
@@ -1428,6 +1436,7 @@ final class NoteCaptureController {
         let merged = try transcriptionService.mergeMeetingChunks(
             Self.meetingOutputPlaceholders(workItems: workItems, outputs: refreshedOutputs)
         )
+        setFinalizingStage(.assembling, for: handle)
         let finalText = Self.normalizedText(merged.text)
         guard !Self.isEffectivelyEmpty(finalText) else {
             let failure = NoteCaptureError.noRetainedSources

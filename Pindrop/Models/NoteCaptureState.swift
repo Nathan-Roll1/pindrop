@@ -35,6 +35,43 @@ enum LiveSpeakerLabelStatus: Equatable, Sendable {
     case paused
 }
 
+/// One stage's name, with no progress attached, in the order the pipeline runs
+/// them. `.enhancing` is a `NoteCaptureState.Phase`, not a `FinalizationStage`,
+/// and it is listed here because the reader sees one list from stop to done.
+///
+/// Declared beside `NoteCaptureState` rather than inside it: a nested type of a
+/// `@MainActor` class inherits that isolation, and the presentation layer names
+/// these steps from outside the main actor.
+enum FinalizationStep: String, Equatable, CaseIterable, Sendable {
+    case sealingAudio
+    case transcribing
+    case diarizing
+    case matchingSpeakers
+    case assembling
+    case enhancing
+}
+
+/// What one stage is doing right now, for the checklist.
+enum StageStatus: Equatable, Sendable {
+    case pending
+    case running(Double?)
+    /// The stage did not apply to this capture, for example diarization on a
+    /// microphone-only note. Drawn quietly, never as a failure.
+    case skipped
+    case done
+    /// Carries the text the failed phase already holds, so the row can say what
+    /// went wrong without a second store of failure messages.
+    case failed(String)
+}
+
+/// One row of the checklist. A tuple array cannot back a SwiftUI `ForEach`
+/// without a wrapper, so the wrapper is the type.
+struct FinalizationChecklistRow: Identifiable, Equatable, Sendable {
+    var id: FinalizationStep { step }
+    let step: FinalizationStep
+    let status: StageStatus
+}
+
 @MainActor
 @Observable
 final class NoteCaptureState {
@@ -42,11 +79,34 @@ final class NoteCaptureState {
     /// The named work a finalizing capture is doing, with progress where the
     /// stage can report it. `nil` progress means "running, length unknown"; the
     /// UI shows an indeterminate affordance rather than a fake percentage.
+    ///
+    /// Carries its progress in associated values, so it cannot be `CaseIterable`.
+    /// `FinalizationStep` carries the order instead.
     enum FinalizationStage: Equatable {
         case sealingAudio
         case transcribing(Double?)
         case diarizing(Double?)
+        case matchingSpeakers
         case assembling
+
+        var step: FinalizationStep {
+            switch self {
+            case .sealingAudio: .sealingAudio
+            case .transcribing: .transcribing
+            case .diarizing: .diarizing
+            case .matchingSpeakers: .matchingSpeakers
+            case .assembling: .assembling
+            }
+        }
+
+        /// How far through the stage is, when it can say. Only the two long
+        /// stages count anything.
+        var progress: Double? {
+            switch self {
+            case .transcribing(let progress), .diarizing(let progress): progress
+            case .sealingAudio, .matchingSpeakers, .assembling: nil
+            }
+        }
     }
 
     enum Phase: Equatable {
@@ -60,7 +120,29 @@ final class NoteCaptureState {
         case failed(String)
     }
 
+    /// How long a running step may report nothing before the interface says so.
+    /// A long recording genuinely sits in one stage for minutes, so this is the
+    /// point where silence stops reading as normal, not a timeout: nothing is
+    /// cancelled and no work is retried.
+    static let stallWindow: TimeInterval = 45
+
+    /// Reads the current time. Injected so the stall window can be crossed in a
+    /// test without waiting 45 s.
+    @ObservationIgnored private let now: () -> Date
+
+    init(now: @escaping () -> Date = Date.init) {
+        self.now = now
+    }
+
     private(set) var phase: Phase = .idle
+    /// When the running step last said anything new. Written only when the phase
+    /// actually changes, so a stage that keeps reporting progress keeps starting
+    /// the stall window over and a still one does not.
+    private var stepReportedAt: Date?
+    /// The step the capture was on when it failed. `Phase.failed` carries the
+    /// message but not the work it happened in, and the checklist has to mark
+    /// the row the reader was watching.
+    private var lastFinalizationStep: FinalizationStep?
     /// The note this capture writes to. Set as soon as the note exists, which is
     /// before audio starts, so the UI can open the note while it is still empty.
     private(set) var noteID: UUID?
@@ -142,6 +224,84 @@ final class NoteCaptureState {
         return message
     }
 
+    // MARK: - Finalization checklist
+
+    /// Every step of this capture in order, with its status. The interface draws
+    /// the whole list so the reader can see what is finished, what is running,
+    /// and what does not apply, instead of one word that does not move for
+    /// minutes.
+    var finalizationChecklist: [FinalizationChecklistRow] {
+        FinalizationStep.allCases.map {
+            FinalizationChecklistRow(step: $0, status: status(of: $0))
+        }
+    }
+
+    /// True once the running step has reported nothing for `stallWindow`. The
+    /// interface answers it by offering the committed live text, which is
+    /// already durable in the checkpoint.
+    ///
+    /// Reads the clock, so a view that has to see this change needs its own
+    /// tick. The capture dock already redraws once a second.
+    var isFinalizationStalled: Bool {
+        switch phase {
+        case .finalizing, .enhancing:
+            guard let stepReportedAt else { return false }
+            return now().timeIntervalSince(stepReportedAt) >= Self.stallWindow
+        case .idle, .starting, .capturing, .completed, .failed:
+            return false
+        }
+    }
+
+    /// False for work this capture never runs. `NoteCaptureController` gates
+    /// both speaker stages on `capturesSystemAudio`, so a microphone-only note
+    /// must not wait on a row that will never start.
+    private func appliesToThisCapture(_ step: FinalizationStep) -> Bool {
+        switch step {
+        case .diarizing, .matchingSpeakers:
+            includesSystemAudio
+        case .sealingAudio, .transcribing, .assembling, .enhancing:
+            true
+        }
+    }
+
+    private func status(of step: FinalizationStep) -> StageStatus {
+        let applies = appliesToThisCapture(step)
+        switch phase {
+        case .idle, .starting, .capturing:
+            return applies ? .pending : .skipped
+        case .completed:
+            return applies ? .done : .skipped
+        case .finalizing(let stage):
+            return status(of: step, running: stage.step, progress: stage.progress, applies: applies)
+        case .enhancing:
+            return status(of: step, running: .enhancing, progress: nil, applies: applies)
+        case .failed(let message):
+            guard let failed = lastFinalizationStep else { return applies ? .pending : .skipped }
+            if step == failed { return .failed(message) }
+            guard applies else { return .skipped }
+            return Self.isBefore(step, failed) ? .done : .pending
+        }
+    }
+
+    private func status(
+        of step: FinalizationStep,
+        running: FinalizationStep,
+        progress: Double?,
+        applies: Bool
+    ) -> StageStatus {
+        guard applies else { return .skipped }
+        if step == running { return .running(progress) }
+        return Self.isBefore(step, running) ? .done : .pending
+    }
+
+    private static func isBefore(_ step: FinalizationStep, _ other: FinalizationStep) -> Bool {
+        let order = FinalizationStep.allCases
+        guard let lhs = order.firstIndex(of: step), let rhs = order.firstIndex(of: other) else {
+            return false
+        }
+        return lhs < rhs
+    }
+
     // MARK: - Transitions
 
     func beginStarting(includesSystemAudio: Bool, origin: CaptureIntentOrigin) {
@@ -163,6 +323,8 @@ final class NoteCaptureState {
         isLiveSpeakerSlotCapacityReached = false
         isOfflineSpeakerPassScheduled = false
         enhancementFailureMessage = nil
+        stepReportedAt = nil
+        lastFinalizationStep = nil
     }
 
     func bindNote(id: UUID) {
@@ -347,6 +509,11 @@ final class NoteCaptureState {
     }
 
     func beginFinalizing(_ stage: FinalizationStage) {
+        // Reported progress is what keeps the stall window open, so the clock
+        // restarts only when the phase genuinely changed. A stage repeating
+        // itself has said nothing new.
+        if phase != .finalizing(stage) { stepReportedAt = now() }
+        lastFinalizationStep = stage.step
         phase = .finalizing(stage)
         audioLevel = 0
         bandLevels = .zero
@@ -356,6 +523,8 @@ final class NoteCaptureState {
     }
 
     func beginEnhancing() {
+        if phase != .enhancing { stepReportedAt = now() }
+        lastFinalizationStep = .enhancing
         phase = .enhancing
         enhancementFailureMessage = nil
     }
@@ -401,5 +570,7 @@ final class NoteCaptureState {
         isLiveSpeakerSlotCapacityReached = false
         isOfflineSpeakerPassScheduled = false
         enhancementFailureMessage = nil
+        stepReportedAt = nil
+        lastFinalizationStep = nil
     }
 }

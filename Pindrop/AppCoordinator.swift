@@ -7657,7 +7657,7 @@ extension AppCoordinator: CaptureArbiter {
             progress = 0
         case .transcribing(let value), .diarizing(let value):
             progress = value
-        case .assembling:
+        case .matchingSpeakers, .assembling:
             progress = 1
         }
         recordingState.updateJob(
