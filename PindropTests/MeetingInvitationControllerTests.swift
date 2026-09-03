@@ -122,13 +122,71 @@ struct MeetingInvitationControllerTests {
         harness.settings.callNotificationAskAnswered = true
         // The row was on, and permission was revoked in System Settings since.
         harness.settings.notifyWhenCallStarts = true
-        harness.notifier.isAuthorized = false
+        harness.notifier.authorizationState = .denied
 
         await harness.sut.handleDetectedCall(zoom)
 
         #expect(harness.notifier.postedInvitations.isEmpty)
         #expect(!harness.settings.notifyWhenCallStarts)
         #expect(harness.sut.isNotificationAuthorizationDenied)
+    }
+
+    @Test
+    func aCaptureStartedWhileAskingForPermissionCancelsTheOffer() async {
+        let harness = makeHarness()
+        defer { cleanup(harness) }
+        harness.settings.notifyWhenCallStarts = true
+        harness.settings.callNotificationAskAnswered = true
+        // The authorization read is a round trip to the system. A hotkey start
+        // lands inside it, which the "never while a capture is running" rule has
+        // to survive as well as it survives a start before it.
+        harness.notifier.onAuthorizationStateRead = { harness.state.isCapturing = true }
+
+        await harness.sut.handleDetectedCall(zoom)
+
+        #expect(harness.notifier.postedInvitations.isEmpty)
+    }
+
+    @Test
+    func aCallThatEndsWhileAskingForPermissionIsNotOffered() async {
+        let harness = makeHarness()
+        defer { cleanup(harness) }
+        harness.settings.notifyWhenCallStarts = true
+        harness.settings.callNotificationAskAnswered = true
+        // The call ends inside the authorization read. An alert posted after
+        // that would outlive the call, and its "Not now" would answer nothing.
+        harness.notifier.onAuthorizationStateRead = {
+            await harness.sut.handleDetectedCall(nil)
+        }
+
+        await harness.sut.handleDetectedCall(zoom)
+
+        #expect(harness.notifier.postedInvitations.isEmpty)
+
+        // The rate limit did not record an offer that never went out, so the
+        // next call is still offered.
+        await harness.sut.handleDetectedCall(zoom)
+        #expect(harness.notifier.postedInvitations.count == 1)
+    }
+
+    @Test
+    func aRefusedPermissionExplainsTheDeadSwitchOnTheNextLaunch() async {
+        let harness = makeHarness()
+        defer { cleanup(harness) }
+        // Nobody has been asked yet: an untouched install must not claim that
+        // notifications were turned off.
+        harness.notifier.authorizationState = .notDetermined
+        await harness.sut.refreshAuthorizationState()
+        #expect(!harness.sut.isNotificationAuthorizationDenied)
+
+        // Turned on in an earlier run, refused since. The denial is not
+        // persisted, so the row learns it from the system before it is pressed.
+        harness.settings.notifyWhenCallStarts = true
+        harness.notifier.authorizationState = .denied
+        await harness.sut.refreshAuthorizationState()
+
+        #expect(harness.sut.isNotificationAuthorizationDenied)
+        #expect(!harness.settings.notifyWhenCallStarts)
     }
 
     // MARK: - Surface C: the one-time ask
@@ -173,6 +231,27 @@ struct MeetingInvitationControllerTests {
         await harness.sut.presentPendingAskIfNeeded()
 
         #expect(harness.ask.presentationCount == 1)
+    }
+
+    @Test
+    func theAskIsSkippedWhenTheNotificationIsAlreadyOn() async {
+        let harness = makeHarness()
+        defer { cleanup(harness) }
+        // This person found the Meetings row on their own and turned it on.
+        let isGranted = await harness.sut.setNotifyWhenCallStarts(true)
+        #expect(isGranted)
+        #expect(harness.settings.notifyWhenCallStarts)
+        // Turning the row on is the answer, so nothing is left to ask.
+        #expect(harness.settings.callNotificationAskAnswered)
+
+        harness.state.isMainWindowVisible = true
+        await harness.sut.handleDetectedCall(zoom)
+        await harness.sut.presentPendingAskIfNeeded()
+
+        // The banner is the offer. A modal asking whether they want the banner
+        // they are looking at is the one case this ask exists to skip.
+        #expect(harness.ask.presentationCount == 0)
+        #expect(harness.notifier.postedInvitations.count == 1)
     }
 
     @Test

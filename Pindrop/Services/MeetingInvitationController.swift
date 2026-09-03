@@ -39,6 +39,17 @@ enum MeetingCallNotificationAction: String, Sendable {
     case notNow = "PindropCallInvitationNotNow"
 }
 
+/// What the system says about Pindrop's permission to post an alert.
+///
+/// Three states, not a Bool: "never asked" and "asked and refused" read the
+/// same to a Bool, and only the second one earns the "turn them on in System
+/// Settings" line under the Settings row.
+enum MeetingCallAuthorizationState: Sendable {
+    case notDetermined
+    case granted
+    case denied
+}
+
 // MARK: - Seams
 
 /// The notification surface the invitation controller posts through.
@@ -51,7 +62,7 @@ protocol MeetingCallNotifying: AnyObject {
     /// interruption this whole feature exists to avoid.
     func requestAlertAuthorization() async -> Bool
     /// Reads the authorization state fresh, so a revoke in System Settings is seen.
-    func isAlertAuthorizationGranted() async -> Bool
+    func alertAuthorizationState() async -> MeetingCallAuthorizationState
     func post(_ invitation: MeetingCallInvitation) async
     /// Takes a delivered alert back when its call ends.
     func withdraw(invitationIdentifier: String)
@@ -85,7 +96,8 @@ final class MeetingInvitationController {
     ///
     /// The Settings row reads this for its "turn them on in System Settings"
     /// line. It is derived from the last authorization answer, not persisted:
-    /// the system is the authority and it is read again on every post.
+    /// the system is the authority, and it is read at `start()` and again on
+    /// every post.
     private(set) var isNotificationAuthorizationDenied = false
 
     /// Starts a note that records both channels, with origin `.automation`.
@@ -142,6 +154,18 @@ final class MeetingInvitationController {
                 await self?.handleDetectedCall(call)
             }
         }
+        // The denied state is not persisted, so without this read the Settings
+        // row would come back after a relaunch with no subtitle and a switch
+        // that refuses to move. The system is asked once instead.
+        Task { @MainActor [weak self] in
+            await self?.refreshAuthorizationState()
+        }
+    }
+
+    /// Reads the system's answer once, so the Meetings row can explain a dead
+    /// switch before it is pressed rather than after.
+    func refreshAuthorizationState() async {
+        await syncAuthorizationState()
     }
 
     // MARK: Detection
@@ -200,7 +224,12 @@ final class MeetingInvitationController {
         let isGranted = await notifier.requestAlertAuthorization()
         settingsStore.notifyWhenCallStarts = isGranted
         isNotificationAuthorizationDenied = !isGranted
-        if !isGranted {
+        if isGranted {
+            // Turning the row on is an answer to the one-time ask. Asking
+            // someone whether they want the thing they just turned on is the
+            // one case surface C exists to skip.
+            settingsStore.callNotificationAskAnswered = true
+        } else {
             Log.app.info("Call notifications stayed off: authorization was not granted")
         }
         return isGranted
@@ -218,23 +247,32 @@ final class MeetingInvitationController {
             return
         }
         guard await confirmAuthorization() else { return }
+        // The authorization read is a round trip to the system, and both of the
+        // rules above can change across it: a hotkey can start a recording, and
+        // the call itself can end. Re-check rather than post into either.
+        guard !isCaptureRunning(),
+              reportedCall?.bundleIdentifier == call.bundleIdentifier else { return }
 
         lastInvitationByBundle[call.bundleIdentifier] = timestamp
         await notifier.post(makeInvitation(for: call))
         Log.app.info("Offered to record a call in \(call.bundleIdentifier)")
     }
 
+    private func confirmAuthorization() async -> Bool {
+        await syncAuthorizationState() == .granted
+    }
+
     /// Reads the live authorization state and turns the setting off when it is
     /// gone, which is the only signal a revoke in System Settings ever sends.
-    private func confirmAuthorization() async -> Bool {
-        if await notifier.isAlertAuthorizationGranted() {
-            isNotificationAuthorizationDenied = false
-            return true
+    @discardableResult
+    private func syncAuthorizationState() async -> MeetingCallAuthorizationState {
+        let state = await notifier.alertAuthorizationState()
+        isNotificationAuthorizationDenied = state == .denied
+        if state != .granted, settingsStore.notifyWhenCallStarts {
+            settingsStore.notifyWhenCallStarts = false
+            Log.app.info("Call notifications turned off: authorization is no longer granted")
         }
-        settingsStore.notifyWhenCallStarts = false
-        isNotificationAuthorizationDenied = true
-        Log.app.info("Call notifications turned off: authorization is no longer granted")
-        return false
+        return state
     }
 
     private func makeInvitation(for call: DetectedConferenceCall) -> MeetingCallInvitation {
@@ -252,7 +290,11 @@ final class MeetingInvitationController {
     // MARK: Surface C, the one-time ask
 
     private func armAsk() {
-        guard !settingsStore.callNotificationAskAnswered, !isAskArmed else { return }
+        // Someone who already turned the row on has answered this question, and
+        // the ask has nothing left to offer them.
+        guard !settingsStore.callNotificationAskAnswered,
+              !settingsStore.notifyWhenCallStarts,
+              !isAskArmed else { return }
         isAskArmed = true
         Log.app.info("Armed the one-time call notification ask")
     }
@@ -264,6 +306,7 @@ final class MeetingInvitationController {
     func presentPendingAskIfNeeded() async {
         guard isAskArmed,
               !settingsStore.callNotificationAskAnswered,
+              !settingsStore.notifyWhenCallStarts,
               !isPresentingAsk else { return }
         // Never over the call, and never over a live recording.
         guard isMainWindowVisible(), !isCaptureRunning() else { return }

@@ -70,6 +70,9 @@ struct ConferenceAudioMonitorTests {
         // Reported since the flags first held, not since the hold expired.
         #expect(harness.sut.detectedCall?.startedAt == Date(timeIntervalSinceReferenceDate: 10_000))
         #expect(reported == ["us.zoom.xos"])
+        // The catalog goes to the probe as a read hint, so the Core Audio
+        // conformer can skip the running-flag reads it would discard.
+        #expect(harness.probe.requestedBundleIdentifiers == ConferenceAppCatalog.bundleIdentifiers)
     }
 
     @Test

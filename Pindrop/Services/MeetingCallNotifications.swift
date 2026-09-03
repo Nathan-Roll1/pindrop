@@ -38,12 +38,16 @@ final class MeetingCallNotificationCenter: MeetingCallNotifying {
         }
     }
 
-    func isAlertAuthorizationGranted() async -> Bool {
+    func alertAuthorizationState() async -> MeetingCallAuthorizationState {
         switch await center.notificationSettings().authorizationStatus {
         case .authorized, .provisional, .ephemeral:
-            return true
+            return .granted
+        case .denied:
+            return .denied
         default:
-            return false
+            // `.notDetermined`, and anything a later macOS adds. Neither earns
+            // the "turn them on in System Settings" line: nobody refused yet.
+            return .notDetermined
         }
     }
 

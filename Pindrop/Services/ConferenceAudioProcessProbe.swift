@@ -40,11 +40,20 @@ struct ConferenceAudioProcessReadError: Error, Equatable {
 /// only way those tests can be deterministic: the real list depends on whatever
 /// the machine happens to be running.
 protocol ConferenceAudioProcessProbe: Sendable {
-    /// Current state of every audio process, or the failing `OSStatus`.
+    /// State of every audio process whose bundle identifier is in
+    /// `bundleIdentifiers`, or the failing `OSStatus`.
+    ///
+    /// The set is a read hint, not the detection rule. The caller still applies
+    /// the catalog itself; passing it here only lets a conformer skip the
+    /// per-process reads for a process the caller cannot use. The poll runs
+    /// every five seconds for as long as any conference app is open, so the
+    /// reads it does not make are the ones that matter.
     ///
     /// Always resolves off the main actor. `AudioObjectGetPropertyData` can
     /// block on `coreaudiod`, and a blocked main actor is a frozen menu bar.
-    func readProcessStates() async throws -> [ConferenceAudioProcessState]
+    func readProcessStates(
+        matching bundleIdentifiers: Set<String>
+    ) async throws -> [ConferenceAudioProcessState]
 }
 
 // MARK: - Core Audio conformer
@@ -59,17 +68,23 @@ final class CoreAudioConferenceProcessProbe: ConferenceAudioProcessProbe {
     /// Every HAL read runs here, never on the main actor.
     private let queue = DispatchQueue(label: "tech.watzon.pindrop.conference-process-probe")
 
-    func readProcessStates() async throws -> [ConferenceAudioProcessState] {
+    func readProcessStates(
+        matching bundleIdentifiers: Set<String>
+    ) async throws -> [ConferenceAudioProcessState] {
         try await withCheckedThrowingContinuation { continuation in
             queue.async {
-                continuation.resume(with: Result { try Self.readStates() })
+                continuation.resume(
+                    with: Result { try Self.readStates(matching: bundleIdentifiers) }
+                )
             }
         }
     }
 
     /// Synchronous HAL read. Callers must keep it off the main actor.
-    private static func readStates() throws -> [ConferenceAudioProcessState] {
-        try processObjectIDs().compactMap(state(for:))
+    private static func readStates(
+        matching bundleIdentifiers: Set<String>
+    ) throws -> [ConferenceAudioProcessState] {
+        try processObjectIDs().compactMap { state(for: $0, matching: bundleIdentifiers) }
     }
 
     private static func processObjectIDs() throws -> [AudioObjectID] {
@@ -111,8 +126,17 @@ final class CoreAudioConferenceProcessProbe: ConferenceAudioProcessProbe {
 
     /// A process with no bundle identifier cannot match the catalog, so it is
     /// dropped rather than carried as an empty string.
-    private static func state(for processID: AudioObjectID) -> ConferenceAudioProcessState? {
-        guard let bundleIdentifier = bundleIdentifier(for: processID) else { return nil }
+    ///
+    /// The two running flags are read only for a process the caller asked
+    /// about. Every other process costs one property read instead of three,
+    /// which is the difference between a poll that wakes `coreaudiod` once per
+    /// audio process and one that wakes it three times.
+    private static func state(
+        for processID: AudioObjectID,
+        matching bundleIdentifiers: Set<String>
+    ) -> ConferenceAudioProcessState? {
+        guard let bundleIdentifier = bundleIdentifier(for: processID),
+              bundleIdentifiers.contains(bundleIdentifier) else { return nil }
         return ConferenceAudioProcessState(
             bundleIdentifier: bundleIdentifier,
             isRunningInput: flag(kAudioProcessPropertyIsRunningInput, for: processID),

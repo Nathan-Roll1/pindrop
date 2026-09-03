@@ -866,6 +866,19 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         isMeetingAffordanceAvailable && isConferenceCallDetected
     }
 
+    /// Says in words what the dot says in pixels.
+    ///
+    /// A five point mark in the menu bar carries the whole "Pindrop noticed a
+    /// call" cue, and VoiceOver cannot read a mark. The notification title is
+    /// reused rather than adding a string that says the same thing twice.
+    private func updateStatusButtonDescription(_ button: NSStatusBarButton) {
+        let description = isCallBadgeVisible
+            ? localized("A call started", locale: locale)
+            : "Pindrop"
+        button.toolTip = description
+        button.setAccessibilityLabel(description)
+    }
+
     private func updateStatusBarIcon() {
         guard let button = statusItem?.button else { return }
 
@@ -873,6 +886,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         button.contentTintColor = nil
         button.alphaValue = 1.0
+        updateStatusButtonDescription(button)
 
         switch currentState {
         case .idle:

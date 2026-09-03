@@ -17,6 +17,7 @@ final class MockConferenceAudioProcessProbe: ConferenceAudioProcessProbe, @unche
     private var states: [ConferenceAudioProcessState] = []
     private var failureStatus: OSStatus?
     private var reads = 0
+    private var lastRequestedBundleIdentifiers: Set<String> = []
 
     init(states: [ConferenceAudioProcessState] = []) {
         self.states = states
@@ -38,9 +39,19 @@ final class MockConferenceAudioProcessProbe: ConferenceAudioProcessProbe, @unche
         lock.withLock { failureStatus = status }
     }
 
-    func readProcessStates() async throws -> [ConferenceAudioProcessState] {
+    /// What the monitor last passed as its read hint.
+    var requestedBundleIdentifiers: Set<String> {
+        lock.withLock { lastRequestedBundleIdentifiers }
+    }
+
+    /// The hint is deliberately ignored: the monitor still owns the catalog
+    /// rule, and a double that filtered here would test itself instead.
+    func readProcessStates(
+        matching bundleIdentifiers: Set<String>
+    ) async throws -> [ConferenceAudioProcessState] {
         let (failureStatus, states) = lock.withLock { () -> (OSStatus?, [ConferenceAudioProcessState]) in
             reads += 1
+            lastRequestedBundleIdentifiers = bundleIdentifiers
             return (self.failureStatus, self.states)
         }
         if let failureStatus {

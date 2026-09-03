@@ -26,9 +26,16 @@ struct ConferenceAudioProcessProbeIntegrationTests {
         _ = engine.outputNode.outputFormat(forBus: 0)
 
         let probe = CoreAudioConferenceProcessProbe()
+        // The probe reads flags only for the identifiers it is given, so the
+        // test asks about itself as well as the catalog.
+        let ownBundleIdentifier = Bundle.main.bundleIdentifier
+        #expect(ownBundleIdentifier != nil)
+        let requested = ConferenceAppCatalog.bundleIdentifiers
+            .union([ownBundleIdentifier].compactMap { $0 })
+
         let states: [ConferenceAudioProcessState]
         do {
-            states = try await probe.readProcessStates()
+            states = try await probe.readProcessStates(matching: requested)
         } catch {
             // macOS 14.2 and 14.3 have no process object list. The monitor must
             // report no call, and must not crash.
@@ -47,8 +54,6 @@ struct ConferenceAudioProcessProbeIntegrationTests {
 
         // Which other apps are running is the machine's business, not the
         // test's. Only our own process is asserted.
-        let ownBundleIdentifier = Bundle.main.bundleIdentifier
-        #expect(ownBundleIdentifier != nil)
         #expect(states.contains { $0.bundleIdentifier == ownBundleIdentifier })
     }
 }

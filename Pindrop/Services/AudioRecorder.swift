@@ -4111,14 +4111,23 @@ final class AudioRecorder {
     /// Capture-thread coalescer for main-actor meter delivery.
     private let meterDelivery = AudioMeterDeliveryCoalescer()
 
+    /// - Parameter supportsSystemAudioCapture: Pass false to model a machine
+    ///   below macOS 14.2, where there is no system audio and therefore no
+    ///   meeting affordance. Production always uses the default: the real
+    ///   answer is the availability check and the tap backend below. A test
+    ///   cannot reach the false branch any other way, because the host running
+    ///   it is already past 14.2.
     init(
         permissionManager: some PermissionProviding,
         captureBackend: AudioCaptureBackend? = nil,
-        systemAudioCaptureBackend: AudioCaptureBackend? = nil
+        systemAudioCaptureBackend: AudioCaptureBackend? = nil,
+        supportsSystemAudioCapture: Bool = true
     ) throws {
         self.permissionManager = permissionManager
         self.microphoneCaptureBackend = try captureBackend ?? CoreAudioInputCaptureBackend()
-        if let systemAudioCaptureBackend {
+        if !supportsSystemAudioCapture {
+            self.systemAudioCaptureBackend = nil
+        } else if let systemAudioCaptureBackend {
             self.systemAudioCaptureBackend = systemAudioCaptureBackend
         } else if #available(macOS 14.2, *) {
             self.systemAudioCaptureBackend = try? SystemAudioTapCaptureBackend()

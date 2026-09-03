@@ -64,12 +64,16 @@ struct StatusBarControllerTests {
     /// `isSystemAudioCaptureAvailable` is true and the meeting rows are offered.
     private func makeStatusBarController(
         settingsStore: SettingsStore,
-        conferenceAudioMonitor: ConferenceAudioMonitor? = nil
+        conferenceAudioMonitor: ConferenceAudioMonitor? = nil,
+        supportsSystemAudioCapture: Bool = true
     ) throws -> StatusBarController {
         let audioRecorder = try AudioRecorder(
             permissionManager: MockPermissionProvider(),
             captureBackend: MockAudioCaptureBackend(identifier: "microphone"),
-            systemAudioCaptureBackend: MockAudioCaptureBackend(identifier: "system")
+            systemAudioCaptureBackend: supportsSystemAudioCapture
+                ? MockAudioCaptureBackend(identifier: "system")
+                : nil,
+            supportsSystemAudioCapture: supportsSystemAudioCapture
         )
         return StatusBarController(
             audioRecorder: audioRecorder,
@@ -317,6 +321,9 @@ struct StatusBarControllerTests {
         // Phase 3 changes the sources, not the shape of the enhanced note: a
         // meeting note carries no template preset, so it reads exactly like the
         // system-audio note the renamed row used to start.
+        // The origin itself is chosen by the coordinator closure this menu is
+        // wired to (`.menuBar` there, `.automation` from the notification), so
+        // reading back the value this line just supplied would prove nothing.
         let intentRequest = request.captureIntentRequest(origin: .menuBar)
         #expect(intentRequest.requestedTemplatePresetIdentifier == nil)
         let intent = try intentRequest.intent(
@@ -325,7 +332,42 @@ struct StatusBarControllerTests {
         )
         #expect(intent.requestedSourceKinds == [.microphone, .systemAudio])
         #expect(intent.requestedTemplatePresetIdentifier == nil)
-        #expect(intent.origin == .menuBar)
+    }
+
+    @Test func meetingRowsAreAbsentWithoutSystemAudioCapture() async throws {
+        let settingsStore = SettingsStore()
+        settingsStore.resetAllSettings()
+        defer { settingsStore.resetAllSettings() }
+
+        let calls = CallMonitorHarness()
+        // Below macOS 14.2 there is no call to record, so every meeting
+        // affordance goes and only the plain note row is left.
+        let sut = try makeStatusBarController(
+            settingsStore: settingsStore,
+            conferenceAudioMonitor: calls.monitor,
+            supportsSystemAudioCapture: false
+        )
+        sut.configureNoteCapture { _ in true }
+        calls.monitor.start()
+
+        let locale = settingsStore.selectedAppLocale.locale
+        let startRecordingTitle = localized("Start Recording", locale: locale)
+        let newNoteTitle = localized("New note", locale: locale)
+        let menu = sut.menuForTesting()
+
+        let startRecordingIndex = try #require(
+            menu.items.firstIndex { $0.title == startRecordingTitle }
+        )
+        // "New note" still sits directly under the primary action, with no
+        // meeting row between them.
+        #expect(menu.items.firstIndex { $0.title == newNoteTitle } == startRecordingIndex + 1)
+        #expect(!menu.items.contains { $0.title == localized("New meeting note", locale: locale) })
+
+        // A detected call changes nothing: there is nothing to offer.
+        await calls.reportCall()
+        #expect(!menu.items.contains { $0.title == localized("Record this call", locale: locale) })
+        #expect(menu.items.firstIndex { $0.title == startRecordingTitle } == startRecordingIndex)
+        #expect(menu.items.firstIndex { $0.title == newNoteTitle } == startRecordingIndex + 1)
     }
 
     @Test func meetingNoteFollowsTheRecordSystemAudioSetting() throws {

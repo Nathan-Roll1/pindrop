@@ -986,14 +986,16 @@ final class SettingsStore: ObservableObject, AppSettingsProviding {
       streamingLowLatencyMode = false
       diarizationFeatureEnabled = false
       liveSpeakerNamesEnabled = false
-      // Meetings: no monitor, no notification and no answered ask, so a test
-      // never reads Core Audio, never posts an alert and never opens a modal.
-      watchForCalls = false
+      // Meetings. This is the user-facing "Reset all settings…" path as well as
+      // the one tests use for isolation, so every key goes back to the value a
+      // fresh install has. Clearing a default-on key here would leave the
+      // person who pressed Reset with the feature switched off for good.
+      watchForCalls = Defaults.watchForCalls
+      recordSystemAudioInMeetingNotes = Defaults.recordSystemAudioInMeetingNotes
+      // Both of these ship off: no notification without a permission, and no
+      // answer recorded for an ask nobody has seen.
       notifyWhenCallStarts = false
       callNotificationAskAnswered = false
-      // This key starts nothing; it only shapes the sources a meeting note asks
-      // for, so the reset restores the shipping value rather than clearing it.
-      recordSystemAudioInMeetingNotes = Defaults.recordSystemAudioInMeetingNotes
       themeMode = Defaults.themeMode
       lightThemePresetID = Defaults.lightThemePresetID
       darkThemePresetID = Defaults.darkThemePresetID

@@ -230,34 +230,42 @@ struct SettingsStoreTests {
         #expect(!store.voiceIsolationEnabled)
         #expect(!store.notifyWhenCallStarts)
         #expect(!store.callNotificationAskAnswered)
-        #expect(!store.watchForCalls)
+        #expect(store.watchForCalls)
         #expect(store.recordSystemAudioInMeetingNotes)
     }
 
-    @Test func testMeetingSettingsShipOnAndResetToTheirTestModeValues() {
+    @Test func testMeetingSettingsShipOnAndResetToTheirShippingValues() {
         let settingsStore = makeSettingsStore()
         defer { cleanup(settingsStore) }
 
-        // A fresh install watches for calls. Only the reset path turns it off,
-        // so no test ever starts a Core Audio monitor.
+        // A fresh install watches for calls.
         SettingsStore.backingUserDefaults.removeObject(forKey: "watchForCalls")
         SettingsStore.backingUserDefaults.removeObject(forKey: "recordSystemAudioInMeetingNotes")
         #expect(SettingsStore().watchForCalls)
         #expect(SettingsStore().recordSystemAudioInMeetingNotes)
 
-        settingsStore.watchForCalls = true
+        settingsStore.watchForCalls = false
         settingsStore.recordSystemAudioInMeetingNotes = false
         let reloaded = SettingsStore()
-        #expect(reloaded.watchForCalls)
+        #expect(!reloaded.watchForCalls)
         #expect(!reloaded.recordSystemAudioInMeetingNotes)
 
+        // "Reset all settings…" is a user-facing button, not a test-only path,
+        // and it says it restores a fresh install. A default-on feature it left
+        // switched off would stay off for good.
         settingsStore.resetAllSettings()
-        #expect(!settingsStore.watchForCalls)
-        // Recording system audio in a meeting note starts nothing on its own, so
-        // the reset restores the shipping value and the preset stays honest.
+        #expect(settingsStore.watchForCalls)
         #expect(settingsStore.recordSystemAudioInMeetingNotes)
-        #expect(!SettingsStore().watchForCalls)
+        #expect(SettingsStore().watchForCalls)
         #expect(SettingsStore().recordSystemAudioInMeetingNotes)
+
+        // The two permission-shaped keys stay off: no notification without an
+        // authorization, and no answer recorded for an ask nobody has seen.
+        settingsStore.notifyWhenCallStarts = true
+        settingsStore.callNotificationAskAnswered = true
+        settingsStore.resetAllSettings()
+        #expect(!settingsStore.notifyWhenCallStarts)
+        #expect(!settingsStore.callNotificationAskAnswered)
     }
 
     @Test func testVoiceIsolationDefaultsOffPersistsAndResets() {

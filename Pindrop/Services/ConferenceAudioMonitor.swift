@@ -167,7 +167,12 @@ final class ConferenceAudioMonitor {
 
         let states: [ConferenceAudioProcessState]
         do {
-            states = try await probe.readProcessStates()
+            // The catalog is passed as a read hint so the probe can skip the
+            // running-flag reads for every process this monitor would discard.
+            // The rule below still applies the catalog itself.
+            states = try await probe.readProcessStates(
+                matching: ConferenceAppCatalog.bundleIdentifiers
+            )
         } catch {
             // macOS 14.2 and 14.3 have no process object list. A failed read is
             // no call detected: no crash, and no new availability axis.
@@ -307,19 +312,28 @@ private final class ConferenceAudioProcessListSession:
         let block: AudioObjectPropertyListenerBlock = { _, _ in
             Task { @MainActor in await tick() }
         }
-        var address = Self.address
-        let status = AudioObjectAddPropertyListenerBlock(
-            AudioObjectID(kAudioObjectSystemObject),
-            &address,
-            listenerQueue,
-            block
-        )
-        if status == noErr {
-            lock.withLock { listenerBlock = block }
-        } else {
-            // 14.2 and 14.3 refuse this property. The read fails the same way,
-            // and the monitor already reports that as no call.
-            Log.audio.debug("Conference detection: no process list listener (status=\(status))")
+        lock.withLock { listenerBlock = block }
+        // Registering a listener is a `coreaudiod` round trip like every other
+        // HAL call, so it runs on the listener queue and never on the main
+        // actor. `start()` is reached from launch and from the Watch-for-calls
+        // toggle, and a wedged `coreaudiod` must not freeze either one.
+        let queue = listenerQueue
+        queue.async {
+            var address = Self.address
+            let status = AudioObjectAddPropertyListenerBlock(
+                AudioObjectID(kAudioObjectSystemObject),
+                &address,
+                queue,
+                block
+            )
+            if status != noErr {
+                // 14.2 and 14.3 refuse this property. The read fails the same
+                // way, and the monitor already reports that as no call. The
+                // matching remove below is harmless when the add never took.
+                Log.audio.debug(
+                    "Conference detection: no process list listener (status=\(status))"
+                )
+            }
         }
         // The install-time read, so the monitor sees a call that started before
         // the setting was turned on.
@@ -334,18 +348,23 @@ private final class ConferenceAudioProcessListSession:
         removeListener()
     }
 
+    /// Queued behind the registration on the same serial queue, so a teardown
+    /// that arrives while the add is still in flight still removes it.
     private func removeListener() {
         let block = lock.withLock { () -> AudioObjectPropertyListenerBlock? in
             defer { listenerBlock = nil }
             return listenerBlock
         }
         guard let block else { return }
-        var address = Self.address
-        AudioObjectRemovePropertyListenerBlock(
-            AudioObjectID(kAudioObjectSystemObject),
-            &address,
-            listenerQueue,
-            block
-        )
+        let queue = listenerQueue
+        queue.async {
+            var address = Self.address
+            AudioObjectRemovePropertyListenerBlock(
+                AudioObjectID(kAudioObjectSystemObject),
+                &address,
+                queue,
+                block
+            )
+        }
     }
 }

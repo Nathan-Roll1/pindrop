@@ -13,24 +13,34 @@ import Foundation
 /// without asking the system for permission or posting anything.
 @MainActor
 final class MockMeetingCallNotifier: MeetingCallNotifying {
-    /// The state a fresh read of the authorization would report. Set it to false
-    /// to model a revoke in System Settings.
-    var isAuthorized = true
+    /// The state a fresh read of the authorization would report. Set it to
+    /// `.denied` to model a revoke in System Settings.
+    var authorizationState: MeetingCallAuthorizationState = .granted
     /// What the next authorization request answers.
     var grantsAuthorizationRequest = true
+    /// Runs inside the authorization read, so a test can land a state change in
+    /// the middle of the controller's await the way the real round trip does.
+    var onAuthorizationStateRead: (@MainActor () async -> Void)?
 
     private(set) var postedInvitations: [MeetingCallInvitation] = []
     private(set) var withdrawnIdentifiers: [String] = []
     private(set) var authorizationRequestCount = 0
+    private(set) var authorizationReadCount = 0
 
     func requestAlertAuthorization() async -> Bool {
         authorizationRequestCount += 1
-        isAuthorized = grantsAuthorizationRequest
+        authorizationState = grantsAuthorizationRequest ? .granted : .denied
         return grantsAuthorizationRequest
     }
 
-    func isAlertAuthorizationGranted() async -> Bool {
-        isAuthorized
+    func alertAuthorizationState() async -> MeetingCallAuthorizationState {
+        authorizationReadCount += 1
+        if let onAuthorizationStateRead {
+            // One shot: the interleaving being modelled happens once.
+            self.onAuthorizationStateRead = nil
+            await onAuthorizationStateRead()
+        }
+        return authorizationState
     }
 
     func post(_ invitation: MeetingCallInvitation) async {

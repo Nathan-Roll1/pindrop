@@ -6355,7 +6355,15 @@ final class AppCoordinator {
             settingsStore: settingsStore,
             notifier: MeetingCallNotificationCenter(),
             askPresenter: AlertManager.shared,
-            isCaptureRunning: { [weak self] in self?.isCaptureBusy ?? false },
+            isCaptureRunning: { [weak self] in
+                guard let self else { return false }
+                // `handleStartNoteCapture` sets no busy flag synchronously, it
+                // only assigns this task. Both menu starts and the notification
+                // action call `show()` first, so the ask task is already queued
+                // ahead of the start task; without this term the ask would open
+                // a modal over the capture the person just asked for.
+                return self.isCaptureBusy || self.pendingMeetingCaptureStartTask != nil
+            },
             isMainWindowVisible: { [weak self] in self?.mainWindowController.isVisible ?? false }
         )
         controller.onRecordCall = { [weak self] in
