@@ -20,6 +20,7 @@
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "مجموعة كبيرة من التحسينات — وشكران لمساهمين من المجتمع."
+  call_started: "بدأت مكالمة"
   native_macos_menu_bar_dictation_app_using_loca: "تطبيق إملاء شريط قوائم macOS أصلي يستخدم تحويل الكلام إلى نص محلي مع WhisperKit. معالجة محلية بنسبة 100% بشكل افتراضي مع تحسين الذكاء الاصطناعي الاختياري."
   note_capture_is_already_running: "يوجد تسجيل ملاحظة قيد التشغيل بالفعل."
 about:
@@ -381,6 +382,8 @@ display:
   name: "اسم العرض"
   name_c7874aaa: "اسم العرض"
   pindrop_in_the_dock_instead_of_running_o: "قم بعرض Pindrop في Dock بدلاً من تشغيله كتطبيق شريط قوائم فقط."
+do:
+  you_want_a_notification_when_a_call_starts: "هل تريد إشعارًا عند بدء مكالمة؟"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "قم بإرساء الشريط الجانبي على الحافة اليسرى أو اليمنى من النافذة."
 done:
@@ -741,6 +744,7 @@ nemotron:
   default: "Nemotron (default)"
 new:
   folder: "مجلد جديد"
+  meeting_note: "ملاحظة اجتماع جديدة"
   note: "ملاحظة جديدة"
   preset: "إعداد مسبق جديد"
   note_with_system_audio: "ملاحظة جديدة مع صوت النظام"
@@ -779,6 +783,7 @@ no:
   results_found: "لم يتم العثور على نتائج"
   settings_found: "لم يتم العثور على إعدادات"
   speech_detected_try_speaking_closer_to_your: "لم يتم اكتشاف أي كلام. حاول التحدث بالقرب من الميكروفون."
+  thanks: "لا، شكرًا"
   transcriptions_yet: "لا يوجد نسخ بعد"
   vocabulary_words: "لا توجد كلمات المفردات"
   transcripts_audio_prompts_file_names_or_perso: "لا نسخ ولا صوت ولا مطالبات ولا أسماء ملفات ولا محتوى شخصي — أبدًا."
@@ -817,6 +822,11 @@ notes:
   header_meta_today: "%1$@، %2$@ من اليوم"
   new_note_options_label: "خيارات أخرى للملاحظة الجديدة"
   row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "الإشعارات متوقفة لتطبيق Pindrop. شغّلها في إعدادات النظام ليتم سؤالك عن المكالمات."
+notify:
+  me: "أعلمني"
+  me_when_a_call_starts: "أعلمني عند بدء مكالمة"
 off:
   _self: "عن"
 ok:
@@ -938,6 +948,7 @@ pindrop:
     خصوصيتك تحترم دائما.
   needs_accessibility_permission_to_insert: "\" \"يحتاج Pindrop إلى إذن الوصول لإدراج نص في المؤشر.                          لمنح الإذن: 1. انقر فوق \"فتح إعدادات النظام\" أدناه 2. انقر فوق الزر + 3. انتقل إلى التطبيق الموضح في Finder 4. أعد تشغيل Pindrop بعد منح الإذن. بدون هذا الإذن، سيتم نسخ النص إلى الحافظة الخاصة بك فقط.             \"\""
   needs_microphone_access_to_record_and_tr: "يحتاج Pindrop إلى الوصول إلى الميكروفون لتسجيل صوتك ونسخه. يرجى منح الإذن في إعدادات النظام."
+  noticed_a_call: "لاحظ Pindrop وجود مكالمة."
   on_github: "Pindrop على جيثب"
   orb: "كرة Pindrop"
   pill: "حبة بيندروب"
@@ -1045,6 +1056,9 @@ recommended:
   _self: "مُستَحسَن"
 record:
   _self: "سِجِلّ"
+  it_as_a_note: "هل تريد تسجيلها كملاحظة؟"
+  system_audio_in_meeting_notes: "تسجيل صوت النظام في ملاحظات الاجتماعات"
+  this_call: "سجّل هذه المكالمة"
   with_system_audio: "التسجيل مع صوت النظام"
 recording:
   _self: "تسجيل"
@@ -1163,6 +1177,7 @@ setup:
 shortcuts:
   _self: "اختصارات"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "أظهر طريقة للتسجيل عندما يفتح تطبيق اجتماعات الميكروفون."
   api_key: "إظهار مفتاح API"
   app: "عرض التطبيق"
   app_in_finder: "إظهار التطبيق في Finder"
@@ -1633,6 +1648,8 @@ voice:
   note: "ملاحظة صوتية"
 vs:
   typing: "مقابل الكتابة"
+watch:
+  for_calls: "مراقبة المكالمات"
 web:
   link: "Web link"
 welcome:

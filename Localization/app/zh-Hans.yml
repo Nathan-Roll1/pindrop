@@ -20,6 +20,7 @@
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "一大波升级 — 以及两位社区贡献者致谢。"
+  call_started: "通话已开始"
   native_macos_menu_bar_dictation_app_using_loca: "一款使用 WhisperKit 进行本地语音转文本的原生 macOS 菜单栏听写应用。默认 100% 本地处理，可选 AI 增强。"
   note_capture_is_already_running: "已有笔记录音在进行。"
 about:
@@ -381,6 +382,8 @@ display:
   name: "显示名称"
   name_c7874aaa: "显示名称"
   pindrop_in_the_dock_instead_of_running_o: "在 Dock 中显示 Pindrop，而不是仅作为菜单栏应用运行。"
+do:
+  you_want_a_notification_when_a_call_starts: "通话开始时要收到通知吗？"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "将侧边栏固定到窗口的左侧或右侧边缘。"
 done:
@@ -741,6 +744,7 @@ nemotron:
   default: "Nemotron (default)"
 new:
   folder: "新建文件夹"
+  meeting_note: "新建会议笔记"
   note: "新建笔记"
   preset: "新建预设"
   note_with_system_audio: "新建笔记并录制系统声音"
@@ -779,6 +783,7 @@ no:
   results_found: "未找到结果"
   settings_found: "未找到设置"
   speech_detected_try_speaking_closer_to_your: "未检测到语音。请尝试靠近麦克风说话。"
+  thanks: "不用了"
   transcriptions_yet: "尚无转录"
   vocabulary_words: "无词汇词"
   transcripts_audio_prompts_file_names_or_perso: "绝无转录、音频、提示词、文件名或个人内容 — 永不。"
@@ -817,6 +822,11 @@ notes:
   header_meta_today: "%1$@，其中今天 %2$@"
   new_note_options_label: "更多新建笔记选项"
   row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "Pindrop 的通知已关闭。在系统设置中打开通知，以便通话时询问你。"
+notify:
+  me: "通知我"
+  me_when_a_call_starts: "通话开始时通知我"
 off:
   _self: "关闭"
 ok:
@@ -938,6 +948,7 @@ pindrop:
     您的隐私始终受到尊重。
   needs_accessibility_permission_to_insert: "\"\"             Pindrop 需要辅助功能权限才能在您的光标处插入文本。                          授予权限：             1. 点击下方\"打开系统设置\"             2. 点击 + 按钮             3. 导航到 Finder 中显示的应用             4. 授予权限后重新启动 Pindrop                          没有此权限，文本将只复制到您的剪贴板。             \"\""
   needs_microphone_access_to_record_and_tr: "Pindrop 需要麦克风访问权限来录制和转录您的语音。nn请在系统设置中授予权限。"
+  noticed_a_call: "Pindrop 发现了一通通话。"
   on_github: "GitHub 上的 Pindrop"
   orb: "Pindrop 光球"
   pill: "Pindrop 胶囊"
@@ -1045,6 +1056,9 @@ recommended:
   _self: "推荐"
 record:
   _self: "录制"
+  it_as_a_note: "要录成笔记吗？"
+  system_audio_in_meeting_notes: "在会议笔记中录制系统声音"
+  this_call: "录制这通通话"
   with_system_audio: "录音时包含系统声音"
 recording:
   _self: "录音中"
@@ -1163,6 +1177,7 @@ setup:
 shortcuts:
   _self: "快捷键"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "当会议应用打开麦克风时，显示录制入口。"
   api_key: "显示 API 密钥"
   app: "显示应用"
   app_in_finder: "在 Finder 中显示应用"
@@ -1633,6 +1648,8 @@ voice:
   note: "语音笔记"
 vs:
   typing: "对比输入"
+watch:
+  for_calls: "留意通话"
 web:
   link: "Web link"
 welcome:

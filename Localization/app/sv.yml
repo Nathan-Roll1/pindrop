@@ -20,6 +20,7 @@
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "En stor omgång uppgraderingar — och två tack till communityn."
+  call_started: "Ett samtal har startat"
   native_macos_menu_bar_dictation_app_using_loca: "En inbyggd macOS-menyradsdikteringsapp som använder lokalt tal-till-text med WhisperKit. 100 % lokal bearbetning som standard med valfri AI-förbättring."
   note_capture_is_already_running: "En anteckningsinspelning pågår redan."
 about:
@@ -381,6 +382,8 @@ display:
   name: "Visningsnamn"
   name_c7874aaa: "Visningsnamn"
   pindrop_in_the_dock_instead_of_running_o: "Visa Pindrop i Dock istället för att endast köras som en menyradsapp."
+do:
+  you_want_a_notification_when_a_call_starts: "Vill du ha en notis när ett samtal startar?"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "Docka sidofältet till vänster eller höger kant av fönstret."
 done:
@@ -741,6 +744,7 @@ nemotron:
   default: "Nemotron (default)"
 new:
   folder: "Ny mapp"
+  meeting_note: "Ny mötesanteckning"
   note: "Ny anteckning"
   preset: "Ny förinställning"
   note_with_system_audio: "Ny anteckning med systemljud"
@@ -779,6 +783,7 @@ no:
   results_found: "Inga resultat hittades"
   settings_found: "Inga inställningar hittades"
   speech_detected_try_speaking_closer_to_your: "Inget tal upptäckt. Försök tala närmare mikrofonen."
+  thanks: "Nej tack"
   transcriptions_yet: "Inga transkriptioner ännu"
   vocabulary_words: "Inga ordförråd"
   transcripts_audio_prompts_file_names_or_perso: "Inga transkriptioner, ljud, prompter, filnamn eller personligt innehåll — aldrig."
@@ -817,6 +822,11 @@ notes:
   header_meta_today: "%1$@, %2$@ från i dag"
   new_note_options_label: "Fler alternativ för ny anteckning"
   row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "Notiser är avstängda för Pindrop. Slå på dem i Systeminställningar för att bli tillfrågad om samtal."
+notify:
+  me: "Meddela mig"
+  me_when_a_call_starts: "Meddela mig när ett samtal startar"
 off:
   _self: "Av"
 ok:
@@ -938,6 +948,7 @@ pindrop:
     Din integritet respekteras alltid.
   needs_accessibility_permission_to_insert: "\"\" Pindrop behöver tillgänglighetsbehörighet för att infoga text vid markören.                          För att bevilja behörighet: 1. Klicka på \"Öppna systeminställningar\" nedan 2. Klicka på +-knappen 3. Navigera till appen som visas i Finder 4. Starta om Pindrop efter att du har beviljat behörighet Utan denna behörighet kommer text bara att kopieras till ditt urklipp.             \"\""
   needs_microphone_access_to_record_and_tr: "Pindrop behöver mikrofonåtkomst för att spela in och transkribera din röst.nnGe tillstånd i systeminställningarna."
+  noticed_a_call: "Pindrop märkte av ett samtal."
   on_github: "Pindrop på GitHub"
   orb: "Pindrop-kula"
   pill: "Pindrop piller"
@@ -1045,6 +1056,9 @@ recommended:
   _self: "Rekommenderad"
 record:
   _self: "Spela in"
+  it_as_a_note: "Ska det spelas in som en anteckning?"
+  system_audio_in_meeting_notes: "Spela in systemljud i mötesanteckningar"
+  this_call: "Spela in det här samtalet"
   with_system_audio: "Spela in med systemljud"
 recording:
   _self: "Inspelning"
@@ -1163,6 +1177,7 @@ setup:
 shortcuts:
   _self: "Genvägar"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "Visar ett sätt att spela in när en mötesapp öppnar din mikrofon."
   api_key: "Visa API-nyckel"
   app: "Visa app"
   app_in_finder: "Visa appen i Finder"
@@ -1633,6 +1648,8 @@ voice:
   note: "Röstanteckning"
 vs:
   typing: "vs att skriva"
+watch:
+  for_calls: "Håll utkik efter samtal"
 web:
   link: "Web link"
 welcome:

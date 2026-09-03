@@ -20,6 +20,7 @@
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "Una gran tanda de mejoras — y dos agradecimientos a la comunidad."
+  call_started: "Ha empezado una llamada"
   native_macos_menu_bar_dictation_app_using_loca: "Una app nativa de dictado para la barra de menús de macOS que usa voz a texto local con WhisperKit. Procesamiento 100% local por defecto con mejora opcional con IA."
   note_capture_is_already_running: "Ya hay una grabación de nota en curso."
 about:
@@ -381,6 +382,8 @@ display:
   name: "Nombre para mostrar"
   name_c7874aaa: "Nombre para mostrar"
   pindrop_in_the_dock_instead_of_running_o: "Muestra Pindrop en el Dock en lugar de ejecutarlo solo como app de barra de menús."
+do:
+  you_want_a_notification_when_a_call_starts: "¿Quieres una notificación cuando empiece una llamada?"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "Ancla la barra lateral al borde izquierdo o derecho de la ventana."
 done:
@@ -741,6 +744,7 @@ nemotron:
   default: "Nemotron (default)"
 new:
   folder: "Nueva carpeta"
+  meeting_note: "Nueva nota de reunión"
   note: "Nueva nota"
   preset: "Nuevo preajuste"
   note_with_system_audio: "Nueva nota con audio del sistema"
@@ -779,6 +783,7 @@ no:
   results_found: "No se encontraron resultados"
   settings_found: "No se encontraron ajustes"
   speech_detected_try_speaking_closer_to_your: "No se detectó voz. Prueba a hablar más cerca del micrófono."
+  thanks: "No, gracias"
   transcriptions_yet: "Aún no hay transcripciones"
   vocabulary_words: "No hay palabras de vocabulario"
   transcripts_audio_prompts_file_names_or_perso: "Ni transcripciones, ni audio, ni prompts, ni nombres de archivos, ni contenido personal — nunca."
@@ -817,6 +822,11 @@ notes:
   header_meta_today: "%1$@, %2$@ de hoy"
   new_note_options_label: "Más opciones de nota nueva"
   row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "Las notificaciones están desactivadas para Pindrop. Actívalas en Ajustes del Sistema para que te pregunte por las llamadas."
+notify:
+  me: "Avisarme"
+  me_when_a_call_starts: "Avisarme cuando empiece una llamada"
 off:
   _self: "Desactivado"
 ok:
@@ -938,6 +948,7 @@ pindrop:
     Tu privacidad siempre se respeta.
   needs_accessibility_permission_to_insert: "\"\"             Pindrop needs Accessibility permission to insert text at your cursor.                          To grant permission:             1. Click \"Open System Settings\" below             2. Click the + button             3. Navigate to the app shown in Finder             4. Restart Pindrop after granting permission                          Without this permission, text will only be copied to your clipboard.             \"\""
   needs_microphone_access_to_record_and_tr: "Pindrop needs microphone access to record and transcribe your voice.nnPlease grant permission in System Settings."
+  noticed_a_call: "Pindrop ha detectado una llamada."
   on_github: "Pindrop en GitHub"
   orb: "Orbe de Pindrop"
   pill: "Pindrop Pill"
@@ -1045,6 +1056,9 @@ recommended:
   _self: "Recomendado"
 record:
   _self: "Grabar"
+  it_as_a_note: "¿La grabamos como nota?"
+  system_audio_in_meeting_notes: "Grabar el audio del sistema en las notas de reunión"
+  this_call: "Grabar esta llamada"
   with_system_audio: "Grabar con audio del sistema"
 recording:
   _self: "Grabación"
@@ -1163,6 +1177,7 @@ setup:
 shortcuts:
   _self: "Atajos"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "Muestra una forma de grabar cuando una app de reuniones abre tu micrófono."
   api_key: "Mostrar clave API"
   app: "Mostrar app"
   app_in_finder: "Mostrar app en Finder"
@@ -1632,6 +1647,8 @@ voice:
   note: "Nota de voz"
 vs:
   typing: "vs escribir"
+watch:
+  for_calls: "Detectar llamadas"
 web:
   link: "Web link"
 welcome:

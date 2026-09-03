@@ -20,6 +20,7 @@
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "큰 업그레이드 한 묶음 — 그리고 커뮤니티에 전하는 두 번의 감사."
+  call_started: "통화가 시작되었습니다"
   native_macos_menu_bar_dictation_app_using_loca: "WhisperKit을 통해 로컬 음성-텍스트 변환을 사용하는 기본 macOS 메뉴 표시줄 받아쓰기 앱입니다. AI 향상 옵션이 기본적으로 100% 로컬 처리됩니다."
   note_capture_is_already_running: "메모 녹음이 이미 진행 중입니다."
 about:
@@ -381,6 +382,8 @@ display:
   name: "표시 이름"
   name_c7874aaa: "표시 이름"
   pindrop_in_the_dock_instead_of_running_o: "메뉴 막대 앱으로만 실행하는 대신 Dock에 Pindrop을 표시합니다."
+do:
+  you_want_a_notification_when_a_call_starts: "통화가 시작될 때 알림을 받으시겠습니까?"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "사이드바를 창의 왼쪽 또는 오른쪽 가장자리에 고정합니다."
 done:
@@ -741,6 +744,7 @@ nemotron:
   default: "Nemotron (default)"
 new:
   folder: "새 폴더"
+  meeting_note: "새 회의 메모"
   note: "새 메모"
   preset: "새로운 사전 설정"
   note_with_system_audio: "시스템 오디오가 있는 새 메모"
@@ -779,6 +783,7 @@ no:
   results_found: "검색결과가 없습니다"
   settings_found: "설정을 찾을 수 없습니다."
   speech_detected_try_speaking_closer_to_your: "음성이 감지되지 않았습니다. 마이크에 더 가까이에서 말해 보세요."
+  thanks: "괜찮습니다"
   transcriptions_yet: "아직 스크립트가 없습니다."
   vocabulary_words: "어휘 없음"
   transcripts_audio_prompts_file_names_or_perso: "전사, 오디오, 프롬프트, 파일 이름, 개인 콘텐츠는 결코 포함되지 않습니다."
@@ -817,6 +822,11 @@ notes:
   header_meta_today: "%1$@, 오늘 %2$@"
   new_note_options_label: "새 메모 추가 옵션"
   row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "Pindrop의 알림이 꺼져 있습니다. 통화에 대해 물어보게 하려면 시스템 설정에서 켜세요."
+notify:
+  me: "알림 받기"
+  me_when_a_call_starts: "통화가 시작되면 알림 받기"
 off:
   _self: "끄다"
 ok:
@@ -938,6 +948,7 @@ pindrop:
     귀하의 개인 정보는 항상 존중됩니다.
   needs_accessibility_permission_to_insert: "\"\" Pindrop이 커서에 텍스트를 삽입하려면 접근성 권한이 필요합니다.                          권한을 부여하려면: 1. 아래의 \"시스템 설정 열기\"를 클릭합니다. 2. + 버튼을 클릭합니다. 3. Finder에 표시된 앱으로 이동합니다. 4. 권한 부여 후 Pindrop을 다시 시작합니다. 이 권한이 없으면 텍스트가 클립보드에만 복사됩니다.             \"\""
   needs_microphone_access_to_record_and_tr: "Pindrop이 음성을 녹음하고 텍스트로 변환하려면 마이크 액세스 권한이 필요합니다.nn시스템 설정에서 권한을 부여하세요."
+  noticed_a_call: "Pindrop이 통화를 감지했습니다."
   on_github: "GitHub의 핀드롭"
   orb: "Pindrop 오브"
   pill: "핀드롭 알약"
@@ -1045,6 +1056,9 @@ recommended:
   _self: "추천"
 record:
   _self: "기록"
+  it_as_a_note: "메모로 녹음할까요?"
+  system_audio_in_meeting_notes: "회의 메모에 시스템 오디오 녹음"
+  this_call: "이 통화 녹음"
   with_system_audio: "시스템 오디오와 함께 녹음"
 recording:
   _self: "녹음"
@@ -1163,6 +1177,7 @@ setup:
 shortcuts:
   _self: "단축키"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "회의 앱이 마이크를 열면 녹음할 방법을 표시합니다."
   api_key: "API 키 표시"
   app: "앱 표시"
   app_in_finder: "Finder에 앱 표시"
@@ -1633,6 +1648,8 @@ voice:
   note: "음성 메모"
 vs:
   typing: "vs 타이핑"
+watch:
+  for_calls: "통화 감지"
 web:
   link: "Web link"
 welcome:

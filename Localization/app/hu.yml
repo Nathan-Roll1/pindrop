@@ -20,6 +20,7 @@
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "Nagy adag fejlesztés — és két közösségi köszönet."
+  call_started: "Elindult egy hívás"
   native_macos_menu_bar_dictation_app_using_loca: "Natív macOS-menüsoros diktálóalkalmazás, amely helyi beszéd-szövegké alakítást használ a WhisperKit funkcióval. Alapértelmezés szerint 100%-ban helyi feldolgozás opcionális AI-javítással."
   note_capture_is_already_running: "Már fut egy jegyzetfelvétel."
 about:
@@ -381,6 +382,8 @@ display:
   name: "Megjelenítési név"
   name_c7874aaa: "Megjelenítési név"
   pindrop_in_the_dock_instead_of_running_o: "A Pindrop megjelenítése a Dockban, ahelyett, hogy csak menüsor-alkalmazásként futna."
+do:
+  you_want_a_notification_when_a_call_starts: "Szeretne értesítést, amikor elindul egy hívás?"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "Rögzítse az oldalsávot az ablak bal vagy jobb széléhez."
 done:
@@ -741,6 +744,7 @@ nemotron:
   default: "Nemotron (default)"
 new:
   folder: "Új mappa"
+  meeting_note: "Új megbeszélésjegyzet"
   note: "Új megjegyzés"
   preset: "Új előbeállítás"
   note_with_system_audio: "Új jegyzet rendszerhanggal"
@@ -779,6 +783,7 @@ no:
   results_found: "Nincs találat"
   settings_found: "Nem találhatók beállítások"
   speech_detected_try_speaking_closer_to_your: "Nem érzékeltünk beszédet. Próbáljon közelebb beszélni a mikrofonjához."
+  thanks: "Nem, köszönöm"
   transcriptions_yet: "Még nincsenek átiratok"
   vocabulary_words: "Nincs szótár"
   transcripts_audio_prompts_file_names_or_perso: "Se átiratok, se hang, se promptok, se fájlnevek, se személyes tartalom — soha."
@@ -817,6 +822,11 @@ notes:
   header_meta_today: "%1$@, ebből %2$@ mai"
   new_note_options_label: "További lehetőségek új jegyzethez"
   row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "Az értesítések ki vannak kapcsolva a Pindrop számára. Kapcsolja be őket a Rendszerbeállításokban, hogy megkérdezzük a hívásokról."
+notify:
+  me: "Értesítsen"
+  me_when_a_call_starts: "Értesítés hívás kezdetekor"
 off:
   _self: "Le"
 ok:
@@ -938,6 +948,7 @@ pindrop:
     Az Ön személyes adatait mindig tiszteletben tartják.
   needs_accessibility_permission_to_insert: "\"\" A Pindrop kisegítő lehetőségeket igényel, hogy szöveget illesszen be a kurzorba.                          Engedély megadása: 1. Kattintson az alábbi \"Rendszerbeállítások megnyitása\" lehetőségre. 2. Kattintson a + gombra 3. Navigáljon a Finderben látható alkalmazáshoz 4. Indítsa újra a Pindrop alkalmazást az engedély megadása után Ezen engedély nélkül a szöveg csak a vágólapra kerül.             \"\""
   needs_microphone_access_to_record_and_tr: "A Pindrop-nak mikrofon-hozzáférésre van szüksége a hang rögzítéséhez és átírásához.nnKérjük, adjon engedélyt a rendszerbeállításokban."
+  noticed_a_call: "A Pindrop hívást észlelt."
   on_github: "Pindrop a GitHubon"
   orb: "Pindrop-gömb"
   pill: "Pindrop Tabletta"
@@ -1045,6 +1056,9 @@ recommended:
   _self: "Ajánlott"
 record:
   _self: "Rekord"
+  it_as_a_note: "Rögzítsük jegyzetként?"
+  system_audio_in_meeting_notes: "Rendszerhang rögzítése a megbeszélésjegyzetekben"
+  this_call: "A hívás rögzítése"
   with_system_audio: "Felvétel rendszerhanggal"
 recording:
   _self: "Felvétel"
@@ -1163,6 +1177,7 @@ setup:
 shortcuts:
   _self: "Billentyűparancsok"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "Felajánlja a rögzítést, amikor egy megbeszélésalkalmazás megnyitja a mikrofonját."
   api_key: "API-kulcs megjelenítése"
   app: "Alkalmazás megjelenítése"
   app_in_finder: "Alkalmazás megjelenítése a Finderben"
@@ -1633,6 +1648,8 @@ voice:
   note: "Hangjegyzet"
 vs:
   typing: "vs gépelés"
+watch:
+  for_calls: "Hívások figyelése"
 web:
   link: "Web link"
 welcome:

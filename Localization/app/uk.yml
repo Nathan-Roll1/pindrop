@@ -20,6 +20,7 @@
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "Велика порція оновлень — і дві подяки спільноті."
+  call_started: "Почався дзвінок"
   native_macos_menu_bar_dictation_app_using_loca: "Рідна програма для диктування панелі меню macOS, яка використовує локальне перетворення мовлення в текст за допомогою WhisperKit. 100% локальна обробка за замовчуванням із додатковим покращенням ШІ."
   note_capture_is_already_running: "Запис нотатки вже триває."
 about:
@@ -381,6 +382,8 @@ display:
   name: "Відображуване ім'я"
   name_c7874aaa: "Відображуване ім'я"
   pindrop_in_the_dock_instead_of_running_o: "Відображати Pindrop у Dock замість running лише як програму на панелі меню."
+do:
+  you_want_a_notification_when_a_call_starts: "Хочете отримувати сповіщення, коли починається дзвінок?"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "Прикріпіть бічну панель до лівого або правого краю вікна."
 done:
@@ -741,6 +744,7 @@ nemotron:
   default: "Nemotron (default)"
 new:
   folder: "Нова папка"
+  meeting_note: "Нова нотатка зустрічі"
   note: "Нова примітка"
   preset: "Нове налаштування"
   note_with_system_audio: "Нова нотатка зі звуком системи"
@@ -779,6 +783,7 @@ no:
   results_found: "Результатів не знайдено"
   settings_found: "Налаштувань не знайдено"
   speech_detected_try_speaking_closer_to_your: "Мовлення не виявлено. Спробуйте говорити ближче до мікрофона."
+  thanks: "Ні, дякую"
   transcriptions_yet: "Транскрипцій ще немає"
   vocabulary_words: "Немає словникових слів"
   transcripts_audio_prompts_file_names_or_perso: "Жодних транскрипцій, аудіо, промптів, імен файлів чи особистого вмісту — ніколи."
@@ -817,6 +822,11 @@ notes:
   header_meta_today: "%1$@, %2$@ за сьогодні"
   new_note_options_label: "Більше параметрів нової нотатки"
   row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "Сповіщення для Pindrop вимкнено. Увімкніть їх у налаштуваннях системи, щоб отримувати запит про дзвінки."
+notify:
+  me: "Сповіщати мене"
+  me_when_a_call_starts: "Сповіщати про початок дзвінка"
 off:
   _self: "Вимкнено"
 ok:
@@ -938,6 +948,7 @@ pindrop:
     Ваша конфіденційність завжди поважається.
   needs_accessibility_permission_to_insert: "\"\" Для вставлення тексту під курсором Pindrop потрібен дозвіл на доступність.                          Щоб надати дозвіл: 1. Натисніть «Відкрити налаштування системи» нижче 2. Натисніть кнопку + 3. Перейдіть до програми, яка відображається у Finder 4. Перезапустіть Pindrop після надання дозволу. Без цього дозволу текст буде скопійовано лише в буфер обміну.             \"\""
   needs_microphone_access_to_record_and_tr: "Pindrop потрібен доступ до мікрофона, щоб записувати та транскрибувати ваш голос.nnНадайте дозвіл у налаштуваннях системи."
+  noticed_a_call: "Pindrop помітив дзвінок."
   on_github: "Pindrop на GitHub"
   orb: "Сфера Pindrop"
   pill: "Pindrop Pill"
@@ -1045,6 +1056,9 @@ recommended:
   _self: "Рекомендовано"
 record:
   _self: "запис"
+  it_as_a_note: "Записати його як нотатку?"
+  system_audio_in_meeting_notes: "Записувати звук системи в нотатках зустрічей"
+  this_call: "Записати цей дзвінок"
   with_system_audio: "Записувати зі звуком системи"
 recording:
   _self: "Запис"
@@ -1163,6 +1177,7 @@ setup:
 shortcuts:
   _self: "Ярлики"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "Показує спосіб запису, коли застосунок для зустрічей вмикає мікрофон."
   api_key: "Показати API-ключ"
   app: "Показати додаток"
   app_in_finder: "Показати додаток у Finder"
@@ -1633,6 +1648,8 @@ voice:
   note: "Голосова нотатка"
 vs:
   typing: "проти набору тексту"
+watch:
+  for_calls: "Стежити за дзвінками"
 web:
   link: "Web link"
 welcome:

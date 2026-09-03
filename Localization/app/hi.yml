@@ -20,6 +20,7 @@
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "अपग्रेड का बड़ा दौर — और समुदाय के दो सदस्यों को धन्यवाद।"
+  call_started: "एक कॉल शुरू हुई"
   native_macos_menu_bar_dictation_app_using_loca: "WhisperKit के साथ स्थानीय स्पीच-टू-टेक्स्ट का उपयोग करने वाला एक देशी macOS मेनू बार डिक्टेशन ऐप। वैकल्पिक एआई संवर्द्धन के साथ डिफ़ॉल्ट रूप से 100% स्थानीय प्रसंस्करण।"
   note_capture_is_already_running: "एक नोट रिकॉर्डिंग पहले से चल रही है।"
 about:
@@ -381,6 +382,8 @@ display:
   name: "प्रदर्शित होने वाला नाम"
   name_c7874aaa: "प्रदर्शित होने वाला नाम"
   pindrop_in_the_dock_instead_of_running_o: "पिनड्रॉप को केवल मेनू बार ऐप के रूप में चलाने के बजाय डॉक में प्रदर्शित करें।"
+do:
+  you_want_a_notification_when_a_call_starts: "क्या आप कॉल शुरू होने पर सूचना चाहते हैं?"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "साइडबार को विंडो के बाएँ या दाएँ किनारे पर डॉक करें।"
 done:
@@ -741,6 +744,7 @@ nemotron:
   default: "Nemotron (default)"
 new:
   folder: "नया फ़ोल्डर"
+  meeting_note: "नया मीटिंग नोट"
   note: "नया नोट"
   preset: "नया प्रीसेट"
   note_with_system_audio: "सिस्टम ऑडियो के साथ नया नोट"
@@ -779,6 +783,7 @@ no:
   results_found: "कोई परिणाम नहीं मिला"
   settings_found: "कोई सेटिंग नहीं मिली"
   speech_detected_try_speaking_closer_to_your: "कोई आवाज़ नहीं मिली। कृपया अपने माइक्रोफ़ोन के करीब बोलने का प्रयास करें।"
+  thanks: "नहीं, धन्यवाद"
   transcriptions_yet: "अभी तक कोई प्रतिलेखन नहीं"
   vocabulary_words: "कोई शब्दावली शब्द नहीं"
   transcripts_audio_prompts_file_names_or_perso: "कोई ट्रांसक्रिप्ट, ऑडियो, प्रॉम्प्ट, फ़ाइल नाम या व्यक्तिगत सामग्री नहीं — कभी नहीं।"
@@ -817,6 +822,11 @@ notes:
   header_meta_today: "%1$@, %2$@ आज के"
   new_note_options_label: "नए नोट के और विकल्प"
   row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "Pindrop के लिए सूचनाएँ बंद हैं। कॉल के बारे में पूछे जाने के लिए उन्हें सिस्टम सेटिंग्स में चालू करें।"
+notify:
+  me: "मुझे सूचित करें"
+  me_when_a_call_starts: "कॉल शुरू होने पर मुझे सूचित करें"
 off:
   _self: "बंद"
 ok:
@@ -938,6 +948,7 @@ pindrop:
     आपकी निजता का हमेशा सम्मानीय है।
   needs_accessibility_permission_to_insert: "\"\" पिनड्रॉप को आपके कर्सर पर टेक्स्ट डालने के लिए एक्सेसिबिलिटी अनुमति की आवश्यकता है।                          अनुमति देने के लिए: 1. नीचे \"ओपन सिस्टम सेटिंग्स\" पर क्लिक करें 2. + बटन पर क्लिक करें 3. फाइंडर में दिखाए गए ऐप पर नेविगेट करें 4. अनुमति देने के बाद पिनड्रॉप को पुनरारंभ करें इस अनुमति के बिना, टेक्स्ट केवल आपके क्लिपबोर्ड पर कॉपी किया जाएगा।             \"\""
   needs_microphone_access_to_record_and_tr: "पिनड्रॉप को आपकी आवाज़ रिकॉर्ड करने और ट्रांसक्राइब करने के लिए माइक्रोफ़ोन एक्सेस की आवश्यकता है। कृपया सिस्टम सेटिंग्स में अनुमति दें।"
+  noticed_a_call: "Pindrop ने एक कॉल देखी।"
   on_github: "GitHub पर पिनड्रॉप"
   orb: "Pindrop ऑर्ब"
   pill: "पिंड्रोप गोली"
@@ -1045,6 +1056,9 @@ recommended:
   _self: "अनुशंसित"
 record:
   _self: "अभिलेख"
+  it_as_a_note: "इसे नोट के रूप में रिकॉर्ड करें?"
+  system_audio_in_meeting_notes: "मीटिंग नोट में सिस्टम ऑडियो रिकॉर्ड करें"
+  this_call: "इस कॉल को रिकॉर्ड करें"
   with_system_audio: "सिस्टम ऑडियो के साथ रिकॉर्ड करें"
 recording:
   _self: "रिकॉर्डिंग"
@@ -1163,6 +1177,7 @@ setup:
 shortcuts:
   _self: "शॉर्टकट"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "जब कोई मीटिंग ऐप आपका माइक्रोफ़ोन खोले, तब रिकॉर्ड करने का विकल्प दिखाएँ।"
   api_key: "API कुंजी दिखाएँ"
   app: "ऐप दिखाएँ"
   app_in_finder: "फाइंडर में ऐप दिखाएं"
@@ -1633,6 +1648,8 @@ voice:
   note: "आवाज़ नोट"
 vs:
   typing: "बनाम टाइपिंग"
+watch:
+  for_calls: "कॉल पर नज़र रखें"
 web:
   link: "Web link"
 welcome:

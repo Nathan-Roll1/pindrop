@@ -19,6 +19,7 @@
 90:
   days: "90 days"
 a:
+  call_started: "A call started"
   note_capture_is_already_running: "A note capture is already running."
   big_round_of_upgrades_and_two_community_shout: "A big round of upgrades — and two community shout-outs."
   native_macos_menu_bar_dictation_app_using_loca: "A native macOS menu bar dictation app using local speech-to-text with WhisperKit. 100% local processing by default with optional AI enhancement."
@@ -394,6 +395,8 @@ display:
   name: "Display Name"
   name_c7874aaa: "Display name"
   pindrop_in_the_dock_instead_of_running_o: "Display Pindrop in the Dock instead of running only as a menu bar app."
+do:
+  you_want_a_notification_when_a_call_starts: "Do you want a notification when a call starts?"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "Dock the sidebar to the left or right edge of the window."
 done:
@@ -783,6 +786,7 @@ name:
 nemotron:
   default: "Nemotron (default)"
 new:
+  meeting_note: "New meeting note"
   note_with_system_audio: "New note with system audio"
   note_without_recording: "New note without recording"
   folder: "New Folder"
@@ -828,6 +832,7 @@ no:
   results_found: "No results found"
   settings_found: "No settings found"
   speech_detected_try_speaking_closer_to_your: "No speech detected. Try speaking closer to your microphone."
+  thanks: "No thanks"
   transcriptions_yet: "No transcriptions yet"
   transcripts_audio_prompts_file_names_or_perso: "No transcripts, audio, prompts, file names, or personal content — ever."
   vocabulary_words: "No Vocabulary Words"
@@ -862,6 +867,11 @@ notes:
   row_recording_elapsed: "REC %@"
 nothing:
   was_transcribed_yet: "Nothing was transcribed yet."
+notifications:
+  are_turned_off_for_pindrop_turn_th: "Notifications are turned off for Pindrop. Turn them on in System Settings to be asked about calls."
+notify:
+  me: "Notify me"
+  me_when_a_call_starts: "Notify me when a call starts"
 off:
   _self: "Off"
 ok:
@@ -986,6 +996,7 @@ pindrop:
   needs_accessibility_permission_to_insert: "\"\"             Pindrop needs Accessibility permission to insert text at your cursor.                          To grant permission:             1. Click \"Open System Settings\" below             2. Click the + button             3. Navigate to the app shown in Finder             4. Restart Pindrop after granting permission                          Without this permission, text will only be copied to your clipboard.             \"\""
   needs_microphone_access_to_record_and_tr: "Pindrop needs microphone access to record and transcribe your voice.nnPlease grant permission in System Settings."
   needs_this_one_it_downloads_once: "Pindrop needs this one. It downloads once."
+  noticed_a_call: "Pindrop noticed a call."
   on_github: "Pindrop on GitHub"
   orb: "Pindrop Orb"
   pill: "Pindrop Pill"
@@ -1111,6 +1122,9 @@ recommended:
   _self: "Recommended"
 record:
   _self: "Record"
+  it_as_a_note: "Record it as a note?"
+  system_audio_in_meeting_notes: "Record system audio in meeting notes"
+  this_call: "Record this call"
   with_system_audio: "Record with system audio"
 recording:
   _self: "Recording"
@@ -1234,6 +1248,7 @@ setup:
 shortcuts:
   _self: "Shortcuts"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "Show a way to record when a meeting app opens your microphone."
   api_key: "Show API Key"
   app: "Show App"
   app_in_finder: "Show App in Finder"
@@ -1715,6 +1730,8 @@ voice:
   reduce_background_noise_before_transcription: "Reduce background noise before transcription"
 vs:
   typing: "vs typing"
+watch:
+  for_calls: "Watch for calls"
 web:
   link: "Web link"
 welcome:

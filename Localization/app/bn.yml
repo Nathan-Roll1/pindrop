@@ -20,6 +20,7 @@
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "বড় আপগ্রেডের এক দফা — আর কমিউনিটির দুইজনকে ধন্যবাদ।"
+  call_started: "একটি কল শুরু হয়েছে"
   native_macos_menu_bar_dictation_app_using_loca: "হুইস্পারকিটের সাথে স্থানীয় স্পিচ-টু-টেক্সট ব্যবহার করে একটি নেটিভ macOS মেনু বার ডিকটেশন অ্যাপ। ঐচ্ছিক AI বর্ধন সহ ডিফল্টরূপে 100% স্থানীয় প্রক্রিয়াকরণ।"
   note_capture_is_already_running: "একটি নোট রেকর্ডিং ইতিমধ্যেই চলছে।"
 about:
@@ -381,6 +382,8 @@ display:
   name: "প্রদর্শনের নাম"
   name_c7874aaa: "প্রদর্শনের নাম"
   pindrop_in_the_dock_instead_of_running_o: "শুধুমাত্র একটি মেনু বার অ্যাপ হিসাবে চালানোর পরিবর্তে ডকে পিনড্রপ প্রদর্শন করুন।"
+do:
+  you_want_a_notification_when_a_call_starts: "কল শুরু হলে আপনি কি বিজ্ঞপ্তি চান?"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "উইন্ডোর বাম বা ডান প্রান্তে সাইডবার ডক করুন।"
 done:
@@ -742,6 +745,7 @@ nemotron:
   default: "Nemotron (default)"
 new:
   folder: "নতুন ফোল্ডার"
+  meeting_note: "নতুন মিটিং নোট"
   note: "নতুন নোট"
   preset: "নতুন প্রিসেট"
   note_with_system_audio: "সিস্টেম অডিওসহ নতুন নোট"
@@ -780,6 +784,7 @@ no:
   results_found: "কোন ফলাফল পাওয়া যায়নি"
   settings_found: "কোনো সেটিংস পাওয়া যায়নি"
   speech_detected_try_speaking_closer_to_your: "কোনো কথা শনাক্ত হয়নি। মাইক্রোফোনের কাছাকাছি কথা বলার চেষ্টা করুন।"
+  thanks: "না, ধন্যবাদ"
   transcriptions_yet: "এখনও কোন প্রতিলিপি"
   vocabulary_words: "কোন ভোকাবুলারি শব্দ নেই"
   transcripts_audio_prompts_file_names_or_perso: "কোনো প্রতিলিপি, অডিও, প্রম্পট, ফাইলের নাম বা ব্যক্তিগত কনটেন্ট নয় — কখনও নয়।"
@@ -818,6 +823,11 @@ notes:
   header_meta_today: "%1$@, %2$@ আজকের"
   new_note_options_label: "নতুন নোটের আরও বিকল্প"
   row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "Pindrop-এর জন্য বিজ্ঞপ্তি বন্ধ আছে। কল সম্পর্কে জিজ্ঞেস করা হোক চাইলে সিস্টেম সেটিংসে সেগুলি চালু করুন।"
+notify:
+  me: "আমাকে জানান"
+  me_when_a_call_starts: "কল শুরু হলে আমাকে জানান"
 off:
   _self: "বন্ধ"
 ok:
@@ -941,6 +951,7 @@ pindrop:
     আপনার গোপনীয়তা সবসময় সম্মান করা হয়.
   needs_accessibility_permission_to_insert: "\" আপনার কার্সারে পাঠ্য সন্নিবেশ করার জন্য পিনড্রপের অ্যাক্সেসিবিলিটি অনুমতির প্রয়োজন৷                          অনুমতি দেওয়ার জন্য: 1. নীচে \"ওপেন সিস্টেম সেটিংস\" ক্লিক করুন 2. + বোতামে ক্লিক করুন 3. ফাইন্ডারে দেখানো অ্যাপে নেভিগেট করুন 4. অনুমতি দেওয়ার পরে পিনড্রপ পুনরায় চালু করুন এই অনুমতি ছাড়া, পাঠ্য শুধুমাত্র আপনার ক্লিপবোর্ডে অনুলিপি করা হবে৷             \""
   needs_microphone_access_to_record_and_tr: "আপনার voice.nn অনুগ্রহ করে সিস্টেম সেটিংসে অনুমতি দিন।"
+  noticed_a_call: "Pindrop একটি কল লক্ষ্য করেছে।"
   on_github: "GitHub-এ পিনড্রপ"
   orb: "Pindrop অর্ব"
   pill: "পিনড্রপ পিল"
@@ -1049,6 +1060,9 @@ recommended:
   _self: "প্রস্তাবিত"
 record:
   _self: "রেকর্ড"
+  it_as_a_note: "এটি নোট হিসেবে রেকর্ড করবেন?"
+  system_audio_in_meeting_notes: "মিটিং নোটে সিস্টেম অডিও রেকর্ড করুন"
+  this_call: "এই কলটি রেকর্ড করুন"
   with_system_audio: "সিস্টেম অডিওসহ রেকর্ড করুন"
 recording:
   _self: "রেকর্ডিং"
@@ -1167,6 +1181,7 @@ setup:
 shortcuts:
   _self: "শর্টকাট"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "কোনো মিটিং অ্যাপ আপনার মাইক্রোফোন চালু করলে রেকর্ড করার উপায় দেখান।"
   api_key: "API কী দেখান"
   app: "অ্যাপ দেখান"
   app_in_finder: "ফাইন্ডারে অ্যাপ দেখান"
@@ -1640,6 +1655,8 @@ voice:
   note: "কণ্ঠ নোট"
 vs:
   typing: "বনাম টাইপিং"
+watch:
+  for_calls: "কলের জন্য নজর রাখুন"
 web:
   link: "Web link"
 welcome:

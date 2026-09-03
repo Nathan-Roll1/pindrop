@@ -20,6 +20,7 @@
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "Büyük bir yükseltme turu — ve topluluktan iki kişiye teşekkür."
+  call_started: "Bir çağrı başladı"
   native_macos_menu_bar_dictation_app_using_loca: "WhisperKit ile yerel konuşmayı metne dönüştürme özelliğini kullanan yerel bir macOS menü çubuğu dikte uygulaması. İsteğe bağlı yapay zeka geliştirmesiyle varsayılan olarak %100 yerel işleme."
   note_capture_is_already_running: "Zaten bir not kaydı sürüyor."
 about:
@@ -381,6 +382,8 @@ display:
   name: "Ekran adı"
   name_c7874aaa: "Ekran adı"
   pindrop_in_the_dock_instead_of_running_o: "Pindrop'u yalnızca bir menü çubuğu uygulaması olarak çalıştırmak yerine Dock'ta görüntüleyin."
+do:
+  you_want_a_notification_when_a_call_starts: "Bir çağrı başladığında bildirim ister misiniz?"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "Kenar çubuğunu pencerenin sol veya sağ kenarına sabitleyin."
 done:
@@ -741,6 +744,7 @@ nemotron:
   default: "Nemotron (default)"
 new:
   folder: "Yeni Klasör"
+  meeting_note: "Yeni toplantı notu"
   note: "Yeni Not"
   preset: "Yeni Ön Ayar"
   note_with_system_audio: "Sistem sesiyle yeni not"
@@ -779,6 +783,7 @@ no:
   results_found: "Sonuç bulunamadı"
   settings_found: "Hiçbir ayar bulunamadı"
   speech_detected_try_speaking_closer_to_your: "Konuşma algılanmadı. Mikrofona daha yakın konuşmayı deneyin."
+  thanks: "Hayır, teşekkürler"
   transcriptions_yet: "Henüz transkripsiyon yok"
   vocabulary_words: "Kelime Bilgisi Yok"
   transcripts_audio_prompts_file_names_or_perso: "Hiçbir transkripsiyon, ses, istem, dosya adı veya kişisel içerik yok — asla."
@@ -817,6 +822,11 @@ notes:
   header_meta_today: "%1$@, %2$@ bugünden"
   new_note_options_label: "Yeni not için diğer seçenekler"
   row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "Pindrop için bildirimler kapalı. Çağrılar için size sorulmasını istiyorsanız Sistem Ayarları'ndan açın."
+notify:
+  me: "Bana bildir"
+  me_when_a_call_starts: "Çağrı başladığında bana bildir"
 off:
   _self: "Kapalı"
 ok:
@@ -938,6 +948,7 @@ pindrop:
     Gizliliğinize her zaman saygı duyulur.
   needs_accessibility_permission_to_insert: "\"\" Pindrop'un imlecinize metin ekleyebilmesi için Erişilebilirlik iznine ihtiyacı var.                          İzin vermek için: 1. Aşağıdaki \"Sistem Ayarlarını Aç\"ı tıklayın 2. + düğmesini tıklayın 3. Finder'da gösterilen uygulamaya gidin 4. İzin verdikten sonra Pindrop'u yeniden başlatın Bu izin olmadan, metin yalnızca panonuza kopyalanacaktır.             \"\""
   needs_microphone_access_to_record_and_tr: "Pindrop'un sesinizi kaydedip yazıya dökebilmesi için mikrofon erişimine ihtiyacı var.nnLütfen Sistem Ayarları'ndan izin verin."
+  noticed_a_call: "Pindrop bir çağrı fark etti."
   on_github: "GitHub'da Pindrop"
   orb: "Pindrop Küresi"
   pill: "Pindrop Hapı"
@@ -1045,6 +1056,9 @@ recommended:
   _self: "Tavsiye edilen"
 record:
   _self: "Kayıt"
+  it_as_a_note: "Not olarak kaydedilsin mi?"
+  system_audio_in_meeting_notes: "Toplantı notlarında sistem sesini kaydet"
+  this_call: "Bu çağrıyı kaydet"
   with_system_audio: "Sistem sesiyle kaydet"
 recording:
   _self: "Kayıt"
@@ -1163,6 +1177,7 @@ setup:
 shortcuts:
   _self: "Kısayollar"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "Bir toplantı uygulaması mikrofonunuzu açtığında kayıt yolu gösterir."
   api_key: "API anahtarını göster"
   app: "Uygulamayı Göster"
   app_in_finder: "Uygulamayı Finder'da Göster"
@@ -1633,6 +1648,8 @@ voice:
   note: "Sesli not"
 vs:
   typing: "yazmaya karşı"
+watch:
+  for_calls: "Çağrıları izle"
 web:
   link: "Web link"
 welcome:

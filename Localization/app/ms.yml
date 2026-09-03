@@ -20,6 +20,7 @@
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "Satu pusingan besar peningkatan — dan dua penghargaan komuniti."
+  call_started: "Panggilan telah bermula"
   native_macos_menu_bar_dictation_app_using_loca: "Apl imlak bar menu macOS asli menggunakan pertuturan-ke-teks tempatan dengan WhisperKit. 100% pemprosesan tempatan secara lalai dengan peningkatan AI pilihan."
   note_capture_is_already_running: "Rakaman nota sedang berjalan."
 about:
@@ -381,6 +382,8 @@ display:
   name: "Nama Paparan"
   name_c7874aaa: "Nama paparan"
   pindrop_in_the_dock_instead_of_running_o: "Paparkan Pindrop dalam Dok dan bukannya berjalan hanya sebagai apl bar menu."
+do:
+  you_want_a_notification_when_a_call_starts: "Mahu pemberitahuan apabila panggilan bermula?"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "Dok bar sisi ke tepi kiri atau kanan tetingkap."
 done:
@@ -741,6 +744,7 @@ nemotron:
   default: "Nemotron (default)"
 new:
   folder: "Folder Baharu"
+  meeting_note: "Nota mesyuarat baharu"
   note: "Nota Baharu"
   preset: "Pratetap Baharu"
   note_with_system_audio: "Nota baharu dengan audio sistem"
@@ -779,6 +783,7 @@ no:
   results_found: "Tiada hasil ditemui"
   settings_found: "Tiada tetapan ditemui"
   speech_detected_try_speaking_closer_to_your: "Tiada pertuturan dikesan. Cuba bercakap lebih dekat dengan mikrofon anda."
+  thanks: "Tidak, terima kasih"
   transcriptions_yet: "Tiada transkripsi lagi"
   vocabulary_words: "Tiada Perbendaharaan Kata"
   transcripts_audio_prompts_file_names_or_perso: "Tiada transkripsi, audio, gesaan, nama fail, atau kandungan peribadi — tidak sekali-kali."
@@ -817,6 +822,11 @@ notes:
   header_meta_today: "%1$@, %2$@ daripada hari ini"
   new_note_options_label: "Pilihan nota baharu yang lain"
   row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "Pemberitahuan dimatikan untuk Pindrop. Hidupkannya dalam Tetapan Sistem supaya anda ditanya tentang panggilan."
+notify:
+  me: "Beritahu saya"
+  me_when_a_call_starts: "Beritahu saya apabila panggilan bermula"
 off:
   _self: "Mati"
 ok:
@@ -938,6 +948,7 @@ pindrop:
     Privasi anda sentiasa dihormati.
   needs_accessibility_permission_to_insert: "\"\" Pindrop memerlukan kebenaran Kebolehaksesan untuk memasukkan teks pada kursor anda.                          Untuk memberikan kebenaran: 1. Klik \"Buka Tetapan Sistem\" di bawah 2. Klik butang + 3. Navigasi ke apl yang ditunjukkan dalam Finder 4. Mulakan semula Pindrop selepas memberikan kebenaran Tanpa kebenaran ini, teks hanya akan disalin ke papan keratan anda.             \"\""
   needs_microphone_access_to_record_and_tr: "Pindrop memerlukan akses mikrofon untuk merakam dan menyalin suara anda.nnSila berikan kebenaran dalam Tetapan Sistem."
+  noticed_a_call: "Pindrop mengesan panggilan."
   on_github: "Pindrop pada GitHub"
   orb: "Orb Pindrop"
   pill: "Pil Pindrop"
@@ -1045,6 +1056,9 @@ recommended:
   _self: "Disyorkan"
 record:
   _self: "Rekod"
+  it_as_a_note: "Rakam sebagai nota?"
+  system_audio_in_meeting_notes: "Rakam audio sistem dalam nota mesyuarat"
+  this_call: "Rakam panggilan ini"
   with_system_audio: "Rakam dengan audio sistem"
 recording:
   _self: "Rakaman"
@@ -1163,6 +1177,7 @@ setup:
 shortcuts:
   _self: "Pintasan"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "Menunjukkan cara merakam apabila aplikasi mesyuarat membuka mikrofon anda."
   api_key: "Tunjukkan kunci API"
   app: "Tunjukkan Apl"
   app_in_finder: "Tunjukkan Apl dalam Finder"
@@ -1633,6 +1648,8 @@ voice:
   note: "Nota suara"
 vs:
   typing: "vs menaip"
+watch:
+  for_calls: "Pantau panggilan"
 web:
   link: "Web link"
 welcome:

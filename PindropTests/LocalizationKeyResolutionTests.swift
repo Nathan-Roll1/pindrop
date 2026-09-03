@@ -109,17 +109,33 @@ struct LocalizationKeyResolutionTests {
         "Pindrop checks the speakers again when the recording ends.",
         "Speaker names were checked again against the full recording.",
         "Name speakers while recording",
-        "Show who is talking in the live transcript. Names are checked again when the recording ends."
+        "Show who is talking in the live transcript. Names are checked again when the recording ends.",
+        // Meeting entry points.
+        "Record this call",
+        "New meeting note",
+        "A call started",
+        "Record it as a note?",
+        "Not now",
+        "Meetings",
+        "Watch for calls",
+        "Show a way to record when a meeting app opens your microphone.",
+        "Notify me when a call starts",
+        "Notifications are turned off for Pindrop. Turn them on in System Settings to be asked about calls.",
+        "Record system audio in meeting notes",
+        "Pindrop noticed a call.",
+        "Do you want a notification when a call starts?",
+        "Notify me",
+        "No thanks"
     ])
     func sourceStringsResolveToThemselvesInEnglish(_ source: String) {
         #expect(localized(source, locale: en) == source)
     }
 
-    /// The live attribution copy names a channel and a gap in the live text, so
-    /// a reader who does not read English learns nothing from the untranslated
-    /// source. `localized` falls back to the English key when a locale lacks the
-    /// string, which makes a missing translation invisible on screen and visible
-    /// only here.
+    /// The live attribution copy names a channel and a gap in the live text, and
+    /// the meeting copy names a call and asks a question, so a reader who does
+    /// not read English learns nothing from the untranslated source. `localized`
+    /// falls back to the English key when a locale lacks the string, which makes
+    /// a missing translation invisible on screen and visible only here.
     @Test(arguments: LocalizationMetadata.supportedLocales.filter { $0 != "en" })
     func liveAttributionStringsAreTranslatedInEveryLocale(_ identifier: String) {
         let locale = Locale(identifier: identifier)
@@ -148,7 +164,24 @@ struct LocalizationKeyResolutionTests {
         "Pindrop checks the speakers again when the recording ends.",
         "Speaker names were checked again against the full recording.",
         "Name speakers while recording",
-        "Show who is talking in the live transcript. Names are checked again when the recording ends."
+        "Show who is talking in the live transcript. Names are checked again when the recording ends.",
+        // Meeting entry points. "Meetings" is left out on purpose: German keeps
+        // the English word, so an equality check would call a correct
+        // translation a miss.
+        "Record this call",
+        "New meeting note",
+        "A call started",
+        "Record it as a note?",
+        "Not now",
+        "Watch for calls",
+        "Show a way to record when a meeting app opens your microphone.",
+        "Notify me when a call starts",
+        "Notifications are turned off for Pindrop. Turn them on in System Settings to be asked about calls.",
+        "Record system audio in meeting notes",
+        "Pindrop noticed a call.",
+        "Do you want a notification when a call starts?",
+        "Notify me",
+        "No thanks"
     ]
 
     /// The lowercase running copy and the capitalised stat label are two strings,

@@ -20,6 +20,7 @@
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "O rundă mare de îmbunătățiri — și două mulțumiri pentru comunitate."
+  call_started: "A început un apel"
   native_macos_menu_bar_dictation_app_using_loca: "O aplicație nativă de dictare a barei de meniu macOS care folosește conversia vocală în text local cu WhisperKit. Procesare 100% locală în mod implicit, cu îmbunătățire opțională AI."
   note_capture_is_already_running: "O înregistrare de notiță este deja în curs."
 about:
@@ -381,6 +382,8 @@ display:
   name: "Numele de afișare"
   name_c7874aaa: "Numele de afișare"
   pindrop_in_the_dock_instead_of_running_o: "Afișați Pindrop în Dock în loc să rulați doar ca aplicație pentru bara de meniu."
+do:
+  you_want_a_notification_when_a_call_starts: "Doriți o notificare când începe un apel?"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "Fixați bara laterală la marginea stângă sau dreaptă a ferestrei."
 done:
@@ -741,6 +744,7 @@ nemotron:
   default: "Nemotron (default)"
 new:
   folder: "Dosar nou"
+  meeting_note: "Notiță nouă de ședință"
   note: "Notă nouă"
   preset: "Preset nou"
   note_with_system_audio: "Notiță nouă cu sunetul sistemului"
@@ -779,6 +783,7 @@ no:
   results_found: "Nu s-au găsit rezultate"
   settings_found: "Nu s-au găsit setări"
   speech_detected_try_speaking_closer_to_your: "Nu s-a detectat nicio vorbire. Încercați să vorbiți mai aproape de microfon."
+  thanks: "Nu, mulțumesc"
   transcriptions_yet: "Nicio transcriere încă"
   vocabulary_words: "Fără cuvinte de vocabular"
   transcripts_audio_prompts_file_names_or_perso: "Nicio transcriere, audio, prompt, nume de fișier sau conținut personal — niciodată."
@@ -817,6 +822,11 @@ notes:
   header_meta_today: "%1$@, %2$@ de azi"
   new_note_options_label: "Mai multe opțiuni pentru notiță nouă"
   row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "Notificările sunt dezactivate pentru Pindrop. Activați-le în Setări sistem pentru a fi întrebat despre apeluri."
+notify:
+  me: "Anunță-mă"
+  me_when_a_call_starts: "Anunță-mă când începe un apel"
 off:
   _self: "Oprit"
 ok:
@@ -938,6 +948,7 @@ pindrop:
     Intimitatea ta este întotdeauna respectată.
   needs_accessibility_permission_to_insert: "„” Pindrop are nevoie de permisiunea de accesibilitate pentru a insera text la cursor.                          Pentru a acorda permisiunea: 1. Faceți clic pe „Open System Settings” de mai jos 2. Faceți clic pe butonul + 3. Navigați la aplicația afișată în Finder 4. Reporniți Pindrop după acordarea permisiunii Fără această permisiune, textul va fi copiat numai în clipboard.             \"\""
   needs_microphone_access_to_record_and_tr: "Pindrop are nevoie de acces la microfon pentru a vă înregistra și a transcrie vocea.nnVă rugăm să acordați permisiunea în Setările de sistem."
+  noticed_a_call: "Pindrop a observat un apel."
   on_github: "Pindrop pe GitHub"
   orb: "Sfera Pindrop"
   pill: "Pilula Pindrop"
@@ -1045,6 +1056,9 @@ recommended:
   _self: "Recomandat"
 record:
   _self: "Înregistra"
+  it_as_a_note: "Îl înregistrăm ca notiță?"
+  system_audio_in_meeting_notes: "Înregistrează sunetul sistemului în notițele de ședință"
+  this_call: "Înregistrează acest apel"
   with_system_audio: "Înregistrează cu sunetul sistemului"
 recording:
   _self: "Înregistrare"
@@ -1163,6 +1177,7 @@ setup:
 shortcuts:
   _self: "Scurtături"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "Arată o modalitate de înregistrare când o aplicație de ședințe deschide microfonul dvs."
   api_key: "Afișează cheia API"
   app: "Afișați aplicația"
   app_in_finder: "Afișați aplicația în Finder"
@@ -1633,6 +1648,8 @@ voice:
   note: "Notiță vocală"
 vs:
   typing: "vs tastarea"
+watch:
+  for_calls: "Urmărește apelurile"
 web:
   link: "Web link"
 welcome:

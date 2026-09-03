@@ -20,6 +20,7 @@
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "Een grote ronde upgrades — en twee bedankjes aan de community."
+  call_started: "Er is een gesprek gestart"
   native_macos_menu_bar_dictation_app_using_loca: "Een native macOS-dicteerapp voor de menubalk die lokale spraak-naar-tekst gebruikt met WhisperKit. Standaard 100% lokale verwerking met optionele AI-verbetering."
   note_capture_is_already_running: "Er loopt al een notitieopname."
 about:
@@ -381,6 +382,8 @@ display:
   name: "Weergavenaam"
   name_c7874aaa: "Weergavenaam"
   pindrop_in_the_dock_instead_of_running_o: "Geef Pindrop weer in het Dock in plaats van alleen als menubalk-app te draaien."
+do:
+  you_want_a_notification_when_a_call_starts: "Wil je een melding als een gesprek start?"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "Dock de zijbalk aan de linker- of rechterrand van het venster."
 done:
@@ -741,6 +744,7 @@ nemotron:
   default: "Nemotron (default)"
 new:
   folder: "Nieuwe map"
+  meeting_note: "Nieuwe vergadernotitie"
   note: "Nieuwe notitie"
   preset: "Nieuwe voorinstelling"
   note_with_system_audio: "Nieuwe notitie met systeemgeluid"
@@ -779,6 +783,7 @@ no:
   results_found: "Geen resultaten gevonden"
   settings_found: "Geen instellingen gevonden"
   speech_detected_try_speaking_closer_to_your: "Geen spraak gedetecteerd. Probeer dichter bij je microfoon te praten."
+  thanks: "Nee, bedankt"
   transcriptions_yet: "Nog geen transcripties"
   vocabulary_words: "Geen woordenschatwoorden"
   transcripts_audio_prompts_file_names_or_perso: "Geen transcripties, audio, prompts, bestandsnamen of persoonlijke inhoud — nooit."
@@ -817,6 +822,11 @@ notes:
   header_meta_today: "%1$@, %2$@ van vandaag"
   new_note_options_label: "Meer opties voor een nieuwe notitie"
   row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "Meldingen staan uit voor Pindrop. Zet ze aan in Systeeminstellingen om gevraagd te worden over gesprekken."
+notify:
+  me: "Waarschuw me"
+  me_when_a_call_starts: "Waarschuw me als een gesprek start"
 off:
   _self: "Uit"
 ok:
@@ -938,6 +948,7 @@ pindrop:
     Uw privacy wordt altijd gerespecteerd.
   needs_accessibility_permission_to_insert: "\"\" Pindrop heeft toegankelijkheidstoestemming nodig om tekst bij uw cursor in te voegen.                          Om toestemming te verlenen: 1. Klik hieronder op \"Systeeminstellingen openen\" 2. Klik op de knop + 3. Navigeer naar de app die wordt weergegeven in Finder 4. Start Pindrop opnieuw op nadat u toestemming hebt verleend Zonder deze toestemming wordt tekst alleen naar uw klembord gekopieerd.             \"\""
   needs_microphone_access_to_record_and_tr: "Pindrop heeft microfoontoegang nodig om je stem op te nemen en te transcriberen.nnVerleen toestemming in Systeeminstellingen."
+  noticed_a_call: "Pindrop heeft een gesprek opgemerkt."
   on_github: "Pindrop op GitHub"
   orb: "Pindrop-orb"
   pill: "Pindrop-pil"
@@ -1045,6 +1056,9 @@ recommended:
   _self: "Aanbevolen"
 record:
   _self: "Dossier"
+  it_as_a_note: "Opnemen als notitie?"
+  system_audio_in_meeting_notes: "Systeemgeluid opnemen in vergadernotities"
+  this_call: "Dit gesprek opnemen"
   with_system_audio: "Opnemen met systeemgeluid"
 recording:
   _self: "Opname"
@@ -1163,6 +1177,7 @@ setup:
 shortcuts:
   _self: "Sneltoetsen"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "Toont een manier om op te nemen wanneer een vergaderapp je microfoon opent."
   api_key: "API-sleutel tonen"
   app: "Toon app"
   app_in_finder: "Toon app in Finder"
@@ -1633,6 +1648,8 @@ voice:
   note: "Spraaknotitie"
 vs:
   typing: "versus typen"
+watch:
+  for_calls: "Letten op gesprekken"
 web:
   link: "Web link"
 welcome:

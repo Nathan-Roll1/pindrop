@@ -20,6 +20,7 @@
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "סבב גדול של שדרוגים — ושתי תודות לקהילה."
+  call_started: "שיחה התחילה"
   native_macos_menu_bar_dictation_app_using_loca: "אפליקציית הכתבה מקורית של שורת התפריט של macOS המשתמשת בדיבור לטקסט מקומי עם WhisperKit. עיבוד מקומי של 100% כברירת מחדל עם שיפור AI אופציונלי."
   note_capture_is_already_running: "הקלטת פתק כבר פועלת."
 about:
@@ -381,6 +382,8 @@ display:
   name: "שם תצוגה"
   name_c7874aaa: "שם תצוגה"
   pindrop_in_the_dock_instead_of_running_o: "הצג Pindrop ב-Dock במקום לפעול רק כאפליקציה של שורת תפריטים."
+do:
+  you_want_a_notification_when_a_call_starts: "רוצים התראה כששיחה מתחילה?"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "עגן את סרגל הצד לקצה השמאלי או הימני של החלון."
 done:
@@ -741,6 +744,7 @@ nemotron:
   default: "Nemotron (default)"
 new:
   folder: "תיקיה חדשה"
+  meeting_note: "פתק פגישה חדש"
   note: "הערה חדשה"
   preset: "הגדרה חדשה מראש"
   note_with_system_audio: "פתק חדש עם קול המערכת"
@@ -779,6 +783,7 @@ no:
   results_found: "לא נמצאו תוצאות"
   settings_found: "לא נמצאו הגדרות"
   speech_detected_try_speaking_closer_to_your: "לא זוהה דיבור. נסה לדבר קרוב יותר למיקרופון."
+  thanks: "לא, תודה"
   transcriptions_yet: "עדיין אין תעתיקים"
   vocabulary_words: "אין מילים אוצר מילים"
   transcripts_audio_prompts_file_names_or_perso: "אין תמלולים, אודיו, הנחיות, שמות קבצים או תוכן אישי — לעולם."
@@ -817,6 +822,11 @@ notes:
   header_meta_today: "%1$@, %2$@ מהיום"
   new_note_options_label: "אפשרויות נוספות לפתק חדש"
   row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "ההתראות מושבתות עבור Pindrop. הפעילו אותן בהגדרות מערכת כדי שנשאל אתכם על שיחות."
+notify:
+  me: "להודיע לי"
+  me_when_a_call_starts: "להודיע לי כששיחה מתחילה"
 off:
   _self: "כבוי"
 ok:
@@ -938,6 +948,7 @@ pindrop:
     הפרטיות שלך תמיד מכבדת.
   needs_accessibility_permission_to_insert: "\"\" Pindrop זקוק להרשאת נגישות כדי להוסיף טקסט ליד הסמן.                          כדי להעניק הרשאה: 1. לחץ על \"פתח הגדרות מערכת\" למטה 2. לחץ על כפתור + 3. נווט אל האפליקציה המוצגת ב-Finder 4. הפעל מחדש את Pindrop לאחר מתן הרשאה ללא הרשאה זו, הטקסט יועתק רק ללוח שלך.             \"\""
   needs_microphone_access_to_record_and_tr: "Pindrop זקוק לגישה למיקרופון כדי להקליט ולתמלל את הקול שלך.nnאנא הענק הרשאה בהגדרות המערכת."
+  noticed_a_call: "Pindrop זיהה שיחה."
   on_github: "Pindrop ב-GitHub"
   orb: "כדור Pindrop"
   pill: "גלולת פינדרופ"
@@ -1045,6 +1056,9 @@ recommended:
   _self: "מוּמלָץ"
 record:
   _self: "רְשׁוּמָה"
+  it_as_a_note: "להקליט אותה כפתק?"
+  system_audio_in_meeting_notes: "הקלטת קול המערכת בפתקי פגישות"
+  this_call: "הקליטו את השיחה הזאת"
   with_system_audio: "הקלטה עם קול המערכת"
 recording:
   _self: "הַקלָטָה"
@@ -1163,6 +1177,7 @@ setup:
 shortcuts:
   _self: "קיצורי דרך"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "מציג דרך להקליט כשאפליקציית פגישות פותחת את המיקרופון שלכם."
   api_key: "הצג מפתח API"
   app: "הצג אפליקציה"
   app_in_finder: "הצג את האפליקציה ב-Finder"
@@ -1633,6 +1648,8 @@ voice:
   note: "פתק קולי"
 vs:
   typing: "לעומת הקלדה"
+watch:
+  for_calls: "מעקב אחר שיחות"
 web:
   link: "Web link"
 welcome:
