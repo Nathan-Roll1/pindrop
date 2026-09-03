@@ -200,12 +200,6 @@ final class NoteCaptureState {
     /// would invalidate the view that just read it.
     @ObservationIgnored private var copyTextCache: (localeIdentifier: String, text: String)?
 
-    /// v1 has no pause. `AudioRecorder` cannot pause a durable spool and
-    /// `CaptureSession.isValid` encodes state in revision parity, so a paused
-    /// lifecycle state would mean rewriting the validator. The seam stays here
-    /// so the capture bar can ask rather than assume.
-    let canPause = false
-
     var isActive: Bool {
         switch phase {
         case .starting, .capturing, .finalizing, .enhancing:

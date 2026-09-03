@@ -448,7 +448,6 @@ struct NoteCaptureControllerTests {
         #expect(fixture.state.phase == .capturing)
         #expect(fixture.state.startedAt != nil)
         #expect(fixture.state.noteID != nil)
-        #expect(!fixture.state.canPause)
         #expect(fixture.arbiter.didBeginAt != nil)
         #expect(fixture.microphoneBackend.configuredMeetingSources == [.microphone])
     }
