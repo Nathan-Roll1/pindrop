@@ -534,15 +534,20 @@ enum EnhancedViewPresentation {
                 action: .selectTemplate(item.id)
             )
         }
+        // Keyed on the rows, not on `selected`: a panel written with no template
+        // carries the generator's own default identifier, which names no preset
+        // and checks no row. That is the state a real note reaches, and reading
+        // `selected` alone answered only a nil this call site cannot produce.
+        let hasSelectedTemplate = templates.contains { $0.isSelected }
         return EnhancedMenuContent(
             headerTitle: localized("Enhanced notes", locale: locale),
             templatesTitle: localized("Templates", locale: locale),
-            emptyTemplateMessage: selected == nil
-                ? localized(
+            emptyTemplateMessage: hasSelectedTemplate
+                ? nil
+                : localized(
                     "No template. The note is written as plain notes.",
                     locale: locale
-                )
-                : nil,
+                ),
             templates: templates,
             actions: [
                 EnhancedMenuRow(

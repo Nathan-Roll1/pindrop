@@ -1452,6 +1452,16 @@ final class NoteCaptureController {
             )
         }
 
+        // Reported once, after the loop, and never inside it. The speaker pass
+        // runs inside `transcribeMeetingChunk`, so reporting it per chunk walked
+        // the checklist backwards on every chunk: `Transcribing` lost its check
+        // and `Identifying speakers` un-started, once per sealed chunk of a
+        // long meeting. It also attributed an ASR failure to the speaker row,
+        // which is not where the recording was lost.
+        if diarizationEnabled {
+            setFinalizingStage(.diarizing(nil), for: handle)
+        }
+
         try operationGuard()
         let refreshedPlan = try captureSessionStore.makeMeetingFinalizationPlan(handle)
         let missingFinalASRSequences = Self.missingMeetingFinalASRSequences(
@@ -1689,9 +1699,6 @@ final class NoteCaptureController {
             sha256: mixed.sha256
         )
         do {
-            if diarizationEnabled {
-                setFinalizingStage(.diarizing(nil), for: handle)
-            }
             let output = try await transcriptionService.transcribeMeetingChunk(
                 input,
                 options: arbiter.captureTranscriptionOptions(),

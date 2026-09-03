@@ -524,22 +524,68 @@ struct NotePagePresentationTests {
         #expect(footer.leading == "The transcript fills in as you speak.")
     }
 
+    /// The settling sentence has one host, and it is the canvas, where it sits
+    /// with the text it describes. The footer says what the app is doing with
+    /// the recording instead of repeating the same line one strip below it.
+    @Test func theSettlingFooterDoesNotRepeatTheLineAboveTheTurns() {
+        let state = NotePageState(
+            capture: .finalizing(.transcribing, progress: 0.4),
+            hasLiveText: true
+        )
+        let footer = NotePagePresentation.footer(
+            kind: .transcript,
+            state: state,
+            facts: NotePageFooterFacts(isTranscriptLive: false),
+            locale: locale
+        )
+        #expect(footer.leading == "Recording stopped. Processing transcription.")
+        #expect(footer.leading != NotePagePresentation.settlingTranscriptNotice(
+            state: state,
+            locale: locale
+        ))
+    }
+
     // MARK: - Finalizing copy
 
-    @Test func everyStageHasAnHonestNameAndAPredecessor() {
+    @Test func everyStageHasAnHonestName() {
         #expect(NotePagePresentation.stageTitle(.sealingAudio, locale: locale) == "Sealing audio")
         #expect(NotePagePresentation.stageTitle(.transcribing, locale: locale) == "Transcribing")
         #expect(NotePagePresentation.stageTitle(.diarizing, locale: locale) == "Identifying speakers")
         #expect(NotePagePresentation.stageTitle(.assembling, locale: locale) == "Writing note")
 
-        #expect(NotePagePresentation.completedStages(before: .sealingAudio, locale: locale) == nil)
-        #expect(NotePagePresentation.completedStages(before: .transcribing, locale: locale) == "Audio sealed")
-        #expect(NotePagePresentation.completedStages(before: .diarizing, locale: locale) == "Transcription done")
-        #expect(NotePagePresentation.completedStages(before: .assembling, locale: locale) == "Speakers identified")
-
         for stage in NotePageFinalizationStage.allCases {
             #expect(!NotePagePresentation.stageTitle(stage, locale: locale).isEmpty)
         }
+    }
+
+    /// Two rows of one checklist may not carry one name. Writing the transcript
+    /// and writing the enhanced note are different work, and a reader who sees
+    /// the same words twice, one checked and one running, reads a bug.
+    @Test func noTwoChecklistStepsShareAName() {
+        let titles = FinalizationStep.allCases.map {
+            NotePagePresentation.stepTitle($0, locale: locale)
+        }
+        #expect(Set(titles).count == titles.count)
+        #expect(NotePagePresentation.stepTitle(.assembling, locale: locale) == "Writing note")
+        #expect(NotePagePresentation.stepTitle(.enhancing, locale: locale) == "Enhancing…")
+    }
+
+    /// A capture that failed while finalizing keeps its dock: the failed row is
+    /// where the reader is told the recording is saved and what to do next, and
+    /// a dock that unmounts on failure delivers that sentence to nobody.
+    @Test func aFailedFinalizationKeepsTheChecklistOnScreen() {
+        let failedWhileFinalizing = NotePageState(
+            capture: .failed,
+            hasFailedFinalizationStep: true
+        )
+        #expect(NotePagePresentation.showsCaptureStrip(state: failedWhileFinalizing))
+
+        // A capture that failed before finalization has no pipeline to draw.
+        let failedEarly = NotePageState(capture: .failed)
+        #expect(!NotePagePresentation.showsCaptureStrip(state: failedEarly))
+
+        // And a note with no capture on it never draws the dock.
+        #expect(!NotePagePresentation.showsCaptureStrip(state: .plainNote))
     }
 
     @Test func theFinalizingCaptionPromisesNothingItCannotKeep() {

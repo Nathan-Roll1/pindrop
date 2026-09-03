@@ -218,6 +218,14 @@ final class NoteCaptureState {
         return message
     }
 
+    /// The step a failed capture stopped on, or nil when it never reached
+    /// finalization. The page keeps the checklist on screen for this: the failed
+    /// row is the only place the reader is told the recording survived.
+    var failedFinalizationStep: FinalizationStep? {
+        guard case .failed = phase else { return nil }
+        return lastFinalizationStep
+    }
+
     // MARK: - Finalization checklist
 
     /// Every step of this capture in order, with its status. The interface draws
@@ -246,13 +254,15 @@ final class NoteCaptureState {
         }
     }
 
-    /// False for work this capture never runs. `NoteCaptureController` gates
-    /// both speaker stages on `capturesSystemAudio`, so a microphone-only note
-    /// must not wait on a row that will never start.
+    /// False for work this capture never runs. The system channel alone does not
+    /// make the speaker stages run: finalize also needs the setting on and the
+    /// model on disk, which is what `isOfflineSpeakerPassScheduled` answers.
+    /// Gating on the channel instead would tick off two passes that never
+    /// started, on the one surface built to stop the pipeline lying.
     private func appliesToThisCapture(_ step: FinalizationStep) -> Bool {
         switch step {
         case .diarizing, .matchingSpeakers:
-            includesSystemAudio
+            isOfflineSpeakerPassScheduled
         case .sealingAudio, .transcribing, .assembling, .enhancing:
             true
         }

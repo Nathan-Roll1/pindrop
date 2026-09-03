@@ -239,8 +239,16 @@ struct NotePageView: View {
             hasUnreadEnhanced: hasUnreadEnhanced,
             hasLiveText: hasLiveText,
             liveLabelsDiffered: views?.transcript?.liveLabelsDiffered ?? false,
-            wasRecovered: views?.captureState?.wasRecovered ?? false
+            wasRecovered: views?.captureState?.wasRecovered ?? false,
+            hasFailedFinalizationStep: failedFinalizationStep != nil
         )
+    }
+
+    /// The step a failed capture stopped on, for this note only. A capture that
+    /// failed for another note leaves this page alone.
+    private var failedFinalizationStep: FinalizationStep? {
+        guard capturePhase == .failed else { return nil }
+        return noteCaptureState?.failedFinalizationStep
     }
 
     /// What the live speaker labels are doing, for the capture attached to this
@@ -658,8 +666,12 @@ struct NotePageView: View {
     /// template sits in one place wherever it is picked.
     private var recordTemplateMenu: some View {
         Menu(localized("Template", locale: locale)) {
+            // Not "no template": picking nothing here means the template the
+            // note enhancement settings assign, and finalize falls back to it.
+            // A row promising plain notes would state an outcome the pipeline
+            // does not produce.
             Toggle(
-                localized("No template. The note is written as plain notes.", locale: locale),
+                localized("Default", locale: locale),
                 isOn: recordTemplateChoice(nil)
             )
 
@@ -1348,12 +1360,22 @@ struct NotePageView: View {
             .accessibilityIdentifier("note.page.capture.finalizing")
         } else if let state = noteCaptureState, capturePhase == .enhancing {
             StageProgressRow(
-                stage: NotePagePresentation.stageTitle(.assembling, locale: locale),
+                stage: NotePagePresentation.stepTitle(.enhancing, locale: locale),
                 elapsedText: elapsed,
                 caption: NotePagePresentation.finalizingCaption(locale: locale),
                 steps: finalizationSteps(state: state)
             )
             .accessibilityIdentifier("note.page.capture.enhancing")
+        } else if let state = noteCaptureState, let failed = failedFinalizationStep {
+            // A failure does not take the checklist away. The row that failed is
+            // where the reader is told the recording is saved and what to do
+            // next, and no caption promises an enhanced note that is not coming.
+            StageProgressRow(
+                stage: NotePagePresentation.stepTitle(failed, locale: locale),
+                elapsedText: elapsed,
+                steps: finalizationSteps(state: state)
+            )
+            .accessibilityIdentifier("note.page.capture.failed")
         } else {
             captureDockBlock(now: now, canvasHeight: canvasHeight)
         }
@@ -1363,19 +1385,35 @@ struct NotePageView: View {
     /// to the step they belong to.
     private func finalizationSteps(state: NoteCaptureState) -> [StageProgressStep] {
         let isStalled = state.isFinalizationStalled
+        // The stall action offers the committed live text. A capture that heard
+        // nothing has none, and an empty sheet answers nothing.
+        let offersStalledTranscript = isStalled
+            && !state.liveTranscriptForCopy(locale: locale).isEmpty
         return state.finalizationChecklist.map { row in
             let title = NotePagePresentation.stepTitle(row.step, locale: locale)
+            let spokenStatus = NotePagePresentation.stepStatusLabel(row.status, locale: locale)
             switch row.status {
             case .pending:
-                return StageProgressStep(id: row.step.rawValue, title: title, status: .pending)
+                return StageProgressStep(
+                    id: row.step.rawValue,
+                    title: title,
+                    status: .pending,
+                    accessibilityStatus: spokenStatus
+                )
             case .done:
-                return StageProgressStep(id: row.step.rawValue, title: title, status: .done)
+                return StageProgressStep(
+                    id: row.step.rawValue,
+                    title: title,
+                    status: .done,
+                    accessibilityStatus: spokenStatus
+                )
             case .skipped:
                 return StageProgressStep(
                     id: row.step.rawValue,
                     title: title,
                     status: .skipped,
-                    detail: NotePagePresentation.skippedStepLabel(locale: locale)
+                    detail: NotePagePresentation.skippedStepLabel(locale: locale),
+                    accessibilityStatus: spokenStatus
                 )
             case .running(let progress):
                 return StageProgressStep(
@@ -1383,7 +1421,8 @@ struct NotePageView: View {
                     title: title,
                     status: .running(progress),
                     detail: isStalled ? NotePagePresentation.stallMessage(locale: locale) : nil,
-                    action: isStalled
+                    accessibilityStatus: spokenStatus,
+                    action: offersStalledTranscript
                         ? StageProgressStep.Action(
                             title: NotePagePresentation.stallActionTitle(locale: locale),
                             perform: { isStalledTranscriptPresented = true }
@@ -1399,7 +1438,8 @@ struct NotePageView: View {
                         row.step,
                         failure: message,
                         locale: locale
-                    )
+                    ),
+                    accessibilityStatus: spokenStatus
                 )
             }
         }

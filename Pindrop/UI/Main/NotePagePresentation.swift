@@ -112,6 +112,10 @@ struct NotePageState: Equatable, Sendable {
     /// An interruption stopped this note's recording and startup recovery
     /// finished it. Derived from the capture's failure records on every read.
     var wasRecovered: Bool
+    /// The capture failed while it was finalizing, so there is a checklist with
+    /// a failed row in it. A capture that failed before finalization has no
+    /// pipeline to draw.
+    var hasFailedFinalizationStep: Bool
 
     init(
         hasPanels: Bool = false,
@@ -122,7 +126,8 @@ struct NotePageState: Equatable, Sendable {
         hasUnreadEnhanced: Bool = false,
         hasLiveText: Bool = false,
         liveLabelsDiffered: Bool = false,
-        wasRecovered: Bool = false
+        wasRecovered: Bool = false,
+        hasFailedFinalizationStep: Bool = false
     ) {
         self.hasPanels = hasPanels
         self.hasTranscript = hasTranscript
@@ -133,6 +138,7 @@ struct NotePageState: Equatable, Sendable {
         self.hasLiveText = hasLiveText
         self.liveLabelsDiffered = liveLabelsDiffered
         self.wasRecovered = wasRecovered
+        self.hasFailedFinalizationStep = hasFailedFinalizationStep
     }
 
     /// A plain typed note: nothing was ever recorded into it.
@@ -465,9 +471,14 @@ enum NotePagePresentation {
         )
     }
 
-    /// The capture strip is drawn only while a capture is running for this note.
+    /// The capture strip is drawn while a capture is running for this note, and
+    /// it stays up for one that failed part way through finalization. The failed
+    /// checklist row is the only place the reader is told the recording is saved
+    /// and what to do next, so unmounting the dock on failure would deliver that
+    /// sentence to nobody.
     static func showsCaptureStrip(state: NotePageState) -> Bool {
-        state.capture.isActive
+        if state.capture.isActive { return true }
+        return state.capture == .failed && state.hasFailedFinalizationStep
     }
 
     // MARK: Transcript view
@@ -688,10 +699,19 @@ enum NotePagePresentation {
             // A running recording is live whether or not the store has caught up
             // with it, so the footer never claims a length for a transcript that
             // is still growing.
-            if let settling = settlingTranscriptNotice(state: state, locale: locale) {
+            if settlingTranscriptNotice(state: state, locale: locale) != nil {
                 // Past the stop nothing fills in as you speak any more, and the
-                // finished length is not known until the record is written.
-                return NotePageFooter(leading: settling, trailing: nil)
+                // finished length is not known until the record is written. The
+                // settling sentence itself belongs over the turns it describes,
+                // so the footer says what the app is doing with the recording
+                // rather than printing the same line twice.
+                return NotePageFooter(
+                    leading: localized(
+                        "Recording stopped. Processing transcription.",
+                        locale: locale
+                    ),
+                    trailing: nil
+                )
             }
             if facts.isTranscriptLive || isTranscriptLive(state: state) {
                 return NotePageFooter(
@@ -754,15 +774,38 @@ enum NotePagePresentation {
     }
 
     /// The same vocabulary, keyed by the checklist's step. `.enhancing` is a
-    /// capture phase rather than a finalization stage, and it reuses the stage
-    /// the enhanced panel is written in.
+    /// capture phase rather than a finalization stage, and it takes the word the
+    /// floating indicator already uses for it: writing the transcript and
+    /// writing the enhanced note are two rows, and one name over both reads as a
+    /// duplicated step.
     static func stepTitle(_ step: FinalizationStep, locale: Locale) -> String {
         switch step {
         case .sealingAudio: stageTitle(.sealingAudio, locale: locale)
         case .transcribing: stageTitle(.transcribing, locale: locale)
         case .diarizing: stageTitle(.diarizing, locale: locale)
         case .matchingSpeakers: stageTitle(.matchingSpeakers, locale: locale)
-        case .assembling, .enhancing: stageTitle(.assembling, locale: locale)
+        case .assembling: stageTitle(.assembling, locale: locale)
+        case .enhancing: localized("Enhancing…", locale: locale)
+        }
+    }
+
+    /// What VoiceOver says a step is doing. The marker glyph carries it on
+    /// screen, and a label built from the name alone would leave a reader who
+    /// cannot see the glyph with six names and no statuses. Skipped and failed
+    /// rows already speak through their detail line.
+    static func stepStatusLabel(_ status: StageStatus, locale: Locale) -> String? {
+        switch status {
+        case .done:
+            return localized("Done", locale: locale)
+        case .running(let progress):
+            guard let progress else { return localized("Processing", locale: locale) }
+            return String(
+                format: localized("%lld%% complete", locale: locale),
+                locale: locale,
+                Int((min(max(progress, 0), 1) * 100).rounded())
+            )
+        case .pending, .skipped, .failed:
+            return nil
         }
     }
 
@@ -797,21 +840,6 @@ enum NotePagePresentation {
             "Transcribing failed. The recording is saved. Try again, or open the audio from the note.",
             locale: locale
         )
-    }
-
-    /// What already finished, so a long finalization shows progress rather than
-    /// one unchanging word.
-    static func completedStages(before stage: NotePageFinalizationStage, locale: Locale) -> String? {
-        switch stage {
-        case .sealingAudio:
-            nil
-        case .transcribing:
-            localized("Audio sealed", locale: locale)
-        case .diarizing:
-            localized("Transcription done", locale: locale)
-        case .matchingSpeakers, .assembling:
-            localized("Speakers identified", locale: locale)
-        }
     }
 
     static func finalizingCaption(locale: Locale) -> String {

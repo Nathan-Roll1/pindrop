@@ -39,6 +39,10 @@ struct StageProgressStep: Identifiable {
     /// The line under the step: the word a skipped step carries, the stall line,
     /// or what a failed step says.
     var detail: String?
+    /// What VoiceOver says the step is doing. The marker glyph carries the
+    /// status on screen and a glyph reads as nothing, so the caller supplies the
+    /// word. Nil where the detail line already says it.
+    var accessibilityStatus: String?
     /// Carries a closure, which is why this type is not `Equatable`. `ForEach`
     /// needs only `Identifiable`.
     var action: Action?
@@ -48,12 +52,14 @@ struct StageProgressStep: Identifiable {
         title: String,
         status: Status,
         detail: String? = nil,
+        accessibilityStatus: String? = nil,
         action: Action? = nil
     ) {
         self.id = id
         self.title = title
         self.status = status
         self.detail = detail
+        self.accessibilityStatus = accessibilityStatus
         self.action = action
     }
 }
@@ -204,7 +210,7 @@ struct StageProgressRow: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            [step.title, step.detail]
+            [step.title, step.accessibilityStatus, step.detail, step.action?.title]
                 .compactMap { $0 }
                 .filter { !$0.isEmpty }
                 .joined(separator: ", ")
@@ -352,7 +358,7 @@ private struct StageProgressBar: View {
                 ),
                 StageProgressStep(id: "matchingSpeakers", title: "Matching names", status: .pending),
                 StageProgressStep(id: "assembling", title: "Writing note", status: .pending),
-                StageProgressStep(id: "enhancing", title: "Writing note", status: .pending),
+                StageProgressStep(id: "enhancing", title: "Enhancing…", status: .pending),
             ]
         )
     }

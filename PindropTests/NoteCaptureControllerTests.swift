@@ -1066,8 +1066,12 @@ struct NoteCaptureControllerTests {
         let anchor = try #require(try fixture.captureSessionStore.meetingHumanAnchor(handle))
         let note = try fixture.notesStore.fetch(id: anchor.noteID)
         // Created through the auto-naming path, which starts every capture note
-        // untitled and renames it after the transcript exists.
-        #expect(note.title == "Untitled Note" || !note.title.isEmpty)
+        // untitled and renames it from the transcript in an unstructured task
+        // that may not have run yet. Both titles that path produces are named
+        // here, so a raw session identifier or a spool path still fails.
+        let renamed = AIEnhancementService(session: StubEnhancementProviderSession())
+            .generateFallbackTitle(from: "the roof needs replacing before winter")
+        #expect(note.title == "Untitled Note" || note.title == renamed)
         let session = try #require(try sessions(in: fixture.container).first)
         #expect(session.stateRawValue == CaptureSessionState.completed.rawValue)
         // The intent now names the note recovery made, so a second pass agrees.

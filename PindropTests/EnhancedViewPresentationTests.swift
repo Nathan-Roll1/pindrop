@@ -788,5 +788,16 @@ struct EnhancedViewPresentationTests {
             locale: locale
         )
         #expect(picked.emptyTemplateMessage == nil)
+
+        // A panel written with no template carries the generator's own default
+        // identifier, which names no preset and checks no row. That is the state
+        // a real note reaches, so the line has to answer it too.
+        let unnamed = EnhancedViewPresentation.menu(
+            presets: dropdownPresets,
+            selected: "default",
+            locale: locale
+        )
+        #expect(unnamed.templates.allSatisfy { !$0.isSelected })
+        #expect(unnamed.emptyTemplateMessage == "No template. The note is written as plain notes.")
     }
 }
