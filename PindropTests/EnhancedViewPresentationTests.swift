@@ -84,7 +84,7 @@ struct EnhancedViewPresentationTests {
 
     // MARK: - Citation markers
 
-    @Test func aMarkerIsLiftedOutOfTheTextAndIntoAChip() throws {
+    @Test func aMarkerIsLiftedOutOfTheTextAndResolvedToItsSource() throws {
         let target = segment(id: "span-a", start: 12)
         let blocks = EnhancedViewPresentation.blocks(
             in: "- The migration ships behind the schema version. [C1]",
@@ -94,9 +94,7 @@ struct EnhancedViewPresentationTests {
         #expect(blocks.count == 1)
         // The bullet marker is not text: the view draws its own glyph.
         #expect(blocks[0].text == "The migration ships behind the schema version.")
-        #expect(blocks[0].citations.map(\.label) == ["1"])
-        #expect(blocks[0].citations.map(\.segmentID) == ["span-a"])
-        #expect(blocks[0].citations[0].startOffset == 12)
+        #expect(blocks[0].citationIdentifiers == ["C1"])
     }
 
     @Test func aMarkerThatNamesNoSourceIsDroppedWithItsText() throws {
@@ -107,7 +105,7 @@ struct EnhancedViewPresentationTests {
             targets: ["C1": segment(id: "span-a", start: 12)]
         )
 
-        #expect(blocks[0].citations.isEmpty)
+        #expect(blocks[0].citationIdentifiers.isEmpty)
         #expect(blocks[0].text == "Ship it.")
     }
 
@@ -119,7 +117,7 @@ struct EnhancedViewPresentationTests {
             targets: ["C1": segment(id: "span-a", start: 12)]
         )
 
-        #expect(blocks[0].citations.map(\.identifier) == ["C1"])
+        #expect(blocks[0].citationIdentifiers == ["C1"])
         #expect(blocks[0].text == "Ship it.")
     }
 
@@ -131,7 +129,7 @@ struct EnhancedViewPresentationTests {
         let code = blocks.filter { $0.kind == .code }
 
         let quotesTheMarkerVerbatim = code.contains(where: { $0.text == "let flags = [C1]" })
-        let citesNothing = code.allSatisfy(\.citations.isEmpty)
+        let citesNothing = code.allSatisfy(\.citationIdentifiers.isEmpty)
 
         #expect(code.count == 3)
         #expect(quotesTheMarkerVerbatim)
@@ -147,8 +145,7 @@ struct EnhancedViewPresentationTests {
             ]
         )
 
-        #expect(blocks[0].citations.map(\.identifier) == ["C1", "C2"])
-        #expect(blocks[0].citations.map(\.id) == ["0-0", "0-1"])
+        #expect(blocks[0].citationIdentifiers == ["C1", "C2"])
         #expect(blocks[0].text == "Both agreed.")
     }
 
@@ -159,7 +156,7 @@ struct EnhancedViewPresentationTests {
         let blocks = EnhancedViewPresentation.blocks(in: content, targets: [:])
 
         let texts = blocks.map(\.text)
-        let citesNothing = blocks.allSatisfy(\.citations.isEmpty)
+        let citesNothing = blocks.allSatisfy(\.citationIdentifiers.isEmpty)
 
         #expect(texts == [
             "Decisions",
@@ -318,7 +315,7 @@ struct EnhancedViewPresentationTests {
         )
 
         #expect(presentation.sources.map(\.id) == ["C1"])
-        #expect(presentation.blocks[0].citations.map(\.identifier) == ["C1"])
+        #expect(presentation.blocks[0].citationIdentifiers == ["C1"])
 
         let peek = EnhancedViewPresentation.peekTarget(
             for: presentation.blocks[0],

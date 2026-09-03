@@ -26,8 +26,8 @@
 //  panels have any.
 //
 //  Round B replaced the numeric chips and the "Sources" disclosure with the
-//  source peek. Resolution did not change: a line is peekable exactly when a
-//  chip would have been drawn on it.
+//  source peek. Resolution did not change: a line is peekable exactly when one
+//  of its markers names a citation that resolved.
 //
 
 import Foundation
@@ -36,26 +36,16 @@ import PindropData
 
 // MARK: - Values
 
-/// One citation chip, drawn after the line that cites it.
-struct EnhancedCitationChip: Identifiable, Equatable, Sendable {
-    /// Unique inside one panel: the same source can be cited more than once.
-    let id: String
-    /// The citation identifier, as the evidence wrote it ("C3").
-    let identifier: String
-    /// What the chip reads ("3").
-    let label: String
-    /// The transcript span this points at.
-    let segmentID: String
-    let startOffset: TimeInterval
-}
-
 /// One drawn line of an enhanced panel.
 struct EnhancedNoteBlock: Identifiable, Equatable, Sendable {
     let id: Int
     let kind: MarkdownLine.Kind
-    /// The line with its citation markers removed. The chips carry those.
+    /// The line with its citation markers removed.
     let text: String
-    let citations: [EnhancedCitationChip]
+    /// The citations this line names that resolved to a span on screen, in the
+    /// order the markers appeared ("C3"). A marker that named nothing is not
+    /// here, so a line is peekable exactly when this is not empty.
+    let citationIdentifiers: [String]
     /// The line cut into plain and matched runs, in order. Empty when nothing
     /// in the line matched, which is every line while nothing is searched.
     let runs: [TranscriptTextRun]
@@ -68,13 +58,13 @@ struct EnhancedNoteBlock: Identifiable, Equatable, Sendable {
         id: Int,
         kind: MarkdownLine.Kind,
         text: String,
-        citations: [EnhancedCitationChip],
+        citationIdentifiers: [String],
         runs: [TranscriptTextRun] = []
     ) {
         self.id = id
         self.kind = kind
         self.text = text
-        self.citations = citations
+        self.citationIdentifiers = citationIdentifiers
         self.runs = runs
     }
 }
@@ -297,8 +287,8 @@ enum EnhancedViewPresentation {
         for block: EnhancedNoteBlock,
         in sources: [EnhancedSourceRow]
     ) -> EnhancedSourceRow? {
-        for citation in block.citations {
-            if let match = sources.first(where: { $0.id == citation.identifier }) {
+        for identifier in block.citationIdentifiers {
+            if let match = sources.first(where: { $0.id == identifier }) {
                 return match
             }
         }
@@ -326,7 +316,7 @@ enum EnhancedViewPresentation {
     // MARK: Blocks
 
     /// The panel body as drawable lines, with the citation markers lifted out of
-    /// the text and into chips and the searched words picked out.
+    /// the text and resolved to sources, and the searched words picked out.
     static func blocks(
         in content: String,
         targets: [String: TranscriptSegmentSnapshot],
@@ -370,7 +360,7 @@ enum EnhancedViewPresentation {
                 id: block.id,
                 kind: block.kind,
                 text: block.text,
-                citations: block.citations,
+                citationIdentifiers: block.citationIdentifiers,
                 runs: numbered
             )
         }
@@ -388,37 +378,35 @@ enum EnhancedViewPresentation {
             // Code is quoted verbatim: a bracketed word inside a fence is text
             // the panel is showing, not a claim about the recording.
             guard line.kind != .code else {
-                return EnhancedNoteBlock(id: index, kind: line.kind, text: lineText, citations: [])
+                return EnhancedNoteBlock(
+                    id: index,
+                    kind: line.kind,
+                    text: lineText,
+                    citationIdentifiers: []
+                )
             }
             let markers = MeetingNoteDerivation.citationMarkers(in: lineText)
             guard !markers.isEmpty else {
-                return EnhancedNoteBlock(id: index, kind: line.kind, text: lineText, citations: [])
+                return EnhancedNoteBlock(
+                    id: index,
+                    kind: line.kind,
+                    text: lineText,
+                    citationIdentifiers: []
+                )
             }
 
-            var chips: [EnhancedCitationChip] = []
-            for (markerIndex, marker) in markers.enumerated() {
-                guard
-                    let identifier = marker.identifier,
-                    let segment = targets[identifier]
-                else {
-                    continue
+            let resolved = markers.compactMap { marker -> String? in
+                guard let identifier = marker.identifier, targets[identifier] != nil else {
+                    return nil
                 }
-                chips.append(
-                    EnhancedCitationChip(
-                        id: "\(index)-\(markerIndex)",
-                        identifier: identifier,
-                        label: label(for: identifier),
-                        segmentID: segment.id,
-                        startOffset: segment.startOffset
-                    )
-                )
+                return identifier
             }
 
             return EnhancedNoteBlock(
                 id: index,
                 kind: line.kind,
                 text: strippingMarkers(markers, from: lineText),
-                citations: chips
+                citationIdentifiers: resolved
             )
         }
     }
