@@ -9,6 +9,8 @@ import Foundation
 import Testing
 
 @testable import Pindrop
+import PindropData
+import PindropSpeech
 
 // MARK: - Mock File System
 
@@ -575,7 +577,19 @@ struct PathMentionResolverTests {
         #expect(Set(index.workspaceRoots) == ["/workspace-new"])
     }
 
-    @Test func identicalRootsStillCoalesceWhileDifferentRootsSupersede() async throws {
+    // This test was written but never registered in the test target, so it had
+    // never run. It is unsound as written: it needs the coalescing call to reach
+    // `buildIndexData` before the different-root call supersedes it, and the
+    // service supersedes synchronously, before `buildIndex` ever suspends. The
+    // order two sibling child tasks reach a main-actor method is not specified,
+    // so this either coalesces or starts a third build depending on scheduling
+    // (it failed roughly one run in five with a `Task.yield()` hand-off added).
+    // Both halves are already covered deterministically by
+    // `identicalConcurrentBuildsCoalesceEnumeration` and
+    // `slowerOldBuildCannotOverwriteFasterNewBuild` above, so it is disabled
+    // rather than made to pass by timing.
+    @Test(.disabled("Depends on unspecified scheduling order between two sibling child tasks; covered by identicalConcurrentBuildsCoalesceEnumeration and slowerOldBuildCannotOverwriteFasterNewBuild."))
+    func identicalRootsStillCoalesceWhileDifferentRootsSupersede() async throws {
         let mockFS = GatedFileSystemProvider(
             directories: ["/workspace", "/other"],
             filesByRoot: [
@@ -598,6 +612,8 @@ struct PathMentionResolverTests {
 
         // Identical roots share the in-flight build (still gated).
         async let second = index.buildIndex(roots: ["/workspace"])
+
+        await Task.yield()
 
         // Different roots supersede the older in-flight work.
         let otherCount = try await index.buildIndex(roots: ["/other"])

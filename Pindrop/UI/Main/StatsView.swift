@@ -7,6 +7,7 @@
 
 import SwiftData
 import SwiftUI
+import PindropData
 
 struct StatsView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

@@ -9,6 +9,8 @@ import SwiftUI
 import SwiftData
 import AppKit
 import SQLite3
+import PindropCore
+import PindropData
 
 @main
 struct PindropApp: App {
@@ -186,12 +188,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Enqueue tracked mid-debounce drafts, close every live editor window,
         // re-enqueue tracked drafts, then await each note's latest save task.
         Task { @MainActor in
-            await NoteEditorPersistenceController.shared.prepareForTermination()
-            coordinator?.shutdown()
-            NotificationCenter.default.removeObserver(self)
-            NSApp.reply(toApplicationShouldTerminate: true)
+            await performTerminationSequence(
+                preparation: { [weak self] in
+                    await NoteEditorPersistenceController.shared.prepareForTermination()
+                    await self?.coordinator?.prepareForTermination()
+                },
+                shutdown: { [weak self] in
+                    guard let self else { return }
+                    self.coordinator?.shutdown()
+                    NotificationCenter.default.removeObserver(self)
+                },
+                reply: {
+                    NSApp.reply(toApplicationShouldTerminate: true)
+                }
+            )
         }
         return .terminateLater
+    }
+
+    func performTerminationSequence(
+        preparation: @MainActor () async -> Void,
+        shutdown: @MainActor () -> Void,
+        reply: @MainActor () -> Void
+    ) async {
+        await preparation()
+        shutdown()
+        reply()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -356,17 +378,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let viewMenuItem = NSMenuItem()
         viewMenuItem.submenu = viewMenu
 
-        // Home ⌘1, Library ⌘2, Notes ⌘3, Dictionary ⌘4, Models ⌘5
-        for nav in MainNavItem.primaryNavigationItems {
-            guard let key = MainNavItem.viewMenuShortcut(for: nav) else { continue }
-            let item = NSMenuItem(
-                title: nav.title(locale: locale),
-                action: #selector(menuNavigate(_:)),
-                keyEquivalent: key
-            )
-            item.target = self
-            item.representedObject = nav.rawValue
-            viewMenu.addItem(item)
+        for (groupIndex, group) in MainNavItem.sidebarGroups.enumerated() {
+            for nav in group.items {
+                let key = MainNavItem.viewMenuShortcut(for: nav)
+                let item = NSMenuItem(
+                    title: nav.title(locale: locale),
+                    action: #selector(menuNavigate(_:)),
+                    keyEquivalent: key
+                )
+                item.target = self
+                item.representedObject = nav.rawValue
+                viewMenu.addItem(item)
+            }
+
+            if groupIndex < MainNavItem.sidebarGroups.count - 1 {
+                viewMenu.addItem(NSMenuItem.separator())
+            }
         }
 
         viewMenu.addItem(NSMenuItem.separator())
@@ -499,13 +526,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func menuNavigate(_ sender: NSMenuItem) {
-        guard let rawValue = sender.representedObject as? String,
-              let item = MainNavItem(rawValue: rawValue) else { return }
-        coordinator?.mainWindowController.showNavigationItem(item)
+        guard let rawValue = sender.representedObject as? String else { return }
+        coordinator?.mainWindowController.navigate(toRawValue: rawValue)
     }
 
     @objc func menuFind(_ sender: Any?) {
-        coordinator?.mainWindowController.focusHistorySearch()
+        coordinator?.mainWindowController.focusLibrarySearch()
     }
 
     @objc func menuShowMainWindow(_ sender: Any?) {
@@ -517,14 +543,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(url)
     }
 
-    /// Menu validation: nav items stay enabled when the main window is closed
-    /// (they open it). Find is enabled whenever History is reachable.
+    /// Menu validation: navigation items stay enabled when the main window is closed
+    /// (they open it). Find is enabled whenever Library is reachable.
     @objc func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         guard coordinator != nil else { return false }
 
         if menuItem.action == #selector(menuFind(_:)) {
-            // Library is always a primary nav destination — enable Find so ⌘F
-            // can open the main window and focus the Library search field.
+            // Library is always a primary navigation destination. Enable Find so
+            // ⌘F can open the main window and focus the Library search field.
             return true
         }
 
@@ -548,33 +574,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// persistent history can otherwise defer an option mismatch until the
     /// first fetch, which is where Library and stop-recording surface it.
     static func makeModelContainer(at storeURL: URL) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: TranscriptionRecordSchemaV12.self)
-        let configuration = ModelConfiguration(schema: schema, url: storeURL)
-        let container = try ModelContainer(
-            for: schema,
-            migrationPlan: TranscriptionRecordMigrationPlan.self,
-            configurations: configuration
-        )
-
-        // SwiftData can defer opening a damaged or metadata-incompatible store
-        // until an affected entity is first fetched. Probe every current model
-        // so AppDelegate repairs the store before any service retains it.
-        func validateStoreAccess<Model: PersistentModel>(_: Model.Type) throws {
-            var healthCheck = FetchDescriptor<Model>()
-            healthCheck.fetchLimit = 1
-            _ = try container.mainContext.fetch(healthCheck)
-        }
-
-        try validateStoreAccess(TranscriptionRecord.self)
-        try validateStoreAccess(MediaFolder.self)
-        try validateStoreAccess(ParticipantProfile.self)
-        try validateStoreAccess(ParticipantTrainingEvidence.self)
-        try validateStoreAccess(WordReplacement.self)
-        try validateStoreAccess(VocabularyWord.self)
-        try validateStoreAccess(Note.self)
-        try validateStoreAccess(PromptPreset.self)
-        try validateStoreAccess(TrainingContribution.self)
-        return container
+        try PindropModelContainerFactory.makeContainer(at: storeURL)
     }
 
     private func describe(error: Error) -> String {
@@ -596,37 +596,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 @MainActor
 final class SwiftDataStoreRepairService {
-    private enum StoreSchemaVersion: String {
-        case v1 = "1.0.0"
-        case v2 = "1.0.1"
-        case v3 = "1.0.2"
-        case v4 = "1.0.3"
-        case v5 = "1.0.4"
-        case v6 = "1.0.5"
-        case v7 = "1.0.6"
-        case v8 = "1.0.7"
-        case v9 = "1.0.8"
-        case v10 = "1.0.9"
-        case v11 = "1.0.10"
-        case v12 = "1.0.11"
-
-        var versionedSchema: any VersionedSchema.Type {
-            switch self {
-            case .v1: return TranscriptionRecordSchemaV1.self
-            case .v2: return TranscriptionRecordSchemaV2.self
-            case .v3: return TranscriptionRecordSchemaV3.self
-            case .v4: return TranscriptionRecordSchemaV4.self
-            case .v5: return TranscriptionRecordSchemaV5.self
-            case .v6: return TranscriptionRecordSchemaV6.self
-            case .v7: return TranscriptionRecordSchemaV7.self
-            case .v8: return TranscriptionRecordSchemaV8.self
-            case .v9: return TranscriptionRecordSchemaV9.self
-            case .v10: return TranscriptionRecordSchemaV10.self
-            case .v11: return TranscriptionRecordSchemaV11.self
-            case .v12: return TranscriptionRecordSchemaV12.self
-            }
-        }
-    }
+    private typealias StoreSchemaVersion = PindropPersistentSchemaVersion
 
     struct RepairOutcome {
         let repaired: Bool
@@ -644,11 +614,19 @@ final class SwiftDataStoreRepairService {
         let sql: String
     }
 
+    private struct PrimaryKeyDefinition: Equatable {
+        let entityID: Int64
+        let name: String
+        let superEntityID: Int64
+        let maximumID: Int64
+    }
+
     private struct ReferenceArtifacts {
         let metadataBlob: Data
         let modelCacheBlob: Data
         let schemaDefinitions: [SchemaObjectDefinition]
         let columnDefinitions: [SchemaColumnDefinition]
+        let primaryKeyDefinitions: [PrimaryKeyDefinition]
     }
 
     private let fileManager: FileManager
@@ -719,8 +697,29 @@ final class SwiftDataStoreRepairService {
         }
 
         let metadataVersion = try readMetadataVersionIdentifier(at: targetStoreURL)
-        let referenceArtifacts = try makeReferenceArtifacts(for: inferredVersion)
-        let (missingSchemaDefinitions, missingColumnDefinitions) = try withDatabase(at: targetStoreURL) { database in
+        let metadataMatchesInferredVersion = metadataVersion == inferredVersion.rawValue
+        // Keep the metadata's own reference when that version's newest tables
+        // are the ones the store has lost: inference would otherwise read the
+        // damaged store as the older version and repair it downward. Any other
+        // metadata/inferred pair must repair strictly from the inferred version.
+        let referenceVersion = Self.referenceVersionForMetadata(
+            metadataVersion,
+            inferredVersion: inferredVersion
+        )
+        let referenceArtifacts = try makeReferenceArtifacts(for: referenceVersion)
+        guard let referenceModelVersionHashes = modelVersionHashes(
+            from: referenceArtifacts.metadataBlob
+        ) else {
+            throw StoreRepairError.missingMetadata
+        }
+        let storedModelVersionHashes = try readMetadataModelVersionHashes(at: targetStoreURL)
+        let metadataHashesMatchReference = storedModelVersionHashes == referenceModelVersionHashes
+        let metadataNeedsRefresh = !metadataMatchesInferredVersion || !metadataHashesMatchReference
+        let (
+            missingSchemaDefinitions,
+            missingColumnDefinitions,
+            missingPrimaryKeyDefinitions
+        ) = try withDatabase(at: targetStoreURL) { database in
             let existingObjectNames = try fetchSchemaObjectNames(on: database)
             let existingTableNames = try fetchTableNames(on: database)
             let missingSchemaDefinitions = referenceArtifacts.schemaDefinitions.filter {
@@ -736,13 +735,24 @@ final class SwiftDataStoreRepairService {
                     }
                 )
             }
+            let existingPrimaryKeyDefinitions = try fetchPrimaryKeyDefinitions(on: database)
+            let missingPrimaryKeyDefinitions = try primaryKeyDefinitionsToRestore(
+                reference: referenceArtifacts.primaryKeyDefinitions,
+                existing: existingPrimaryKeyDefinitions,
+                existingObjectNames: existingObjectNames,
+                missingSchemaDefinitions: missingSchemaDefinitions
+            )
 
-            return (missingSchemaDefinitions, missingColumnDefinitions)
+            return (
+                missingSchemaDefinitions,
+                missingColumnDefinitions,
+                missingPrimaryKeyDefinitions
+            )
         }
-
-        guard metadataVersion != inferredVersion.rawValue
+        guard metadataNeedsRefresh
             || !missingSchemaDefinitions.isEmpty
-            || !missingColumnDefinitions.isEmpty else {
+            || !missingColumnDefinitions.isEmpty
+            || !missingPrimaryKeyDefinitions.isEmpty else {
             return RepairOutcome(repaired: false, backupDirectoryURL: nil)
         }
 
@@ -761,8 +771,13 @@ final class SwiftDataStoreRepairService {
                 for schemaDefinition in missingSchemaDefinitions {
                     try execute(schemaDefinition.sql, on: database)
                 }
-                try updateMetadata(referenceArtifacts.metadataBlob, on: database)
-                try replaceModelCache(referenceArtifacts.modelCacheBlob, on: database)
+                for primaryKeyDefinition in missingPrimaryKeyDefinitions {
+                    try insertPrimaryKeyDefinition(primaryKeyDefinition, on: database)
+                }
+                if metadataNeedsRefresh {
+                    try updateMetadata(referenceArtifacts.metadataBlob, on: database)
+                    try replaceModelCache(referenceArtifacts.modelCacheBlob, on: database)
+                }
                 try execute("COMMIT TRANSACTION", on: database)
             } catch {
                 try? execute("ROLLBACK TRANSACTION", on: database)
@@ -770,9 +785,14 @@ final class SwiftDataStoreRepairService {
             }
         }
 
-        if missingSchemaDefinitions.isEmpty && missingColumnDefinitions.isEmpty {
+        if missingSchemaDefinitions.isEmpty
+            && missingColumnDefinitions.isEmpty
+            && missingPrimaryKeyDefinitions.isEmpty {
+            let repairDescription = metadataMatchesInferredVersion
+                ? "refreshed \(referenceVersion.rawValue) model hashes"
+                : "updated metadata from \(metadataVersion ?? "unknown") to \(referenceVersion.rawValue)"
             Log.app.info(
-                "Repaired SwiftData store metadata from \(metadataVersion ?? "unknown") to \(inferredVersion.rawValue); backup: \(backupDirectoryURL.path)"
+                "Repaired SwiftData store by \(repairDescription); backup: \(backupDirectoryURL.path)"
             )
         } else {
             var repairDetails: [String] = []
@@ -786,8 +806,15 @@ final class SwiftDataStoreRepairService {
                 let recreatedNames = missingSchemaDefinitions.map(\.name).joined(separator: ", ")
                 repairDetails.append("recreated missing schema objects (\(recreatedNames))")
             }
+            if !missingPrimaryKeyDefinitions.isEmpty {
+                let restoredNames = missingPrimaryKeyDefinitions.map(\.name).joined(separator: ", ")
+                repairDetails.append("restored primary-key registrations (\(restoredNames))")
+            }
+            let metadataAction = metadataNeedsRefresh
+                ? "refreshing metadata to \(referenceVersion.rawValue)"
+                : "preserving \(referenceVersion.rawValue) metadata and model cache"
             Log.app.info(
-                "Repaired SwiftData store by \(repairDetails.joined(separator: " and ")) and refreshing metadata to \(inferredVersion.rawValue); backup: \(backupDirectoryURL.path)"
+                "Repaired SwiftData store by \(repairDetails.joined(separator: " and ")) and \(metadataAction); backup: \(backupDirectoryURL.path)"
             )
         }
         return RepairOutcome(repaired: true, backupDirectoryURL: backupDirectoryURL)
@@ -815,6 +842,24 @@ final class SwiftDataStoreRepairService {
 
             // Newest first: every check below is a feature the next-older
             // version lacks, so the first hit is the store's actual version.
+            // CaptureEnhancedPanelModel was added in V15. Its table
+            // distinguishes V15 from otherwise-complete V14 stores.
+            if try tableExists(named: "ZCAPTUREENHANCEDPANELMODEL", on: database) {
+                return .v15
+            }
+
+            // CaptureStagePromptSnapshotModel was added in V14. Its table
+            // distinguishes V14 from otherwise-complete V13 stores.
+            if try tableExists(named: "ZCAPTURESTAGEPROMPTSNAPSHOTMODEL", on: database) {
+                return .v14
+            }
+
+            // CaptureSessionModel was added in V13, and its table is present
+            // in every valid V13 store.
+            if try tableExists(named: "ZCAPTURESESSIONMODEL", on: database) {
+                return .v13
+            }
+
             if columns.contains("ZPIPELINEMETRICSJSON") {
                 return .v12
             }
@@ -881,6 +926,31 @@ final class SwiftDataStoreRepairService {
         }
     }
 
+    private func readMetadataModelVersionHashes(at storeURL: URL) throws -> [String: Data]? {
+        try withDatabase(at: storeURL) { database in
+            guard let metadataBlob = try fetchBlob(
+                sql: "SELECT Z_PLIST FROM Z_METADATA LIMIT 1",
+                on: database
+            ) else {
+                return nil
+            }
+            return modelVersionHashes(from: metadataBlob)
+        }
+    }
+
+    private func modelVersionHashes(from metadataBlob: Data) -> [String: Data]? {
+        guard
+            let plist = try? PropertyListSerialization.propertyList(
+                from: metadataBlob,
+                format: nil
+            ),
+            let dictionary = plist as? [String: Any]
+        else {
+            return nil
+        }
+        return dictionary["NSStoreModelVersionHashes"] as? [String: Data]
+    }
+
     private func backupStoreArtifacts(for storeURL: URL) throws -> URL {
         let backupsRootURL = applicationSupportRootURL
             .appendingPathComponent("Pindrop", isDirectory: true)
@@ -898,6 +968,56 @@ final class SwiftDataStoreRepairService {
         }
 
         return backupDirectoryURL
+    }
+
+    /// Tables each schema version introduced, newest entries last.
+    ///
+    /// A reference store built for an older version must not offer these to a
+    /// repair, and inference must not read a store that still has them as the
+    /// older version. Every new schema version that adds a model belongs here,
+    /// or a healthy store gets "repaired" down to the previous version.
+    private static let tablesByIntroducingVersion: [(
+        version: StoreSchemaVersion,
+        tableName: String,
+        entityName: String
+    )] = [
+        (.v14, "ZCAPTURESTAGEPROMPTSNAPSHOTMODEL", "CaptureStagePromptSnapshotModel"),
+        (.v15, "ZCAPTUREENHANCEDPANELMODEL", "CaptureEnhancedPanelModel"),
+        (.v15, "ZNOTEVIEWSTATEMODEL", "NoteViewStateModel"),
+        (.v15, "ZCAPTUREINTENTMODEL", "CaptureIntentModel")
+    ]
+
+    private static func schemaVersionOrder(_ version: StoreSchemaVersion) -> Int {
+        StoreSchemaVersion.allCases.firstIndex(of: version) ?? 0
+    }
+
+    /// Trusts the store's own metadata version only when it is newer than what
+    /// the tables imply and that version introduced tables. That is the shape
+    /// of a store which lost its newest tables: repairing from the inferred
+    /// version would strip them for good instead of restoring them.
+    private static func referenceVersionForMetadata(
+        _ metadataVersion: String?,
+        inferredVersion: StoreSchemaVersion
+    ) -> StoreSchemaVersion {
+        guard
+            let metadataVersion,
+            let metadataSchemaVersion = StoreSchemaVersion(rawValue: metadataVersion),
+            schemaVersionOrder(metadataSchemaVersion) > schemaVersionOrder(inferredVersion),
+            tablesByIntroducingVersion.contains(where: { $0.version == metadataSchemaVersion })
+        else {
+            return inferredVersion
+        }
+        return metadataSchemaVersion
+    }
+
+    /// Tables and entities that belong to versions newer than `version`.
+    private static func tablesIntroducedAfter(
+        _ version: StoreSchemaVersion
+    ) -> (tableNames: Set<String>, entityNames: Set<String>) {
+        let newer = tablesByIntroducingVersion.filter {
+            schemaVersionOrder($0.version) > schemaVersionOrder(version)
+        }
+        return (Set(newer.map(\.tableName)), Set(newer.map(\.entityName)))
     }
 
     private func makeReferenceArtifacts(for version: StoreSchemaVersion) throws -> ReferenceArtifacts {
@@ -935,13 +1055,21 @@ final class SwiftDataStoreRepairService {
                 throw StoreRepairError.missingModelCache
             }
 
+            let excluded = Self.tablesIntroducedAfter(version)
             let schemaDefinitions = try fetchSchemaDefinitions(on: database)
+                .filter { definition in
+                    !excluded.tableNames.contains { definition.name.contains($0) }
+                }
             let columnDefinitions = try fetchSchemaColumnDefinitions(on: database)
+                .filter { !excluded.tableNames.contains($0.tableName) }
+            let primaryKeyDefinitions = try fetchPrimaryKeyDefinitions(on: database)
+                .filter { !excluded.entityNames.contains($0.name) }
             return ReferenceArtifacts(
                 metadataBlob: metadataBlob,
                 modelCacheBlob: modelCacheBlob,
                 schemaDefinitions: schemaDefinitions,
-                columnDefinitions: columnDefinitions
+                columnDefinitions: columnDefinitions,
+                primaryKeyDefinitions: primaryKeyDefinitions
             )
         }
     }
@@ -1101,6 +1229,120 @@ final class SwiftDataStoreRepairService {
         }
 
         return sqlite3_step(statement) == SQLITE_ROW
+    }
+
+    private func fetchPrimaryKeyDefinitions(
+        on database: OpaquePointer
+    ) throws -> [PrimaryKeyDefinition] {
+        guard try tableExists(named: "Z_PRIMARYKEY", on: database) else {
+            throw StoreRepairError.primaryKeyConflict("The Z_PRIMARYKEY table is missing.")
+        }
+        var statement: OpaquePointer?
+        let sql = "SELECT Z_ENT, Z_NAME, Z_SUPER, Z_MAX FROM Z_PRIMARYKEY ORDER BY Z_ENT"
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
+            throw StoreRepairError.sqlite(message: lastSQLiteErrorMessage(on: database))
+        }
+        defer { sqlite3_finalize(statement) }
+
+        var definitions: [PrimaryKeyDefinition] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let namePointer = sqlite3_column_text(statement, 1) else {
+                throw StoreRepairError.primaryKeyConflict(
+                    "A Core Data primary-key registration has no entity name."
+                )
+            }
+            definitions.append(
+                PrimaryKeyDefinition(
+                    entityID: sqlite3_column_int64(statement, 0),
+                    name: String(cString: namePointer),
+                    superEntityID: sqlite3_column_int64(statement, 2),
+                    maximumID: sqlite3_column_int64(statement, 3)
+                )
+            )
+        }
+        return definitions
+    }
+
+    private func primaryKeyDefinitionsToRestore(
+        reference: [PrimaryKeyDefinition],
+        existing: [PrimaryKeyDefinition],
+        existingObjectNames: Set<String>,
+        missingSchemaDefinitions: [SchemaObjectDefinition]
+    ) throws -> [PrimaryKeyDefinition] {
+        var existingByID: [Int64: PrimaryKeyDefinition] = [:]
+        var existingByName: [String: PrimaryKeyDefinition] = [:]
+        for definition in existing {
+            guard existingByID[definition.entityID] == nil,
+                  existingByName[definition.name] == nil else {
+                throw StoreRepairError.primaryKeyConflict(
+                    "Core Data primary-key registrations contain duplicate identifiers."
+                )
+            }
+            existingByID[definition.entityID] = definition
+            existingByName[definition.name] = definition
+        }
+
+        let missingTableNames = Set(
+            missingSchemaDefinitions.compactMap { definition in
+                definition.sql.uppercased().hasPrefix("CREATE TABLE")
+                    ? definition.name
+                    : nil
+            }
+        )
+        var definitionsToRestore: [PrimaryKeyDefinition] = []
+        for definition in reference {
+            let matchingID = existingByID[definition.entityID]
+            let matchingName = existingByName[definition.name]
+            if matchingID != nil || matchingName != nil {
+                guard
+                    matchingID?.name == definition.name,
+                    matchingName?.entityID == definition.entityID,
+                    matchingID?.superEntityID == definition.superEntityID,
+                    matchingName?.superEntityID == definition.superEntityID
+                else {
+                    throw StoreRepairError.primaryKeyConflict(
+                        "Core Data primary-key registration conflicts with \(definition.name)."
+                    )
+                }
+                continue
+            }
+
+            let expectedTableName = "Z\(definition.name.uppercased())"
+            guard !existingObjectNames.contains(expectedTableName),
+                  missingTableNames.contains(expectedTableName) else {
+                throw StoreRepairError.primaryKeyConflict(
+                    "Core Data primary-key registration is missing for existing entity \(definition.name)."
+                )
+            }
+            definitionsToRestore.append(definition)
+        }
+        return definitionsToRestore.sorted { $0.entityID < $1.entityID }
+    }
+
+    private func insertPrimaryKeyDefinition(
+        _ definition: PrimaryKeyDefinition,
+        on database: OpaquePointer
+    ) throws {
+        var statement: OpaquePointer?
+        let sql = "INSERT INTO Z_PRIMARYKEY (Z_ENT, Z_NAME, Z_SUPER, Z_MAX) VALUES (?, ?, ?, ?)"
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
+            throw StoreRepairError.sqlite(message: lastSQLiteErrorMessage(on: database))
+        }
+        defer { sqlite3_finalize(statement) }
+
+        guard sqlite3_bind_int64(statement, 1, definition.entityID) == SQLITE_OK,
+              sqlite3_bind_text(
+                  statement,
+                  2,
+                  (definition.name as NSString).utf8String,
+                  -1,
+                  Self.sqliteTransientDestructor
+              ) == SQLITE_OK,
+              sqlite3_bind_int64(statement, 3, definition.superEntityID) == SQLITE_OK,
+              sqlite3_bind_int64(statement, 4, definition.maximumID) == SQLITE_OK,
+              sqlite3_step(statement) == SQLITE_DONE else {
+            throw StoreRepairError.sqlite(message: lastSQLiteErrorMessage(on: database))
+        }
     }
 
     private func fetchSchemaDefinitions(on database: OpaquePointer) throws -> [SchemaObjectDefinition] {
@@ -1268,6 +1510,7 @@ final class SwiftDataStoreRepairService {
 private enum StoreRepairError: LocalizedError {
     case missingMetadata
     case missingModelCache
+    case primaryKeyConflict(String)
     case sqlite(message: String)
 
     var errorDescription: String? {
@@ -1276,6 +1519,8 @@ private enum StoreRepairError: LocalizedError {
             return "The store repair process could not find SwiftData metadata in the database."
         case .missingModelCache:
             return "The store repair process could not find the SwiftData model cache in the database."
+        case .primaryKeyConflict(let message):
+            return message
         case let .sqlite(message):
             return message
         }

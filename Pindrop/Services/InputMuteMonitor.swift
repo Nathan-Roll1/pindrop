@@ -11,6 +11,7 @@
 import AudioToolbox
 import CoreAudio
 import Foundation
+import PindropCore
 
 // MARK: - Protocol seam
 

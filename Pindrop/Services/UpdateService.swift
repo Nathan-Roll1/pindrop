@@ -9,6 +9,7 @@ import Foundation
 import AppKit
 import Sparkle
 import UserNotifications
+import PindropCore
 
 @MainActor
 protocol UpdateControlling: AnyObject {
@@ -44,6 +45,13 @@ final class SparkleUpdateController: UpdateControlling {
 
     var lastUpdateCheckDate: Date? {
         controller.updater.lastUpdateCheckDate
+    }
+
+    /// The gentle-reminder driver, which also handles the response to Sparkle's
+    /// own update notification. The notification centre has one delegate slot,
+    /// so the app-level router forwards to this instead of replacing it.
+    var userNotificationDelegate: any UNUserNotificationCenterDelegate {
+        userDriverDelegate
     }
 
     func checkForUpdates() {
@@ -176,6 +184,13 @@ class UpdateService: NSObject {
     /// The last time an update check was performed
     var lastUpdateCheckDate: Date? {
         updateController?.lastUpdateCheckDate
+    }
+
+    /// Sparkle's own notification-centre delegate, or nil when Sparkle is off
+    /// (tests). The app-level router forwards everything that is not Pindrop's
+    /// own notification category to it.
+    var sparkleNotificationDelegate: (any UNUserNotificationCenterDelegate)? {
+        (updateController as? SparkleUpdateController)?.userNotificationDelegate
     }
     
     // MARK: - Initialization

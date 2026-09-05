@@ -7,8 +7,11 @@
 
 import SwiftUI
 
-/// Scorched search field chrome: ground bg, line border, magnifier, optional ⌘F hint (spec §4).
+/// Scorched search field chrome: ground bg, line border, magnifier, optional
+/// ⌘F hint (spec §4). Stands 32 tall, level with the primary button beside it.
 struct SearchFieldChrome: View {
+    static let height: CGFloat = 32
+
     @Binding var text: String
     var placeholder: String = "Search"
     var showsKeyboardHint: Bool = true
@@ -39,8 +42,8 @@ struct SearchFieldChrome: View {
                     .foregroundStyle(AppColors.textTertiary)
             }
         }
-        .padding(.vertical, 7)
         .padding(.horizontal, 12)
+        .frame(height: SearchFieldChrome.height)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(AppColors.windowBackground)

@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import Foundation
+import PindropData
 
 struct NoteCardView: View {
     let note: NoteSchema.Note

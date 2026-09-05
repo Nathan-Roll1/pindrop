@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import PindropCore
+import PindropSpeech
 
 struct ModelSelectionStepView: View {
     var modelManager: ModelManager
@@ -173,16 +175,22 @@ struct ModelSelectionStepView_Previews: PreviewProvider {
 
     static var previews: some View {
         ModelSelectionStepView(
-            modelManager: PreviewModelManagerSelection(),
+            modelManager: ModelManager(storageLocations: previewStorageLocations),
             selectedModelName: $selectedModelName,
             onContinue: {}
         )
         .frame(width: 760, height: 500)
         .background(AppColors.windowBackground)
     }
-}
 
-final class PreviewModelManagerSelection: ModelManager {
-    override init() {}
+    private static let previewStorageLocations = ModelStorageLocations(
+        pindropApplicationSupportRoot: FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Pindrop", isDirectory: true),
+        fluidAudioModelsRoot: FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("FluidAudio", isDirectory: true)
+            .appendingPathComponent("Models", isDirectory: true)
+    )
 }
 #endif

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import PindropCore
 
 @MainActor
 protocol AnnouncementPresenting: AnyObject {

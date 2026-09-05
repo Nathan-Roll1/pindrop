@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import PindropCore
+import PindropSpeech
 
 struct ReadyStepView: View {
     @ObservedObject var settings: SettingsStore
@@ -87,16 +89,22 @@ struct ReadyStepView_Previews: PreviewProvider {
     static var previews: some View {
         ReadyStepView(
             settings: SettingsStore(),
-            modelManager: PreviewModelManagerReady(),
+            modelManager: ModelManager(storageLocations: previewStorageLocations),
             selectedModelName: "openai_whisper-base.en",
             onComplete: {}
         )
         .frame(width: 760, height: 500)
         .background(AppColors.windowBackground)
     }
-}
 
-final class PreviewModelManagerReady: ModelManager {
-    override init() {}
+    private static let previewStorageLocations = ModelStorageLocations(
+        pindropApplicationSupportRoot: FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Pindrop", isDirectory: true),
+        fluidAudioModelsRoot: FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("FluidAudio", isDirectory: true)
+            .appendingPathComponent("Models", isDirectory: true)
+    )
 }
 #endif

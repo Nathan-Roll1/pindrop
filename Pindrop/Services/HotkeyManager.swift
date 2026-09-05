@@ -8,6 +8,7 @@
 import Foundation
 import Carbon
 import CoreGraphics
+import PindropCore
 
 // MARK: - Hotkey Registration Protocol
 

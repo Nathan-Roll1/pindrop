@@ -8,6 +8,7 @@
 import AppKit
 import Foundation
 import SwiftUI
+import PindropCore
 
 nonisolated func localized(_ key: String, locale: Locale) -> String {
     let resolvedKey = LocalizationMetadata.stableKey(for: key)

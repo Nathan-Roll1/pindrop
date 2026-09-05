@@ -5,6 +5,7 @@
 //  Created on 2026-07-09.
 //
 
+import AppKit
 import Testing
 @testable import Pindrop
 
@@ -42,5 +43,47 @@ struct ListSelectionNavigationTests {
         #expect(ListSelectionNavigation.moveIndex(current: nil, count: 1, delta: 1) == 0)
         #expect(ListSelectionNavigation.moveIndex(current: 0, count: 1, delta: 1) == 0)
         #expect(ListSelectionNavigation.moveIndex(current: 0, count: 1, delta: -1) == 0)
+    }
+}
+
+/// The key mapping behind `listKeyboardSelection`, extracted from `NotesView`
+/// so every main-window list shares one behavior.
+@Suite("ListKeyboardCommand")
+struct ListKeyboardCommandTests {
+
+    @Test("arrow keys move the selection")
+    func arrowKeys() {
+        #expect(ListKeyboardCommand.command(forKeyCode: 126) == .moveUp)
+        #expect(ListKeyboardCommand.command(forKeyCode: 125) == .moveDown)
+    }
+
+    @Test("return opens, delete and forward delete remove, escape clears")
+    func actionKeys() {
+        #expect(ListKeyboardCommand.command(forKeyCode: 36) == .activate)
+        #expect(ListKeyboardCommand.command(forKeyCode: 51) == .delete)
+        #expect(ListKeyboardCommand.command(forKeyCode: 117) == .delete)
+        #expect(ListKeyboardCommand.command(forKeyCode: 53) == .clearSelection)
+    }
+
+    @Test("unmapped keys fall through to the responder chain")
+    func unmappedKeys() {
+        #expect(ListKeyboardCommand.command(forKeyCode: 0) == nil)
+        #expect(ListKeyboardCommand.command(forKeyCode: 49) == nil)
+    }
+
+    @Test("text controls keep their own key handling")
+    @MainActor
+    func textInputResponders() {
+        #expect(ListKeyboardSelection.isTextInputFirstResponder(nil) == false)
+        #expect(ListKeyboardSelection.isTextInputFirstResponder(NSTextField()))
+
+        let readOnly = NSTextView()
+        readOnly.isEditable = false
+        readOnly.isSelectable = false
+        #expect(ListKeyboardSelection.isTextInputFirstResponder(readOnly) == false)
+
+        let editable = NSTextView()
+        editable.isEditable = true
+        #expect(ListKeyboardSelection.isTextInputFirstResponder(editable))
     }
 }

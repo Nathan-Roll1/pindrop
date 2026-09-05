@@ -4,16 +4,25 @@
   local_processing: "100% 本地處理"
 1:
   folder: "1 個資料夾"
+  is_now_2: "%1$@ 現在是 %2$@。"
   note: "1 則筆記"
+  said_2: "%1$@說：%2$@"
   speaker: "1 位發言人"
   transcription: "1 個轉錄"
   word: "1 個字"
   year: "1 year"
+  edited_2: "%1$@ · 編輯於 %2$@"
+  recording: "錄音 %1$@"
+  recording_2: "錄音 %1$@ · %2$@"
+  result: "1 筆結果"
+  d_of_2_d: "%1$d / %2$d"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "一大波升級 — 以及兩位社群貢獻者致謝。"
+  call_started: "通話已開始"
   native_macos_menu_bar_dictation_app_using_loca: "一款使用 WhisperKit 進行本地語音轉文字的原生 macOS 選單欄聽寫應用。預設 100% 本地處理，可選 AI 增強。"
+  note_capture_is_already_running: "已有筆記錄音在進行。"
 about:
   _self: "關於"
   pindrop: "關於 Pindrop"
@@ -68,6 +77,7 @@ ai:
 all:
   _self: "全部"
   time: "All time"
+  templates: "所有範本…"
 also:
   new_rtl_layout_support_and_20_new_interface: "同時新增：RTL 版面支援與 20 種新的介面語言。"
 an:
@@ -79,6 +89,7 @@ an:
     原始轉錄已儲存，未進行增強。
     您可以嘗試在設定中再次啟用 AI 增強。
   error_occurred_while_enhancing_your_transcrip_1790ad05: "增強您的轉錄時發生錯誤：nn%@nn原始轉錄已儲存，未進行增強。n您可以嘗試在設定中再次啟用 AI 增強。"
+  earlier_version_of_pindrop_wrote_this_note_it: "這則筆記由較早版本的 Pindrop 寫成，無法重新產生。"
 anthropic:
   _self: "Anthropic"
 api:
@@ -110,6 +121,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "音訊輸入"
+  sealed: "音訊已封存"
 automatic:
   follow_system: "自動（跟隨系統）"
   updates: "自動更新"
@@ -119,6 +131,7 @@ automatically:
   start_pindrop_when_you_sign_in: "登入時自動啟動 Pindrop。"
 available:
   models: "可用模型"
+  when_the_recording_is_finished: "錄音結束後可用"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +143,7 @@ avg:
 back:
   _self: "返回"
   to_library: "返回庫"
+  to_notes: "返回筆記"
 base:
   _self: "基礎"
 bearer:
@@ -146,10 +160,13 @@ built:
   in_read_only: "內建（只讀）"
 by:
   weekday: "By weekday"
+call:
+  audio: "通話聲音"
 cancel:
   _self: "取消"
   operation: "取消操作"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "取消錄音"
 capture:
   directly_into_the_note_editor_with_a_hol: "透過按住錄製流程直接捕獲到筆記編輯器中。"
 change:
@@ -158,6 +175,7 @@ change:
   your_choice_anytime_in_settings_privacy: "隨時可在設定 → 隱私權中更改你的選擇。"
 changes:
   the_language_used_by_pindrop_s_interface: "變更 Pindrop 介面使用的語言。"
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "對此提供商憑證和端點的變更會套用至進行中的擷取和已復原的擷取。所選模型和提示詞維持不變。"
 check:
   for_updates: "檢查更新..."
   for_updates_736b9062: "檢查更新"
@@ -192,6 +210,7 @@ choose:
 clean:
   up_filler_words: "清理填充詞"
 clear:
+  _self: "清除"
   audio_buffer: "清除音訊緩衝區"
   hotkey: "清除快捷鍵"
   shortcut: "清除快捷鍵"
@@ -203,6 +222,8 @@ click:
   or_press: "點選或按下"
   or_set_a_hotkey_to_start_talking: "點選或設定快捷鍵開始說話"
   this_icon_anytime_to: "隨時點選此圖示以："
+  a_number_to_see_it_in_the_transcript: "點按編號即可在逐字稿中查看。"
+  new_note_to_start_one: "點按「新增筆記」開始。你打字時 Pindrop 會同時錄音。"
 client:
   _self: "用戶端"
 clipboard:
@@ -253,6 +274,8 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "將最近的轉錄複製到剪貼簿。"
   to_clipboard: "複製到剪貼簿"
   transcript: "複製轉錄"
+  content: "拷貝內容"
+  note: "複製筆記"
 correct:
   grammar_mistakes: "糾正語法錯誤"
 could:
@@ -278,6 +301,7 @@ custom:
   local: "定製/本地"
   openai_compatible: "自定義（相容 OpenAI）"
   presets: "自定義預設"
+  templates: "自訂範本"
 customize:
   hotkey: "自定義快捷鍵"
 cut:
@@ -287,6 +311,7 @@ d:
   samples: "%d 個樣本 · %@"
   speakers: "%d 位發言人"
   words: "%d 個字"
+  results: "%d 筆結果"
 dark:
   _self: "深色"
   preview: "深色預覽"
@@ -318,6 +343,9 @@ delete:
   transcription_f82187c4: "刪除轉錄？"
   all_contributions: "刪除所有貢獻…"
   all_stored_text_pairs: "刪除所有已儲存的文字配對？"
+  this_note: "刪除這則筆記"
+  this_transcript: "要刪除這份逐字稿嗎？"
+  transcript: "刪除逐字稿"
 destinations:
   _self: "Destinations"
 diarization:
@@ -335,6 +363,8 @@ diarized:
   _self: "已區分發言人"
 dictate:
   in_russian_and_ukrainian: "用俄文和烏克蘭文聽寫"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "聽寫"
   language: "聽寫語言"
@@ -352,6 +382,8 @@ display:
   name: "顯示名稱"
   name_c7874aaa: "顯示名稱"
   pindrop_in_the_dock_instead_of_running_o: "在 Dock 中顯示 Pindrop，而不是僅作為選單欄應用執行。"
+do:
+  you_want_a_notification_when_a_call_starts: "通話開始時要收到通知嗎？"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "將側邊欄固定到視窗的左側或右側邊緣。"
 done:
@@ -398,6 +430,8 @@ english:
   only: "僅英語"
 enhanced:
   _self: "已增強"
+  note: "增強筆記"
+  notes: "增強筆記"
 enhancement:
   prompts: "增強提示詞"
 enhancing:
@@ -457,6 +491,7 @@ file:
   _self: "檔案"
 find:
   _self: "尋找"
+  in_this_note: "在這則筆記中尋找"
 fix:
   punctuation_and_capitalization: "修正標點和大小寫"
 floating:
@@ -505,6 +540,7 @@ help:
 hide:
   api_key: "隱藏 API 金鑰"
   this_for_1_hour: "隱藏 1 小時"
+  live_transcript: "隱藏即時逐字稿"
 history:
   _self: "歷史"
 hold:
@@ -601,7 +637,12 @@ limited:
 listening:
   _self: "正在聆聽…"
 live:
+  names_cover_up_to_four_voices: "即時名稱最多涵蓋四個聲音。"
+  speaker_names_need_the_speaker_model_downlo: "即時說話者名稱需要說話者模型。下載後即可在錄音時為每個人命名。"
+  speaker_names_paused: "即時說話者名稱已暫停。"
   streaming_refinement: "直播最佳化"
+  text_stopped_the_recording_continues: "即時文字已停止，錄音仍在繼續。"
+  transcript: "即時逐字稿"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -642,6 +683,7 @@ manage:
   presets: "管理預設"
   presets_ab87986d: "管理預設..."
   presets_d5d4c2c2: "管理預設…"
+  templates: "管理範本…"
 manual:
   capture: "Manual capture"
 manually:
@@ -666,6 +708,7 @@ meet:
   the_new_orb: "認識全新的 Orb"
 meeting:
   saved: "會議已儲存"
+  note: "會議筆記"
 metric:
   _self: "Metric"
 microphone:
@@ -696,16 +739,22 @@ mute:
   system_audio_during_recording: "錄製期間靜音系統音訊"
 name:
   _self: "名稱"
+  speakers_while_recording: "錄音時標註說話者"
 nemotron:
   default: "Nemotron (default)"
 new:
   folder: "新建資料夾"
+  meeting_note: "新增會議筆記"
   note: "新建筆記"
   preset: "新建預設"
+  note_with_system_audio: "新增筆記並錄製系統聲音"
+  note_without_recording: "新增筆記，不錄音"
+  template: "新增範本"
 newest:
   _self: "最新"
 next:
   _self: "下一個"
+  match: "下一個符合項目"
 no:
   activity_in_this_period: "No activity in this period"
   api_key: "沒有 API 金鑰"
@@ -734,10 +783,17 @@ no:
   results_found: "未找到結果"
   settings_found: "未找到設定"
   speech_detected_try_speaking_closer_to_your: "未偵測到語音。請嘗試靠近麥克風說話。"
+  template_the_note_is_written_as_plain_notes: "不使用範本。筆記以一般筆記的形式寫成。"
+  thanks: "不用了"
   transcriptions_yet: "尚無轉錄"
   vocabulary_words: "無詞彙詞"
   transcripts_audio_prompts_file_names_or_perso: "絕無轉錄、音訊、提示詞、檔案名稱或個人內容 — 永不。"
   contributions_yet_pairs_are_stored_when_ai_en: "尚無貢獻。當 AI 增強或手動編輯更改轉錄時，將儲存文字配對。"
+  audio_was_recorded_for_this_note: "這則筆記沒有錄到音訊。"
+  enhanced_note_yet: "還沒有增強筆記。"
+  notes_yet_sentence: "還沒有筆記。"
+  results_try_another_word: "沒有結果。換個詞試試。"
+  matches: "沒有符合項目"
 not:
   assigned: "未分配"
   enough_voice_data_yet: "語音資料尚不足"
@@ -747,6 +803,7 @@ not:
   set: "未設定"
   set_93039e60: "未設定"
   now: "暫不"
+  helpful: "沒幫助"
 note:
   _self: "筆記"
   capture_hold: "筆記擷取 — 按住"
@@ -758,9 +815,19 @@ note:
   metadata: "註釋後設資料"
   saved: "筆記已儲存"
   title: "筆記標題"
+  actions: "筆記操作"
 notes:
   _self: "筆記"
   3add7b96: "筆記"
+  header_meta_empty: "這裡還空著"
+  header_meta_today: "%1$@，其中今天 %2$@"
+  new_note_options_label: "更多新增筆記選項"
+  row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "Pindrop 的通知已關閉。請在系統設定中開啟通知，以便通話時詢問你。"
+notify:
+  me: "通知我"
+  me_when_a_call_starts: "通話開始時通知我"
 off:
   _self: "關閉"
 ok:
@@ -783,6 +850,7 @@ open:
   settings: "開啟設定"
   settings_fd7108f8: "開啟設定"
   system_settings: "開啟系統設定"
+  note: "打開筆記"
 openai:
   _self: "OpenAI"
   compatible_local_server: "與 OpenAI 相容的本地伺服器"
@@ -829,35 +897,73 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "選擇哪個提供商和模型來處理每個人工智慧任務。保留為“未分配”以跳過目的。"
   which_provider_and_model_handles_each_ai_ta_3140fe59: "為每項 AI 工作選擇提供者與模型。未指派的用途會被略過。"
+  a_model_for_note_enhancement_in_settings_th: "先在「設定」中選擇筆記增強模型，然後重試。"
 pill:
   _self: "膠囊"
+pillars:
+  capture: "錄製"
+  workspace: "工作區"
+  tools: "工具"
+  dictate: "聽寫"
+  voice_note: "語音筆記"
+  meeting: "會議"
+  dictate_description: "說話，Pindrop 就會在您正在使用的 App 中輸入文字。"
+  voice_note_description: "記錄一個想法並將其儲存在筆記中。"
+  meeting_description: "錄製麥克風和系統音訊，然後將會議儲存在資料庫中。"
+  start_dictating: "開始聽寫"
+  start_voice_note: "開始語音筆記"
+  open_notes: "開啟筆記"
+  change_shortcut: "更改快捷鍵"
+  capture_in_progress: "錄製進行中"
+  finish_current_capture: "請先完成目前的錄製，再開始新的錄製。"
+  voice_note_hold: "語音筆記 — 按住"
+  voice_note_toggle: "語音筆記 — 切換"
+  you_captured_this_week: "本週您記錄了 %@。"
+  you_recorded_this_week: "本週您錄製了 %@。"
+  one_voice_note: "1 則語音筆記"
+  n_voice_notes: "%@ 則語音筆記"
+  one_meeting: "1 個會議"
+  n_meetings: "%@ 個會議"
+  of_meeting_audio: "%@ 的會議音訊。"
+  voice_note_shortcut_hint: "在任意位置按住 %1$@ 或按下 %2$@。"
+  hold_anywhere: "在任意位置按住 %@。"
+  press_anywhere: "在任意位置按下 %@。"
+  voice_notes_empty: "您的語音筆記將顯示在這裡。"
+  meetings_empty: "您錄製的會議將顯示在這裡。"
 pin:
   to_screen_always_on_top: "固定到螢幕（始終置頂）"
 pindrop:
   _self: "Pindrop"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "錄音結束後，Pindrop 會重新核對說話者。"
   help: "Pindrop 說明"
   is_ready_to_use_click_the_menu_bar_icon: |-
     Pindrop 已準備好使用。
     點選選單欄圖示開始使用。
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop 已準備好使用。n點選選單欄圖示開始使用。"
+  is_transcribing_only_your_microphone_the: "Pindrop 只轉寫你的麥克風。通話聲音會在完成的筆記裡。"
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop 需要一些許可權才能工作。n您的隱私始終受到尊重。"
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop 需要一些許可權才能工作。
     您的隱私始終受到尊重。
   needs_accessibility_permission_to_insert: "\"\"             Pindrop 需要輔助功能許可權才能在您的游標處插入文字。                          授予許可權：             1. 點選下方\"開啟系統設定\"             2. 點選 + 按鈕             3. 導航到 Finder 中顯示的應用             4. 授予許可權後重新啟動 Pindrop                          沒有此許可權，文字將只複製到您的剪貼簿。             \"\""
   needs_microphone_access_to_record_and_tr: "Pindrop 需要麥克風訪問許可權來錄製和轉錄您的語音。nn請在系統設定中授予許可權。"
+  noticed_a_call: "Pindrop 發現了一通通話。"
   on_github: "GitHub 上的 Pindrop"
   orb: "Pindrop 光球"
   pill: "Pindrop 膠囊"
   theme: "Pindrop 主題"
   can_send_anonymous_privacy_preserving_si: "Pindrop 可傳送匿名且保護隱私的訊號，以便更快修正錯誤。"
+  writes_one_from_your_notes_and_the_trans: "Pindrop 會根據你的筆記和逐字稿寫一份。"
+  did_not_match_this_voice_to_a_saved_spea: "Pindrop 未能將這段聲音比對到任何已儲存的發言人，因此目前沒有可修改的名稱。"
+  needs_this_one_it_downloads_once: "Pindrop 需要這個檔案，只會下載一次。"
 pinned:
   _self: "已釘選"
 plain:
   text_txt: "純文字 (.txt)"
 play:
   _self: "播放"
+  recording: "播放錄音"
 please:
   check_your_internet_connection_and_try_ag: "請檢查您的網際網路連線，然後重試。"
   download_a_whisper_model_in_settings_befo: |-
@@ -950,6 +1056,10 @@ recommended:
   _self: "推薦"
 record:
   _self: "錄製"
+  it_as_a_note: "要錄成筆記嗎？"
+  system_audio_in_meeting_notes: "在會議筆記中錄製系統聲音"
+  this_call: "錄製這通通話"
+  with_system_audio: "錄音時包含系統聲音"
 recording:
   _self: "錄音中"
   3f8fd48c: "🔴 錄音中"
@@ -957,6 +1067,8 @@ recording:
   in_progress_transcription_will_start: "正在錄音 — 轉錄將在錄音結束後開始。"
   stopped_with_error: "錄音已停止：%@"
   from_external_and_bluetooth_microphone: "現在即使音訊輸出被路由到其他位置，外接與 Bluetooth 麥克風錄音也能穩定運作。"
+  continues_while_you_work: "你繼續工作時錄音不會中斷"
+  transcribed: "錄音已轉錄。"
 recordings:
   _self: "錄音"
 redo:
@@ -990,6 +1102,7 @@ report:
 required:
   _self: "必需"
   for_recording_your_voice: "錄製您的語音所需"
+  helpers_download_when_you_set_pindrop_u: "設定 Pindrop 時會下載所需的輔助檔案。缺少的檔案會在下次開啟時由 Pindrop 自動取得。"
 requires:
   a_fast_provider_apple_foundation_models: "需要快速提供者（推薦 Apple Foundation Models）。雲提供商將在每次暫停時發出一次 API 呼叫。"
   diarization_model: "Requires diarization model"
@@ -1064,18 +1177,25 @@ setup:
 shortcuts:
   _self: "快捷鍵"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "當會議應用程式開啟麥克風時，顯示錄製入口。"
   api_key: "顯示 API 金鑰"
   app: "顯示應用"
   app_in_finder: "在 Finder 中顯示應用"
   floating_indicator: "顯示懸浮指示器"
   in_dock: "在 Dock 中顯示"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "顯示即時逐字稿"
+  in_transcript: "在逐字稿中顯示"
+  the_transcript_so_far: "顯示目前的逐字稿"
+  who_is_talking_in_the_live_transcript_names: "在即時逐字稿中顯示誰在說話。錄音結束後會重新核對名稱。"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "以液態玻璃光球的形式顯示在螢幕角落"
   as_a_pill_at_the_bottom_of_the_screen: "在螢幕底部顯示為膠囊"
   beside_the_focused_text_field_caret: "顯示在聚焦的文字欄位/游標旁邊"
   in_the_menu_bar_notch_area: "顯示在選單欄/劉海區域"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "側邊欄位置"
   position_916f66ea: "側邊欄位置"
 simplified:
@@ -1097,6 +1217,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     較小的模型更快但準確度較低。
     從 Base 開始以獲得最佳平衡。
+someone:
+  else_spoke_here_the_finished_note_has_it: "這裡有其他人說話。完成的筆記裡有這段。"
 something:
   went_wrong: "出錯了"
 soon:
@@ -1107,17 +1229,25 @@ source:
   _self: "來源"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "錄音開始時音源就已確定。"
+  d: "來源 (%d)"
 spanish:
   _self: "西班牙語"
 speak:
   to_append: "語音追加"
 speaker:
+  _self: "說話者"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "說話人分離和時間戳附加到播放。"
   diarization_is_required: "需要說話人分離"
+  names_were_checked_again_against_the_ful: "已對照完整錄音重新核對說話者名稱。"
   profile_training: "Speaker profile training"
+  d: "說話者 %d"
 speakers:
   _self: "說話者"
+  1: "說話者：%1$@"
+  are_set_when_the_recording_starts: "說話者在錄音開始時設定。"
+  identified: "說話者已辨識"
 speed:
   _self: "速度"
 start:
@@ -1128,9 +1258,12 @@ start:
   using_pindrop: "開始使用 Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "在選單列中啟動且不開啟主視窗。你仍可透過選單列圖示開啟它。"
 stats:
-  _self: "Stats"
+  _self: "統計"
 status:
   _self: "狀態"
+still:
+  hearing: "仍在辨識：%@"
+  working_long_recordings_take_a_while: "仍在處理。較長的錄音需要一些時間。"
 stop:
   listening: "停止聆聽"
   recording: "停止錄製"
@@ -1158,6 +1291,7 @@ switching:
 system:
   _self: "系統"
   default: "系統預設"
+  audio: "系統聲音"
 teach:
   custom_words: "教授自定義詞彙"
 temporarily:
@@ -1171,9 +1305,23 @@ thanks:
   to_for_the_contribution_pr_61: "感謝 %@ 的貢獻 (PR #61)。"
 the:
   floating_indicator_is_hidden: "懸浮指示器已隱藏。"
+  live_speaker_model_could_not_be_loaded_recor: "無法載入即時說話者模型。錄音仍在繼續，完成的筆記裡依然會標出每個人的名字。"
   model_failed_to_load_within_60_seconds_this: "\"\"             模型在 60 秒內未能載入。這通常意味著模型檔案已損壞或不相容。                          解決方法：             1. 開啟設定 → 模型             2. 刪除有問題的模型             3. 重新下載模型                          如果問題仍然存在，請嘗試使用較小的模型（Tiny 或 Base）。             \"\""
   new_nemotron_streaming_engine_shows_words_as: "新的 Nemotron 串流引擎會在你說話時顯示文字，並在啟動時預熱，讓第一次聽寫也能無延遲開始。"
   selected_chunk_variant_isn_t_downloaded_yet: "所選的分塊變體尚未下載。切換將開始下載。"
+  audio_and_the_live_transcript_are_deleted_yo: "音訊和即時逐字稿會被刪除。你打的筆記會保留。"
+  enhanced_note_could_not_be_generated_try_aga: "增強筆記產生失敗。請重試。"
+  enhanced_note_could_not_be_saved_try_again: "增強筆記儲存失敗。請重試。"
+  model_returned_an_empty_note_try_again: "模型回傳了空筆記。請重試。"
+  note_enhancement_model_is_unavailable_check: "筆記增強模型無法使用。請在「設定」中檢查後重試。"
+  note_this_recording_belongs_to_could_not_be_opened: "無法打開這段錄音所屬的筆記。"
+  recorded_audio_could_not_be_prepared: "錄下的音訊無法準備用於轉錄。"
+  recorder_did_not_start: "錄音器沒有啟動。"
+  transcript_fills_in_as_you_speak: "你說話時逐字稿會隨之填入。"
+  transcript_starts_once_you_speak: "你一開口，逐字稿就開始。"
+  answer_came_back_in_a_form_pindrop_could_not: "傳回的答案格式 Pindrop 無法讀取。請重新提問。"
+  answer_could_not_be_generated_check_your_con: "無法產生答案。請檢查網路連線，然後重新提問。"
+  model_returned_an_empty_answer_ask_again: "模型傳回了空白答案。請重新提問。"
 theme:
   _self: "主題"
   changes_apply_live_across_the_workspace_se: "主題更改實時應用於整個工作區、設定、筆記編輯器和浮動指示器。"
@@ -1198,6 +1346,8 @@ this:
   will_permanently_remove_the_transcript_and: "這將永久刪除轉錄及其託管的媒體檔案。"
   will_permanently_remove_this_note: "這將永久移除此筆記。"
   permanently_deletes_all_stored_text_pairs_f: "此操作將從此 Mac 永久刪除所有已儲存的文字配對。"
+  template_could_not_be_read_pick_another_tem: "無法讀取這個範本。請換一個範本後重試。"
+  note_could_not_be_opened_close_it_and_open: "無法開啟這則筆記。請關閉後重新開啟。"
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1209,6 +1359,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "進行聽寫並讓 Pindrop 為您轉錄"
   start_talking: "開始說話"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "今天"
 toggle:
   _self: "切換"
@@ -1233,6 +1384,7 @@ transcription:
   metadata: "轉錄後設資料"
   saved: "轉錄已儲存"
   update: "轉錄更新"
+  done: "轉錄完成"
 transcriptions:
   _self: "轉錄"
   f0972acc: "轉錄"
@@ -1244,12 +1396,14 @@ try:
   a_different_search_term_0ba628a3: "嘗試不同的搜尋詞。"
   a_different_search_term_in_this_folder: "在此資料夾中嘗試不同的搜尋詞。"
   searching_for_terms_like_hotkeys_microphone: "嘗試搜尋快捷鍵、麥克風、更新或 vibe 模式等術語。"
+  again: "重試"
 turkish:
   _self: "土耳其語"
 two:
   new_dictation_languages_fully_wired_into_mod: "兩種新的聽寫語言，已完整接入模型建議。"
 type:
   text_directly_into_the_active_app_when_poss: "儘可能直接在活動應用中輸入文字"
+  a_question_about_this_note_then_send_it_aga: "輸入關於這則筆記的問題，然後重新傳送。"
 u10:
   floating_inserted_into: "已插入到 %@"
   floating_microphone_unavailable: "麥克風無法使用"
@@ -1320,7 +1474,7 @@ u4:
   home_recent_empty_hint: "最近的聽寫會顯示在這裡。"
   home_streak: "連續"
   home_subline_duration_only: "聽寫 %@。"
-  home_subline_full: "聽寫 %@ — 比打字大約節省 %@。"
+  home_subline_full: "聽寫 %@。比打字大約節省 %@。"
   home_this_week: "本週"
   home_welcome_tagline: "開口即成文。"
   home_words_per_min: "詞 / 分鐘"
@@ -1328,6 +1482,11 @@ u4:
   home_words_today: "今日詞數"
   home_you_spoke_this_week: "本週你說了%@。"
   home_zero_day: "0 天"
+  home_n_sessions_grouped: "%@ 次工作階段"
+  home_no_dictations_yet: "還沒有聽寫。"
+  home_one_session: "1 次工作階段"
+  home_press_hotkey_to_start: "在任何地方按 %@ 即可開始。"
+  home_stop: "停止"
 u5:
   u7_add_replacement: "Add replacement"
   u7_add_word: "Add word"
@@ -1486,8 +1645,13 @@ vocabulary:
   _self: "詞彙"
 voice:
   _self: "Voice"
+  isolation: "語音隔離"
+  reduce_background_noise_before_transcription: "轉錄前降低背景噪音"
+  note: "語音筆記"
 vs:
   typing: "對比輸入"
+watch:
+  for_calls: "留意通話"
 web:
   link: "Web link"
 welcome:
@@ -1515,13 +1679,16 @@ wpm:
 yesterday:
   _self: "昨天"
 you:
+  _self: "你"
   are_a_note_formatting_assistant_transform_th: "您是一名筆記格式化助手。將轉錄的文字轉換為結構良好的筆記。nn規則：n- 修正語法、標點和拼寫錯誤n- 對於較長的內容（3 段以上），新增 Markdown 格式：n  - 使用標題（## 或 ###）組織章節n  - 在適當的地方使用專案符號或編號列表n  - 使用 **粗體** 強調關鍵術語n- 對於較短的內容，保持簡單，儘量減少格式n- 保留原始含義和語氣n- 不要新增原始內容中沒有的內容n- 僅返回格式化後的筆記，不加任何評論"
   are_a_text_enhancement_assistant_improve_the: "您是一名文字增強助手。改進所提供文字的語法、標點和格式，同時保留其原始含義和語氣。僅返回增強後的文字，不加任何額外評論。"
   can_change_these_anytime_from_the_menu_bar_s: "您可以隨時從選單欄 → 設定 → 快捷鍵更改這些"
   re_all_set: "一切就緒！"
   re_all_set_058a8130: "一切就緒！"
+  spoke_here_the_finished_note_has_it: "這裡是你在說話。完成的筆記裡有這段。"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\"                 您已超出 API 速率限制或配額。                                  解決方法：                 1. 等待幾分鐘後重試                 2. 檢查您的 API 提供商的使用限制                 3. 考慮升級您的 API 計劃                                  轉錄已儲存，未進行增強。                 \"\""
   re_in_control: "你掌握控制權"
+  deleted_this_transcript: "你刪除了這份逐字稿。"
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\"                 您的 API 金鑰似乎無效或已過期。                                  解決方法：                 1. 開啟設定 → AI 增強                 2. 驗證您的 API 金鑰是否正確                 3. 檢查您的 API 端點是否正確                                  轉錄已儲存，未進行增強。                 \"\""
   floating_indicator_is_now_a_living_audio_re: "你的浮動指示器現在是會對音訊反應的活體 orb。閒置時會呼吸，說話時會膨脹，並在你聽寫時即時串流顯示文字。"
@@ -1533,6 +1700,8 @@ your:
   stats: "您的統計"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "你的文字始終屬於你"
+  enhanced_note_is_ready: "你的增強筆記已就緒。"
+  notes_and_the_enhanced_note_stay_the_transc: "你的筆記和增強筆記會保留。逐字稿會在這則筆記中隱藏。"
 zoom:
   _self: "縮放"
 polish:
@@ -1578,3 +1747,99 @@ total:
 tokens:
   in_out: "輸入 %@ / 輸出 %@ 個 Token"
   in_out_thinking: "輸入 %@ / 輸出 %@ / 思考 %@ 個 Token"
+auto:
+  _self: "自動"
+discard:
+  recording: "捨棄錄音"
+  this_recording: "要捨棄這段錄音嗎？"
+finalizing:
+  _self: "收尾中"
+finish:
+  _self: "完成"
+  the_active_transcription_before_starting: "先完成進行中的轉錄，再開始下一個。"
+  the_active_transcription_before_starting_another: "先完成進行中的轉錄，再開始下一個。"
+generate:
+  enhanced_note: "產生增強筆記"
+generated:
+  _self: "產生於 %@"
+  1_2_template: "產生於 %1$@ · %2$@ 範本"
+helpful:
+  _self: "有幫助"
+identifying:
+  speakers: "正在辨識說話者"
+jump:
+  to_live: "跳至即時"
+  to_this_line: "跳至這一行"
+mic:
+  _self: "麥克風"
+more:
+  note_actions: "更多筆記操作"
+  recording_options: "更多錄音選項"
+my:
+  notes: "我的筆記"
+nothing:
+  was_transcribed_yet: "還沒有轉錄出任何內容。"
+playback:
+  position: "播放位置"
+s:
+  to_save: "⌘S 儲存"
+sealing:
+  audio: "正在封存音訊"
+  the_recording: "正在封存錄音。"
+see:
+  this_in_the_transcript: "在逐字稿中查看"
+  where_this_came_from: "查看這則資訊的來源"
+template:
+  _self: "範本：%@"
+  3ec1ae06: "範本"
+templates:
+  _self: "範本"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "還沒有可增強的逐字稿。請先錄製這則筆記。"
+  is_nothing_to_ask_about_yet_record_or_writ: "目前還沒有可提問的內容。請先錄音或寫點內容。"
+transcribing:
+  _self: "轉錄中"
+  failed_the_recording_is_saved_try_a: "轉錄失敗。錄音已儲存。請重試，或從筆記中開啟音訊。"
+transcript:
+  _self: "逐字稿"
+  so_far_pindrop_is_checking_it_against: "目前的逐字稿。Pindrop 正在與錄音核對。"
+  source: "逐字稿來源 %@"
+was:
+  _self: "原為 %@"
+  this_note_useful: "這則筆記有用嗎？"
+writing:
+  note: "正在寫筆記"
+  your_enhanced_note: "正在寫你的增強筆記。"
+  your_enhanced_note_comes_next_long_recor: "接下來會寫你的增強筆記。錄音較長時可能需要幾分鐘。你可以繼續打字。"
+  your_enhanced_note_with: "正在用 %@ 寫你的增強筆記。"
+answers:
+  come_from_this_note_s_transcript_and_you: "答案來自這則筆記的逐字稿和你的 AI 提供方。請核實所有重要資訊。"
+ask:
+  a_follow_up: "追問"
+  about_this_note: "詢問這則筆記"
+  this_note: "問這則筆記"
+detected:
+  from_the_recording_renames_apply_to_the: "從錄音中辨識。重新命名會套用到逐字稿和之後的筆記。"
+expect:
+  1: "預期：%1$@"
+from:
+  the_transcript: "來自逐字稿"
+list:
+  action_items: "列出待辦事項"
+match:
+  1_d_of_2_d: "符合 %1$d / %2$d"
+previous:
+  match: "上一個符合項目"
+that:
+  speaker_profile_no_longer_exists_try_reopen: "該發言人設定檔已不存在。請嘗試重新開啟這則筆記。"
+thinking:
+  _self: "思考中…"
+write:
+  this_note_again: "重新寫這則筆記"
+matching:
+  names: "正在比對姓名"
+skipped:
+  _self: "已跳過"
+recovered:
+  _self: "已復原"
+  from_a_recording_that_was_interrupted: "已從中斷的錄音中復原。"

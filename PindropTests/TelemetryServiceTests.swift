@@ -8,6 +8,7 @@
 import Foundation
 import Testing
 @testable import Pindrop
+import PindropSpeech
 
 @MainActor
 private final class TelemetrySinkSpy: TelemetrySink {

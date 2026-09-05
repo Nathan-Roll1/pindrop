@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import PindropCore
 
 /// Implements MCP JSON-RPC 2.0: initialize, tools/list, tools/call.
 @MainActor

@@ -8,6 +8,7 @@
 import SwiftUI
 import AppKit
 import Combine
+import PindropCore
 
 private final class PillHostingView: NSHostingView<AnyView> {
     /// The panel never becomes key, so every click is a "first mouse"; without
@@ -335,13 +336,13 @@ final class PillFloatingIndicatorController: NSObject, ObservableObject, NSMenuD
 
         menu.addItem(.separator())
 
-        let viewHistoryItem = NSMenuItem(
-            title: localized("View transcript history", locale: locale),
-            action: #selector(handleViewTranscriptHistoryMenuItem),
+        let openLibraryItem = NSMenuItem(
+            title: localized("Open Library", locale: locale),
+            action: #selector(handleOpenLibraryMenuItem),
             keyEquivalent: ""
         )
-        viewHistoryItem.target = self
-        menu.addItem(viewHistoryItem)
+        openLibraryItem.target = self
+        menu.addItem(openLibraryItem)
 
         let pasteLastTranscriptItem = NSMenuItem(
             title: localized("Paste last transcript ⌃⌘V", locale: locale),
@@ -462,8 +463,8 @@ final class PillFloatingIndicatorController: NSObject, ObservableObject, NSMenuD
     }
 
     @objc
-    private func handleViewTranscriptHistoryMenuItem() {
-        actions.onViewTranscriptHistory?()
+    private func handleOpenLibraryMenuItem() {
+        actions.onOpenLibrary?()
     }
 
     @objc

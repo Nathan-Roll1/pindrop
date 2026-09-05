@@ -29,6 +29,7 @@
         "name" : "PindropTests"
       },
       "selectedTests" : [
+        "ConferenceAudioProcessProbeIntegrationTests",
         "PermissionManagerTests",
         "DiarizationQualityIntegrationTests"
       ]

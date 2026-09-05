@@ -9,6 +9,7 @@ import AppKit
 import Carbon
 import Testing
 @testable import Pindrop
+import PindropCore
 
 @MainActor
 @Suite
@@ -226,6 +227,59 @@ struct SettingsStoreTests {
         #expect(!store.launchWithoutShowingWindow)
         #expect(!store.telemetryEnabled)
         #expect(store.telemetryConsentPromptVersion == 0)
+        #expect(!store.voiceIsolationEnabled)
+        #expect(!store.notifyWhenCallStarts)
+        #expect(!store.callNotificationAskAnswered)
+        #expect(store.watchForCalls)
+        #expect(store.recordSystemAudioInMeetingNotes)
+    }
+
+    @Test func testMeetingSettingsShipOnAndResetToTheirShippingValues() {
+        let settingsStore = makeSettingsStore()
+        defer { cleanup(settingsStore) }
+
+        // A fresh install watches for calls.
+        SettingsStore.backingUserDefaults.removeObject(forKey: "watchForCalls")
+        SettingsStore.backingUserDefaults.removeObject(forKey: "recordSystemAudioInMeetingNotes")
+        #expect(SettingsStore().watchForCalls)
+        #expect(SettingsStore().recordSystemAudioInMeetingNotes)
+
+        settingsStore.watchForCalls = false
+        settingsStore.recordSystemAudioInMeetingNotes = false
+        let reloaded = SettingsStore()
+        #expect(!reloaded.watchForCalls)
+        #expect(!reloaded.recordSystemAudioInMeetingNotes)
+
+        // "Reset all settings…" is a user-facing button, not a test-only path,
+        // and it says it restores a fresh install. A default-on feature it left
+        // switched off would stay off for good.
+        settingsStore.resetAllSettings()
+        #expect(settingsStore.watchForCalls)
+        #expect(settingsStore.recordSystemAudioInMeetingNotes)
+        #expect(SettingsStore().watchForCalls)
+        #expect(SettingsStore().recordSystemAudioInMeetingNotes)
+
+        // The two permission-shaped keys stay off: no notification without an
+        // authorization, and no answer recorded for an ask nobody has seen.
+        settingsStore.notifyWhenCallStarts = true
+        settingsStore.callNotificationAskAnswered = true
+        settingsStore.resetAllSettings()
+        #expect(!settingsStore.notifyWhenCallStarts)
+        #expect(!settingsStore.callNotificationAskAnswered)
+    }
+
+    @Test func testVoiceIsolationDefaultsOffPersistsAndResets() {
+        let settingsStore = makeSettingsStore()
+        defer { cleanup(settingsStore) }
+
+        #expect(!settingsStore.voiceIsolationEnabled)
+
+        settingsStore.voiceIsolationEnabled = true
+        #expect(SettingsStore().voiceIsolationEnabled)
+
+        settingsStore.resetAllSettings()
+        #expect(!settingsStore.voiceIsolationEnabled)
+        #expect(!SettingsStore().voiceIsolationEnabled)
     }
 
     @Test func testLaunchWithoutShowingWindowDefaultsOffAndPersists() {
@@ -600,5 +654,36 @@ struct SettingsStoreTests {
         }
 
         try await task.value
+    }
+
+    @Test func liveSpeakerNamesDefaultOffPersistAndReset() {
+        let settingsStore = makeSettingsStore()
+        defer { cleanup(settingsStore) }
+
+        #expect(!settingsStore.liveSpeakerNamesEnabled)
+
+        settingsStore.liveSpeakerNamesEnabled = true
+        #expect(SettingsStore().liveSpeakerNamesEnabled)
+
+        settingsStore.resetAllSettings()
+        #expect(!settingsStore.liveSpeakerNamesEnabled)
+        #expect(!SettingsStore().liveSpeakerNamesEnabled)
+    }
+
+    /// Live speaker names and the finalize diarization stage are two settings.
+    /// Turning the live labels off must not strip the speakers out of the
+    /// finished note, which is the promise every degradation path here makes.
+    @Test func turningOffLiveSpeakerNamesLeavesTheFinalizeDiarizationStageEnabled() {
+        let settingsStore = makeSettingsStore()
+        defer { cleanup(settingsStore) }
+
+        settingsStore.diarizationFeatureEnabled = true
+        settingsStore.liveSpeakerNamesEnabled = true
+
+        settingsStore.setFeatureEnabled(.liveDiarization, enabled: false)
+
+        #expect(!settingsStore.liveSpeakerNamesEnabled)
+        #expect(settingsStore.diarizationFeatureEnabled)
+        #expect(settingsStore.isFeatureEnabled(.diarization))
     }
 }

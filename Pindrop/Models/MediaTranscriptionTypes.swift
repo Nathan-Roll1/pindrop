@@ -4,17 +4,18 @@
 //
 //  Created on 2026-03-07.
 //
+//  App-owned observable feature state and localized presentation helpers.
+//  Shared value types live in PindropCore / PindropSpeech.
+//
 
 import Foundation
 import Observation
+import PindropCore
+import PindropSpeech
 
-// MARK: - Output Format
+// MARK: - Presentation
 
-enum TranscribeOutputFormat: String, CaseIterable, Sendable, Equatable {
-    case plainText
-    case subtitles   // .srt
-    case timestamps  // .json
-
+extension TranscribeOutputFormat {
     var displayName: String {
         switch self {
         case .plainText:  return "Plain Text (.txt)"
@@ -24,46 +25,13 @@ enum TranscribeOutputFormat: String, CaseIterable, Sendable, Equatable {
     }
 }
 
-// MARK: - Per-job Options
-
-struct TranscriptionJobOptions: Sendable, Equatable {
-    var modelName: String
-    var language: AppLanguage
-    var outputFormat: TranscribeOutputFormat
-    var diarizationEnabled: Bool
-    /// Optional exact speaker-count hint for offline diarization (`1...20`).
-    /// `nil` means automatic detection. Validated at the transcription service boundary.
-    var expectedSpeakerCount: Int?
-
-    init(
-        modelName: String,
-        language: AppLanguage = .automatic,
-        outputFormat: TranscribeOutputFormat = .plainText,
-        diarizationEnabled: Bool = true,
-        expectedSpeakerCount: Int? = nil
-    ) {
-        self.modelName = modelName
-        self.language = language
-        self.outputFormat = outputFormat
-        self.diarizationEnabled = diarizationEnabled
-        self.expectedSpeakerCount = expectedSpeakerCount
-    }
-}
-
-// MARK: -
-
-enum MediaLibrarySortMode: String, CaseIterable, Equatable, Sendable {
-    case newest
-    case oldest
-    case nameAscending
-    case nameDescending
-
+extension MediaLibrarySortMode {
     var title: String {
         switch self {
         case .newest:
-            return "Newest"
+            return "Newest first"
         case .oldest:
-            return "Oldest"
+            return "Oldest first"
         case .nameAscending:
             return "Name A-Z"
         case .nameDescending:
@@ -76,17 +44,7 @@ enum MediaLibrarySortMode: String, CaseIterable, Equatable, Sendable {
     }
 }
 
-enum MediaTranscriptionStage: String, CaseIterable, Equatable, Sendable {
-    case preflight
-    case preparingModel
-    case importing
-    case downloading
-    case preparingAudio
-    case transcribing
-    case saving
-    case completed
-    case failed
-
+extension MediaTranscriptionStage {
     var title: String {
         switch self {
         case .preflight:
@@ -115,36 +73,18 @@ enum MediaTranscriptionStage: String, CaseIterable, Equatable, Sendable {
     }
 }
 
-enum MediaTranscriptionRoute: Equatable, Sendable {
-    case library
-    case processing(UUID)
-    case detail(UUID)
-}
-
-enum MediaTranscriptionRequest: Sendable, Equatable {
-    case file(URL)
-    case link(String)
-    case manualCapture(AudioRecordingMode)
-
-    var sourceKind: MediaSourceKind {
-        switch self {
-        case .file:
-            return .importedFile
-        case .link:
-            return .webLink
-        case .manualCapture:
-            return .manualCapture
-        }
-    }
-
+extension MediaTranscriptionRequest {
     var displayName: String {
         switch self {
         case .file(let url):
             return url.lastPathComponent
         case .link(let string):
             return string
-        case .manualCapture(let mode):
-            return mode.libraryDisplayName
+        case .manualCapture(let modeRawValue):
+            if let mode = AudioRecordingMode(rawValue: modeRawValue) {
+                return mode.libraryDisplayName
+            }
+            return modeRawValue
         }
     }
 }
@@ -172,17 +112,6 @@ extension AudioRecordingMode {
         }
     }
 
-    var libraryDisplayName: String {
-        switch self {
-        case .microphone:
-            return "Microphone Recording"
-        case .systemAudio:
-            return "System Audio Recording"
-        case .microphoneAndSystemAudio:
-            return "Mixed Recording"
-        }
-    }
-
     func title(locale: Locale) -> String {
         localized(title, locale: locale)
     }
@@ -192,43 +121,7 @@ extension AudioRecordingMode {
     }
 }
 
-struct MediaTranscriptionJobState: Identifiable, Equatable, Sendable {
-    let id: UUID
-    var request: MediaTranscriptionRequest
-    var options: TranscriptionJobOptions
-    var destinationFolderID: UUID?
-    var stage: MediaTranscriptionStage
-    var progress: Double?
-    var detail: String
-    var errorMessage: String?
-    var startedAt: Date
-    /// Set when the job completes successfully; contains the saved TranscriptionRecord's ID.
-    var resultRecordID: UUID?
-
-    init(
-        id: UUID = UUID(),
-        request: MediaTranscriptionRequest,
-        options: TranscriptionJobOptions = TranscriptionJobOptions(modelName: ""),
-        destinationFolderID: UUID? = nil,
-        stage: MediaTranscriptionStage = .preflight,
-        progress: Double? = nil,
-        detail: String = "",
-        errorMessage: String? = nil,
-        startedAt: Date = Date(),
-        resultRecordID: UUID? = nil
-    ) {
-        self.id = id
-        self.request = request
-        self.options = options
-        self.destinationFolderID = destinationFolderID
-        self.stage = stage
-        self.progress = progress
-        self.detail = detail
-        self.errorMessage = errorMessage
-        self.startedAt = startedAt
-        self.resultRecordID = resultRecordID
-    }
-}
+// MARK: - Feature UI State
 
 @MainActor
 @Observable
@@ -376,11 +269,16 @@ final class MediaTranscriptionFeatureState {
     }
 }
 
+struct CaptureStartClaim: Equatable, Sendable {
+    fileprivate let id = UUID()
+}
+
 @MainActor
 @Observable
 final class RecordingFeatureState {
     var selectedCaptureMode: AudioRecordingMode = .systemAudio
     var isRecording = false
+    private(set) var isProcessing = false
     var recordingStartedAt: Date?
     var audioLevel: Float = 0.0
     var isDiarizationModelDownloading = false
@@ -389,6 +287,40 @@ final class RecordingFeatureState {
     var setupIssue: String?
     var message: String?
     var lastCompletedRecordID: UUID?
+    private var pendingCaptureStart: CaptureStartClaim?
+
+    var isCaptureStartPending: Bool {
+        pendingCaptureStart != nil
+    }
+
+    var isCaptureBusy: Bool {
+        isCaptureStartPending || isRecording || isProcessing || currentJob != nil
+    }
+
+    func setCaptureActivity(isRecording: Bool, isProcessing: Bool) {
+        self.isRecording = isRecording
+        self.isProcessing = isProcessing
+    }
+
+    func claimCaptureStart() -> CaptureStartClaim? {
+        guard pendingCaptureStart == nil else { return nil }
+        let claim = CaptureStartClaim()
+        pendingCaptureStart = claim
+        return claim
+    }
+
+    func isCaptureStartClaimCurrent(_ claim: CaptureStartClaim) -> Bool {
+        pendingCaptureStart == claim
+    }
+
+    func releaseCaptureStart(_ claim: CaptureStartClaim) {
+        guard pendingCaptureStart == claim else { return }
+        pendingCaptureStart = nil
+    }
+
+    func invalidateCaptureStart() {
+        pendingCaptureStart = nil
+    }
 
     func beginRecording(mode: AudioRecordingMode, startedAt: Date = Date()) {
         selectedCaptureMode = mode

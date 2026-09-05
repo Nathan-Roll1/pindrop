@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import PindropCore
 
 /// Maps MCP-issued job IDs to the internal MediaTranscriptionJobState IDs, and vice-versa.
 /// The MCP job ID is returned to the agent; the state ID is used internally.

@@ -4,16 +4,25 @@
   local_processing: "معالجة محلية 100%"
 1:
   folder: "1 مجلد"
+  is_now_2: "%1$@ الآن %2$@."
   note: "ملاحظة واحدة"
+  said_2: "كلام %1$@: %2$@"
   speaker: "متحدث واحد"
   transcription: "1 النسخ"
   word: "كلمة واحدة"
   year: "1 year"
+  edited_2: "%1$@ · حُرِّر %2$@"
+  recording: "%1$@ تسجيل"
+  recording_2: "%1$@ تسجيل · %2$@"
+  result: "نتيجة واحدة"
+  d_of_2_d: "%1$d من %2$d"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "مجموعة كبيرة من التحسينات — وشكران لمساهمين من المجتمع."
+  call_started: "بدأت مكالمة"
   native_macos_menu_bar_dictation_app_using_loca: "تطبيق إملاء شريط قوائم macOS أصلي يستخدم تحويل الكلام إلى نص محلي مع WhisperKit. معالجة محلية بنسبة 100% بشكل افتراضي مع تحسين الذكاء الاصطناعي الاختياري."
+  note_capture_is_already_running: "يوجد تسجيل ملاحظة قيد التشغيل بالفعل."
 about:
   _self: "عن"
   pindrop: "حول بيندروب"
@@ -68,6 +77,7 @@ ai:
 all:
   _self: "الجميع"
   time: "All time"
+  templates: "كل القوالب…"
 also:
   new_rtl_layout_support_and_20_new_interface: "جديد أيضًا: دعم تخطيط RTL و20 لغة واجهة جديدة."
 an:
@@ -79,6 +89,7 @@ an:
     تم حفظ النسخ الأصلي دون تحسين.
     يمكنك محاولة تمكين تحسين الذكاء الاصطناعي مرة أخرى في الإعدادات.
   error_occurred_while_enhancing_your_transcrip_1790ad05: "حدث خطأ أثناء تحسين النسخ:nn%@nn تم حفظ النسخ الأصلي بدون تحسين. يمكنك محاولة تمكين تحسين الذكاء الاصطناعي مرة أخرى في الإعدادات."
+  earlier_version_of_pindrop_wrote_this_note_it: "كتب هذه الملاحظة إصدار أقدم من Pindrop. لا يمكن كتابتها من جديد."
 anthropic:
   _self: "أنثروبي"
 api:
@@ -110,6 +121,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "إدخال الصوت"
+  sealed: "تم ختم الصوت"
 automatic:
   follow_system: "تلقائي (نظام المتابعة)"
   updates: "التحديثات التلقائية"
@@ -119,6 +131,7 @@ automatically:
   start_pindrop_when_you_sign_in: "قم بتشغيل Pindrop تلقائيًا عند تسجيل الدخول."
 available:
   models: "النماذج المتاحة"
+  when_the_recording_is_finished: "متاح عند انتهاء التسجيل"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +143,7 @@ avg:
 back:
   _self: "خلف"
   to_library: "العودة إلى المكتبة"
+  to_notes: "العودة إلى الملاحظات"
 base:
   _self: "قاعدة"
 bearer:
@@ -146,10 +160,13 @@ built:
   in_read_only: "مدمج (للقراءة فقط)"
 by:
   weekday: "By weekday"
+call:
+  audio: "صوت المكالمة"
 cancel:
   _self: "يلغي"
   operation: "إلغاء العملية"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "إلغاء التسجيل"
 capture:
   directly_into_the_note_editor_with_a_hol: "التقط الصور مباشرة في محرر الملاحظات من خلال تدفق التثبيت للتسجيل."
 change:
@@ -158,6 +175,7 @@ change:
   your_choice_anytime_in_settings_privacy: "غيّر اختيارك في أي وقت من الإعدادات → الخصوصية."
 changes:
   the_language_used_by_pindrop_s_interface: "Changes the language used by Pindrop's interface."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "تنطبق التغييرات التي تطرأ على بيانات اعتماد هذا الموفّر ونقطة النهاية على عمليات الالتقاط الجارية والمستعادة. يظل النموذج المحدد والمطالبة المحددة ثابتين."
 check:
   for_updates: "التحقق من وجود تحديثات..."
   for_updates_736b9062: "التحقق من وجود تحديثات"
@@ -192,6 +210,7 @@ choose:
 clean:
   up_filler_words: "تنظيف الكلمات الحشو"
 clear:
+  _self: "مسح"
   audio_buffer: "مسح المخزن المؤقت للصوت"
   hotkey: "مسح مفتاح التشغيل السريع"
   shortcut: "مسح الاختصار"
@@ -203,6 +222,8 @@ click:
   or_press: "انقر أو اضغط"
   or_set_a_hotkey_to_start_talking: "انقر أو قم بتعيين مفتاح التشغيل السريع لبدء التحدث"
   this_icon_anytime_to: "انقر فوق هذا الرمز في أي وقت للقيام بما يلي:"
+  a_number_to_see_it_in_the_transcript: "انقر رقمًا لرؤيته في النص."
+  new_note_to_start_one: "انقر ملاحظة جديدة للبدء. يسجّل Pindrop أثناء كتابتك."
 client:
   _self: "العميل"
 clipboard:
@@ -215,7 +236,7 @@ cloud:
   model: "نموذج السحابة"
   transcription_sends_recorded_audio_to_open: "يرسل النسخ السحابي الصوت المسجّل إلى OpenAI. تُطبَّق رسوم استخدام OpenAI."
 collapse:
-  _self: "ينهار"
+  _self: "طيّ"
 coming:
   soon: "%@ قريبًا"
   soon_04d2fd85: "قريباً"
@@ -253,6 +274,8 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copy the most recent transcript to the clipboard."
   to_clipboard: "نسخ إلى الحافظة"
   transcript: "نسخ النص"
+  content: "نسخ المحتوى"
+  note: "نسخ الملاحظة"
 correct:
   grammar_mistakes: "تصحيح الأخطاء النحوية"
 could:
@@ -278,6 +301,7 @@ custom:
   local: "مخصص / محلي"
   openai_compatible: "مخصص (متوافق مع OpenAI)"
   presets: "الإعدادات المسبقة المخصصة"
+  templates: "قوالبك الخاصة"
 customize:
   hotkey: "تخصيص مفتاح التشغيل السريع"
 cut:
@@ -287,6 +311,7 @@ d:
   samples: "%d samples · %@"
   speakers: "%d متحدثين"
   words: "%d كلمات"
+  results: "%d نتائج"
 dark:
   _self: "مظلم"
   preview: "معاينة الظلام"
@@ -318,6 +343,9 @@ delete:
   transcription_f82187c4: "هل تريد حذف تحويل الصوت إلى نص؟"
   all_contributions: "حذف كل المساهمات…"
   all_stored_text_pairs: "حذف كل أزواج النصوص المخزَّنة؟"
+  this_note: "حذف هذه الملاحظة"
+  this_transcript: "هل تريد حذف هذا النص؟"
+  transcript: "حذف النص"
 destinations:
   _self: "Destinations"
 diarization:
@@ -335,6 +363,8 @@ diarized:
   _self: "مُقسَّم حسب المتحدثين"
 dictate:
   in_russian_and_ukrainian: "أملِ بالروسية والأوكرانية"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "الإملاء"
   language: "لغة الإملاء"
@@ -352,6 +382,8 @@ display:
   name: "اسم العرض"
   name_c7874aaa: "اسم العرض"
   pindrop_in_the_dock_instead_of_running_o: "قم بعرض Pindrop في Dock بدلاً من تشغيله كتطبيق شريط قوائم فقط."
+do:
+  you_want_a_notification_when_a_call_starts: "هل تريد إشعارًا عند بدء مكالمة؟"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "قم بإرساء الشريط الجانبي على الحافة اليسرى أو اليمنى من النافذة."
 done:
@@ -398,6 +430,8 @@ english:
   only: "الإنجليزية فقط"
 enhanced:
   _self: "معزز"
+  note: "ملاحظة معززة"
+  notes: "الملاحظات المعزّزة"
 enhancement:
   prompts: "مطالبات التحسين"
 enhancing:
@@ -457,6 +491,7 @@ file:
   _self: "ملف"
 find:
   _self: "بحث"
+  in_this_note: "بحث في هذه الملاحظة"
 fix:
   punctuation_and_capitalization: "إصلاح علامات الترقيم والأحرف الكبيرة"
 floating:
@@ -505,6 +540,7 @@ help:
 hide:
   api_key: "إخفاء مفتاح API"
   this_for_1_hour: "إخفاء هذا لمدة 1 ساعة"
+  live_transcript: "إخفاء النص المباشر"
 history:
   _self: "تاريخ"
 hold:
@@ -601,7 +637,12 @@ limited:
 listening:
   _self: "جارٍ الاستماع…"
 live:
+  names_cover_up_to_four_voices: "تغطي الأسماء المباشرة حتى أربعة أصوات."
+  speaker_names_need_the_speaker_model_downlo: "تحتاج أسماء المتحدثين المباشرة إلى نموذج المتحدثين. حمّله لتسمية الأشخاص أثناء التسجيل."
+  speaker_names_paused: "توقفت أسماء المتحدثين المباشرة مؤقتًا."
   streaming_refinement: "تحسين البث المباشر"
+  text_stopped_the_recording_continues: "توقف النص المباشر. التسجيل مستمر."
+  transcript: "النص المباشر"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -642,6 +683,7 @@ manage:
   presets: "إدارة الإعدادات المسبقة"
   presets_ab87986d: "إدارة الإعدادات المسبقة..."
   presets_d5d4c2c2: "Manage Presets…"
+  templates: "إدارة القوالب…"
 manual:
   capture: "Manual capture"
 manually:
@@ -666,6 +708,7 @@ meet:
   the_new_orb: "تعرّف على Orb الجديد"
 meeting:
   saved: "تم حفظ الاجتماع"
+  note: "ملاحظة اجتماع"
 metric:
   _self: "Metric"
 microphone:
@@ -696,16 +739,22 @@ mute:
   system_audio_during_recording: "كتم صوت النظام أثناء التسجيل"
 name:
   _self: "الاسم"
+  speakers_while_recording: "تسمية المتحدثين أثناء التسجيل"
 nemotron:
   default: "Nemotron (default)"
 new:
   folder: "مجلد جديد"
+  meeting_note: "ملاحظة اجتماع جديدة"
   note: "ملاحظة جديدة"
   preset: "إعداد مسبق جديد"
+  note_with_system_audio: "ملاحظة جديدة مع صوت النظام"
+  note_without_recording: "ملاحظة جديدة بدون تسجيل"
+  template: "قالب جديد"
 newest:
   _self: "الأحدث"
 next:
   _self: "التالي"
+  match: "التطابق التالي"
 no:
   activity_in_this_period: "No activity in this period"
   api_key: "لا يوجد مفتاح API"
@@ -734,10 +783,17 @@ no:
   results_found: "لم يتم العثور على نتائج"
   settings_found: "لم يتم العثور على إعدادات"
   speech_detected_try_speaking_closer_to_your: "لم يتم اكتشاف أي كلام. حاول التحدث بالقرب من الميكروفون."
+  template_the_note_is_written_as_plain_notes: "بلا قالب. تُكتب الملاحظة كملاحظات عادية."
+  thanks: "لا، شكرًا"
   transcriptions_yet: "لا يوجد نسخ بعد"
   vocabulary_words: "لا توجد كلمات المفردات"
   transcripts_audio_prompts_file_names_or_perso: "لا نسخ ولا صوت ولا مطالبات ولا أسماء ملفات ولا محتوى شخصي — أبدًا."
   contributions_yet_pairs_are_stored_when_ai_en: "لا مساهمات بعد. تُخزَّن الأزواج عندما يغيّر التحسين بالذكاء الاصطناعي أو التعديلات اليدوية نسخًا."
+  audio_was_recorded_for_this_note: "لم يُسجَّل صوت لهذه الملاحظة."
+  enhanced_note_yet: "لا توجد ملاحظة معززة بعد."
+  notes_yet_sentence: "لا توجد ملاحظات بعد."
+  results_try_another_word: "لا نتائج. جرّب كلمة أخرى."
+  matches: "لا تطابقات"
 not:
   assigned: "لم يتم تعيينه"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -747,6 +803,7 @@ not:
   set: "غير محدد"
   set_93039e60: "لم يتم ضبطه"
   now: "ليس الآن"
+  helpful: "غير مفيدة"
 note:
   _self: "ملحوظة"
   capture_hold: "Note Capture — Hold"
@@ -758,9 +815,19 @@ note:
   metadata: "ملاحظة البيانات الوصفية"
   saved: "تم حفظ الملاحظة"
   title: "ملاحظة العنوان"
+  actions: "إجراءات الملاحظة"
 notes:
   _self: "ملحوظات"
   3add7b96: "ملحوظات"
+  header_meta_empty: "لا شيء هنا بعد"
+  header_meta_today: "%1$@، %2$@ من اليوم"
+  new_note_options_label: "خيارات أخرى للملاحظة الجديدة"
+  row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "الإشعارات متوقفة لتطبيق Pindrop. شغّلها في إعدادات النظام ليتم سؤالك عن المكالمات."
+notify:
+  me: "أعلمني"
+  me_when_a_call_starts: "أعلمني عند بدء مكالمة"
 off:
   _self: "عن"
 ok:
@@ -783,6 +850,7 @@ open:
   settings: "افتح الإعدادات"
   settings_fd7108f8: "افتح الإعدادات"
   system_settings: "افتح إعدادات النظام"
+  note: "فتح الملاحظة"
 openai:
   _self: "OpenAI"
   compatible_local_server: "خادم محلي متوافق مع OpenAI"
@@ -829,35 +897,73 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "اختر الموفر والنموذج الذي يتعامل مع كل مهمة من مهام الذكاء الاصطناعي. اتركه كـ \"غير معين\" لتخطي أحد الأغراض."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
+  a_model_for_note_enhancement_in_settings_th: "اختر نموذجًا لتعزيز الملاحظات في الإعدادات، ثم حاول مرة أخرى."
 pill:
   _self: "حبة"
+pillars:
+  capture: "التقاط"
+  workspace: "مساحة العمل"
+  tools: "الأدوات"
+  dictate: "إملاء"
+  voice_note: "ملاحظة صوتية"
+  meeting: "اجتماع"
+  dictate_description: "تحدث، ثم يُدخل Pindrop النص في التطبيق الذي تستخدمه."
+  voice_note_description: "التقط فكرة واحتفظ بها في الملاحظات."
+  meeting_description: "سجّل صوت الميكروفون وصوت النظام، ثم احتفظ بالاجتماع في المكتبة."
+  start_dictating: "بدء الإملاء"
+  start_voice_note: "بدء ملاحظة صوتية"
+  open_notes: "فتح الملاحظات"
+  change_shortcut: "تغيير الاختصار"
+  capture_in_progress: "الالتقاط قيد التقدم"
+  finish_current_capture: "أكمل الالتقاط الحالي قبل بدء التقاط آخر."
+  voice_note_hold: "ملاحظة صوتية — اضغط مع الاستمرار"
+  voice_note_toggle: "ملاحظة صوتية — تبديل"
+  you_captured_this_week: "التقطت %@ هذا الأسبوع."
+  you_recorded_this_week: "سجلت %@ هذا الأسبوع."
+  one_voice_note: "ملاحظة صوتية واحدة"
+  n_voice_notes: "%@ ملاحظات صوتية"
+  one_meeting: "اجتماع واحد"
+  n_meetings: "%@ اجتماعات"
+  of_meeting_audio: "%@ من صوت الاجتماعات."
+  voice_note_shortcut_hint: "اضغط مع الاستمرار على %1$@ أو اضغط على %2$@ في أي مكان."
+  hold_anywhere: "اضغط مع الاستمرار على %@ في أي مكان."
+  press_anywhere: "اضغط على %@ في أي مكان."
+  voice_notes_empty: "ستظهر ملاحظاتك الصوتية هنا."
+  meetings_empty: "ستظهر اجتماعاتك المسجلة هنا."
 pin:
   to_screen_always_on_top: "تثبيت على الشاشة (دائما في الأعلى)"
 pindrop:
   _self: "بيندروب"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "يتحقق Pindrop من المتحدثين مرة أخرى عند انتهاء التسجيل."
   help: "مساعدة Pindrop"
   is_ready_to_use_click_the_menu_bar_icon: |-
     Pindrop جاهز للاستخدام.
     انقر على أيقونة شريط القائمة للبدء.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop جاهز للاستخدام. انقر فوق رمز شريط القائمة للبدء."
+  is_transcribing_only_your_microphone_the: "ينسخ Pindrop صوت الميكروفون فقط. صوت المكالمة موجود في الملاحظة النهائية."
   needs_a_few_permissions_to_work_nyour_pr: "يحتاج Pindrop إلى بعض الأذونات للعمل. خصوصيتك تُحترم دائمًا."
   needs_a_few_permissions_to_work_your_pri: |-
     يحتاج Pindrop إلى بعض الأذونات للعمل.
     خصوصيتك تحترم دائما.
   needs_accessibility_permission_to_insert: "\" \"يحتاج Pindrop إلى إذن الوصول لإدراج نص في المؤشر.                          لمنح الإذن: 1. انقر فوق \"فتح إعدادات النظام\" أدناه 2. انقر فوق الزر + 3. انتقل إلى التطبيق الموضح في Finder 4. أعد تشغيل Pindrop بعد منح الإذن. بدون هذا الإذن، سيتم نسخ النص إلى الحافظة الخاصة بك فقط.             \"\""
   needs_microphone_access_to_record_and_tr: "يحتاج Pindrop إلى الوصول إلى الميكروفون لتسجيل صوتك ونسخه. يرجى منح الإذن في إعدادات النظام."
+  noticed_a_call: "لاحظ Pindrop وجود مكالمة."
   on_github: "Pindrop على جيثب"
   orb: "كرة Pindrop"
   pill: "حبة بيندروب"
   theme: "موضوع بيندروب"
   can_send_anonymous_privacy_preserving_si: "يمكن لـ Pindrop إرسال إشارات مجهولة تحافظ على الخصوصية حتى تُصلَح الأخطاء بشكل أسرع."
+  writes_one_from_your_notes_and_the_trans: "يكتبها Pindrop من ملاحظاتك ومن النص."
+  did_not_match_this_voice_to_a_saved_spea: "لم يتعرّف Pindrop على هذا الصوت كمتحدث محفوظ، لذا لا يوجد اسم لتغييره بعد."
+  needs_this_one_it_downloads_once: "يحتاج Pindrop إلى هذا الملف. يُنزَّل مرة واحدة فقط."
 pinned:
   _self: "مثبّتة"
 plain:
   text_txt: "نص عادي (.txt)"
 play:
   _self: "يلعب"
+  recording: "تشغيل التسجيل"
 please:
   check_your_internet_connection_and_try_ag: "يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى."
   download_a_whisper_model_in_settings_befo: |-
@@ -950,6 +1056,10 @@ recommended:
   _self: "مُستَحسَن"
 record:
   _self: "سِجِلّ"
+  it_as_a_note: "هل تريد تسجيلها كملاحظة؟"
+  system_audio_in_meeting_notes: "تسجيل صوت النظام في ملاحظات الاجتماعات"
+  this_call: "سجّل هذه المكالمة"
+  with_system_audio: "التسجيل مع صوت النظام"
 recording:
   _self: "تسجيل"
   3f8fd48c: "🔴 التسجيل"
@@ -957,6 +1067,8 @@ recording:
   in_progress_transcription_will_start: "التسجيل قيد التقدم — سيبدأ النسخ عند انتهائه."
   stopped_with_error: "توقف التسجيل: %@"
   from_external_and_bluetooth_microphone: "أصبح التسجيل من الميكروفونات الخارجية وميكروفونات Bluetooth ثابتًا الآن، حتى عندما يكون إخراج الصوت موجّهًا إلى مكان آخر."
+  continues_while_you_work: "يستمر التسجيل أثناء عملك"
+  transcribed: "تم نسخ التسجيل."
 recordings:
   _self: "التسجيلات"
 redo:
@@ -990,6 +1102,7 @@ report:
 required:
   _self: "مطلوب"
   for_recording_your_voice: "مطلوب لتسجيل صوتك"
+  helpers_download_when_you_set_pindrop_u: "تُنزَّل الأدوات المطلوبة عند إعداد Pindrop. يجلب Pindrop أي أداة ناقصة في المرة التالية التي يُفتح فيها."
 requires:
   a_fast_provider_apple_foundation_models: "يتطلب مزودًا سريعًا (يُوصى باستخدام نماذج Apple Foundation). سيقوم موفرو السحابة بإصدار استدعاء API واحد لكل توقف مؤقت."
   diarization_model: "Requires diarization model"
@@ -1064,18 +1177,25 @@ setup:
 shortcuts:
   _self: "اختصارات"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "أظهر طريقة للتسجيل عندما يفتح تطبيق اجتماعات الميكروفون."
   api_key: "إظهار مفتاح API"
   app: "عرض التطبيق"
   app_in_finder: "إظهار التطبيق في Finder"
   floating_indicator: "إظهار المؤشر العائم"
   in_dock: "عرض في قفص الاتهام"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "إظهار النص المباشر"
+  in_transcript: "إظهار في النص"
+  the_transcript_so_far: "إظهار النص حتى الآن"
+  who_is_talking_in_the_live_transcript_names: "أظهر من يتحدث في النص المباشر. يُعاد التحقق من الأسماء عند انتهاء التسجيل."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "يظهر ككرة زجاجية سائلة في زاوية الشاشة"
   as_a_pill_at_the_bottom_of_the_screen: "يظهر على شكل حبة في أسفل الشاشة"
   beside_the_focused_text_field_caret: "يظهر بجانب حقل/علامة الإقحام التي تم التركيز عليها"
   in_the_menu_bar_notch_area: "يظهر في شريط القائمة/منطقة الشق"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "موقف الشريط الجانبي"
   position_916f66ea: "موضع الشريط الجانبي"
 simplified:
@@ -1097,6 +1217,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     النماذج الأصغر حجمًا أسرع ولكنها أقل دقة.
     ابدأ بالقاعدة للحصول على أفضل توازن.
+someone:
+  else_spoke_here_the_finished_note_has_it: "تحدّث شخص آخر هنا. الملاحظة النهائية تتضمّن كلامه."
 something:
   went_wrong: "حدث خطأ ما"
 soon:
@@ -1107,17 +1229,25 @@ source:
   _self: "مصدر"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "تُثبَّت المصادر عند بدء التسجيل."
+  d: "المصادر (%d)"
 spanish:
   _self: "الأسبانية"
 speak:
   to_append: "تحدث للإلحاق"
 speaker:
+  _self: "متحدث"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "يتم إرفاق مذكرات المتحدث والطوابع الزمنية بالتشغيل."
   diarization_is_required: "مطلوب مذكرات المتحدث"
+  names_were_checked_again_against_the_ful: "أُعيد التحقق من أسماء المتحدثين مقابل التسجيل الكامل."
   profile_training: "Speaker profile training"
+  d: "المتحدث %d"
 speakers:
   _self: "المتحدثون"
+  1: "المتحدثون: %1$@"
+  are_set_when_the_recording_starts: "يُحدَّد المتحدثون عند بدء التسجيل."
+  identified: "تم تحديد المتحدثين"
 speed:
   _self: "سرعة"
 start:
@@ -1128,9 +1258,12 @@ start:
   using_pindrop: "البدء في استخدام Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "ابدأ في شريط القوائم دون فتح النافذة الرئيسية. ما زال بإمكانك فتحها من أيقونة شريط القوائم."
 stats:
-  _self: "Stats"
+  _self: "إحصائيات"
 status:
   _self: "حالة"
+still:
+  hearing: "قيد الاستماع: %@"
+  working_long_recordings_take_a_while: "العمل جارٍ. التسجيلات الطويلة تستغرق وقتًا."
 stop:
   listening: "إيقاف الاستماع"
   recording: "إيقاف التسجيل"
@@ -1158,6 +1291,7 @@ switching:
 system:
   _self: "نظام"
   default: "النظام الافتراضي"
+  audio: "صوت النظام"
 teach:
   custom_words: "تعليم الكلمات المخصصة"
 temporarily:
@@ -1171,9 +1305,23 @@ thanks:
   to_for_the_contribution_pr_61: "شكرًا لـ %@ على المساهمة (PR #61)."
 the:
   floating_indicator_is_hidden: "المؤشر العائم مخفي."
+  live_speaker_model_could_not_be_loaded_recor: "تعذّر تحميل نموذج المتحدثين المباشر. التسجيل مستمر، والملاحظة النهائية تسمّي الجميع."
   model_failed_to_load_within_60_seconds_this: "\" \"فشل تحميل النموذج خلال 60 ثانية. وهذا يعني عادةً أن ملفات النموذج تالفة أو غير متوافقة.                          لإصلاح ذلك: 1. افتح الإعدادات → النماذج 2. احذف النموذج الذي به مشكلة 3. أعد تنزيل النموذج إذا استمرت المشكلة، فجرّب نموذجًا أصغر (Tiny أو Base).             \"\""
   new_nemotron_streaming_engine_shows_words_as: "يعرض محرك Nemotron الجديد للبث الكلمات أثناء نطقها، ويتم تسخين المحرك مسبقًا عند التشغيل حتى يبدأ أول إملاء لك دون تأخير."
   selected_chunk_variant_isn_t_downloaded_yet: "لم يتم تنزيل متغير القطعة المحدد بعد. سيؤدي التبديل إلى بدء التنزيل."
+  audio_and_the_live_transcript_are_deleted_yo: "يُحذف الصوت والنص المباشر. تبقى الملاحظات التي كتبتها."
+  enhanced_note_could_not_be_generated_try_aga: "تعذّر إنشاء الملاحظة المعززة. حاول مرة أخرى."
+  enhanced_note_could_not_be_saved_try_again: "تعذّر حفظ الملاحظة المعززة. حاول مرة أخرى."
+  model_returned_an_empty_note_try_again: "أعاد النموذج ملاحظة فارغة. حاول مرة أخرى."
+  note_enhancement_model_is_unavailable_check: "نموذج تعزيز الملاحظات غير متاح. تحقق منه في الإعدادات، ثم حاول مرة أخرى."
+  note_this_recording_belongs_to_could_not_be_opened: "تعذّر فتح الملاحظة التي ينتمي إليها هذا التسجيل."
+  recorded_audio_could_not_be_prepared: "تعذّر تجهيز الصوت المسجَّل للنسخ."
+  recorder_did_not_start: "لم يبدأ المسجّل."
+  transcript_fills_in_as_you_speak: "يمتلئ النص أثناء حديثك."
+  transcript_starts_once_you_speak: "يبدأ النص بمجرد أن تتكلم."
+  answer_came_back_in_a_form_pindrop_could_not: "وصلت الإجابة بصيغة تعذّر على Pindrop قراءتها. اسأل مرة أخرى."
+  answer_could_not_be_generated_check_your_con: "تعذّر إنشاء الإجابة. تحقق من اتصالك، ثم اسأل مرة أخرى."
+  model_returned_an_empty_answer_ask_again: "أعاد النموذج إجابة فارغة. اسأل مرة أخرى."
 theme:
   _self: "سمة"
   changes_apply_live_across_the_workspace_se: "يتم تطبيق تغييرات السمات مباشرة عبر مساحة العمل والإعدادات ومحرر الملاحظات والمؤشرات العائمة."
@@ -1198,6 +1346,8 @@ this:
   will_permanently_remove_the_transcript_and: "سيؤدي هذا إلى إزالة النص وملف الوسائط المُدار الخاص به نهائيًا."
   will_permanently_remove_this_note: "سيؤدي هذا إلى إزالة هذه الملاحظة نهائيًا."
   permanently_deletes_all_stored_text_pairs_f: "يؤدي هذا إلى حذف كل أزواج النصوص المخزَّنة نهائيًا من هذا الـ Mac."
+  template_could_not_be_read_pick_another_tem: "تعذّرت قراءة هذا القالب. اختر قالبًا آخر وحاول مرة أخرى."
+  note_could_not_be_opened_close_it_and_open: "تعذّر فتح هذه الملاحظة. أغلقها ثم افتحها مرة أخرى."
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1209,6 +1359,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "للإملاء والسماح لـ Pindrop بالنسخ لك"
   start_talking: "لبدء الحديث"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "اليوم"
 toggle:
   _self: "تبديل"
@@ -1233,6 +1384,7 @@ transcription:
   metadata: "البيانات الوصفية للنسخ"
   saved: "تم حفظ النسخ"
   update: "تحديث النسخ"
+  done: "اكتمل النسخ"
 transcriptions:
   _self: "النسخ"
   f0972acc: "النسخ"
@@ -1244,12 +1396,14 @@ try:
   a_different_search_term_0ba628a3: "حاول استخدام مصطلح بحث مختلف."
   a_different_search_term_in_this_folder: "حاول استخدام مصطلح بحث مختلف في هذا المجلد."
   searching_for_terms_like_hotkeys_microphone: "حاول البحث عن مصطلحات مثل مفاتيح التشغيل السريع أو الميكروفون أو التحديثات أو الوضع الحيوي."
+  again: "حاول مرة أخرى"
 turkish:
   _self: "تركي"
 two:
   new_dictation_languages_fully_wired_into_mod: "لغتان جديدتان للإملاء، متصلتان بالكامل بتوصيات النماذج."
 type:
   text_directly_into_the_active_app_when_poss: "اكتب النص مباشرةً في التطبيق النشط عندما يكون ذلك ممكنًا"
+  a_question_about_this_note_then_send_it_aga: "اكتب سؤالًا عن هذه الملاحظة، ثم أرسله مرة أخرى."
 u10:
   floating_inserted_into: "تم الإدراج في %@"
   floating_microphone_unavailable: "الميكروفون غير متاح"
@@ -1320,7 +1474,7 @@ u4:
   home_recent_empty_hint: "ستظهر أحدث إملاءاتك هنا."
   home_streak: "سلسلة"
   home_subline_duration_only: "%@ من الإملاء."
-  home_subline_full: "%@ من الإملاء — حوالي %@ موفّرة مقارنة بالكتابة."
+  home_subline_full: "%@ من الإملاء. نحو %@ موفَّرة مقارنة بالكتابة."
   home_this_week: "هذا الأسبوع"
   home_welcome_tagline: "تكلّم. تُكتب."
   home_words_per_min: "كلمات / د"
@@ -1328,6 +1482,11 @@ u4:
   home_words_today: "كلمات اليوم"
   home_you_spoke_this_week: "لقد نطقت %@ هذا الأسبوع."
   home_zero_day: "0-يوم"
+  home_n_sessions_grouped: "%@ جلسات"
+  home_no_dictations_yet: "لا يوجد إملاء بعد."
+  home_one_session: "جلسة واحدة"
+  home_press_hotkey_to_start: "اضغط %@ من أي مكان للبدء."
+  home_stop: "إيقاف"
 u5:
   u7_add_replacement: "Add replacement"
   u7_add_word: "Add word"
@@ -1486,8 +1645,13 @@ vocabulary:
   _self: "مفردات"
 voice:
   _self: "Voice"
+  isolation: "عزل الصوت"
+  reduce_background_noise_before_transcription: "تقليل ضوضاء الخلفية قبل النسخ"
+  note: "ملاحظة صوتية"
 vs:
   typing: "مقابل الكتابة"
+watch:
+  for_calls: "مراقبة المكالمات"
 web:
   link: "Web link"
 welcome:
@@ -1515,13 +1679,16 @@ wpm:
 yesterday:
   _self: "أمس"
 you:
+  _self: "أنت"
   are_a_note_formatting_assistant_transform_th: "أنت مساعد تنسيق الملاحظات. قم بتحويل النص المكتوب إلى ملاحظة جيدة التنظيم. القواعد: ن - إصلاح الأخطاء النحوية وعلامات الترقيم والأخطاء الإملائية - بالنسبة للمحتوى الأطول (أكثر من 3 فقرات)، قم بإضافة تنسيق تخفيض السعر: - استخدم الرؤوس (## أو ###) لتنظيم الأقسام - استخدم النقاط النقطية أو القوائم المرقمة حيثما كان ذلك مناسبًا - استخدم **غامق** للتأكيد على المصطلحات الرئيسية - بالنسبة للمحتوى الأقصر، اجعل الأمر بسيطًا مع الحد الأدنى من التنسيق - حافظ على المعنى الأصلي و نغمة - لا تضف محتوى غير موجود في النص الأصلي - قم بإرجاع الملاحظة المنسقة فقط دون أي تعليق"
   are_a_text_enhancement_assistant_improve_the: "أنت مساعد تحسين النص. تحسين القواعد النحوية وعلامات الترقيم والتنسيق للنص المقدم مع الحفاظ على معناه الأصلي ونغمته. قم بإرجاع النص المحسن فقط دون أي تعليق إضافي."
   can_change_these_anytime_from_the_menu_bar_s: "يمكنك تغيير هذه الإعدادات في أي وقت من شريط القائمة → الإعدادات → مفاتيح التشغيل السريع"
   re_all_set: "أنت جاهز تمامًا!"
   re_all_set_058a8130: "أنت جاهز تمامًا!"
+  spoke_here_the_finished_note_has_it: "تحدّثت هنا. الملاحظة النهائية تتضمّن كلامك."
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" لقد تجاوزت حد معدل واجهة برمجة التطبيقات (API) أو حصتها.                                  لحل هذه المشكلة: 1. انتظر بضع دقائق وحاول مرة أخرى 2. تحقق من حدود استخدام موفر واجهة برمجة التطبيقات (API) 3. فكر في ترقية خطة واجهة برمجة التطبيقات (API) الخاصة بك تم حفظ النسخ بدون تحسين.                 \"\""
   re_in_control: "أنت المتحكم"
+  deleted_this_transcript: "لقد حذفت هذا النص."
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\" \"يبدو أن مفتاح API الخاص بك غير صالح أو منتهي الصلاحية.                                  لإصلاح ذلك: 1. افتح الإعدادات → تحسين الذكاء الاصطناعي 2. تحقق من صحة مفتاح واجهة برمجة التطبيقات (API) الخاص بك 3. تأكد من صحة نقطة نهاية واجهة برمجة التطبيقات (API) الخاصة بك تم حفظ النسخ بدون تحسين.                 \"\""
   floating_indicator_is_now_a_living_audio_re: "أصبح المؤشر العائم الآن كرة حية تتفاعل مع الصوت. يتنفس أثناء الخمول، ويتمدد عندما تتحدث، ويبث كلماتك مباشرة أثناء الإملاء."
@@ -1533,6 +1700,8 @@ your:
   stats: "احصائياتك"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "كلماتك تبقى ملكك"
+  enhanced_note_is_ready: "ملاحظتك المعززة جاهزة."
+  notes_and_the_enhanced_note_stay_the_transc: "تبقى ملاحظاتك والملاحظة المعززة. يُخفى النص من هذه الملاحظة."
 zoom:
   _self: "تكبير/تصغير"
 polish:
@@ -1578,3 +1747,99 @@ total:
 tokens:
   in_out: "%@ إدخال / %@ إخراج من الرموز"
   in_out_thinking: "%@ إدخال / %@ إخراج / %@ تفكير من الرموز"
+auto:
+  _self: "تلقائي"
+discard:
+  recording: "تجاهل التسجيل"
+  this_recording: "هل تريد تجاهل هذا التسجيل؟"
+finalizing:
+  _self: "جارٍ الإنهاء"
+finish:
+  _self: "إنهاء"
+  the_active_transcription_before_starting: "أنهِ النسخ الجاري قبل بدء نسخ آخر."
+  the_active_transcription_before_starting_another: "أنهِ النسخ الجاري قبل بدء نسخ آخر."
+generate:
+  enhanced_note: "إنشاء ملاحظة معززة"
+generated:
+  _self: "أُنشئت %@"
+  1_2_template: "أُنشئت %1$@ · قالب %2$@"
+helpful:
+  _self: "مفيدة"
+identifying:
+  speakers: "جارٍ تحديد المتحدثين"
+jump:
+  to_live: "الانتقال إلى المباشر"
+  to_this_line: "الانتقال إلى هذا السطر"
+mic:
+  _self: "الميكروفون"
+more:
+  note_actions: "إجراءات أخرى للملاحظة"
+  recording_options: "خيارات تسجيل أخرى"
+my:
+  notes: "ملاحظاتي"
+nothing:
+  was_transcribed_yet: "لم يُنسخ شيء بعد."
+playback:
+  position: "موضع التشغيل"
+s:
+  to_save: "⌘S للحفظ"
+sealing:
+  audio: "جارٍ ختم الصوت"
+  the_recording: "جارٍ ختم التسجيل."
+see:
+  this_in_the_transcript: "عرض هذا في النص"
+  where_this_came_from: "عرض مصدر هذا"
+template:
+  _self: "القالب: %@"
+  3ec1ae06: "القالب"
+templates:
+  _self: "القوالب"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "لا يوجد نص لتعزيزه بعد. سجّل هذه الملاحظة أولًا."
+  is_nothing_to_ask_about_yet_record_or_writ: "لا يوجد شيء لسؤاله بعد. سجّل أو اكتب شيئًا أولًا."
+transcribing:
+  _self: "جارٍ النسخ"
+  failed_the_recording_is_saved_try_a: "فشل النسخ. التسجيل محفوظ. حاول مرة أخرى، أو افتح الصوت من الملاحظة."
+transcript:
+  _self: "النص"
+  so_far_pindrop_is_checking_it_against: "النص حتى الآن. يتحقق Pindrop منه مقابل التسجيل."
+  source: "مصدر النص %@"
+was:
+  _self: "سابقًا %@"
+  this_note_useful: "هل كانت هذه الملاحظة مفيدة؟"
+writing:
+  note: "جارٍ كتابة الملاحظة"
+  your_enhanced_note: "جارٍ كتابة ملاحظتك المعززة."
+  your_enhanced_note_comes_next_long_recor: "تأتي بعد ذلك كتابة ملاحظتك المعززة. قد تستغرق التسجيلات الطويلة بضع دقائق. يمكنك متابعة الكتابة."
+  your_enhanced_note_with: "جارٍ كتابة ملاحظتك المعززة باستخدام %@."
+answers:
+  come_from_this_note_s_transcript_and_you: "تأتي الإجابات من نص هذه الملاحظة ومزوّد الذكاء الاصطناعي لديك. تحقق من أي شيء مهم."
+ask:
+  a_follow_up: "اطرح سؤالًا إضافيًا"
+  about_this_note: "اسأل عن هذه الملاحظة"
+  this_note: "اسأل هذه الملاحظة"
+detected:
+  from_the_recording_renames_apply_to_the: "اكتُشف من التسجيل. تنطبق إعادة التسمية على النص والملاحظات المقبلة."
+expect:
+  1: "المتوقع: %1$@"
+from:
+  the_transcript: "من النص"
+list:
+  action_items: "سرد عناصر الإجراءات"
+match:
+  1_d_of_2_d: "التطابق %1$d من %2$d"
+previous:
+  match: "التطابق السابق"
+that:
+  speaker_profile_no_longer_exists_try_reopen: "لم يعد ملف المتحدث هذا موجودًا. حاول إعادة فتح هذه الملاحظة."
+thinking:
+  _self: "التفكير…"
+write:
+  this_note_again: "إعادة كتابة هذه الملاحظة"
+matching:
+  names: "جارٍ مطابقة الأسماء"
+skipped:
+  _self: "تم التخطي"
+recovered:
+  _self: "مستعادة"
+  from_a_recording_that_was_interrupted: "تمت الاستعادة من تسجيل انقطع."

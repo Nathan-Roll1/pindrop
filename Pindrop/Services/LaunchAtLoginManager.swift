@@ -8,6 +8,7 @@
 import Foundation
 import ServiceManagement
 import os.log
+import PindropCore
 
 protocol LaunchAtLoginServiceProtocol {
     var status: SMAppService.Status { get }

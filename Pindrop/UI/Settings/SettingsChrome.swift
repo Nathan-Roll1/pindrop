@@ -9,6 +9,7 @@
 
 import AppKit
 import SwiftUI
+import PindropCore
 
 // MARK: - Root shell (titlebar + tab strip + scrolling pane)
 
@@ -30,7 +31,8 @@ struct SettingsShellView: View {
                     settings: settings,
                     tab: model.selectedTab,
                     launchAtLoginManager: launchAtLoginManager,
-                    updateService: updateService
+                    updateService: updateService,
+                    meetingInvitationController: model.meetingInvitationController
                 )
                 .padding(.top, SettingsLayoutMetrics.contentTopPadding)
                 .padding(.horizontal, SettingsLayoutMetrics.contentSidePadding)
@@ -68,13 +70,13 @@ struct SettingsShellView: View {
     private var tabStrip: some View {
         VStack(spacing: 0) {
             HStack(spacing: SettingsLayoutMetrics.tabGap) {
-                ForEach(SettingsTab.allCases) { tab in
+                ForEach(model.visibleTabs) { tab in
                     SettingsTabChip(
                         tab: tab,
                         isSelected: model.selectedTab == tab,
                         locale: locale
                     ) {
-                        model.selectedTab = tab
+                        model.select(tab)
                     }
                 }
             }
@@ -93,8 +95,9 @@ struct SettingsShellView: View {
     }
 
     private func moveTabFocus(_ direction: MoveCommandDirection) {
+        let tabs = model.visibleTabs
         guard direction == .left || direction == .right,
-              let currentIndex = SettingsTab.allCases.firstIndex(of: model.selectedTab)
+              let currentIndex = tabs.firstIndex(of: model.selectedTab)
         else { return }
 
         let visualStep: Int
@@ -102,9 +105,8 @@ struct SettingsShellView: View {
         case (.right, .leftToRight), (.left, .rightToLeft): visualStep = 1
         default: visualStep = -1
         }
-        let tabs = SettingsTab.allCases
         let nextIndex = min(max(currentIndex + visualStep, tabs.startIndex), tabs.index(before: tabs.endIndex))
-        model.selectedTab = tabs[nextIndex]
+        model.select(tabs[nextIndex])
     }
 }
 
@@ -484,9 +486,37 @@ extension SettingsLogExport {
 
 @MainActor
 final class SettingsWindowModel: ObservableObject {
-    @Published var selectedTab: SettingsTab = .general
+    @Published private(set) var selectedTab: SettingsTab = .general
+    /// True when this machine can capture system audio, which is the one gate on
+    /// the whole Meetings section. Set once the coordinator knows the answer.
+    @Published private(set) var isMeetingSectionAvailable = false
+    /// Runs the notification permission request for the Meetings section.
+    ///
+    /// Not `@Published`: it is `@Observable`, so the pane tracks its own
+    /// properties. This slot only carries it to the pane.
+    private(set) var meetingInvitationController: MeetingInvitationController?
 
+    var visibleTabs: [SettingsTab] {
+        SettingsTab.visibleCases(isMeetingSectionAvailable: isMeetingSectionAvailable)
+    }
+
+    /// Selects a tab, refusing one that is not on screen.
+    ///
+    /// A hidden tab can still be asked for: `show(tab:)` takes any case, and the
+    /// UI-test tab environment key takes a raw string.
     func select(_ tab: SettingsTab) {
-        selectedTab = tab
+        selectedTab = visibleTabs.contains(tab) ? tab : .general
+    }
+
+    func configureMeetings(
+        isAvailable: Bool,
+        invitationController: MeetingInvitationController?
+    ) {
+        meetingInvitationController = invitationController
+        guard isMeetingSectionAvailable != isAvailable else { return }
+        isMeetingSectionAvailable = isAvailable
+        // Hiding the section under a selected Meetings tab would leave the pane
+        // on screen with no way back to it.
+        select(selectedTab)
     }
 }

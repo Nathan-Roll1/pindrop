@@ -7,27 +7,18 @@
 
 import SwiftUI
 
-/// Secondary action button: page bg, line border, radius 8 (spec §6).
-struct SecondaryButton: View {
-    let title: String
-    var systemImage: String? = nil
-    var action: () -> Void
+/// The secondary control surface: content background, 1px line border, radius 8
+/// (spec §6). Every quiet button and menu in the page chrome wears it, so they
+/// keep the same shape when one of them changes.
+struct MenuButtonChrome: ViewModifier {
+    // Paper: secondary chrome pads 7/13.
+    var verticalPadding: CGFloat = 7
+    var horizontalPadding: CGFloat = 13
 
-    var body: some View {
-        Button(action: action) {
-            // Icon inside Text so the SF Symbol aligns on its baked-in baseline —
-            // box-centering glyphs with ascenders (square.and.arrow.up) reads "high".
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                if let systemImage {
-                    Text(Image(systemName: systemImage))
-                        .font(.system(size: 12, weight: .medium))
-                }
-                Text(title)
-                    .font(AppTypography.label)
-            }
-            .foregroundStyle(AppColors.textPrimary)
-            .padding(.vertical, 6)
-            .padding(.horizontal, 12)
+    func body(content: Content) -> some View {
+        content
+            .padding(.vertical, verticalPadding)
+            .padding(.horizontal, horizontalPadding)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(AppColors.contentBackground)
@@ -36,12 +27,43 @@ struct SecondaryButton: View {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .strokeBorder(AppColors.border, lineWidth: 1)
             )
-        }
-        .buttonStyle(.plain)
     }
 }
 
-/// Export menu chrome matching `SecondaryButton` metrics (spec §6).
+extension View {
+    /// Wraps a label in the secondary chrome.
+    func menuButtonChrome(
+        verticalPadding: CGFloat = 7,
+        horizontalPadding: CGFloat = 13
+    ) -> some View {
+        modifier(
+            MenuButtonChrome(
+                verticalPadding: verticalPadding,
+                horizontalPadding: horizontalPadding
+            )
+        )
+    }
+}
+
+/// Secondary action button: page bg, line border, radius 8 (spec §6).
+struct SecondaryButton: View {
+    let title: String
+    var systemImage: String? = nil
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            SecondaryButtonLabel(title: title, systemImage: systemImage)
+                .menuButtonChrome()
+        }
+        .buttonStyle(.plain)
+        .focusRing(.rounded(.sm))
+        .accessibilityLabel(title)
+    }
+}
+
+/// Export menu chrome matching `SecondaryButton` metrics (spec §6), with the
+/// small chevron that says it opens a menu.
 struct ExportMenuButton: View {
     let title: String
     var systemImage: String? = "square.and.arrow.up"
@@ -57,31 +79,45 @@ struct ExportMenuButton: View {
                 }
             }
         } label: {
-            // Icon inside Text so the SF Symbol aligns on its baked-in baseline —
-            // box-centering glyphs with ascenders (square.and.arrow.up) reads "high".
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                if let systemImage {
-                    Text(Image(systemName: systemImage))
-                        .font(.system(size: 12, weight: .medium))
-                }
-                Text(title)
-                    .font(AppTypography.label)
-            }
-            .foregroundStyle(AppColors.textPrimary)
-            .padding(.vertical, 6)
-            .padding(.horizontal, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(AppColors.contentBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(AppColors.border, lineWidth: 1)
-            )
+            SecondaryButtonLabel(title: title, systemImage: systemImage, showsChevron: true)
+                .menuButtonChrome()
         }
-        .menuStyle(.borderlessButton)
+        // `.button` + plain: the borderless style redraws the label with its own
+        // popup cell and drops the chrome; this pair renders the label as-is.
+        .menuStyle(.button)
+        .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .fixedSize()
+        .focusRing(.rounded(.sm))
+    }
+}
+
+/// The label both wear: optional glyph, then the title.
+private struct SecondaryButtonLabel: View {
+    let title: String
+    var systemImage: String?
+    var showsChevron = false
+
+    var body: some View {
+        // Icon inside Text so the SF Symbol aligns on its baked-in baseline —
+        // box-centering glyphs with ascenders (square.and.arrow.up) reads "high".
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            if let systemImage {
+                Text(Image(systemName: systemImage))
+                    .font(AppIcon.chip())
+            }
+            Text(title)
+                .font(AppTypography.label)
+            if showsChevron {
+                Text(Image(systemName: "chevron.down"))
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(AppColors.textSecondary)
+            }
+        }
+        .foregroundStyle(AppColors.textPrimary)
+        // Pinned to the label line height so every control on the header rail
+        // shares one height (the 30×30 overflow square beside this one).
+        .frame(height: AppTypography.labelMetrics.lineHeight)
     }
 }
 

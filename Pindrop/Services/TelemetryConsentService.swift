@@ -10,6 +10,7 @@
 //
 
 import Foundation
+import PindropCore
 
 @MainActor
 protocol TelemetryConsentPresenting: AnyObject {

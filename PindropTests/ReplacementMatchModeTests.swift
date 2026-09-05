@@ -1,13 +1,18 @@
 //
 //  ReplacementMatchModeTests.swift
-//  Pindrop
+//  PindropTests
 //
 //  Created on 2026-07-09.
+//
+//  App/data-retained WordReplacement.matchMode resolution. Pure enum/command-palette
+//  cases live in Packages/PindropShared/Tests/PindropCoreTests.
 //
 
 import Foundation
 import Testing
 @testable import Pindrop
+import PindropCore
+import PindropData
 
 @Suite
 struct ReplacementMatchModeTests {

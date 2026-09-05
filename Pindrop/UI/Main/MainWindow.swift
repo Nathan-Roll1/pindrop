@@ -6,80 +6,274 @@
 //
 
 import SwiftUI
+import Observation
 import SwiftData
 import AppKit
+import PindropCore
+import PindropData
+import PindropSpeech
 
 // MARK: - Navigation
 
-enum MainNavItem: String, Identifiable {
-    case home = "Home"
-    case stats = "Stats"
-    case history = "History"
-    case notes = "Notes"
-    /// Unrouted as of U2 — kept for API compatibility; navigation redirects to Library.
-    case transcribe = "Transcribe"
-    case models = "Models"
-    case dictionary = "Dictionary"
-
-    /// Primary sidebar destinations after U2 restructure.
-    /// Order: Home, Stats, Library, Notes, Dictionary, Models (⌘1–6).
-    static let primaryNavigationItems: [MainNavItem] = [
-        .home,
-        .stats,
-        .history,
-        .notes,
-        .dictionary,
-        .models
-    ]
-
-    /// View-menu keyboard shortcut digit for each primary nav item ("1"..."5").
-    static func viewMenuShortcut(for item: MainNavItem) -> String? {
-        guard let index = primaryNavigationItems.firstIndex(of: item) else { return nil }
-        return String(index + 1)
-    }
-
-    /// Resolves legacy / removed destinations onto a routed page.
-    var resolvedDestination: MainNavItem {
-        switch self {
-        case .transcribe: return .history
-        default: return self
-        }
-    }
+enum MainNavGroup: String, CaseIterable, Identifiable, Sendable {
+    case capture
+    case workspace
+    case tools
 
     var id: String { rawValue }
 
     func title(locale: Locale) -> String {
         switch self {
-        case .history:
-            return localized("Library", locale: locale)
-        default:
-            return localized(rawValue, locale: locale)
+        case .capture:
+            localized("Capture", locale: locale)
+        case .workspace:
+            localized("Workspace", locale: locale)
+        case .tools:
+            localized("Tools", locale: locale)
+        }
+    }
+}
+
+enum MainNavItem: String, CaseIterable, Identifiable, Sendable {
+    case dictate = "dictate"
+    case notes = "notes"
+    case library = "library"
+    case stats = "stats"
+    case dictionary = "dictionary"
+    case models = "models"
+
+    /// Raw values retired when Voice Note and Meeting merged into Notes. Older
+    /// persisted selections, View-menu round-trips, MCP calls, and deep links can
+    /// still carry them, so every entry point resolves through `resolve(rawValue:)`.
+    static let legacyRawValueAliases: [String: MainNavItem] = [
+        "voice-note": .notes,
+        "meeting": .notes
+    ]
+
+    /// The single resolution point for externally supplied raw values.
+    /// Use this instead of `MainNavItem(rawValue:)` everywhere.
+    static func resolve(rawValue: String) -> MainNavItem? {
+        MainNavItem(rawValue: rawValue) ?? legacyRawValueAliases[rawValue]
+    }
+
+    static let sidebarGroups: [(group: MainNavGroup, items: [MainNavItem])] = [
+        (.capture, [.dictate, .notes]),
+        (.workspace, [.library, .stats]),
+        (.tools, [.dictionary, .models])
+    ]
+    static let allSidebarItems = sidebarGroups.flatMap { $0.items }
+
+    static func viewMenuShortcut(for item: MainNavItem) -> String {
+        guard let index = allSidebarItems.firstIndex(of: item) else {
+            preconditionFailure("Every main navigation item must have a View-menu shortcut.")
+        }
+        return String(index + 1)
+    }
+
+    var id: String { rawValue }
+    var accessibilityIdentifierComponent: String { rawValue }
+
+    func title(locale: Locale) -> String {
+        switch self {
+        case .dictate:
+            localized("Dictate", locale: locale)
+        case .notes:
+            localized("Notes", locale: locale)
+        case .library:
+            localized("Library", locale: locale)
+        case .stats:
+            localized("Stats", locale: locale)
+        case .dictionary:
+            localized("Dictionary", locale: locale)
+        case .models:
+            localized("Models", locale: locale)
         }
     }
 
     var icon: String {
         switch self {
-        case .home: return "house"
-        case .stats: return "chart.xyaxis.line"
-        case .history: return "books.vertical"
-        case .notes: return "note.text"
-        case .transcribe: return "waveform"
-        case .models: return "cpu"
-        case .dictionary: return "text.book.closed"
+        case .dictate: "waveform"
+        case .notes: "note.text"
+        case .library: "books.vertical"
+        case .stats: "chart.xyaxis.line"
+        case .dictionary: "text.book.closed"
+        case .models: "cpu"
         }
     }
-
-    var isComingSoon: Bool { false }
 }
 
-// MARK: - Navigation Notification
+/// What a sidebar row shows in its count slot.
+///
+/// Only one row ever has anything to say: Notes wears a recording dot while a
+/// note capture is running, so the sidebar answers "where is that recording?"
+/// without the person opening anything.
+enum MainNavAccessory {
+    static func accessory(
+        for item: MainNavItem,
+        captureStatus: SidebarCaptureStatus?
+    ) -> SidebarItemAccessory? {
+        guard item == .notes, captureStatus?.kind == .recording else { return nil }
+        return .recordingDot
+    }
+}
 
-extension Notification.Name {
-    static let navigateToMainNavItem = Notification.Name("navigateToMainNavItem")
-    static let openHistoryRecord = Notification.Name("openHistoryRecord")
-    static let sidebarStateChanged = Notification.Name("sidebarStateChanged")
-    static let mainNavItemDidChange = Notification.Name("mainNavItemDidChange")
-    static let focusHistorySearch = Notification.Name("focusHistorySearch")
+/// Sub-route inside the Notes destination. The sidebar stays on `.notes`
+/// whichever leg is showing.
+enum NotesRoute: Equatable, Sendable {
+    case list
+    case note(UUID)
+
+    var openNoteID: UUID? {
+        if case .note(let id) = self { return id }
+        return nil
+    }
+}
+
+/// One start request for a note that records. `noteID` is `nil` when the capture
+/// should create its own note; `includeSystemAudio` selects the second source.
+///
+/// `templatePresetIdentifier` is the template the finished note is written with.
+/// It is chosen before the capture starts, because the enhanced panel is written
+/// the moment finalization ends, with nobody necessarily watching.
+struct NoteCaptureRequest: Equatable, Sendable {
+    var noteID: UUID?
+    var includeSystemAudio: Bool
+    var expectedSpeakerCount: Int?
+    var templatePresetIdentifier: String?
+
+    init(
+        noteID: UUID? = nil,
+        includeSystemAudio: Bool = false,
+        expectedSpeakerCount: Int? = nil,
+        templatePresetIdentifier: String? = nil
+    ) {
+        self.noteID = noteID
+        self.includeSystemAudio = includeSystemAudio
+        self.expectedSpeakerCount = expectedSpeakerCount
+        self.templatePresetIdentifier = templatePresetIdentifier
+    }
+}
+
+/// The two starts the menu bar offers, and the durable intent they record.
+///
+/// `CaptureIntent` needs a session identifier, which no caller has before the
+/// store creates the session, so the presets live on the start request instead
+/// and fix the source list. The store binds them to the session it creates.
+extension NoteCaptureRequest {
+    /// A note that records a call: the microphone, and the system output when
+    /// the Meetings section says so.
+    ///
+    /// It carries the meeting template, so a call is written as meeting notes.
+    /// The template ships with the picker in the note page header, which is what
+    /// lets a reader see which template ran and pick another one.
+    ///
+    /// `recordsSystemAudio` has no default: every caller reads
+    /// `SettingsStore.recordSystemAudioInMeetingNotes`, and a default here would
+    /// let a new caller quietly ignore it.
+    static func meetingNote(noteID: UUID? = nil, recordsSystemAudio: Bool) -> NoteCaptureRequest {
+        NoteCaptureRequest(
+            noteID: noteID,
+            includeSystemAudio: recordsSystemAudio,
+            templatePresetIdentifier: BuiltInPresets.meetingNotes.identifier
+        )
+    }
+
+    /// A note that records only the person holding the machine. It stays
+    /// template-neutral: one person talking is not a meeting.
+    static func soloNote(noteID: UUID? = nil) -> NoteCaptureRequest {
+        NoteCaptureRequest(noteID: noteID, includeSystemAudio: false)
+    }
+
+    /// The sources this start creates, which is what the capture store records
+    /// as the intent's requested sources.
+    var requestedSourceKinds: [CaptureSourceKind] {
+        CaptureIntent.requestedSourceKinds(includeSystemAudio: includeSystemAudio)
+    }
+
+    /// The durable intent this start records, from the surface that asked.
+    ///
+    /// A capture that makes its own note only learns the note identifier once
+    /// the note is committed, so the intent starts as `newNote` and is bound a
+    /// moment later. A capture aimed at an existing note says so now. The
+    /// template travels with the intent, so a capture recovered after a crash is
+    /// written with the template the person picked before it.
+    func captureIntentRequest(origin: CaptureIntentOrigin) -> CaptureIntentRequest {
+        CaptureIntentRequest(
+            destination: noteID == nil ? .newNote : .existingNote,
+            destinationNoteID: noteID,
+            requestedTemplatePresetIdentifier: templatePresetIdentifier,
+            origin: origin
+        )
+    }
+}
+
+struct LibraryOpenRequest: Equatable, Sendable {
+    let recordID: UUID
+    let generation: UInt
+}
+
+@MainActor
+@Observable
+final class MainWindowRouteState {
+    private(set) var selectedItem: MainNavItem = .dictate
+    private(set) var notesRoute: NotesRoute = .list
+    private(set) var libraryOpenRequest: LibraryOpenRequest?
+    private(set) var librarySearchRequest: UInt?
+
+    private var nextLibraryRequestGeneration: UInt = 0
+    private var nextLibrarySearchGeneration: UInt = 0
+
+    func navigate(to item: MainNavItem) {
+        // Picking Notes in the sidebar always lands on the list; `openNote`
+        // is the only way into a note page.
+        if item == .notes {
+            notesRoute = .list
+        }
+        selectedItem = item
+    }
+
+    /// Resolves a raw value (persisted selection, menu round-trip, deep link)
+    /// through the legacy alias map, then navigates. Unknown values are ignored.
+    func navigate(toRawValue rawValue: String) {
+        guard let item = MainNavItem.resolve(rawValue: rawValue) else { return }
+        navigate(to: item)
+    }
+
+    /// Opens a note in the main window and keeps the sidebar on Notes.
+    func openNote(id: UUID) {
+        notesRoute = .note(id)
+        selectedItem = .notes
+    }
+
+    /// Returns the Notes destination to its list, leaving the selection alone.
+    func closeNote() {
+        notesRoute = .list
+    }
+
+    func openLibrary(recordID: UUID) {
+        nextLibraryRequestGeneration &+= 1
+        libraryOpenRequest = LibraryOpenRequest(
+            recordID: recordID,
+            generation: nextLibraryRequestGeneration
+        )
+        selectedItem = .library
+    }
+
+    func focusLibrarySearch() {
+        nextLibrarySearchGeneration &+= 1
+        librarySearchRequest = nextLibrarySearchGeneration
+        selectedItem = .library
+    }
+
+    func consumeLibraryOpenRequest(generation: UInt) {
+        guard libraryOpenRequest?.generation == generation else { return }
+        libraryOpenRequest = nil
+    }
+
+    func consumeLibrarySearchRequest(generation: UInt) {
+        guard librarySearchRequest == generation else { return }
+        librarySearchRequest = nil
+    }
 }
 
 // MARK: - Window chrome metrics
@@ -95,33 +289,108 @@ enum MainWindowChrome {
 struct MainWindow: View {
     @ObservedObject private var theme = PindropThemeController.shared
     @ObservedObject var settingsStore: SettingsStore
-    @State private var selectedNav: MainNavItem = .home
-    @State private var historyRecordIDToOpen: UUID?
+    let routeState: MainWindowRouteState
     let floatingIndicatorState: FloatingIndicatorState?
     let mediaTranscriptionState: MediaTranscriptionFeatureState?
     let recordingState: RecordingFeatureState?
     let modelManager: ModelManager?
     let onImportMediaFiles: (([URL], TranscriptionJobOptions) -> Void)?
     let onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?
-    let onClearMediaQueue: (() -> Void)?
     let onDownloadDiarizationModel: (() -> Void)?
-    let onNewTranscription: (() -> Void)?
-    let onStartMeetingCapture: ((Int?) -> Void)?
-    let onStartNoteCapture: (() -> Void)?
+    /// Fetches both speaker bundles for the note page's setup banner. Both, not
+    /// only the streaming one: a live name needs the offline embedder as well.
+    let onDownloadSpeakerModels: (() -> Void)?
+    let onStartDictation: (() -> Void)?
+    let onStopDictation: (() -> Void)?
+    let onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
+    /// The one live note capture, so the note page can draw its own recording.
+    let noteCaptureState: NoteCaptureState?
+    let onFinishNoteCapture: (() -> Void)?
+    let onCancelNoteCapture: (() -> Void)?
+    let onGenerateEnhancedPanel: NoteEnhancementHandler?
+    /// Answers questions about the open note. Nil keeps the Ask surface off a
+    /// build that cannot answer one.
+    let noteChatService: NoteChatService?
     let onOpenSettings: (SettingsTab) -> Void
 
-    private func navigateTo(_ item: MainNavItem) {
-        let destination = item.resolvedDestination
-        selectedNav = destination
-        NotificationCenter.default.post(
-            name: .mainNavItemDidChange,
-            object: nil,
-            userInfo: ["navItem": destination.rawValue]
-        )
+    init(
+        settingsStore: SettingsStore,
+        routeState: MainWindowRouteState,
+        floatingIndicatorState: FloatingIndicatorState?,
+        mediaTranscriptionState: MediaTranscriptionFeatureState?,
+        recordingState: RecordingFeatureState?,
+        modelManager: ModelManager?,
+        onImportMediaFiles: (([URL], TranscriptionJobOptions) -> Void)?,
+        onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?,
+        onDownloadDiarizationModel: (() -> Void)?,
+        onDownloadSpeakerModels: (() -> Void)? = nil,
+        onStartDictation: (() -> Void)?,
+        onStopDictation: (() -> Void)? = nil,
+        onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?,
+        noteCaptureState: NoteCaptureState? = nil,
+        onFinishNoteCapture: (() -> Void)? = nil,
+        onCancelNoteCapture: (() -> Void)? = nil,
+        onGenerateEnhancedPanel: NoteEnhancementHandler? = nil,
+        noteChatService: NoteChatService? = nil,
+        onOpenSettings: @escaping (SettingsTab) -> Void
+    ) {
+        self.settingsStore = settingsStore
+        self.routeState = routeState
+        self.floatingIndicatorState = floatingIndicatorState
+        self.mediaTranscriptionState = mediaTranscriptionState
+        self.recordingState = recordingState
+        self.modelManager = modelManager
+        self.onImportMediaFiles = onImportMediaFiles
+        self.onSubmitMediaLink = onSubmitMediaLink
+        self.onDownloadDiarizationModel = onDownloadDiarizationModel
+        self.onDownloadSpeakerModels = onDownloadSpeakerModels
+        self.onStartDictation = onStartDictation
+        self.onStopDictation = onStopDictation
+        self.onStartNoteCapture = onStartNoteCapture
+        self.noteCaptureState = noteCaptureState
+        self.onFinishNoteCapture = onFinishNoteCapture
+        self.onCancelNoteCapture = onCancelNoteCapture
+        self.onGenerateEnhancedPanel = onGenerateEnhancedPanel
+        self.noteChatService = noteChatService
+        self.onOpenSettings = onOpenSettings
     }
 
-    private func navigateToSettings(_ tab: SettingsTab) {
-        onOpenSettings(tab)
+    private var isCaptureBusy: Bool {
+        recordingState?.isCaptureBusy == true
+    }
+
+    // MARK: - Live note capture
+
+    /// The one note capture, reduced to what the shell chrome draws. `nil` when
+    /// nothing is recording into a note.
+    private var noteCaptureStatus: SidebarCaptureStatus? {
+        guard let noteCaptureState else { return nil }
+        switch noteCaptureState.phase {
+        case .starting, .capturing:
+            return SidebarCaptureStatus(
+                kind: .recording,
+                startedAt: noteCaptureState.startedAt,
+                noteID: noteCaptureState.noteID
+            )
+        case .finalizing, .enhancing:
+            return SidebarCaptureStatus(
+                kind: .finalizing,
+                startedAt: noteCaptureState.startedAt,
+                noteID: noteCaptureState.noteID
+            )
+        case .idle, .completed, .failed:
+            return nil
+        }
+    }
+
+    /// The note page currently on screen, if any. The global capture bar stays
+    /// away from the note that is doing the recording.
+    private var openNoteID: UUID? {
+        routeState.selectedItem == .notes ? routeState.notesRoute.openNoteID : nil
+    }
+
+    private var isNoteCaptureRecording: Bool {
+        noteCaptureStatus?.kind == .recording
     }
 
     var body: some View {
@@ -151,18 +420,6 @@ struct MainWindow: View {
         .environment(\.locale, settingsStore.selectedAppLocale.locale)
         .environment(\.layoutDirection, settingsStore.selectedAppLocale.layoutDirection)
         .themeRefresh()
-        .onReceive(NotificationCenter.default.publisher(for: .navigateToMainNavItem)) { notification in
-            if let rawValue = notification.userInfo?["navItem"] as? String,
-               let navItem = MainNavItem(rawValue: rawValue) {
-                navigateTo(navItem)
-            }
-        }
-        .onChange(of: settingsStore.sidebarExpanded) { _, _ in
-            NotificationCenter.default.post(name: .sidebarStateChanged, object: nil)
-        }
-        .onChange(of: settingsStore.sidebarPosition) { _, _ in
-            NotificationCenter.default.post(name: .sidebarStateChanged, object: nil)
-        }
     }
 
     private var isLeadingSidebar: Bool {
@@ -173,12 +430,13 @@ struct MainWindow: View {
         MainSidebar(
             isExpanded: $settingsStore.sidebarExpanded,
             position: settingsStore.selectedSidebarPosition,
-            selectedNav: selectedNav,
+            selectedNav: routeState.selectedItem,
             floatingIndicatorState: floatingIndicatorState,
-            hotkeyHint: settingsStore.toggleHotkey,
+            noteCaptureStatus: noteCaptureStatus,
             /// Leading sidebar owns top-left → clear traffic lights; trailing does not.
             reservesTrafficLightClearance: isLeadingSidebar,
-            onSelect: navigateTo,
+            onSelect: routeState.navigate,
+            onOpenCapturingNote: { routeState.openNote(id: $0) },
             onOpenSettings: { onOpenSettings(.general) }
         )
         .frame(maxHeight: .infinity, alignment: .top)
@@ -192,11 +450,34 @@ struct MainWindow: View {
             }
             detailContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // Below the content, never over it: the strip takes its own 44 pt so
+            // no page ever hides its last row behind it.
+            globalCaptureBar
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppColors.contentBackground)
         .layoutPriority(1)
         .zIndex(1)
+    }
+
+    /// The capture bar every destination shows while a note records elsewhere.
+    @ViewBuilder
+    private var globalCaptureBar: some View {
+        if let noteCaptureState,
+           let capturingNoteID = noteCaptureStatus?.noteID,
+           GlobalCaptureBarVisibility.isVisible(
+               isRecording: isNoteCaptureRecording,
+               capturingNoteID: capturingNoteID,
+               openNoteID: openNoteID
+           ) {
+            GlobalCaptureBarHost(
+                noteID: capturingNoteID,
+                startedAt: noteCaptureState.startedAt,
+                onOpenNote: { routeState.openNote(id: capturingNoteID) },
+                onFinish: { onFinishNoteCapture?() }
+            )
+        }
     }
 
     /// Clear strip that stays window-draggable via `isMovableByWindowBackground`
@@ -212,60 +493,78 @@ struct MainWindow: View {
 
     @ViewBuilder
     private var detailContent: some View {
-        switch selectedNav {
-        case .home:
-            DashboardView(
-                floatingIndicatorState: floatingIndicatorState,
+        switch routeState.selectedItem {
+        case .dictate:
+            DictateView(
                 settingsStore: settingsStore,
                 recordingState: recordingState,
-                onOpenHotkeys: { navigateToSettings(.shortcuts) },
-                onViewAllHistory: { navigateTo(.history) },
-                onShowMoreStats: { navigateTo(.stats) },
-                onOpenHistoryRecord: { recordID in
-                    historyRecordIDToOpen = recordID
-                    navigateTo(.history)
-                },
-                onNewTranscription: onNewTranscription,
-                onTranscribeFile: { navigateTo(.history) },
-                onRecordMeeting: onStartMeetingCapture,
-                onNewNote: onStartNoteCapture,
+                dictationState: floatingIndicatorState,
+                isCaptureBusy: isCaptureBusy,
+                isNoteCaptureActive: noteCaptureStatus != nil,
+                onStartDictation: onStartDictation,
+                onStopDictation: onStopDictation,
+                onOpenLibrary: { routeState.navigate(to: .library) },
+                onShowMoreStats: { routeState.navigate(to: .stats) },
+                onOpenLibraryRecord: routeState.openLibrary,
                 onDownloadDiarizationModel: onDownloadDiarizationModel
             )
+        case .library:
+            HistoryView(
+                libraryOpenRequest: routeState.libraryOpenRequest,
+                librarySearchRequest: routeState.librarySearchRequest,
+                onConsumeLibraryOpenRequest: routeState.consumeLibraryOpenRequest,
+                onConsumeLibrarySearchRequest: routeState.consumeLibrarySearchRequest,
+                mediaTranscriptionState: mediaTranscriptionState,
+                recordingState: recordingState,
+                settingsStore: settingsStore,
+                onImportMediaFiles: onImportMediaFiles,
+                onSubmitMediaLink: onSubmitMediaLink,
+                onDownloadDiarizationModel: onDownloadDiarizationModel,
+                onOpenNote: { routeState.openNote(id: $0) }
+            )
+            .accessibilityIdentifier("main.destination.library")
+        case .notes:
+            switch routeState.notesRoute {
+            case .list:
+                NotesView(
+                    onOpenNote: { routeState.openNote(id: $0) },
+                    onStartNoteCapture: onStartNoteCapture,
+                    liveCapture: NoteCaptureLiveRow.active(
+                        noteID: noteCaptureStatus?.noteID,
+                        isRecording: isNoteCaptureRecording,
+                        startedAt: noteCaptureState?.startedAt
+                    )
+                )
+                .accessibilityIdentifier("main.destination.notes")
+            case .note(let noteID):
+                NotePageView(
+                    noteID: noteID,
+                    onBack: routeState.closeNote,
+                    noteCaptureState: noteCaptureState,
+                    onStartNoteCapture: onStartNoteCapture,
+                    onFinishNoteCapture: onFinishNoteCapture,
+                    onCancelNoteCapture: onCancelNoteCapture,
+                    onGenerateEnhancedPanel: onGenerateEnhancedPanel,
+                    noteChatService: noteChatService,
+                    modelDownloadState: recordingState,
+                    onDownloadSpeakerModels: onDownloadSpeakerModels
+                )
+                .accessibilityIdentifier("main.destination.note")
+            }
         case .stats:
             StatsView()
-        case .history:
-            HistoryView(
-                recordIDToOpen: historyRecordIDToOpen,
-                mediaTranscriptionState: mediaTranscriptionState,
-                recordingState: recordingState,
-                settingsStore: settingsStore,
-                onImportMediaFiles: onImportMediaFiles,
-                onSubmitMediaLink: onSubmitMediaLink,
-                onStartMeetingCapture: onStartMeetingCapture,
-                onDownloadDiarizationModel: onDownloadDiarizationModel
-            )
-        case .notes:
-            NotesView()
-        case .transcribe:
-            // Unreachable via primary nav; resolvedDestination maps .transcribe → .history.
-            HistoryView(
-                recordIDToOpen: historyRecordIDToOpen,
-                mediaTranscriptionState: mediaTranscriptionState,
-                recordingState: recordingState,
-                settingsStore: settingsStore,
-                onImportMediaFiles: onImportMediaFiles,
-                onSubmitMediaLink: onSubmitMediaLink,
-                onStartMeetingCapture: onStartMeetingCapture,
-                onDownloadDiarizationModel: onDownloadDiarizationModel
-            )
+                .accessibilityIdentifier("main.destination.stats")
+        case .dictionary:
+            DictionaryView()
+                .accessibilityIdentifier("main.destination.dictionary")
         case .models:
             if let modelManager {
                 ModelsSettingsView(settings: settingsStore, modelManager: modelManager)
+                    .accessibilityIdentifier("main.destination.models")
             } else {
-                comingSoonView(for: selectedNav)
+                comingSoonView(for: .models)
+                    .accessibilityIdentifier("main.destination.models")
             }
-        case .dictionary:
-            DictionaryView()
         }
     }
 
@@ -288,64 +587,74 @@ struct MainWindow: View {
     }
 }
 
-// MARK: - Meeting capture options
 
-/// Shared speaker-count picker for Dashboard and Library "Record Meeting…" flows.
-/// Start invokes the callback with `nil` (Automatic) or `1...20`; Cancel starts nothing.
-struct MeetingCaptureOptionsSheet: View {
+
+// MARK: - Capturing note title
+
+/// Reads the title of the note being recorded, live.
+///
+/// The shell chrome (global bar, sidebar status card) has to name the note, and
+/// the title changes while the person types into it. A scoped query keeps that
+/// one string current without handing the whole store to the chrome.
+private struct CapturingNoteTitle<Content: View>: View {
     @Environment(\.locale) private var locale
-    @Environment(\.dismiss) private var dismiss
+    @Query private var notes: [NoteSchema.Note]
 
-    let onStart: (Int?) -> Void
+    private let content: (String) -> Content
 
-    /// `0` represents Automatic detection; `1...20` are exact speaker counts.
-    @State private var selectedOption: Int = 0
+    init(noteID: UUID, @ViewBuilder content: @escaping (String) -> Content) {
+        _notes = Query(
+            filter: #Predicate<NoteSchema.Note> { $0.id == noteID },
+            sort: \NoteSchema.Note.updatedAt
+        )
+        self.content = content
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(localized("Record Meeting…", locale: locale))
-                .font(AppTypography.headline)
-                .foregroundStyle(AppColors.textPrimary)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(localized("Expected speakers", locale: locale))
-                    .font(AppTypography.body)
-                    .foregroundStyle(AppColors.textSecondary)
-
-                Picker(localized("Expected speakers", locale: locale), selection: $selectedOption) {
-                    Text(localized("Automatic", locale: locale)).tag(0)
-                    ForEach(1...20, id: \.self) { count in
-                        Text("\(count)").tag(count)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("meetingExpectedSpeakerPicker")
-            }
-
-            HStack {
-                Spacer()
-                Button(localized("Cancel", locale: locale)) {
-                    dismiss()
-                }
-                .keyboardShortcut(.cancelAction)
-                .accessibilityIdentifier("meetingCaptureCancelButton")
-
-                Button(localized("Start Recording", locale: locale)) {
-                    let expectedCount = selectedOption == 0 ? nil : selectedOption
-                    onStart(expectedCount)
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-                .accessibilityIdentifier("meetingCaptureStartButton")
-            }
-        }
-        .padding(24)
-        .frame(minWidth: 360)
-        .accessibilityIdentifier("meetingCaptureOptionsSheet")
+        content(
+            NotesListPresentation.displayTitle(
+                title: notes.first?.title ?? "",
+                content: notes.first?.content ?? "",
+                emptyTitle: localized("Untitled Note", locale: locale)
+            )
+        )
     }
 }
 
+/// The global capture strip, with its own clock and its own title lookup so the
+/// destination it sits under never re-renders on either.
+private struct GlobalCaptureBarHost: View {
+    @Environment(\.locale) private var locale
+
+    let noteID: UUID
+    let startedAt: Date?
+    let onOpenNote: () -> Void
+    let onFinish: () -> Void
+
+    var body: some View {
+        CapturingNoteTitle(noteID: noteID) { title in
+            TimelineView(.periodic(from: startedAt ?? .now, by: 1)) { context in
+                CaptureBar(
+                    presentation: CaptureBarPresentation.make(
+                        state: CaptureBarState(
+                            phase: startedAt == nil ? .starting : .recording,
+                            elapsed: startedAt.map { max(0, context.date.timeIntervalSince($0)) } ?? 0,
+                            noteTitle: title
+                        ),
+                        density: .global,
+                        locale: locale
+                    ),
+                    onAction: { kind in
+                        switch kind {
+                        case .openNote: onOpenNote()
+                        case .finish: onFinish()
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
 
 // MARK: - Sidebar
 
@@ -357,10 +666,12 @@ private struct MainSidebar: View {
     let position: SidebarPosition
     let selectedNav: MainNavItem
     @ObservedObject private var indicatorState: FloatingIndicatorState
-    let hotkeyHint: String
+    /// The live note capture, or nil. Outranks dictation on the status card.
+    let noteCaptureStatus: SidebarCaptureStatus?
     /// When true, insert a draggable top strip so content clears traffic lights.
     let reservesTrafficLightClearance: Bool
     let onSelect: (MainNavItem) -> Void
+    let onOpenCapturingNote: (UUID) -> Void
     let onOpenSettings: () -> Void
 
     /// Aggregate library size only — never materialize TranscriptionRecord rows here.
@@ -374,18 +685,20 @@ private struct MainSidebar: View {
         position: SidebarPosition,
         selectedNav: MainNavItem,
         floatingIndicatorState: FloatingIndicatorState?,
-        hotkeyHint: String,
+        noteCaptureStatus: SidebarCaptureStatus? = nil,
         reservesTrafficLightClearance: Bool,
         onSelect: @escaping (MainNavItem) -> Void,
+        onOpenCapturingNote: @escaping (UUID) -> Void = { _ in },
         onOpenSettings: @escaping () -> Void
     ) {
         self._isExpanded = isExpanded
         self.position = position
         self.selectedNav = selectedNav
         self._indicatorState = ObservedObject(wrappedValue: floatingIndicatorState ?? FloatingIndicatorState())
-        self.hotkeyHint = hotkeyHint
+        self.noteCaptureStatus = noteCaptureStatus
         self.reservesTrafficLightClearance = reservesTrafficLightClearance
         self.onSelect = onSelect
+        self.onOpenCapturingNote = onOpenCapturingNote
         self.onOpenSettings = onOpenSettings
     }
 
@@ -393,8 +706,24 @@ private struct MainSidebar: View {
         isExpanded ? AppTheme.Window.sidebarWidth : AppTheme.Window.sidebarCollapsedWidth
     }
 
-    private var statusPhase: StatusCardPhase {
-        StatusCardPhase(state: indicatorState)
+    private func statusPhase(now: Date) -> StatusCardPhase {
+        StatusCardPhase(
+            noteCapture: noteCaptureStatus,
+            now: now,
+            isRecording: indicatorState.isRecording,
+            isProcessing: indicatorState.isProcessing,
+            duration: indicatorState.recordingDuration
+        )
+    }
+
+    /// Where a click on the status card goes.
+    private func openStatusCardDestination() {
+        switch StatusCardDestination.resolve(noteCapture: noteCaptureStatus) {
+        case .capturingNote(let noteID):
+            onOpenCapturingNote(noteID)
+        case .dictate:
+            onSelect(.dictate)
+        }
     }
 
     /// Stable identity for the active SwiftData container so count reloads when it changes.
@@ -506,16 +835,36 @@ private struct MainSidebar: View {
     // MARK: - Main Navigation
 
     private var mainNavSection: some View {
-        VStack(spacing: 2) {
-            ForEach(MainNavItem.primaryNavigationItems) { item in
-                SidebarItem(
-                    title: item.title(locale: locale),
-                    systemImage: item.icon,
-                    count: item == .history && isExpanded ? libraryCount : nil,
-                    isCollapsed: !isExpanded,
-                    isSelected: selectedNav == item,
-                    action: { onSelect(item) }
-                )
+        VStack(alignment: .leading, spacing: isExpanded ? 14 : 8) {
+            ForEach(MainNavGroup.allCases) { group in
+                if let section = MainNavItem.sidebarGroups.first(where: { $0.group == group }) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        if isExpanded {
+                            Text(group.title(locale: locale))
+                                .font(AppTypography.monoSmall)
+                                .foregroundStyle(AppColors.textTertiary)
+                                .textCase(.uppercase)
+                                .padding(.horizontal, 10)
+                                .padding(.bottom, 4)
+                                .accessibilityIdentifier("sidebar.group.\(group.rawValue)")
+                        }
+
+                        ForEach(section.items) { item in
+                            SidebarItem(
+                                title: item.title(locale: locale),
+                                systemImage: item.icon,
+                                count: item == .library && isExpanded && libraryCount > 0 ? libraryCount : nil,
+                                accessory: isExpanded
+                                    ? MainNavAccessory.accessory(for: item, captureStatus: noteCaptureStatus)
+                                    : nil,
+                                isCollapsed: !isExpanded,
+                                accessibilityIdentifier: "sidebar.nav.\(item.accessibilityIdentifierComponent)",
+                                isSelected: selectedNav == item,
+                                action: { onSelect(item) }
+                            )
+                        }
+                    }
+                }
             }
         }
         .padding(.trailing, isExpanded ? 4 : 0)
@@ -533,11 +882,52 @@ private struct MainSidebar: View {
 
     @ViewBuilder
     private var statusFooter: some View {
-        if isExpanded {
-            StatusCard(state: indicatorState, hotkeyHint: hotkeyHint)
-        } else {
-            StatusCardDot(phase: statusPhase)
-                .frame(maxWidth: .infinity)
+        // One tick a second so the card's clock moves. Nothing else in the
+        // sidebar is inside it.
+        TimelineView(.periodic(from: noteCaptureStatus?.startedAt ?? .now, by: 1)) { context in
+            let phase = statusPhase(now: context.date)
+            if isExpanded {
+                if let noteID = noteCaptureStatus?.noteID {
+                    CapturingNoteTitle(noteID: noteID) { title in
+                        StatusCard(
+                            phase: phase,
+                            subtitle: title,
+                            accessibilityIdentifier: "sidebar.status",
+                            action: openStatusCardDestination
+                        )
+                    }
+                } else {
+                    StatusCard(
+                        phase: phase,
+                        hotkeyHint: dictationHint(phase: phase),
+                        recordingTitle: noteCaptureStatus == nil
+                            ? localized("Dictating", locale: locale)
+                            : nil,
+                        accessibilityIdentifier: "sidebar.status",
+                        action: phase.isActive ? openStatusCardDestination : nil
+                    )
+                }
+            } else {
+                StatusCardDot(phase: phase)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    /// The card's second line when dictation owns it: where the hotkey works
+    /// idle, what it does while recording. Empty when a note capture owns the
+    /// card (its second line is the note title) or the page cannot dictate.
+    private func dictationHint(phase: StatusCardPhase) -> String {
+        guard noteCaptureStatus == nil else { return "" }
+        let hotkey = StatusCardPresentation.spacedHotkey(indicatorState.toggleRecordingHotkey)
+        guard !hotkey.isEmpty else { return "" }
+        switch phase {
+        case .ready:
+            return String(format: localized("%@ anywhere", locale: locale), hotkey)
+        case .recording:
+            return String(format: localized("%@ to stop", locale: locale), hotkey)
+        case .finalizing, .processing:
+            return ""
         }
     }
 
@@ -558,6 +948,8 @@ private struct MainSidebar: View {
                         Text("⌘,")
                             .font(AppTypography.monoSmall)
                             .foregroundStyle(AppColors.textTertiary)
+                            .fixedSize()
+                            .layoutPriority(1)
                     }
                     .padding(.vertical, 7)
                     .padding(.horizontal, 10)
@@ -578,6 +970,7 @@ private struct MainSidebar: View {
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("sidebar.settings")
         .accessibilityLabel(localized("Settings", locale: locale))
         .help(localized("Settings", locale: locale))
         .onHover { hovering in isSettingsHovered = hovering }
@@ -639,10 +1032,6 @@ final class MainWindowController {
     /// (not Settings / Note Editor / other panels) to be key.
     static let windowIdentifier = NSUserInterfaceItemIdentifier("tech.watzon.pindrop.main-window")
 
-    /// Set when Find (⌘F) is requested before HistoryView is mounted; consumed
-    /// when History appears so focus is not lost to a navigation race.
-    static var pendingHistorySearchFocus = false
-
     private var window: NSWindow?
     private var modelContainer: ModelContainer?
     private var floatingIndicatorState: FloatingIndicatorState?
@@ -650,17 +1039,23 @@ final class MainWindowController {
     private var recordingState: RecordingFeatureState?
     private var modelManager: ModelManager?
     private var settingsStore: SettingsStore?
-    private var navObserver: Any?
-    /// Last known main-window navigation destination (updated via notification).
-    private(set) var currentNavigationItem: MainNavItem = .home
+    let routeState = MainWindowRouteState()
     var onImportMediaFiles: (([URL], TranscriptionJobOptions) -> Void)?
     var onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?
-    var onClearMediaQueue: (() -> Void)?
     var onDownloadDiarizationModel: (() -> Void)?
-    var onNewTranscription: (() -> Void)?
-    var onStartMeetingCapture: ((Int?) -> Void)?
-    var onStartNoteCapture: (() -> Void)?
+    var onDownloadSpeakerModels: (() -> Void)?
+    var onStartDictation: (() -> Void)?
+    var onStopDictation: (() -> Void)?
+    var onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
+    var onFinishNoteCapture: (() -> Void)?
+    var onCancelNoteCapture: (() -> Void)?
+    var onGenerateEnhancedPanel: NoteEnhancementHandler?
+    var noteChatService: NoteChatService?
     var onOpenSettings: ((SettingsTab) -> Void)?
+    /// Raised every time the window is put on screen, however it was reached.
+    /// The one-time call notification ask waits for this.
+    var onDidPresent: (() -> Void)?
+    private var noteCaptureState: NoteCaptureState?
 
     /// The main app window, if created. Used by list keyboard monitors for identity checks.
     var nsWindow: NSWindow? { window }
@@ -679,18 +1074,30 @@ final class MainWindowController {
         self.modelContainer = container
     }
 
-    func configureMeetingCapture(
+    func configureCapture(
         floatingIndicatorState: FloatingIndicatorState,
         recordingState: RecordingFeatureState? = nil,
-        onNewTranscription: @escaping () -> Void,
-        onStartMeetingCapture: @escaping (Int?) -> Void,
-        onStartNoteCapture: @escaping () -> Void
+        noteCaptureState: NoteCaptureState? = nil,
+        onStartDictation: @escaping () -> Void,
+        onStopDictation: (() -> Void)? = nil,
+        onStartNoteCapture: @escaping (NoteCaptureRequest) -> Bool,
+        onFinishNoteCapture: (() -> Void)? = nil,
+        onCancelNoteCapture: (() -> Void)? = nil,
+        onGenerateEnhancedPanel: NoteEnhancementHandler? = nil,
+        noteChatService: NoteChatService? = nil,
+        onDownloadSpeakerModels: (() -> Void)? = nil
     ) {
         self.floatingIndicatorState = floatingIndicatorState
         self.recordingState = recordingState
-        self.onNewTranscription = onNewTranscription
-        self.onStartMeetingCapture = onStartMeetingCapture
+        self.noteCaptureState = noteCaptureState
+        self.onDownloadSpeakerModels = onDownloadSpeakerModels
+        self.onStartDictation = onStartDictation
+        self.onStopDictation = onStopDictation
         self.onStartNoteCapture = onStartNoteCapture
+        self.onFinishNoteCapture = onFinishNoteCapture
+        self.onCancelNoteCapture = onCancelNoteCapture
+        self.onGenerateEnhancedPanel = onGenerateEnhancedPanel
+        self.noteChatService = noteChatService
     }
 
     func configureTranscribeFeature(
@@ -699,7 +1106,6 @@ final class MainWindowController {
         settingsStore: SettingsStore,
         onImportMediaFiles: @escaping ([URL], TranscriptionJobOptions) -> Void,
         onSubmitMediaLink: @escaping (String, TranscriptionJobOptions) -> Void,
-        onClearMediaQueue: @escaping () -> Void,
         onDownloadDiarizationModel: @escaping () -> Void
     ) {
         self.mediaTranscriptionState = state
@@ -707,29 +1113,42 @@ final class MainWindowController {
         self.settingsStore = settingsStore
         self.onImportMediaFiles = onImportMediaFiles
         self.onSubmitMediaLink = onSubmitMediaLink
-        self.onClearMediaQueue = onClearMediaQueue
         self.onDownloadDiarizationModel = onDownloadDiarizationModel
     }
 
     func show() {
-        show(navigationItem: nil)
+        presentWindow()
     }
 
-    func showHistory() {
-        show(navigationItem: .history)
+    func navigate(to item: MainNavItem) {
+        routeState.navigate(to: item)
+        presentWindow()
     }
 
-    /// Transcribe page removed in U3 — open Library (inline import lives there).
-    func showTranscribe() {
-        show(navigationItem: .history)
+    /// Resolves a raw value through the legacy alias map before navigating.
+    func navigate(toRawValue rawValue: String) {
+        guard let item = MainNavItem.resolve(rawValue: rawValue) else {
+            Log.ui.warning("Ignored navigation to unknown destination \(rawValue)")
+            return
+        }
+        navigate(to: item)
     }
 
-    func showModels() {
-        show(navigationItem: .models)
+    /// Opens a note in the main window. Replaces the separate editor window as
+    /// the default presenter; `NoteEditorWindowController` survives as a pop-out.
+    func openNote(id: UUID) {
+        routeState.openNote(id: id)
+        presentWindow()
     }
 
-    func showNavigationItem(_ item: MainNavItem) {
-        show(navigationItem: item.resolvedDestination)
+    func openLibrary(recordID: UUID) {
+        routeState.openLibrary(recordID: recordID)
+        presentWindow()
+    }
+
+    func focusLibrarySearch() {
+        routeState.focusLibrarySearch()
+        presentWindow()
     }
 
     func showSettings(tab: SettingsTab = .general) {
@@ -741,17 +1160,7 @@ final class MainWindowController {
         onOpenSettings(tab)
     }
 
-    func focusHistorySearch() {
-        // Pending flag covers the case where History is not yet mounted (nav race).
-        Self.pendingHistorySearchFocus = true
-        show(navigationItem: .history)
-        // Notification covers the case where History is already visible.
-        DispatchQueue.main.async {
-            NotificationCenter.default.post(name: .focusHistorySearch, object: nil)
-        }
-    }
-
-    private func show(navigationItem: MainNavItem?) {
+    private func presentWindow() {
         guard let container = modelContainer else {
             Log.ui.error("ModelContainer not set - cannot show MainWindow")
             return
@@ -764,17 +1173,23 @@ final class MainWindowController {
         if window == nil {
             let mainView = MainWindow(
                 settingsStore: settingsStore,
+                routeState: routeState,
                 floatingIndicatorState: floatingIndicatorState,
                 mediaTranscriptionState: mediaTranscriptionState,
                 recordingState: recordingState,
                 modelManager: modelManager,
                 onImportMediaFiles: onImportMediaFiles,
                 onSubmitMediaLink: onSubmitMediaLink,
-                onClearMediaQueue: onClearMediaQueue,
                 onDownloadDiarizationModel: onDownloadDiarizationModel,
-                onNewTranscription: onNewTranscription,
-                onStartMeetingCapture: onStartMeetingCapture,
+                onDownloadSpeakerModels: onDownloadSpeakerModels,
+                onStartDictation: onStartDictation,
+                onStopDictation: onStopDictation,
                 onStartNoteCapture: onStartNoteCapture,
+                noteCaptureState: noteCaptureState,
+                onFinishNoteCapture: onFinishNoteCapture,
+                onCancelNoteCapture: onCancelNoteCapture,
+                onGenerateEnhancedPanel: onGenerateEnhancedPanel,
+                noteChatService: noteChatService,
                 onOpenSettings: onOpenSettings ?? { _ in
                     Log.ui.error("Settings presenter not set - cannot show settings")
                 }
@@ -824,15 +1239,6 @@ final class MainWindowController {
 
             self.window = window
 
-            navObserver = NotificationCenter.default.addObserver(
-                forName: .mainNavItemDidChange,
-                object: nil,
-                queue: .main
-            ) { [weak self] notification in
-                guard let rawValue = notification.userInfo?["navItem"] as? String,
-                      let item = MainNavItem(rawValue: rawValue) else { return }
-                self?.currentNavigationItem = item.resolvedDestination
-            }
         }
 
         PindropThemeController.shared.apply(to: window)
@@ -842,18 +1248,7 @@ final class MainWindowController {
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         DispatchQueue.main.async { self.positionTrafficLights() }
-
-        if let item = navigationItem {
-            let destination = item.resolvedDestination
-            currentNavigationItem = destination
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(
-                    name: .navigateToMainNavItem,
-                    object: nil,
-                    userInfo: ["navItem": destination.rawValue]
-                )
-            }
-        }
+        onDidPresent?()
     }
 
     /// Positions standard traffic lights in the leading-sidebar top pad (spec §3).
@@ -903,16 +1298,15 @@ final class MainWindowController {
 #Preview("Main Window - Light") {
     MainWindow(
         settingsStore: SettingsStore(),
+        routeState: MainWindowRouteState(),
         floatingIndicatorState: nil,
         mediaTranscriptionState: nil,
         recordingState: nil,
         modelManager: nil,
         onImportMediaFiles: nil,
         onSubmitMediaLink: nil,
-        onClearMediaQueue: nil,
         onDownloadDiarizationModel: nil,
-        onNewTranscription: nil,
-        onStartMeetingCapture: nil,
+        onStartDictation: nil,
         onStartNoteCapture: nil,
         onOpenSettings: { _ in }
     )
@@ -924,16 +1318,15 @@ final class MainWindowController {
 #Preview("Main Window - Dark") {
     MainWindow(
         settingsStore: SettingsStore(),
+        routeState: MainWindowRouteState(),
         floatingIndicatorState: nil,
         mediaTranscriptionState: nil,
         recordingState: nil,
         modelManager: nil,
         onImportMediaFiles: nil,
         onSubmitMediaLink: nil,
-        onClearMediaQueue: nil,
         onDownloadDiarizationModel: nil,
-        onNewTranscription: nil,
-        onStartMeetingCapture: nil,
+        onStartDictation: nil,
         onStartNoteCapture: nil,
         onOpenSettings: { _ in }
     )

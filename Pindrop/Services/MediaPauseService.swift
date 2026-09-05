@@ -7,6 +7,7 @@
 
 import CoreAudio
 import Foundation
+import PindropCore
 
 @MainActor
 final class MediaPauseService {

@@ -2,23 +2,15 @@
 //  MediaIngestionService.swift
 //  Pindrop
 //
-//  Created on 2026-03-07.
+//  macOS-only external-tool media ingestion. Shared storage, local import,
+//  recorded-audio write, and direct HTTP download live in PindropMedia.
 //
 
-import AVFoundation
 import Foundation
-import ImageIO
-import UniformTypeIdentifiers
+import PindropCore
+import PindropMedia
 
-struct ManagedMediaAsset: Equatable, Sendable {
-    let directoryURL: URL
-    let mediaURL: URL
-    let thumbnailURL: URL?
-    let sourceKind: MediaSourceKind
-    let displayName: String
-    let hasSourceMetadataTitle: Bool
-    let originalSourceURL: String?
-}
+// MARK: - Tooling / process contracts (macOS)
 
 struct MediaToolingStatus: Equatable, Sendable {
     let ytDLPPath: String?
@@ -61,22 +53,6 @@ protocol ProcessRunning: Sendable {
     ) async throws -> ProcessExecutionResult
 }
 
-protocol MediaLibraryManaging: AnyObject {
-    func makeJobDirectory(for jobID: UUID) throws -> URL
-    func importLocalFile(at sourceURL: URL, jobID: UUID) async throws -> ManagedMediaAsset
-    func storeRecordedAudio(
-        _ audioData: Data,
-        jobID: UUID,
-        displayName: String,
-        sourceKind: MediaSourceKind
-    ) throws -> ManagedMediaAsset
-    func finalizeDownloadedAsset(
-        in directoryURL: URL,
-        sourceURL: String,
-        suggestedTitle: String?
-    ) async throws -> ManagedMediaAsset
-}
-
 enum MediaIngestionError: Error, LocalizedError {
     case unsupportedInput(String)
     case toolingUnavailable(String)
@@ -84,7 +60,9 @@ enum MediaIngestionError: Error, LocalizedError {
     case localFileImportFailed(String)
     case downloadedMediaMissing
     case metadataLookupFailed(String)
-
+    case captureSourceStorageFailed(String)
+    case captureSourceStorageUnsupported
+    case captureSourceStorageContentConflict(String)
     var errorDescription: String? {
         switch self {
         case .unsupportedInput(let message):
@@ -99,6 +77,31 @@ enum MediaIngestionError: Error, LocalizedError {
             return "Download finished but no playable media file was found."
         case .metadataLookupFailed(let message):
             return "Failed to inspect media link: \(message)"
+        case .captureSourceStorageFailed(let message):
+            return "Capture source storage failed: \(message)"
+        case .captureSourceStorageUnsupported:
+            return "Capture source storage is not supported by this media library."
+        case .captureSourceStorageContentConflict(let relativePath):
+            return "Capture source storage content conflicts with the existing artifact at \(relativePath)."
+    }
+    }
+
+
+    /// Maps package storage/download errors into the app-facing ingestion surface.
+    static func fromMediaLibraryError(_ error: MediaLibraryError) -> MediaIngestionError {
+        switch error {
+        case .localFileImportFailed(let message):
+            return .localFileImportFailed(message)
+        case .downloadedMediaMissing:
+            return .downloadedMediaMissing
+        case .downloadFailed(let message):
+            return .downloadFailed(message)
+        case .captureSourceStorageUnsupported:
+            return .captureSourceStorageUnsupported
+        case .captureSourceStorageContentConflict(let relativePath):
+            return .captureSourceStorageContentConflict(relativePath)
+        case .captureSourceStorageFailed(let message):
+            return .captureSourceStorageFailed(message)
         }
     }
 }
@@ -244,214 +247,6 @@ struct DefaultProcessRunner: ProcessRunning {
     }
 }
 
-final class ManagedMediaLibrary: MediaLibraryManaging {
-    private let fileManager: FileManager
-
-    init(fileManager: FileManager = .default) {
-        self.fileManager = fileManager
-    }
-
-    /// Application Support/Pindrop/MediaLibrary — shared root for job dirs and DictationAudio.
-    static var libraryBaseURL: URL {
-        baseURL
-    }
-
-    /// Application Support/Pindrop/MediaLibrary/DictationAudio — ordinary voice dictation audio.
-    static var dictationAudioDirectoryURL: URL {
-        baseURL.appendingPathComponent("DictationAudio", isDirectory: true)
-    }
-
-    func makeJobDirectory(for jobID: UUID) throws -> URL {
-        let directory = Self.baseURL.appendingPathComponent(jobID.uuidString, isDirectory: true)
-        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        return directory
-    }
-
-    /// Ensures the DictationAudio area exists and returns its URL.
-    func ensureDictationAudioDirectory() throws -> URL {
-        let directory = Self.dictationAudioDirectoryURL
-        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        return directory
-    }
-
-    func importLocalFile(at sourceURL: URL, jobID: UUID) async throws -> ManagedMediaAsset {
-        let directoryURL = try makeJobDirectory(for: jobID)
-        let destinationURL = directoryURL.appendingPathComponent("media").appendingPathExtension(sourceURL.pathExtension)
-
-        do {
-            if fileManager.fileExists(atPath: destinationURL.path) {
-                try fileManager.removeItem(at: destinationURL)
-            }
-            try fileManager.copyItem(at: sourceURL, to: destinationURL)
-        } catch {
-            throw MediaIngestionError.localFileImportFailed(error.localizedDescription)
-        }
-
-        let thumbnailURL = try? await generateThumbnailIfPossible(for: destinationURL, in: directoryURL)
-
-        return ManagedMediaAsset(
-            directoryURL: directoryURL,
-            mediaURL: destinationURL,
-            thumbnailURL: thumbnailURL,
-            sourceKind: .importedFile,
-            displayName: sourceURL.lastPathComponent,
-            hasSourceMetadataTitle: false,
-            originalSourceURL: sourceURL.absoluteString
-        )
-    }
-
-    func storeRecordedAudio(
-        _ audioData: Data,
-        jobID: UUID,
-        displayName: String,
-        sourceKind: MediaSourceKind
-    ) throws -> ManagedMediaAsset {
-        let directoryURL = try makeJobDirectory(for: jobID)
-        let destinationURL = directoryURL.appendingPathComponent("media").appendingPathExtension("caf")
-
-        if fileManager.fileExists(atPath: destinationURL.path) {
-            try fileManager.removeItem(at: destinationURL)
-        }
-
-        let format = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)
-            ?? AVAudioFormat()
-        guard format.sampleRate > 0,
-              let buffer = AVAudioPCMBuffer(
-                pcmFormat: format,
-                frameCapacity: AVAudioFrameCount(audioData.count / MemoryLayout<Float>.size)
-              ),
-              let channelData = buffer.floatChannelData else {
-            throw MediaIngestionError.localFileImportFailed("Unable to prepare recorded audio for storage.")
-        }
-
-        let samples = audioData.count / MemoryLayout<Float>.size
-        buffer.frameLength = AVAudioFrameCount(samples)
-        audioData.withUnsafeBytes { rawBuffer in
-            guard let source = rawBuffer.bindMemory(to: Float.self).baseAddress else { return }
-            channelData[0].update(from: source, count: samples)
-        }
-
-        do {
-            let outputFile = try AVAudioFile(forWriting: destinationURL, settings: format.settings)
-            try outputFile.write(from: buffer)
-        } catch {
-            throw MediaIngestionError.localFileImportFailed(error.localizedDescription)
-        }
-
-        return ManagedMediaAsset(
-            directoryURL: directoryURL,
-            mediaURL: destinationURL,
-            thumbnailURL: nil,
-            sourceKind: sourceKind,
-            displayName: displayName,
-            hasSourceMetadataTitle: false,
-            originalSourceURL: nil
-        )
-    }
-
-    func finalizeDownloadedAsset(
-        in directoryURL: URL,
-        sourceURL: String,
-        suggestedTitle: String?
-    ) async throws -> ManagedMediaAsset {
-        guard let mediaURL = try locatePrimaryMediaFile(in: directoryURL) else {
-            throw MediaIngestionError.downloadedMediaMissing
-        }
-
-        let thumbnailURL: URL?
-        if let existingThumbnail = locateThumbnail(in: directoryURL) {
-            thumbnailURL = existingThumbnail
-        } else {
-            thumbnailURL = try? await generateThumbnailIfPossible(for: mediaURL, in: directoryURL)
-        }
-
-        let resolvedTitle = suggestedTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        return ManagedMediaAsset(
-            directoryURL: directoryURL,
-            mediaURL: mediaURL,
-            thumbnailURL: thumbnailURL,
-            sourceKind: .webLink,
-            displayName: (resolvedTitle?.isEmpty == false ? resolvedTitle! : mediaURL.lastPathComponent),
-            hasSourceMetadataTitle: resolvedTitle?.isEmpty == false,
-            originalSourceURL: sourceURL
-        )
-    }
-
-    private func locatePrimaryMediaFile(in directoryURL: URL) throws -> URL? {
-        let items = try fileManager.contentsOfDirectory(
-            at: directoryURL,
-            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
-            options: [.skipsHiddenFiles]
-        )
-
-        return items
-            .filter { url in
-                guard let type = UTType(filenameExtension: url.pathExtension.lowercased()) else {
-                    return false
-                }
-                if type.conforms(to: .image) || type.conforms(to: .json) || type.conforms(to: .plainText) {
-                    return false
-                }
-                return type.conforms(to: .audio) || type.conforms(to: .movie) || type.conforms(to: .mpeg4Movie) || type.conforms(to: .video)
-            }
-            .sorted {
-                let leftSize = (try? $0.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-                let rightSize = (try? $1.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-                return leftSize > rightSize
-            }
-            .first
-    }
-
-    private func locateThumbnail(in directoryURL: URL) -> URL? {
-        guard let items = try? fileManager.contentsOfDirectory(
-            at: directoryURL,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ) else {
-            return nil
-        }
-
-        return items.first { url in
-            guard let type = UTType(filenameExtension: url.pathExtension.lowercased()) else {
-                return false
-            }
-            return type.conforms(to: .image)
-        }
-    }
-
-    private func generateThumbnailIfPossible(for mediaURL: URL, in directoryURL: URL) async throws -> URL? {
-        let asset = AVURLAsset(url: mediaURL)
-        let videoTracks = try await asset.loadTracks(withMediaType: .video)
-        guard !videoTracks.isEmpty else { return nil }
-
-        let imageGenerator = AVAssetImageGenerator(asset: asset)
-        imageGenerator.appliesPreferredTrackTransform = true
-
-        let duration = try await asset.load(.duration)
-        let seconds = max(duration.seconds.isFinite ? duration.seconds : 0, 0.1)
-        let cgImage = try imageGenerator.copyCGImage(at: CMTime(seconds: min(1.0, seconds * 0.25), preferredTimescale: 600), actualTime: nil)
-        let destinationURL = directoryURL.appendingPathComponent("thumbnail.png")
-
-        guard let destination = CGImageDestinationCreateWithURL(destinationURL as CFURL, UTType.png.identifier as CFString, 1, nil) else {
-            return nil
-        }
-
-        CGImageDestinationAddImage(destination, cgImage, nil)
-        guard CGImageDestinationFinalize(destination) else {
-            return nil
-        }
-
-        return destinationURL
-    }
-
-    private static var baseURL: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("Pindrop", isDirectory: true)
-            .appendingPathComponent("MediaLibrary", isDirectory: true)
-    }
-}
-
 private struct YTDLPMetadata: Decodable {
     let title: String?
     let webpageURL: String?
@@ -462,92 +257,6 @@ private struct YTDLPMetadata: Decodable {
     }
 }
 
-// MARK: - URLSession delegate for direct downloads
-
-final class DirectDownloadDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<URL, Error>?
-    private var result: Result<URL, Error>?
-    private let onProgress: (Int64, Int64) -> Void
-    private let temporaryDirectory: URL
-
-    init(
-        temporaryDirectory: URL = FileManager.default.temporaryDirectory,
-        onProgress: @escaping (Int64, Int64) -> Void
-    ) {
-        self.temporaryDirectory = temporaryDirectory
-        self.onProgress = onProgress
-    }
-
-    /// Installs the continuation before starting the task so an immediately
-    /// completing URLSession task cannot lose its result.
-    func waitForCompletion(start: () -> Void) async throws -> URL {
-        try await withCheckedThrowingContinuation { continuation in
-            let pendingResult = lock.withLock { () -> Result<URL, Error>? in
-                if let result {
-                    return result
-                }
-                self.continuation = continuation
-                return nil
-            }
-
-            if let pendingResult {
-                continuation.resume(with: pendingResult)
-            } else {
-                start()
-            }
-        }
-    }
-
-    func cancel() {
-        complete(.failure(CancellationError()))
-    }
-
-    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        // URLSession deletes the temp file when this method returns, so move it first.
-        let safeURL = temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension(location.pathExtension)
-        do {
-            try FileManager.default.moveItem(at: location, to: safeURL)
-            if !complete(.success(safeURL)) {
-                try? FileManager.default.removeItem(at: safeURL)
-            }
-        } catch {
-            complete(.failure(error))
-        }
-    }
-
-    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let error else { return }
-        complete(.failure(error))
-    }
-
-    func urlSession(
-        _ session: URLSession,
-        downloadTask: URLSessionDownloadTask,
-        didWriteData bytesWritten: Int64,
-        totalBytesWritten: Int64,
-        totalBytesExpectedToWrite: Int64
-    ) {
-        onProgress(totalBytesWritten, totalBytesExpectedToWrite)
-    }
-
-    @discardableResult
-    private func complete(_ result: Result<URL, Error>) -> Bool {
-        let (continuation, didComplete) = lock.withLock { () -> (CheckedContinuation<URL, Error>?, Bool) in
-            guard self.result == nil else { return (nil, false) }
-            self.result = result
-            defer { self.continuation = nil }
-            return (self.continuation, true)
-        }
-        continuation?.resume(with: result)
-        return didComplete
-    }
-}
-
-// MARK: -
-
 private struct MediaDownloadAttempt {
     let format: String
     let extractorArgs: String?
@@ -555,19 +264,34 @@ private struct MediaDownloadAttempt {
     let logLabel: String
 }
 
+// MARK: - MediaIngestionService
+
 @MainActor
 final class MediaIngestionService {
+    /// Preserved on-disk root: Application Support/Pindrop/MediaLibrary.
+    static var defaultMediaLibraryBaseURL: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Pindrop", isDirectory: true)
+            .appendingPathComponent("MediaLibrary", isDirectory: true)
+    }
+
     private let processRunner: any ProcessRunning
     private let mediaLibrary: any MediaLibraryManaging
+    private let directDownloader: DirectMediaDownloader
     private let toolPathResolver: (String) -> String?
 
     init(
         processRunner: any ProcessRunning = DefaultProcessRunner(),
-        mediaLibrary: any MediaLibraryManaging = ManagedMediaLibrary(),
+        mediaLibrary: (any MediaLibraryManaging)? = nil,
+        directDownloader: DirectMediaDownloader? = nil,
         toolPathResolver: @escaping (String) -> String? = MediaIngestionService.defaultDirectToolPath(named:)
     ) {
+        let resolvedLibrary = mediaLibrary
+            ?? ManagedMediaLibrary(baseURL: Self.defaultMediaLibraryBaseURL)
         self.processRunner = processRunner
-        self.mediaLibrary = mediaLibrary
+        self.mediaLibrary = resolvedLibrary
+        self.directDownloader = directDownloader
+            ?? DirectMediaDownloader(mediaLibrary: resolvedLibrary)
         self.toolPathResolver = toolPathResolver
     }
 
@@ -593,13 +317,185 @@ final class MediaIngestionService {
         jobID: UUID,
         displayName: String,
         sourceKind: MediaSourceKind
+    ) async throws -> ManagedMediaAsset {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.storeRecordedAudio(
+                    audioData,
+                    jobID: jobID,
+                    displayName: displayName,
+                    sourceKind: sourceKind
+                )
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func storeRecordedAudio(
+        _ audioData: Data,
+        jobID: UUID,
+        displayName: String,
+        sourceKind: MediaSourceKind
     ) throws -> ManagedMediaAsset {
-        try mediaLibrary.storeRecordedAudio(
-            audioData,
-            jobID: jobID,
-            displayName: displayName,
-            sourceKind: sourceKind
-        )
+        do {
+            return try mediaLibrary.storeRecordedAudio(
+                audioData,
+                jobID: jobID,
+                displayName: displayName,
+                sourceKind: sourceKind
+            )
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func storeCapturePCMFile(
+        at sourceURL: URL,
+        sessionID: UUID,
+        sourceID: UUID,
+        chunkSequence: Int
+    ) async throws -> ManagedCaptureSourceArtifact {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.storeCapturePCMFile(
+                    at: sourceURL,
+                    sessionID: sessionID,
+                    sourceID: sourceID,
+                    chunkSequence: chunkSequence
+                )
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func makeMeetingCaptureSpoolPlan(
+        sessionID: UUID,
+        microphoneSourceID: UUID,
+        systemAudioSourceID: UUID?
+    ) async throws -> MeetingCaptureSpoolPlan {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.makeMeetingCaptureSpoolPlan(
+                    sessionID: sessionID,
+                    microphoneSourceID: microphoneSourceID,
+                    systemAudioSourceID: systemAudioSourceID
+                )
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func recoverMeetingArtifacts(
+        for plan: MeetingCaptureSpoolPlan
+    ) async throws -> MeetingArtifactRecoveryResult {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.recoverMeetingArtifacts(for: plan)
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func resolveArtifactURL(for chunk: SealedAudioSourceChunk) async throws -> URL {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.resolveArtifactURL(for: chunk)
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func makeMixedMeetingChunk(
+        sessionID: UUID,
+        sequence: Int,
+        microphone: SealedAudioSourceChunk?,
+        systemAudio: SealedAudioSourceChunk?
+    ) async throws -> ManagedMixedMeetingChunkArtifact {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            return try await Task.detached {
+                try mediaLibrary.makeMixedMeetingChunk(
+                    sessionID: sessionID,
+                    sequence: sequence,
+                    microphone: microphone,
+                    systemAudio: systemAudio
+                )
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func removeMeetingCaptureArtifacts(for sessionID: UUID) async throws {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            try await Task.detached {
+                try mediaLibrary.removeMeetingCaptureArtifacts(for: sessionID)
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func removeMixedMeetingChunk(
+        _ artifact: ManagedMixedMeetingChunkArtifact
+    ) async throws {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            try await Task.detached {
+                try mediaLibrary.removeMixedMeetingChunk(artifact)
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func removeMixedMeetingChunks(for sessionID: UUID) async throws {
+        let mediaLibrary = mediaLibrary
+
+        do {
+            try await Task.detached {
+                try mediaLibrary.removeMixedMeetingChunks(for: sessionID)
+            }.value
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
+    }
+
+    func storeCapturePCMFile(
+        at sourceURL: URL,
+        sessionID: UUID,
+        sourceID: UUID,
+        chunkSequence: Int
+    ) throws -> ManagedCaptureSourceArtifact {
+        do {
+            return try mediaLibrary.storeCapturePCMFile(
+                at: sourceURL,
+                sessionID: sessionID,
+                sourceID: sourceID,
+                chunkSequence: chunkSequence
+            )
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
+        }
     }
 
     func ingest(
@@ -607,36 +503,47 @@ final class MediaIngestionService {
         jobID: UUID,
         progressHandler: @escaping @MainActor (Double?, String) -> Void
     ) async throws -> ManagedMediaAsset {
-        switch request {
-        case .file(let url):
-            return try await mediaLibrary.importLocalFile(at: url, jobID: jobID)
-        case .link(let string):
-            guard let url = URL(string: string),
-                  let scheme = url.scheme?.lowercased(),
-                  ["http", "https"].contains(scheme) else {
-                throw MediaIngestionError.unsupportedInput("Only http and https links are supported.")
-            }
+        do {
+            switch request {
+            case .file(let url):
+                return try await mediaLibrary.importLocalFile(at: url, jobID: jobID)
+            case .link(let string):
+                guard let url = URL(string: string),
+                      let scheme = url.scheme?.lowercased(),
+                      ["http", "https"].contains(scheme) else {
+                    throw MediaIngestionError.unsupportedInput("Only http and https links are supported.")
+                }
 
-            if Self.isDirectMediaURL(url) {
-                let directoryURL = try mediaLibrary.makeJobDirectory(for: jobID)
-                return try await downloadDirectMedia(from: url, to: directoryURL, progressHandler: progressHandler)
-            } else {
-                let tooling = await checkTooling()
-                guard tooling.isReady else {
-                    throw MediaIngestionError.toolingUnavailable(
-                        "This link requires yt-dlp to download. \(tooling.missingToolsDescription)"
+                if Self.isDirectMediaURL(url) {
+                    return try await downloadDirectMedia(
+                        from: url,
+                        jobID: jobID,
+                        progressHandler: progressHandler
+                    )
+                } else {
+                    let tooling = await checkTooling()
+                    guard tooling.isReady else {
+                        throw MediaIngestionError.toolingUnavailable(
+                            "This link requires yt-dlp to download. \(tooling.missingToolsDescription)"
+                        )
+                    }
+                    let resolvedTooling = try resolvedTooling(from: tooling)
+                    return try await downloadLinkedMedia(
+                        from: string,
+                        tooling: resolvedTooling,
+                        jobID: jobID,
+                        progressHandler: progressHandler
                     )
                 }
-                let resolvedTooling = try resolvedTooling(from: tooling)
-                return try await downloadLinkedMedia(
-                    from: string,
-                    tooling: resolvedTooling,
-                    jobID: jobID,
-                    progressHandler: progressHandler
+            case .manualCapture:
+                throw MediaIngestionError.unsupportedInput(
+                    "Manual capture uses the live recording flow instead of media ingestion."
                 )
             }
-        case .manualCapture:
-            throw MediaIngestionError.unsupportedInput("Manual capture uses the live recording flow instead of media ingestion.")
+        } catch let error as MediaIngestionError {
+            throw error
+        } catch let error as MediaLibraryError {
+            throw MediaIngestionError.fromMediaLibraryError(error)
         }
     }
 
@@ -657,7 +564,9 @@ final class MediaIngestionService {
             )
             guard result.terminationStatus == 0 else {
                 let stderr = result.standardError.trimmingCharacters(in: .whitespacesAndNewlines)
-                Log.app.debug("Failed to resolve \(tool) with /usr/bin/which. status=\(result.terminationStatus), stderr=\(stderr)")
+                Log.app.debug(
+                    "Failed to resolve \(tool) with /usr/bin/which. status=\(result.terminationStatus), stderr=\(stderr)"
+                )
                 return nil
             }
             let path = result.standardOutput.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -686,58 +595,21 @@ final class MediaIngestionService {
         Self.directMediaExtensions.contains(url.pathExtension.lowercased())
     }
 
-    // MARK: - Direct HTTP download (no yt-dlp)
+    // MARK: - Direct HTTP download (package)
 
     private func downloadDirectMedia(
         from url: URL,
-        to directoryURL: URL,
+        jobID: UUID,
         progressHandler: @escaping @MainActor (Double?, String) -> Void
     ) async throws -> ManagedMediaAsset {
-        progressHandler(nil, "Connecting…")
-
-        let ext = url.pathExtension.lowercased()
-        let destURL = directoryURL.appendingPathComponent("media.\(ext)")
-
-        let delegate = DirectDownloadDelegate { written, total in
-            let progress: Double? = total > 0 ? Double(written) / Double(total) : nil
-            let byteStr = ByteCountFormatter.string(fromByteCount: written, countStyle: .file)
-            Task { @MainActor in progressHandler(progress, "Downloading \(byteStr)…") }
-        }
-        let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
-        let downloadTask = session.downloadTask(with: url)
-        defer { session.invalidateAndCancel() }
-
-        let tempURL = try await withTaskCancellationHandler {
-            try await delegate.waitForCompletion {
-                downloadTask.resume()
+        try await directDownloader.download(
+            from: url,
+            jobID: jobID,
+            progressHandler: { progress, detail in
+                Task { @MainActor in
+                    progressHandler(progress, detail)
+                }
             }
-        } onCancel: {
-            downloadTask.cancel()
-            delegate.cancel()
-        }
-        var ownsTempURL = true
-        defer {
-            if ownsTempURL {
-                try? FileManager.default.removeItem(at: tempURL)
-            }
-        }
-        try Task.checkCancellation()
-
-        guard let httpResponse = downloadTask.response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            let status = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? -1
-            throw MediaIngestionError.downloadFailed("Server returned HTTP \(status).")
-        }
-
-        try FileManager.default.moveItem(at: tempURL, to: destURL)
-        ownsTempURL = false
-
-        // Reuse the library's finalization path, which generates a thumbnail
-        // and builds the ManagedMediaAsset from whatever is in the directory.
-        return try await mediaLibrary.finalizeDownloadedAsset(
-            in: directoryURL,
-            sourceURL: url.absoluteString,
-            suggestedTitle: url.deletingPathExtension().lastPathComponent
         )
     }
 
@@ -787,7 +659,9 @@ final class MediaIngestionService {
             let output = [downloadResult.standardError, downloadResult.standardOutput]
                 .joined(separator: "\n")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            finalFailureMessage = output.isEmpty ? "yt-dlp exited with status \(downloadResult.terminationStatus)" : output
+            finalFailureMessage = output.isEmpty
+                ? "yt-dlp exited with status \(downloadResult.terminationStatus)"
+                : output
 
             let isLastAttempt = index == attempts.index(before: attempts.endIndex)
             guard !isLastAttempt, shouldRetryYouTubeDownload(for: url, output: output) else {
@@ -799,7 +673,9 @@ final class MediaIngestionService {
             )
         }
 
-        throw MediaIngestionError.downloadFailed(userFacingDownloadErrorMessage(for: url, output: finalFailureMessage ?? ""))
+        throw MediaIngestionError.downloadFailed(
+            userFacingDownloadErrorMessage(for: url, output: finalFailureMessage ?? "")
+        )
     }
 
     private func fetchMetadata(
@@ -820,7 +696,9 @@ final class MediaIngestionService {
         )
 
         guard result.terminationStatus == 0 else {
-            throw MediaIngestionError.metadataLookupFailed(result.standardError.trimmingCharacters(in: .whitespacesAndNewlines))
+            throw MediaIngestionError.metadataLookupFailed(
+                result.standardError.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
         }
 
         guard let data = result.standardOutput.data(using: .utf8) else {

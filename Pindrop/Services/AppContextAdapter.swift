@@ -6,62 +6,10 @@
 //
 
 import Foundation
+import PindropCore
 
-// MARK: - Adapter Capability Model
+// AppAdapterCapabilities and MentionTemplateCatalog live in PindropCore.
 
-/// Explicit capabilities that an app adapter declares.
-/// Used by downstream consumers (mention formatter, prompt builder) to decide
-/// what context features are available for a given app.
-struct AppAdapterCapabilities: Equatable, Sendable {
-    let supportsFileMentions: Bool
-    let supportsCodeContext: Bool
-    let supportsDocsMentions: Bool
-    let supportsDiffContext: Bool
-    let supportsWebContext: Bool
-    let supportsChatHistory: Bool
-    let mentionPrefix: String
-    /// Must contain "{path}".
-    let mentionTemplate: String
-    let displayName: String
-    static let none = AppAdapterCapabilities(
-        supportsFileMentions: false,
-        supportsCodeContext: false,
-        supportsDocsMentions: false,
-        supportsDiffContext: false,
-        supportsWebContext: false,
-        supportsChatHistory: false,
-        mentionPrefix: "@",
-        mentionTemplate: "@{path}",
-        displayName: "Unknown App"
-    )
-    func renderMention(relativePath: String) -> String {
-        mentionTemplate.replacingOccurrences(of: MentionTemplateCatalog.pathToken, with: relativePath)
-    }
-    func renderMention(path: String) -> String {
-        renderMention(relativePath: path)
-    }
-    func withMentionFormatting(mentionPrefix: String, mentionTemplate: String) -> AppAdapterCapabilities {
-        AppAdapterCapabilities(
-            supportsFileMentions: supportsFileMentions,
-            supportsCodeContext: supportsCodeContext,
-            supportsDocsMentions: supportsDocsMentions,
-            supportsDiffContext: supportsDiffContext,
-            supportsWebContext: supportsWebContext,
-            supportsChatHistory: supportsChatHistory,
-            mentionPrefix: mentionPrefix,
-            mentionTemplate: mentionTemplate,
-            displayName: displayName
-        )
-    }
-    func withMentionFormatting(prefix: String, template: String) -> AppAdapterCapabilities {
-        withMentionFormatting(mentionPrefix: prefix, mentionTemplate: template)
-    }
-}
-enum MentionTemplateCatalog {
-    static let pathToken = "{path}"
-    static let canonicalPlaceholder = "[[:{path}:]]"
-    static let canonicalPlaceholderTemplate = canonicalPlaceholder
-}
 struct TerminalProviderDescriptor: Sendable, Equatable {
     let id: String
     let titlePrefixes: [String]

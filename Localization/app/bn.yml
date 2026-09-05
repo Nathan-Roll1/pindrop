@@ -4,16 +4,25 @@
   local_processing: "100% স্থানীয় প্রক্রিয়াকরণ"
 1:
   folder: "1 ফোল্ডার"
+  is_now_2: "%1$@ এখন %2$@।"
   note: "১টি নোট"
+  said_2: "%1$@ বলেছেন: %2$@"
   speaker: "১ জন বক্তা"
   transcription: "1 ট্রান্সক্রিপশন"
   word: "১টি শব্দ"
   year: "1 year"
+  edited_2: "%1$@ · সম্পাদিত %2$@"
+  recording: "%1$@ রেকর্ডিং"
+  recording_2: "%1$@ রেকর্ডিং · %2$@"
+  result: "১টি ফল"
+  d_of_2_d: "%2$d-এর %1$d"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "বড় আপগ্রেডের এক দফা — আর কমিউনিটির দুইজনকে ধন্যবাদ।"
+  call_started: "একটি কল শুরু হয়েছে"
   native_macos_menu_bar_dictation_app_using_loca: "হুইস্পারকিটের সাথে স্থানীয় স্পিচ-টু-টেক্সট ব্যবহার করে একটি নেটিভ macOS মেনু বার ডিকটেশন অ্যাপ। ঐচ্ছিক AI বর্ধন সহ ডিফল্টরূপে 100% স্থানীয় প্রক্রিয়াকরণ।"
+  note_capture_is_already_running: "একটি নোট রেকর্ডিং ইতিমধ্যেই চলছে।"
 about:
   _self: "সম্পর্কে"
   pindrop: "পিনড্রপ সম্পর্কে"
@@ -68,6 +77,7 @@ ai:
 all:
   _self: "সব"
   time: "All time"
+  templates: "সব টেমপ্লেট…"
 also:
   new_rtl_layout_support_and_20_new_interface: "আরও নতুন: RTL লেআউট সমর্থন এবং 20টি নতুন ইন্টারফেস ভাষা।"
 an:
@@ -79,6 +89,7 @@ an:
     মূল ট্রান্সক্রিপশনটি বর্ধিতকরণ ছাড়াই সংরক্ষণ করা হয়েছিল।
     আপনি সেটিংসে আবার AI বর্ধিতকরণ সক্ষম করার চেষ্টা করতে পারেন।
   error_occurred_while_enhancing_your_transcrip_1790ad05: "আপনার ট্রান্সক্রিপশন উন্নত করার সময় একটি ত্রুটি ঘটেছে: nn%@nn মূল ট্রান্সক্রিপশনটি বর্ধিতকরণ ছাড়াই সংরক্ষিত হয়েছিল৷ nআপনি সেটিংসে আবার AI বর্ধিতকরণ সক্ষম করার চেষ্টা করতে পারেন৷"
+  earlier_version_of_pindrop_wrote_this_note_it: "এই নোটটি Pindrop-এর আগের সংস্করণ লিখেছিল। এটি আবার লেখা যাবে না।"
 anthropic:
   _self: "নৃতাত্ত্বিক"
 api:
@@ -110,6 +121,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "অডিও ইনপুট"
+  sealed: "অডিও সংরক্ষিত হয়েছে"
 automatic:
   follow_system: "স্বয়ংক্রিয় (ফলো সিস্টেম)"
   updates: "স্বয়ংক্রিয় আপডেট"
@@ -119,6 +131,7 @@ automatically:
   start_pindrop_when_you_sign_in: "আপনি সাইন ইন করার সময় স্বয়ংক্রিয়ভাবে Pindrop শুরু করুন।"
 available:
   models: "উপলব্ধ মডেল"
+  when_the_recording_is_finished: "রেকর্ডিং শেষ হলে পাওয়া যাবে"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +143,7 @@ avg:
 back:
   _self: "ব্যাক"
   to_library: "লাইব্রেরিতে ফিরে যান"
+  to_notes: "নোটে ফিরে যান"
 base:
   _self: "বেস"
 bearer:
@@ -146,10 +160,13 @@ built:
   in_read_only: "অন্তর্নির্মিত (শুধু পড়ার জন্য)"
 by:
   weekday: "By weekday"
+call:
+  audio: "কলের অডিও"
 cancel:
   _self: "বাতিল করুন"
   operation: "অপারেশন বাতিল করুন"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "রেকর্ডিং বাতিল করুন"
 capture:
   directly_into_the_note_editor_with_a_hol: "হোল্ড-টু-রেকর্ড ফ্লো সহ নোট এডিটরে সরাসরি ক্যাপচার করুন।"
 change:
@@ -158,6 +175,7 @@ change:
   your_choice_anytime_in_settings_privacy: "সেটিংস → গোপনীয়তা-তে যেকোনো সময় আপনার পছন্দ পরিবর্তন করুন।"
 changes:
   the_language_used_by_pindrop_s_interface: "Changes the language used by Pindrop's interface."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "এই প্রদানকারীর শংসাপত্র ও এন্ডপয়েন্টে করা পরিবর্তনগুলি চলমান ও পুনরুদ্ধার করা ক্যাপচারগুলিতে প্রযোজ্য। নির্বাচিত মডেল ও প্রম্পট অপরিবর্তিত থাকে।"
 check:
   for_updates: "আপডেটের জন্য চেক করুন..."
   for_updates_736b9062: "আপডেটের জন্য চেক করুন"
@@ -192,6 +210,7 @@ choose:
 clean:
   up_filler_words: "ফিলার শব্দ পরিষ্কার করুন"
 clear:
+  _self: "সাফ করুন"
   audio_buffer: "অডিও বাফার সাফ করুন"
   hotkey: "হটকি পরিষ্কার করুন"
   shortcut: "শর্টকাট মুছুন"
@@ -203,6 +222,8 @@ click:
   or_press: "ক্লিক করুন বা টিপুন"
   or_set_a_hotkey_to_start_talking: "কথা বলা শুরু করতে একটি হটকি ক্লিক করুন বা সেট করুন"
   this_icon_anytime_to: "যেকোনো সময় এই আইকনে ক্লিক করুন:"
+  a_number_to_see_it_in_the_transcript: "প্রতিলিপিতে দেখতে একটি নম্বরে ক্লিক করুন।"
+  new_note_to_start_one: "শুরু করতে নতুন নোট-এ ক্লিক করুন। আপনি টাইপ করার সময় Pindrop রেকর্ড করে।"
 client:
   _self: "ক্লায়েন্ট"
 clipboard:
@@ -253,6 +274,8 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copy the most recent transcript to the clipboard."
   to_clipboard: "ক্লিপবোর্ডে কপি করুন"
   transcript: "ট্রান্সক্রিপ্ট কপি করুন"
+  content: "বিষয়বস্তু কপি করুন"
+  note: "নোট কপি করুন"
 correct:
   grammar_mistakes: "ব্যাকরণের ভুলগুলো ঠিক করুন"
 could:
@@ -278,6 +301,7 @@ custom:
   local: "কাস্টম / স্থানীয়"
   openai_compatible: "কাস্টম (ওপেনএআই-সামঞ্জস্যপূর্ণ)"
   presets: "কাস্টম প্রিসেট"
+  templates: "আপনার টেমপ্লেট"
 customize:
   hotkey: "হটকি কাস্টমাইজ করুন"
 cut:
@@ -287,6 +311,7 @@ d:
   samples: "%d samples · %@"
   speakers: "%d জন বক্তা"
   words: "%dটি শব্দ"
+  results: "%d টি ফল"
 dark:
   _self: "অন্ধকার"
   preview: "অন্ধকার প্রিভিউ"
@@ -318,6 +343,9 @@ delete:
   transcription_f82187c4: "ট্রান্সক্রিপশন মুছবেন?"
   all_contributions: "সব অবদান মুছুন…"
   all_stored_text_pairs: "সব সংরক্ষিত টেক্সট জোড়া মুছবেন?"
+  this_note: "এই নোট মুছুন"
+  this_transcript: "এই প্রতিলিপি মুছবেন?"
+  transcript: "প্রতিলিপি মুছুন"
 destinations:
   _self: "Destinations"
 diarization:
@@ -335,6 +363,8 @@ diarized:
   _self: "ডায়ারাইজড"
 dictate:
   in_russian_and_ukrainian: "রুশ ও ইউক্রেনীয় ভাষায় ডিক্টেট করুন"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "ডিকটেশন"
   language: "ডিকটেশন ভাষা"
@@ -352,6 +382,8 @@ display:
   name: "প্রদর্শনের নাম"
   name_c7874aaa: "প্রদর্শনের নাম"
   pindrop_in_the_dock_instead_of_running_o: "শুধুমাত্র একটি মেনু বার অ্যাপ হিসাবে চালানোর পরিবর্তে ডকে পিনড্রপ প্রদর্শন করুন।"
+do:
+  you_want_a_notification_when_a_call_starts: "কল শুরু হলে আপনি কি বিজ্ঞপ্তি চান?"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "উইন্ডোর বাম বা ডান প্রান্তে সাইডবার ডক করুন।"
 done:
@@ -398,6 +430,8 @@ english:
   only: "শুধুমাত্র ইংরেজি"
 enhanced:
   _self: "উন্নত"
+  note: "উন্নত নোট"
+  notes: "উন্নত নোট"
 enhancement:
   prompts: "বর্ধিতকরণ প্রম্পট"
 enhancing:
@@ -457,6 +491,7 @@ file:
   _self: "ফাইল"
 find:
   _self: "খুঁজুন"
+  in_this_note: "এই নোটে খুঁজুন"
 fix:
   punctuation_and_capitalization: "বিরাম চিহ্ন এবং ক্যাপিটালাইজেশন ঠিক করুন"
 floating:
@@ -505,6 +540,7 @@ help:
 hide:
   api_key: "API কী লুকান"
   this_for_1_hour: "এটি 1 ঘন্টার জন্য লুকিয়ে রাখুন"
+  live_transcript: "লাইভ প্রতিলিপি লুকান"
 history:
   _self: "ইতিহাস"
 hold:
@@ -601,7 +637,12 @@ limited:
 listening:
   _self: "শোনা হচ্ছে…"
 live:
+  names_cover_up_to_four_voices: "লাইভ নাম চারটি কণ্ঠ পর্যন্ত কাজ করে।"
+  speaker_names_need_the_speaker_model_downlo: "লাইভ বক্তার নামের জন্য বক্তা মডেল দরকার। রেকর্ড করার সময় নাম দিতে এটি ডাউনলোড করুন।"
+  speaker_names_paused: "লাইভ বক্তার নাম থেমে আছে।"
   streaming_refinement: "লাইভ স্ট্রিমিং পরিমার্জন"
+  text_stopped_the_recording_continues: "লাইভ লেখা থেমে গেছে। রেকর্ডিং চলছে।"
+  transcript: "লাইভ প্রতিলিপি"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -643,6 +684,7 @@ manage:
   presets: "প্রিসেটগুলি পরিচালনা করুন"
   presets_ab87986d: "প্রিসেটগুলি পরিচালনা করুন..."
   presets_d5d4c2c2: "Manage Presets…"
+  templates: "টেমপ্লেট পরিচালনা…"
 manual:
   capture: "Manual capture"
 manually:
@@ -667,6 +709,7 @@ meet:
   the_new_orb: "নতুন Orb-এর সঙ্গে পরিচিত হন"
 meeting:
   saved: "মিটিং সংরক্ষিত হয়েছে"
+  note: "সভার নোট"
 metric:
   _self: "Metric"
 microphone:
@@ -697,16 +740,22 @@ mute:
   system_audio_during_recording: "রেকর্ডিংয়ের সময় সিস্টেম অডিও নিঃশব্দ করুন"
 name:
   _self: "নাম"
+  speakers_while_recording: "রেকর্ডিংয়ের সময় বক্তাদের নাম দিন"
 nemotron:
   default: "Nemotron (default)"
 new:
   folder: "নতুন ফোল্ডার"
+  meeting_note: "নতুন মিটিং নোট"
   note: "নতুন নোট"
   preset: "নতুন প্রিসেট"
+  note_with_system_audio: "সিস্টেম অডিওসহ নতুন নোট"
+  note_without_recording: "রেকর্ডিং ছাড়া নতুন নোট"
+  template: "নতুন টেমপ্লেট"
 newest:
   _self: "নতুনতম"
 next:
   _self: "পরবর্তী"
+  match: "পরের মিল"
 no:
   activity_in_this_period: "No activity in this period"
   api_key: "কোন API কী নেই"
@@ -735,10 +784,17 @@ no:
   results_found: "কোন ফলাফল পাওয়া যায়নি"
   settings_found: "কোনো সেটিংস পাওয়া যায়নি"
   speech_detected_try_speaking_closer_to_your: "কোনো কথা শনাক্ত হয়নি। মাইক্রোফোনের কাছাকাছি কথা বলার চেষ্টা করুন।"
+  template_the_note_is_written_as_plain_notes: "কোনও টেমপ্লেট নয়। নোটটি সাধারণ নোট হিসেবে লেখা হয়।"
+  thanks: "না, ধন্যবাদ"
   transcriptions_yet: "এখনও কোন প্রতিলিপি"
   vocabulary_words: "কোন ভোকাবুলারি শব্দ নেই"
   transcripts_audio_prompts_file_names_or_perso: "কোনো প্রতিলিপি, অডিও, প্রম্পট, ফাইলের নাম বা ব্যক্তিগত কনটেন্ট নয় — কখনও নয়।"
   contributions_yet_pairs_are_stored_when_ai_en: "এখনও কোনো অবদান নেই। AI উন্নতি বা ম্যানুয়াল সম্পাদনা কোনো প্রতিলিপি পরিবর্তন করলে জোড়া সংরক্ষিত হয়।"
+  audio_was_recorded_for_this_note: "এই নোটের জন্য কোনো অডিও রেকর্ড হয়নি।"
+  enhanced_note_yet: "এখনও কোনো উন্নত নোট নেই।"
+  notes_yet_sentence: "এখনও কোনো নোট নেই।"
+  results_try_another_word: "কোনো ফল নেই। অন্য শব্দ চেষ্টা করুন।"
+  matches: "কোনো মিল নেই"
 not:
   assigned: "বরাদ্দ করা হয়নি"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -748,6 +804,7 @@ not:
   set: "সেট নয়"
   set_93039e60: "সেট করা হয়নি"
   now: "এখন নয়"
+  helpful: "উপকারী নয়"
 note:
   _self: "দ্রষ্টব্য"
   capture_hold: "Note Capture — Hold"
@@ -759,9 +816,19 @@ note:
   metadata: "মেটাডেটা নোট করুন"
   saved: "নোট সংরক্ষিত হয়েছে"
   title: "নোট শিরোনাম"
+  actions: "নোট কার্যক্রম"
 notes:
   _self: "নোট"
   3add7b96: "নোট"
+  header_meta_empty: "এখানে এখনও কিছু নেই"
+  header_meta_today: "%1$@, %2$@ আজকের"
+  new_note_options_label: "নতুন নোটের আরও বিকল্প"
+  row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "Pindrop-এর জন্য বিজ্ঞপ্তি বন্ধ আছে। কল সম্পর্কে জিজ্ঞেস করা হোক চাইলে সিস্টেম সেটিংসে সেগুলি চালু করুন।"
+notify:
+  me: "আমাকে জানান"
+  me_when_a_call_starts: "কল শুরু হলে আমাকে জানান"
 off:
   _self: "বন্ধ"
 ok:
@@ -784,6 +851,7 @@ open:
   settings: "সেটিংস খুলুন"
   settings_fd7108f8: "সেটিংস খুলুন"
   system_settings: "সিস্টেম সেটিংস খুলুন"
+  note: "নোট খুলুন"
 openai:
   _self: "OpenAI"
   compatible_local_server: "OpenAI- সামঞ্জস্যপূর্ণ স্থানীয় সার্ভার"
@@ -830,19 +898,52 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "কোন প্রদানকারী এবং মডেল প্রতিটি AI টাস্ক পরিচালনা করে তা বেছে নিন। একটি উদ্দেশ্য এড়ানোর জন্য \"অ্যাসাইন করা হয়নি\" হিসাবে ছেড়ে দিন।"
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
+  a_model_for_note_enhancement_in_settings_th: "সেটিংসে নোট উন্নত করার একটি মডেল বেছে নিন, তারপর আবার চেষ্টা করুন।"
 pill:
   _self: "পিল"
+pillars:
+  capture: "ক্যাপচার"
+  workspace: "কর্মক্ষেত্র"
+  tools: "সরঞ্জাম"
+  dictate: "ডিক্টেশন"
+  voice_note: "ভয়েস নোট"
+  meeting: "মিটিং"
+  dictate_description: "বলুন, তারপর Pindrop আপনার ব্যবহৃত অ্যাপে লিখে দেবে।"
+  voice_note_description: "একটি ভাবনা ক্যাপচার করে নোটে রেখে দিন।"
+  meeting_description: "মাইক্রোফোন ও সিস্টেমের অডিও রেকর্ড করুন, তারপর মিটিংটি লাইব্রেরিতে রেখে দিন।"
+  start_dictating: "ডিক্টেশন শুরু করুন"
+  start_voice_note: "ভয়েস নোট শুরু করুন"
+  open_notes: "নোট খুলুন"
+  change_shortcut: "শর্টকাট পরিবর্তন করুন"
+  capture_in_progress: "ক্যাপচার চলছে"
+  finish_current_capture: "অন্য ক্যাপচার শুরু করার আগে বর্তমান ক্যাপচার শেষ করুন।"
+  voice_note_hold: "ভয়েস নোট — ধরে রাখুন"
+  voice_note_toggle: "ভয়েস নোট — টগল"
+  you_captured_this_week: "আপনি এই সপ্তাহে %@ ক্যাপচার করেছেন।"
+  you_recorded_this_week: "আপনি এই সপ্তাহে %@ রেকর্ড করেছেন।"
+  one_voice_note: "১টি ভয়েস নোট"
+  n_voice_notes: "%@টি ভয়েস নোট"
+  one_meeting: "১টি মিটিং"
+  n_meetings: "%@টি মিটিং"
+  of_meeting_audio: "%@ মিটিং অডিও।"
+  voice_note_shortcut_hint: "যেকোনো জায়গায় %1$@ ধরে রাখুন বা %2$@ চাপুন।"
+  hold_anywhere: "যেকোনো জায়গায় %@ ধরে রাখুন।"
+  press_anywhere: "যেকোনো জায়গায় %@ চাপুন।"
+  voice_notes_empty: "আপনার ভয়েস নোটগুলো এখানে দেখা যাবে।"
+  meetings_empty: "আপনার রেকর্ড করা মিটিংগুলো এখানে দেখা যাবে।"
 pin:
   to_screen_always_on_top: "স্ক্রিনে পিন করুন (সর্বদা উপরে)"
 pindrop:
   _self: "পিনড্রপ"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "রেকর্ডিং শেষ হলে Pindrop বক্তাদের আবার যাচাই করে।"
   help: "Pindrop সহায়তা"
   is_ready_to_use_click_the_menu_bar_icon: |-
     পিনড্রপ ব্যবহারের জন্য প্রস্তুত।
     
     শুরু করতে মেনু বার আইকনে ক্লিক করুন।
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop ব্যবহার করার জন্য প্রস্তুত। শুরু করতে মেনু বার আইকনে ক্লিক করুন।"
+  is_transcribing_only_your_microphone_the: "Pindrop শুধু আপনার মাইক্রোফোন প্রতিলিপি করছে। কলের অডিও চূড়ান্ত নোটে থাকবে।"
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop-এর কাজ করার জন্য কিছু অনুমতির প্রয়োজন৷ আপনার গোপনীয়তা সর্বদা সম্মান করা হয়৷"
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop কাজ করার জন্য কিছু অনুমতি প্রয়োজন.
@@ -850,17 +951,22 @@ pindrop:
     আপনার গোপনীয়তা সবসময় সম্মান করা হয়.
   needs_accessibility_permission_to_insert: "\" আপনার কার্সারে পাঠ্য সন্নিবেশ করার জন্য পিনড্রপের অ্যাক্সেসিবিলিটি অনুমতির প্রয়োজন৷                          অনুমতি দেওয়ার জন্য: 1. নীচে \"ওপেন সিস্টেম সেটিংস\" ক্লিক করুন 2. + বোতামে ক্লিক করুন 3. ফাইন্ডারে দেখানো অ্যাপে নেভিগেট করুন 4. অনুমতি দেওয়ার পরে পিনড্রপ পুনরায় চালু করুন এই অনুমতি ছাড়া, পাঠ্য শুধুমাত্র আপনার ক্লিপবোর্ডে অনুলিপি করা হবে৷             \""
   needs_microphone_access_to_record_and_tr: "আপনার voice.nn অনুগ্রহ করে সিস্টেম সেটিংসে অনুমতি দিন।"
+  noticed_a_call: "Pindrop একটি কল লক্ষ্য করেছে।"
   on_github: "GitHub-এ পিনড্রপ"
   orb: "Pindrop অর্ব"
   pill: "পিনড্রপ পিল"
   theme: "পিনড্রপ থিম"
   can_send_anonymous_privacy_preserving_si: "Pindrop বেনামী, গোপনীয়তা-রক্ষাকারী সিগন্যাল পাঠাতে পারে যাতে বাগ দ্রুত ঠিক হয়।"
+  writes_one_from_your_notes_and_the_trans: "Pindrop আপনার নোট আর প্রতিলিপি থেকে এটি লেখে।"
+  did_not_match_this_voice_to_a_saved_spea: "Pindrop এই কণ্ঠস্বরটিকে কোনো সংরক্ষিত বক্তার সাথে মেলাতে পারেনি, তাই এখনও পরিবর্তনের জন্য কোনো নাম নেই।"
+  needs_this_one_it_downloads_once: "Pindrop-এর এটি দরকার। এটি একবারই ডাউনলোড হয়।"
 pinned:
   _self: "পিন করা"
 plain:
   text_txt: "সাধারণ টেক্সট (.txt)"
 play:
   _self: "খেলা"
+  recording: "রেকর্ডিং চালান"
 please:
   check_your_internet_connection_and_try_ag: "আপনার ইন্টারনেট সংযোগ পরীক্ষা করুন এবং আবার চেষ্টা করুন."
   download_a_whisper_model_in_settings_befo: |-
@@ -954,6 +1060,10 @@ recommended:
   _self: "প্রস্তাবিত"
 record:
   _self: "রেকর্ড"
+  it_as_a_note: "এটি নোট হিসেবে রেকর্ড করবেন?"
+  system_audio_in_meeting_notes: "মিটিং নোটে সিস্টেম অডিও রেকর্ড করুন"
+  this_call: "এই কলটি রেকর্ড করুন"
+  with_system_audio: "সিস্টেম অডিওসহ রেকর্ড করুন"
 recording:
   _self: "রেকর্ডিং"
   3f8fd48c: "🔴 রেকর্ডিং"
@@ -961,6 +1071,8 @@ recording:
   in_progress_transcription_will_start: "রেকর্ডিং চলছে — এটি শেষ হলে ট্রান্সক্রিপশন শুরু হবে।"
   stopped_with_error: "রেকর্ডিং বন্ধ হয়েছে: %@"
   from_external_and_bluetooth_microphone: "বাহ্যিক ও Bluetooth মাইক্রোফোন থেকে রেকর্ডিং এখন অনেক বেশি নির্ভরযোগ্য, এমনকি অডিও আউটপুট অন্য কোথাও রাউট করা থাকলেও।"
+  continues_while_you_work: "আপনি কাজ করার সময় রেকর্ডিং চলতে থাকে"
+  transcribed: "রেকর্ডিং প্রতিলিপি হয়েছে।"
 recordings:
   _self: "রেকর্ডিং"
 redo:
@@ -994,6 +1106,7 @@ report:
 required:
   _self: "প্রয়োজন"
   for_recording_your_voice: "আপনার ভয়েস রেকর্ড করার জন্য প্রয়োজন"
+  helpers_download_when_you_set_pindrop_u: "Pindrop সেট আপ করার সময় প্রয়োজনীয় সহায়ক ফাইল ডাউনলোড হয়। কোনোটি না থাকলে, পরের বার খোলার সময় Pindrop সেটি নিয়ে আসে।"
 requires:
   a_fast_provider_apple_foundation_models: "একটি দ্রুত প্রদানকারী প্রয়োজন (অ্যাপল ফাউন্ডেশন মডেল প্রস্তাবিত)। ক্লাউড প্রদানকারীরা প্রতি বিরতিতে একটি API কল ইস্যু করবে।"
   diarization_model: "Requires diarization model"
@@ -1068,18 +1181,25 @@ setup:
 shortcuts:
   _self: "শর্টকাট"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "কোনো মিটিং অ্যাপ আপনার মাইক্রোফোন চালু করলে রেকর্ড করার উপায় দেখান।"
   api_key: "API কী দেখান"
   app: "অ্যাপ দেখান"
   app_in_finder: "ফাইন্ডারে অ্যাপ দেখান"
   floating_indicator: "ভাসমান নির্দেশক দেখান"
   in_dock: "ডকে দেখান"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "লাইভ প্রতিলিপি দেখান"
+  in_transcript: "প্রতিলিপিতে দেখান"
+  the_transcript_so_far: "এখন পর্যন্ত প্রতিলিপি দেখান"
+  who_is_talking_in_the_live_transcript_names: "লাইভ প্রতিলিপিতে কে কথা বলছে তা দেখান। রেকর্ডিং শেষ হলে নাম আবার যাচাই করা হয়।"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "স্ক্রিনের কোণে একটি তরল কাচের গোলক হিসেবে দেখায়"
   as_a_pill_at_the_bottom_of_the_screen: "পর্দার নীচে একটি বড়ি হিসাবে দেখায়"
   beside_the_focused_text_field_caret: "ফোকাস করা টেক্সট ফিল্ড/ক্যারেটের পাশে দেখায়"
   in_the_menu_bar_notch_area: "মেনু বার/খাঁজ এলাকায় দেখায়"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "সাইডবার অবস্থান"
   position_916f66ea: "সাইডবার অবস্থান"
 simplified:
@@ -1102,6 +1222,8 @@ smaller:
     ছোট মডেল দ্রুত কিন্তু কম সঠিক।
     
     সেরা ব্যালেন্সের জন্য বেস দিয়ে শুরু করুন।
+someone:
+  else_spoke_here_the_finished_note_has_it: "এখানে অন্য কেউ কথা বলেছেন। চূড়ান্ত নোটে সেটি আছে।"
 something:
   went_wrong: "কিছু ভুল হয়েছে"
 soon:
@@ -1112,17 +1234,25 @@ source:
   _self: "উৎস"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "রেকর্ডিং শুরু হলে উৎস স্থির হয়ে যায়।"
+  d: "উৎস (%d)"
 spanish:
   _self: "স্প্যানিশ"
 speak:
   to_append: "যোগ করতে বলুন"
 speaker:
+  _self: "বক্তা"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "স্পীকার ডায়েরাইজেশন এবং টাইমস্ট্যাম্প প্লেব্যাকের সাথে সংযুক্ত।"
   diarization_is_required: "স্পীকার ডায়েরাইজেশন প্রয়োজন"
+  names_were_checked_again_against_the_ful: "পুরো রেকর্ডিং মিলিয়ে বক্তাদের নাম আবার যাচাই করা হয়েছে।"
   profile_training: "Speaker profile training"
+  d: "বক্তা %d"
 speakers:
   _self: "বক্তা"
+  1: "বক্তা: %1$@"
+  are_set_when_the_recording_starts: "রেকর্ডিং শুরু হলে বক্তা নির্ধারিত হয়।"
+  identified: "বক্তা শনাক্ত হয়েছে"
 speed:
   _self: "গতি"
 start:
@@ -1133,9 +1263,12 @@ start:
   using_pindrop: "Pindrop ব্যবহার করা শুরু করুন"
   in_the_menu_bar_without_opening_the_main_w: "মূল উইন্ডো না খুলে মেনু বারে শুরু করুন। মেনু বার আইকন থেকে পরেও খুলতে পারবেন।"
 stats:
-  _self: "Stats"
+  _self: "পরিসংখ্যান"
 status:
   _self: "স্ট্যাটাস"
+still:
+  hearing: "এখনও শোনা হচ্ছে: %@"
+  working_long_recordings_take_a_while: "এখনও কাজ চলছে। দীর্ঘ রেকর্ডিংয়ে কিছুটা সময় লাগে।"
 stop:
   listening: "শোনা বন্ধ করুন"
   recording: "রেকর্ডিং বন্ধ করুন"
@@ -1163,6 +1296,7 @@ switching:
 system:
   _self: "সিস্টেম"
   default: "সিস্টেম ডিফল্ট"
+  audio: "সিস্টেম অডিও"
 teach:
   custom_words: "কাস্টম শব্দ শেখান"
 temporarily:
@@ -1176,9 +1310,23 @@ thanks:
   to_for_the_contribution_pr_61: "অবদানের জন্য %@-কে ধন্যবাদ (PR #61)।"
 the:
   floating_indicator_is_hidden: "ভাসমান নির্দেশকটি লুকানো আছে।"
+  live_speaker_model_could_not_be_loaded_recor: "লাইভ বক্তা মডেল লোড করা যায়নি। রেকর্ডিং চলছে, আর চূড়ান্ত নোটে সবার নাম থাকবে।"
   model_failed_to_load_within_60_seconds_this: "\" মডেলটি 60 সেকেন্ডের মধ্যে লোড হতে ব্যর্থ হয়েছে৷ এর মানে সাধারণত মডেল ফাইলগুলি দূষিত বা বেমানান।                          এটি ঠিক করতে: 1. সেটিংস খুলুন → মডেলগুলি 2. সমস্যাযুক্ত মডেলটি মুছুন 3. মডেলটি পুনরায় ডাউনলোড করুন যদি সমস্যাটি থেকে যায়, একটি ছোট মডেল চেষ্টা করুন (ক্ষুদ্র বা বেস)।             \""
   new_nemotron_streaming_engine_shows_words_as: "নতুন Nemotron স্ট্রিমিং ইঞ্জিন আপনি বলার সঙ্গে সঙ্গে শব্দ দেখায়, আর প্রথম ডিক্টেশন যেন দেরি ছাড়াই শুরু হয় সে জন্য ইঞ্জিনটি চালুর সময় প্রিওয়ার্ম হয়।"
   selected_chunk_variant_isn_t_downloaded_yet: "নির্বাচিত খণ্ড ভেরিয়েন্টটি এখনও ডাউনলোড করা হয়নি। টগল করলে একটি ডাউনলোড শুরু হবে।"
+  audio_and_the_live_transcript_are_deleted_yo: "অডিও আর লাইভ প্রতিলিপি মুছে যায়। আপনার টাইপ করা নোট থেকে যায়।"
+  enhanced_note_could_not_be_generated_try_aga: "উন্নত নোট তৈরি করা যায়নি। আবার চেষ্টা করুন।"
+  enhanced_note_could_not_be_saved_try_again: "উন্নত নোট সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।"
+  model_returned_an_empty_note_try_again: "মডেল একটি খালি নোট ফিরিয়েছে। আবার চেষ্টা করুন।"
+  note_enhancement_model_is_unavailable_check: "নোট উন্নত করার মডেল পাওয়া যাচ্ছে না। সেটিংসে দেখে নিন, তারপর আবার চেষ্টা করুন।"
+  note_this_recording_belongs_to_could_not_be_opened: "এই রেকর্ডিং যে নোটের, সেটি খোলা যায়নি।"
+  recorded_audio_could_not_be_prepared: "রেকর্ড করা অডিও প্রতিলিপির জন্য প্রস্তুত করা যায়নি।"
+  recorder_did_not_start: "রেকর্ডার চালু হয়নি।"
+  transcript_fills_in_as_you_speak: "আপনি বলার সঙ্গে সঙ্গে প্রতিলিপি ভরে ওঠে।"
+  transcript_starts_once_you_speak: "আপনি বলা শুরু করলেই প্রতিলিপি শুরু হয়।"
+  answer_came_back_in_a_form_pindrop_could_not: "উত্তরটি এমন একটি রূপে ফিরে এসেছে যা Pindrop পড়তে পারেনি। আবার জিজ্ঞাসা করুন।"
+  answer_could_not_be_generated_check_your_con: "উত্তরটি তৈরি করা যায়নি। আপনার সংযোগ যাচাই করে আবার জিজ্ঞাসা করুন।"
+  model_returned_an_empty_answer_ask_again: "মডেলটি একটি খালি উত্তর ফিরিয়েছে। আবার জিজ্ঞাসা করুন।"
 theme:
   _self: "থিম"
   changes_apply_live_across_the_workspace_se: "থিম পরিবর্তনগুলি কর্মক্ষেত্র, সেটিংস, নোট এডিটর এবং ভাসমান সূচক জুড়ে লাইভ প্রযোজ্য।"
@@ -1205,6 +1353,8 @@ this:
   will_permanently_remove_the_transcript_and: "এটি স্থায়ীভাবে ট্রান্সক্রিপ্ট এবং এর পরিচালিত মিডিয়া ফাইল সরিয়ে দেবে।"
   will_permanently_remove_this_note: "এতে এই নোট স্থায়ীভাবে মুছে যাবে।"
   permanently_deletes_all_stored_text_pairs_f: "এটি এই Mac থেকে সব সংরক্ষিত টেক্সট জোড়া স্থায়ীভাবে মুছে ফেলে।"
+  template_could_not_be_read_pick_another_tem: "এই টেমপ্লেট পড়া যায়নি। অন্য টেমপ্লেট বেছে নিয়ে আবার চেষ্টা করুন।"
+  note_could_not_be_opened_close_it_and_open: "এই নোটটি খোলা যায়নি। এটি বন্ধ করে আবার খুলুন।"
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1216,6 +1366,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "নির্দেশ দিতে এবং আপনার জন্য Pindrop প্রতিলিপি করতে দেয়"
   start_talking: "কথা শুরু করতে"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "আজ"
 toggle:
   _self: "টগল করুন"
@@ -1240,6 +1391,7 @@ transcription:
   metadata: "ট্রান্সক্রিপশন মেটাডেটা"
   saved: "প্রতিলিপি সংরক্ষিত হয়েছে"
   update: "ট্রান্সক্রিপশন আপডেট"
+  done: "প্রতিলিপি শেষ"
 transcriptions:
   _self: "ট্রান্সক্রিপশন"
   f0972acc: "প্রতিলিপি"
@@ -1251,12 +1403,14 @@ try:
   a_different_search_term_0ba628a3: "একটি ভিন্ন অনুসন্ধান শব্দ চেষ্টা করুন."
   a_different_search_term_in_this_folder: "এই ফোল্ডারে একটি ভিন্ন অনুসন্ধান শব্দ চেষ্টা করুন."
   searching_for_terms_like_hotkeys_microphone: "হটকি, মাইক্রোফোন, আপডেট বা ভাইব মোডের মতো শব্দগুলি অনুসন্ধান করার চেষ্টা করুন৷"
+  again: "আবার চেষ্টা করুন"
 turkish:
   _self: "তুর্কি"
 two:
   new_dictation_languages_fully_wired_into_mod: "দুটি নতুন ডিক্টেশন ভাষা, মডেল সুপারিশে সম্পূর্ণভাবে যুক্ত।"
 type:
   text_directly_into_the_active_app_when_poss: "সম্ভব হলে সক্রিয় অ্যাপে সরাসরি টেক্সট টাইপ করুন"
+  a_question_about_this_note_then_send_it_aga: "এই নোট সম্পর্কে একটি প্রশ্ন লিখুন, তারপর আবার পাঠান।"
 u10:
   floating_inserted_into: "%@-এ সন্নিবেশ করা হয়েছে"
   floating_microphone_unavailable: "মাইক্রোফোন উপলভ্য নয়"
@@ -1327,7 +1481,7 @@ u4:
   home_recent_empty_hint: "আপনার সাম্প্রতিক ডিকটেশন এখানে দেখা যাবে।"
   home_streak: "ধারা"
   home_subline_duration_only: "%@ ডিকটেশন।"
-  home_subline_full: "%@ ডিকটেশন — টাইপ করার তুলনায় প্রায় %@ সাশ্রয়।"
+  home_subline_full: "%@ ডিকটেশন। টাইপ করার তুলনায় প্রায় %@ সাশ্রয়।"
   home_this_week: "এই সপ্তাহ"
   home_welcome_tagline: "বলুন। লেখা হয়ে যায়।"
   home_words_per_min: "শব্দ / মি"
@@ -1335,6 +1489,11 @@ u4:
   home_words_today: "আজকের শব্দ"
   home_you_spoke_this_week: "আপনি এই সপ্তাহে %@ বলেছেন।"
   home_zero_day: "0-দিন"
+  home_n_sessions_grouped: "%@ টি সেশন"
+  home_no_dictations_yet: "এখনও কোনো ডিকটেশন নেই।"
+  home_one_session: "১টি সেশন"
+  home_press_hotkey_to_start: "শুরু করতে যেকোনো জায়গায় %@ চাপুন।"
+  home_stop: "থামান"
 u5:
   u7_add_replacement: "Add replacement"
   u7_add_word: "Add word"
@@ -1493,8 +1652,13 @@ vocabulary:
   _self: "শব্দভান্ডার"
 voice:
   _self: "Voice"
+  isolation: "ভয়েস আইসোলেশন"
+  reduce_background_noise_before_transcription: "ট্রান্সক্রিপশনের আগে পটভূমির শব্দ কমান"
+  note: "কণ্ঠ নোট"
 vs:
   typing: "বনাম টাইপিং"
+watch:
+  for_calls: "কলের জন্য নজর রাখুন"
 web:
   link: "Web link"
 welcome:
@@ -1522,13 +1686,16 @@ wpm:
 yesterday:
   _self: "গতকাল"
 you:
+  _self: "আপনি"
   are_a_note_formatting_assistant_transform_th: "আপনি একজন নোট ফরম্যাটিং সহকারী। প্রতিলিপিকৃত পাঠ্যটিকে একটি সুগঠিত নোটে রূপান্তর করুন। nn নিয়মাবলী: n- ব্যাকরণ, বিরামচিহ্ন এবং বানান ত্রুটিগুলি ঠিক করুনn- দীর্ঘ বিষয়বস্তুর জন্য (3+ অনুচ্ছেদ), মার্কডাউন বিন্যাস যোগ করুন: n - বিভাগগুলিকে সংগঠিত করতে হেডার (## বা ###) ব্যবহার করুন - বুলেট পয়েন্ট বা নম্বরযুক্ত শব্দ ব্যবহার করুন যেখানে emboln-এর জন্য উপযুক্ত শব্দ **--এর জন্য শব্দ ব্যবহার করুন** সংক্ষিপ্ত বিষয়বস্তু, ন্যূনতম বিন্যাসের সাথে সহজ রাখুন- মূল অর্থ এবং টোনেন সংরক্ষণ করুন- এমন সামগ্রী যোগ করবেন না যা মূলে ছিল না- কোনো মন্তব্য ছাড়াই কেবল ফর্ম্যাট করা নোট ফিরিয়ে দিন"
   are_a_text_enhancement_assistant_improve_the: "আপনি একজন পাঠ্য বর্ধন সহকারী। প্রদত্ত পাঠ্যের ব্যাকরণ, বিরাম চিহ্ন এবং বিন্যাস উন্নত করুন এবং এর মূল অর্থ এবং স্বর সংরক্ষণ করুন। কোনো অতিরিক্ত ভাষ্য ছাড়াই শুধুমাত্র বর্ধিত পাঠ্য ফেরত দিন।"
   can_change_these_anytime_from_the_menu_bar_s: "আপনি মেনু বার → সেটিংস → হটকি থেকে যেকোনো সময় এগুলি পরিবর্তন করতে পারেন৷"
   re_all_set: "আপনি সম্পূর্ণ প্রস্তুত!"
   re_all_set_058a8130: "আপনি সব প্রস্তুত!"
+  spoke_here_the_finished_note_has_it: "এখানে আপনি কথা বলেছেন। চূড়ান্ত নোটে সেটি আছে।"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\" আপনি আপনার API রেট সীমা বা কোটা অতিক্রম করেছেন৷                                  এটি ঠিক করতে: 1. কয়েক মিনিট অপেক্ষা করুন এবং আবার চেষ্টা করুন 2. আপনার API প্রদানকারীর ব্যবহারের সীমা পরীক্ষা করুন 3. আপনার API প্ল্যান আপগ্রেড করার কথা বিবেচনা করুন ট্রান্সক্রিপশনটি বর্ধিতকরণ ছাড়াই সংরক্ষণ করা হয়েছিল৷                 \""
   re_in_control: "নিয়ন্ত্রণ আপনার হাতে"
+  deleted_this_transcript: "আপনি এই প্রতিলিপি মুছে দিয়েছেন।"
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\" আপনার API কী অবৈধ বা মেয়াদোত্তীর্ণ বলে মনে হচ্ছে৷                                  এটি ঠিক করতে: 1. সেটিংস খুলুন → AI এনহ্যান্সমেন্ট 2. আপনার API কী সঠিক কিনা যাচাই করুন 3. পরীক্ষা করুন যে আপনার API এন্ডপয়েন্ট সঠিক কিনা ট্রান্সক্রিপশনটি বর্ধিতকরণ ছাড়াই সংরক্ষিত হয়েছে৷                 \""
   floating_indicator_is_now_a_living_audio_re: "আপনার ভাসমান সূচকটি এখন একটি জীবন্ত, অডিও-প্রতিক্রিয়াশীল orb। নিষ্ক্রিয় থাকলে এটি শ্বাস নেয়, আপনি কথা বললে ফুলে ওঠে, এবং ডিক্টেট করার সময় আপনার শব্দ সরাসরি দেখায়।"
@@ -1541,6 +1708,8 @@ your:
   stats: "আপনার পরিসংখ্যান"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "আপনার কথা আপনারই থাকে"
+  enhanced_note_is_ready: "আপনার উন্নত নোট তৈরি।"
+  notes_and_the_enhanced_note_stay_the_transc: "আপনার নোট আর উন্নত নোট থেকে যায়। এই নোটে প্রতিলিপি লুকানো থাকে।"
 zoom:
   _self: "জুম"
 polish:
@@ -1586,3 +1755,99 @@ total:
 tokens:
   in_out: "%@ ইনপুট / %@ আউটপুট টোকেন"
   in_out_thinking: "%@ ইনপুট / %@ আউটপুট / %@ চিন্তন টোকেন"
+auto:
+  _self: "স্বয়ংক্রিয়"
+discard:
+  recording: "রেকর্ডিং বাদ দিন"
+  this_recording: "এই রেকর্ডিং বাদ দেবেন?"
+finalizing:
+  _self: "শেষ করা হচ্ছে"
+finish:
+  _self: "শেষ করুন"
+  the_active_transcription_before_starting: "নতুন একটি শুরু করার আগে চলমান প্রতিলিপিকরণ শেষ করুন।"
+  the_active_transcription_before_starting_another: "নতুন একটি শুরু করার আগে চলমান প্রতিলিপিকরণ শেষ করুন।"
+generate:
+  enhanced_note: "উন্নত নোট তৈরি করুন"
+generated:
+  _self: "তৈরি %@"
+  1_2_template: "তৈরি %1$@ · টেমপ্লেট %2$@"
+helpful:
+  _self: "উপকারী"
+identifying:
+  speakers: "বক্তা শনাক্ত করা হচ্ছে"
+jump:
+  to_live: "লাইভে যান"
+  to_this_line: "এই লাইনে যান"
+mic:
+  _self: "মাইক্রোফোন"
+more:
+  note_actions: "নোটের আরও কাজ"
+  recording_options: "আরও রেকর্ডিং বিকল্প"
+my:
+  notes: "আমার নোট"
+nothing:
+  was_transcribed_yet: "এখনও কিছু প্রতিলিপি হয়নি।"
+playback:
+  position: "প্লেব্যাকের অবস্থান"
+s:
+  to_save: "সংরক্ষণ করতে ⌘S"
+sealing:
+  audio: "অডিও সংরক্ষণ করা হচ্ছে"
+  the_recording: "রেকর্ডিং সংরক্ষণ করা হচ্ছে।"
+see:
+  this_in_the_transcript: "এটি প্রতিলিপিতে দেখুন"
+  where_this_came_from: "এটি কোথা থেকে এসেছে দেখুন"
+template:
+  _self: "টেমপ্লেট: %@"
+  3ec1ae06: "টেমপ্লেট"
+templates:
+  _self: "টেমপ্লেট"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "উন্নত করার মতো প্রতিলিপি এখনও নেই। আগে এই নোট রেকর্ড করুন।"
+  is_nothing_to_ask_about_yet_record_or_writ: "এখনও জিজ্ঞাসা করার মতো কিছু নেই। প্রথমে কিছু রেকর্ড করুন বা লিখুন।"
+transcribing:
+  _self: "প্রতিলিপি চলছে"
+  failed_the_recording_is_saved_try_a: "প্রতিলিপি করা যায়নি। রেকর্ডিং সংরক্ষিত আছে। আবার চেষ্টা করুন, বা নোট থেকে অডিও খুলুন।"
+transcript:
+  _self: "প্রতিলিপি"
+  so_far_pindrop_is_checking_it_against: "এখন পর্যন্ত প্রতিলিপি। Pindrop এটি রেকর্ডিংয়ের সঙ্গে মিলিয়ে দেখছে।"
+  source: "প্রতিলিপির উৎস %@"
+was:
+  _self: "পূর্বে %@"
+  this_note_useful: "এই নোট কি কাজে লেগেছে?"
+writing:
+  note: "নোট লেখা হচ্ছে"
+  your_enhanced_note: "আপনার উন্নত নোট লেখা হচ্ছে।"
+  your_enhanced_note_comes_next_long_recor: "এরপর আপনার উন্নত নোট লেখা হয়। দীর্ঘ রেকর্ডিংয়ে কয়েক মিনিট লাগতে পারে। আপনি টাইপ করে যেতে পারেন।"
+  your_enhanced_note_with: "%@ দিয়ে আপনার উন্নত নোট লেখা হচ্ছে।"
+answers:
+  come_from_this_note_s_transcript_and_you: "উত্তরগুলো এই নোটের প্রতিলিপি এবং আপনার AI প্রদানকারীর কাছ থেকে আসে। গুরুত্বপূর্ণ যেকোনো কিছু যাচাই করুন।"
+ask:
+  a_follow_up: "একটি ফলো-আপ প্রশ্ন করুন"
+  about_this_note: "এই নোট সম্পর্কে জিজ্ঞাসা করুন"
+  this_note: "এই নোটকে জিজ্ঞাসা করুন"
+detected:
+  from_the_recording_renames_apply_to_the: "রেকর্ডিং থেকে শনাক্ত হয়েছে। নাম পরিবর্তন প্রতিলিপি এবং ভবিষ্যতের নোটে প্রযোজ্য হয়।"
+expect:
+  1: "প্রত্যাশিত: %1$@"
+from:
+  the_transcript: "প্রতিলিপি থেকে"
+list:
+  action_items: "কাজের তালিকা দেখান"
+match:
+  1_d_of_2_d: "মিল %2$d-এর %1$d"
+previous:
+  match: "আগের মিল"
+that:
+  speaker_profile_no_longer_exists_try_reopen: "সেই বক্তা প্রোফাইল আর নেই। এই নোটটি আবার খোলার চেষ্টা করুন।"
+thinking:
+  _self: "ভাবছে…"
+write:
+  this_note_again: "এই নোটটি আবার লিখুন"
+matching:
+  names: "নাম মেলানো হচ্ছে"
+skipped:
+  _self: "এড়িয়ে যাওয়া হয়েছে"
+recovered:
+  _self: "পুনরুদ্ধার করা"
+  from_a_recording_that_was_interrupted: "বাধাপ্রাপ্ত একটি রেকর্ডিং থেকে পুনরুদ্ধার করা হয়েছে।"

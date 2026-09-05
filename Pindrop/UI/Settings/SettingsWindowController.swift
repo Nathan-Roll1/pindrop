@@ -9,10 +9,12 @@ import AppKit
 import Combine
 import SwiftData
 import SwiftUI
+import PindropCore
 
 enum SettingsTab: String, CaseIterable, Identifiable {
     case general
     case dictation
+    case meetings
     case appearance
     case shortcuts
     case ai
@@ -26,6 +28,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .general: return localized("General", locale: locale)
         case .dictation: return localized("Dictation", locale: locale)
+        case .meetings: return localized("Meetings", locale: locale)
         case .appearance: return localized("Appearance", locale: locale)
         case .shortcuts: return localized("Shortcuts", locale: locale)
         case .ai: return localized("AI", locale: locale)
@@ -39,6 +42,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape"
         case .dictation: return "mic.fill"
+        case .meetings: return "video"
         case .appearance: return "paintbrush"
         case .shortcuts: return "keyboard"
         case .ai: return "sparkles"
@@ -46,6 +50,21 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .advanced: return "wrench.and.screwdriver"
         case .about: return "info.circle"
         }
+    }
+
+    /// True for a tab that only exists on some machines.
+    var needsMeetingSupport: Bool {
+        self == .meetings
+    }
+
+    /// The tabs to draw, in order.
+    ///
+    /// Meetings is hidden whole when this machine cannot capture system audio,
+    /// because every row inside it is about recording a call and there is no
+    /// call to record there. Hiding the tab is the same answer the menu bar
+    /// gives, so the two surfaces never disagree.
+    static func visibleCases(isMeetingSectionAvailable: Bool) -> [SettingsTab] {
+        allCases.filter { isMeetingSectionAvailable || !$0.needsMeetingSupport }
     }
 
     var accessibilityIdentifier: String {
@@ -59,17 +78,23 @@ struct SettingsPaneContent: View {
     let tab: SettingsTab
     let launchAtLoginManager: LaunchAtLoginManager
     let updateService: UpdateService
+    /// Owns the notification permission request for the Meetings section. Nil on
+    /// a machine that cannot capture system audio, and in the UI-test fixture,
+    /// where no permission is ever asked for.
+    let meetingInvitationController: MeetingInvitationController?
 
     init(
         settings: SettingsStore,
         tab: SettingsTab,
         launchAtLoginManager: LaunchAtLoginManager,
-        updateService: UpdateService
+        updateService: UpdateService,
+        meetingInvitationController: MeetingInvitationController? = nil
     ) {
         self.settings = settings
         self.tab = tab
         self.launchAtLoginManager = launchAtLoginManager
         self.updateService = updateService
+        self.meetingInvitationController = meetingInvitationController
     }
 
     @MainActor
@@ -93,6 +118,11 @@ struct SettingsPaneContent: View {
             )
         case .dictation:
             DictationSettingsView(settings: settings)
+        case .meetings:
+            MeetingsSettingsView(
+                settings: settings,
+                invitationController: meetingInvitationController
+            )
         case .appearance:
             ThemeSettingsView(settings: settings)
         case .shortcuts:
@@ -155,6 +185,21 @@ final class SettingsWindowController: NSWindowController {
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    /// Tells the settings window whether this machine has a Meetings section,
+    /// and which controller owns its notification permission request.
+    ///
+    /// Called after `init`, because the invitation controller is built once the
+    /// coordinator knows whether system audio capture is available at all.
+    func configureMeetings(
+        isAvailable: Bool,
+        invitationController: MeetingInvitationController?
+    ) {
+        windowModel.configureMeetings(
+            isAvailable: isAvailable,
+            invitationController: invitationController
+        )
     }
 
     func show(tab: SettingsTab = .general) {

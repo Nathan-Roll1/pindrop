@@ -8,6 +8,8 @@
 import AppKit
 import ApplicationServices
 import Foundation
+import PindropCore
+import PindropData
 
 enum FocusedTextObservationEvent {
     case textMayHaveChanged(source: String)

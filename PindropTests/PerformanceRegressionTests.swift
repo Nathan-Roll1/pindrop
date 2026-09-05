@@ -12,6 +12,7 @@ import Combine
 import Foundation
 import Testing
 @testable import Pindrop
+import PindropSpeech
 
 // MARK: - Live transcript display bounds
 

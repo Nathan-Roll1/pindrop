@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import PindropCore
+import PindropSpeech
 
 struct DownloadETAEstimator: Equatable, Sendable {
     private struct Sample: Equatable, Sendable {
@@ -51,6 +53,9 @@ struct ModelDownloadStepView: View {
     @State private var downloadError: String?
     @State private var hasStarted = false
     @State private var etaEstimator = DownloadETAEstimator()
+    /// The required helper being fetched right now, after the speech model.
+    /// Nil while the speech model is downloading and once everything is on disk.
+    @State private var activeRequiredFeature: FeatureModelType?
 
     private var selectedModel: ModelManager.WhisperModel? {
         modelManager.availableModels.first { $0.name == modelName }
@@ -63,6 +68,21 @@ struct ModelDownloadStepView: View {
 
         return modelManager.downloadSnapshot
     }
+
+    /// One bar for the whole step, whichever download it is showing.
+    private var currentProgress: Double {
+        activeRequiredFeature == nil
+            ? modelManager.downloadProgress
+            : modelManager.featureDownloadProgress
+    }
+
+    private var isBusy: Bool {
+        modelManager.isDownloading || activeRequiredFeature != nil
+    }
+
+    /// A fresh install runs the standard chunk variant. Low-latency mode is a
+    /// setting nobody has changed yet at this point in setup.
+    private var streamingChunkProfile: StreamingChunkProfile { .standard }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -91,7 +111,7 @@ struct ModelDownloadStepView: View {
         .task {
             await startDownload()
         }
-        .onChange(of: modelManager.downloadProgress, initial: true) { _, progress in
+        .onChange(of: currentProgress, initial: true) { _, progress in
             etaEstimator.record(progress: progress)
         }
     }
@@ -103,12 +123,12 @@ struct ModelDownloadStepView: View {
                     Capsule().fill(AppColors.border)
                     Capsule()
                         .fill(AppColors.accent)
-                        .frame(width: proxy.size.width * max(0, min(1, modelManager.downloadProgress)))
+                        .frame(width: proxy.size.width * max(0, min(1, currentProgress)))
                 }
             }
             .frame(height: 8)
             .clipShape(.capsule)
-            .appAnimation(.normal, value: modelManager.downloadProgress)
+            .appAnimation(.normal, value: currentProgress)
 
             HStack {
                 Text(downloadMeta)
@@ -123,8 +143,8 @@ struct ModelDownloadStepView: View {
     }
 
     private var etaText: String {
-        guard modelManager.isDownloading else {
-            return "\(Int(modelManager.downloadProgress * 100))%"
+        guard isBusy else {
+            return "\(Int(currentProgress * 100))%"
         }
         guard let seconds = etaEstimator.remainingSeconds else {
             return localized("Estimating time remaining…", locale: locale)
@@ -142,6 +162,16 @@ struct ModelDownloadStepView: View {
     }
 
     private var downloadMeta: String {
+        if let activeRequiredFeature {
+            let downloadedMB = Int(
+                Double(activeRequiredFeature.sizeInMB) * modelManager.featureDownloadProgress
+            )
+            return String(
+                format: localized("%@ of %@", locale: locale),
+                formatStorage(downloadedMB),
+                formatStorage(activeRequiredFeature.sizeInMB)
+            )
+        }
         guard let model = selectedModel else { return localized("Please wait...", locale: locale) }
         let downloadedMB = Int(Double(model.sizeInMB) * modelManager.downloadProgress)
         return String(
@@ -169,6 +199,9 @@ struct ModelDownloadStepView: View {
     private var statusTitle: String {
         if downloadError != nil {
             return localized("Download Failed", locale: locale)
+        } else if let activeRequiredFeature {
+            return localized("Downloading %@...", locale: locale)
+                .replacingOccurrences(of: "%@", with: activeRequiredFeature.displayName)
         } else if modelManager.isDownloading {
             switch activeSnapshot?.phase {
             case .compiling, .preparing, .completed:
@@ -187,6 +220,8 @@ struct ModelDownloadStepView: View {
     private var statusSubtitle: String {
         if downloadError != nil {
             return localized("Please check your internet connection and try again.", locale: locale)
+        } else if activeRequiredFeature != nil {
+            return localized("Pindrop needs this one. It downloads once.", locale: locale)
         } else if modelManager.isDownloading {
             if let activeSnapshot {
                 switch activeSnapshot.phase {
@@ -228,7 +263,7 @@ struct ModelDownloadStepView: View {
 
     private var actionButtons: some View {
         HStack(spacing: 14) {
-            if modelManager.isDownloading {
+            if isBusy {
                 OnboardingGhostButton(title: localized("Cancel", locale: locale), action: onCancel)
             } else if downloadError != nil {
                 OnboardingGhostButton(title: localized("Go Back", locale: locale), action: onCancel)
@@ -254,6 +289,7 @@ struct ModelDownloadStepView: View {
             Log.boot.info("Onboarding model download step: model already on disk name=\(modelName) loading via provider-aware path")
             do {
                 try await loadSelectedModel()
+                await downloadRequiredFeatureModels()
                 onComplete()
             } catch {
                 Log.boot.error("Onboarding already-downloaded load failed name=\(modelName) error=\(error.localizedDescription)")
@@ -269,12 +305,45 @@ struct ModelDownloadStepView: View {
             Log.boot.info("Onboarding model download step: download finished; loading via provider-aware path name=\(modelName)")
 
             try await loadSelectedModel()
+            await downloadRequiredFeatureModels()
             Log.boot.info("Onboarding model download step: invoking onComplete")
             onComplete()
         } catch {
             Log.boot.error("Onboarding model download step failed name=\(modelName) error=\(error.localizedDescription)")
             downloadError = error.localizedDescription
             hasStarted = false
+        }
+    }
+
+    /// Fetches the helpers every install needs: live transcription and the
+    /// voice detection that puts paragraph breaks in a recorded note.
+    ///
+    /// A failure here never blocks setup. The person still has a working speech
+    /// model, and the next launch tries the missing ones again.
+    private func downloadRequiredFeatureModels() async {
+        await modelManager.refreshDownloadedFeatureModels()
+        let missing = modelManager.missingRequiredFeatureModels(
+            streamingChunkProfile: streamingChunkProfile
+        )
+        guard !missing.isEmpty else { return }
+
+        Log.boot.info("Onboarding: fetching required feature models \(missing.map(\.rawValue))")
+        etaEstimator = DownloadETAEstimator()
+        let failures = await modelManager.downloadMissingRequiredFeatureModels(
+            streamingChunkProfile: streamingChunkProfile,
+            onProgress: { type, _ in
+                if activeRequiredFeature != type {
+                    activeRequiredFeature = type
+                    etaEstimator = DownloadETAEstimator()
+                }
+            }
+        )
+        activeRequiredFeature = nil
+        await modelManager.refreshDownloadedFeatureModels()
+        for failure in failures {
+            Log.boot.error(
+                "Onboarding required feature model \(failure.type.rawValue) failed: \(failure.error.localizedDescription)"
+            )
         }
     }
 
@@ -306,19 +375,23 @@ struct ModelDownloadStepView: View {
 struct ModelDownloadStepView_Previews: PreviewProvider {
     static var previews: some View {
         ModelDownloadStepView(
-            modelManager: PreviewModelManagerDownload(),
-            transcriptionService: TranscriptionService(),
+            modelManager: ModelManager(storageLocations: Self.previewStorageLocations),
+            transcriptionService: TranscriptionService(storageLocations: Self.previewStorageLocations),
             modelName: "openai_whisper-base.en",
             onComplete: {},
             onCancel: {}
         )
         .frame(width: 760, height: 500)
     }
-}
 
-final class PreviewModelManagerDownload: ModelManager {
-    override init() {
-        // Skip async initialization to avoid launching WhisperKit in preview
-    }
+    private static let previewStorageLocations = ModelStorageLocations(
+        pindropApplicationSupportRoot: FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Pindrop", isDirectory: true),
+        fluidAudioModelsRoot: FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("FluidAudio", isDirectory: true)
+            .appendingPathComponent("Models", isDirectory: true)
+    )
 }
 #endif

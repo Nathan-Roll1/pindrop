@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import AppKit
+import PindropCore
 
 extension NSScreen {
     /// Stable identity for the physical display backing this screen (handles cases where AppKit
@@ -832,7 +833,7 @@ struct FloatingIndicatorActions {
     var onHideForOneHour: (() -> Void)?
     var onReportIssue: (() -> Void)?
     var onGoToSettings: (() -> Void)?
-    var onViewTranscriptHistory: (() -> Void)?
+    var onOpenLibrary: (() -> Void)?
     var onPasteLastTranscript: (() async -> Void)?
     var onSelectInputDeviceUID: ((String) -> Void)?
     var onSelectLanguage: ((AppLanguage) -> Void)?

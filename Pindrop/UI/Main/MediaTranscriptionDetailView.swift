@@ -12,6 +12,9 @@ import Foundation
 import Observation
 import SwiftData
 import SwiftUI
+import PindropCore
+import PindropMedia
+import PindropData
 
 struct MediaTranscriptionDetailView: View {
     let record: TranscriptionRecord
@@ -93,13 +96,6 @@ struct MediaTranscriptionDetailView: View {
 
     private var hasMedia: Bool { TranscriptionDetailAccess.shouldShowPlayback(for: record) }
     private var showsSpeakerLanes: Bool { !segments.isEmpty }
-
-    private static let metaDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter
-    }()
 
     var body: some View {
         GeometryReader { geo in
@@ -245,7 +241,7 @@ struct MediaTranscriptionDetailView: View {
                 .textSelection(.enabled)
 
             HStack(spacing: 10) {
-                Text(Self.metaDateFormatter.string(from: record.timestamp))
+                Text(NotesDateFormatting.detailDate(date: record.timestamp, locale: locale))
                     .font(AppTypography.monoTime)
                     .foregroundStyle(AppColors.textSecondary)
                     .monospacedDigit()

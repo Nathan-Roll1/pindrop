@@ -7,6 +7,7 @@
 
 import Foundation
 import os.log
+import PindropCore
 
 // MARK: - Mention Formatter Configuration
 

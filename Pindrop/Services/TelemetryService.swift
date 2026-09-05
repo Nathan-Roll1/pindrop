@@ -12,6 +12,7 @@
 
 import Foundation
 import TelemetryDeck
+import PindropCore
 
 @MainActor
 protocol TelemetrySink: AnyObject {
@@ -34,7 +35,7 @@ final class LiveTelemetrySink: TelemetrySink {
 }
 
 @MainActor
-final class TelemetryService {
+final class TelemetryService: ModelDownloadEventReporting {
     /// Public TelemetryDeck app identifier. Not a secret — it only routes signals to
     /// the Pindrop dashboard. When empty (forks, local builds without a TelemetryDeck
     /// app), telemetry is fully disabled and the consent prompt never shows.
@@ -92,6 +93,25 @@ final class TelemetryService {
         }
         sink.send(event.rawValue, parameters: parameters)
         Log.telemetry.debug("Signal sent: \(event.rawValue)")
+    }
+
+    // MARK: - ModelDownloadEventReporting
+
+    func modelDownloadDidStart(modelName: String) {
+        send(
+            .modelDownloadStarted,
+            parameters: [TelemetryParameter.model: modelName]
+        )
+    }
+
+    func modelDownloadDidFail(modelName: String, error: Error) {
+        send(
+            .modelDownloadFailed,
+            parameters: [
+                TelemetryParameter.model: modelName,
+                TelemetryParameter.errorCase: Self.errorCaseName(error)
+            ]
+        )
     }
 
     // MARK: - Sanitizers

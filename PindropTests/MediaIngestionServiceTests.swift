@@ -1,12 +1,15 @@
 //
 //  MediaIngestionServiceTests.swift
-//  Pindrop
+//  PindropTests
 //
-//  Created on 2026-03-07.
+//  macOS process/yt-dlp/ffmpeg adapter coverage. Portable direct-download and
+//  managed-library behavior lives in PindropMediaTests.
 //
 
 import Foundation
 import Testing
+import PindropCore
+import PindropMedia
 @testable import Pindrop
 
 @MainActor
@@ -15,102 +18,6 @@ struct MediaIngestionServiceTests {
     private let fakeYTDLPPath = "/tmp/pindrop-test-yt-dlp"
     private let fakeFFmpegPath = "/tmp/pindrop-test-ffmpeg"
 
-    @Test func testDirectDownloadDelegateRetainsImmediateSuccess() async throws {
-        let sourceURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension("mp3")
-        try Data("audio-data".utf8).write(to: sourceURL)
-
-        let delegate = DirectDownloadDelegate(onProgress: { _, _ in })
-        let session = URLSession(configuration: .ephemeral)
-        let task = session.downloadTask(with: URL(string: "https://example.com/audio.mp3")!)
-        defer { session.invalidateAndCancel() }
-
-        delegate.urlSession(session, downloadTask: task, didFinishDownloadingTo: sourceURL)
-
-        var didStart = false
-        let downloadedURL = try await delegate.waitForCompletion {
-            didStart = true
-        }
-
-        #expect(!didStart)
-        #expect(try Data(contentsOf: downloadedURL) == Data("audio-data".utf8))
-        try? FileManager.default.removeItem(at: downloadedURL)
-    }
-
-    @Test func testDirectDownloadDelegateRetainsImmediateFailure() async {
-        let delegate = DirectDownloadDelegate(onProgress: { _, _ in })
-        let session = URLSession(configuration: .ephemeral)
-        let task = session.downloadTask(with: URL(string: "https://example.com/audio.mp3")!)
-        defer { session.invalidateAndCancel() }
-
-        delegate.urlSession(session, task: task, didCompleteWithError: URLError(.cannotConnectToHost))
-
-        var didStart = false
-        do {
-            _ = try await delegate.waitForCompletion {
-                didStart = true
-            }
-            Issue.record("Expected immediate download failure")
-        } catch let error as URLError {
-            #expect(error.code == .cannotConnectToHost)
-        } catch {
-            Issue.record("Expected URLError, got \(error)")
-        }
-        #expect(!didStart)
-    }
-
-    @Test func testDirectDownloadDelegateRetainsCancellation() async {
-        let delegate = DirectDownloadDelegate(onProgress: { _, _ in })
-        delegate.cancel()
-
-        var didStart = false
-        do {
-            _ = try await delegate.waitForCompletion {
-                didStart = true
-            }
-            Issue.record("Expected cancellation")
-        } catch is CancellationError {
-            #expect(!didStart)
-        } catch {
-            Issue.record("Expected CancellationError, got \(error)")
-        }
-    }
-
-    @Test func testDirectDownloadDelegateRemovesTempFileWhenCancellationWins() throws {
-        let temporaryDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
-        let sourceURL = temporaryDirectory.appendingPathComponent("download.mp3")
-        try Data("audio-data".utf8).write(to: sourceURL)
-
-        let delegate = DirectDownloadDelegate(temporaryDirectory: temporaryDirectory, onProgress: { _, _ in })
-        let session = URLSession(configuration: .ephemeral)
-        let task = session.downloadTask(with: URL(string: "https://example.com/audio.mp3")!)
-        defer { session.invalidateAndCancel() }
-
-        delegate.cancel()
-        delegate.urlSession(session, downloadTask: task, didFinishDownloadingTo: sourceURL)
-
-        #expect(try FileManager.default.contentsOfDirectory(atPath: temporaryDirectory.path).isEmpty)
-    }
-
-    @Test func testImportLocalFileCopiesIntoManagedLibrary() async throws {
-        let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mp3")
-        try Data("audio-data".utf8).write(to: sourceURL)
-
-        let library = ManagedMediaLibrary()
-        let asset = try await library.importLocalFile(at: sourceURL, jobID: UUID())
-
-        #expect(asset.sourceKind == .importedFile)
-        #expect(asset.displayName == sourceURL.lastPathComponent)
-        #expect(FileManager.default.fileExists(atPath: asset.mediaURL.path))
-        #expect(try Data(contentsOf: asset.mediaURL) == Data("audio-data".utf8))
-
-        try? FileManager.default.removeItem(at: sourceURL)
-        try? FileManager.default.removeItem(at: asset.directoryURL)
-    }
     @Test func testIngestFileDelegatesToMediaLibrary() async throws {
         let expectedAsset = ManagedMediaAsset(
             directoryURL: URL(fileURLWithPath: "/tmp/job"),
@@ -137,6 +44,161 @@ struct MediaIngestionServiceTests {
 
         #expect(asset == expectedAsset)
         #expect(library.importedSourceURL == fileURL)
+    }
+
+    @Test func testStoreCapturePCMFileDelegatesToMediaLibrary() throws {
+        let sessionID = UUID()
+        let sourceID = UUID()
+        let sourceURL = URL(fileURLWithPath: "/tmp/microphone.pcm")
+        let expectedArtifact = ManagedCaptureSourceArtifact(
+            sessionID: sessionID,
+            sourceID: sourceID,
+            chunkSequence: 0,
+            relativePath: CaptureSourceArtifactPath.relativePath(
+                sessionID: sessionID,
+                sourceID: sourceID,
+                chunkSequence: 0
+            ),
+            byteCount: 32_768,
+            sha256: "deadbeef"
+        )
+        let library = MockMediaLibrary()
+        library.captureSourceArtifact = expectedArtifact
+        let sut = MediaIngestionService(
+            processRunner: MockProcessRunner(),
+            mediaLibrary: library
+        )
+
+        let artifact = try sut.storeCapturePCMFile(
+            at: sourceURL,
+            sessionID: sessionID,
+            sourceID: sourceID,
+            chunkSequence: 0
+        )
+
+        #expect(artifact == expectedArtifact)
+        #expect(library.captureSourceURL == sourceURL)
+        #expect(library.captureSourceSessionID == sessionID)
+        #expect(library.captureSourceID == sourceID)
+        #expect(library.captureSourceChunkSequence == 0)
+    }
+
+    @Test func testStoreCapturePCMFileAsyncDelegatesToMediaLibrary() async throws {
+        let sessionID = UUID()
+        let sourceID = UUID()
+        let sourceURL = URL(fileURLWithPath: "/tmp/microphone.pcm")
+        let expectedArtifact = ManagedCaptureSourceArtifact(
+            sessionID: sessionID,
+            sourceID: sourceID,
+            chunkSequence: 0,
+            relativePath: CaptureSourceArtifactPath.relativePath(
+                sessionID: sessionID,
+                sourceID: sourceID,
+                chunkSequence: 0
+            ),
+            byteCount: 32_768,
+            sha256: "deadbeef"
+        )
+        let library = MockMediaLibrary()
+        library.captureSourceArtifact = expectedArtifact
+        let sut = MediaIngestionService(
+            processRunner: MockProcessRunner(),
+            mediaLibrary: library
+        )
+
+        let artifact = try await sut.storeCapturePCMFile(
+            at: sourceURL,
+            sessionID: sessionID,
+            sourceID: sourceID,
+            chunkSequence: 0
+        )
+
+        #expect(artifact == expectedArtifact)
+        #expect(library.captureSourceURL == sourceURL)
+        #expect(library.captureSourceSessionID == sessionID)
+        #expect(library.captureSourceID == sourceID)
+        #expect(library.captureSourceChunkSequence == 0)
+    }
+
+    @Test func testStoreRecordedAudioAsyncDelegatesToMediaLibrary() async throws {
+        let audioData = Data([0, 1, 2, 3])
+        let jobID = UUID()
+        let library = MockMediaLibrary()
+        let sut = MediaIngestionService(
+            processRunner: MockProcessRunner(),
+            mediaLibrary: library
+        )
+
+        let asset = try await sut.storeRecordedAudio(
+            audioData,
+            jobID: jobID,
+            displayName: "Voice recording",
+            sourceKind: .voiceRecording
+        )
+
+        #expect(library.storedRecordedAudio == audioData)
+        #expect(asset.directoryURL == library.directoryURL)
+        #expect(asset.mediaURL == library.directoryURL.appendingPathComponent("media.caf"))
+        #expect(asset.sourceKind == .voiceRecording)
+        #expect(asset.displayName == "Voice recording")
+    }
+
+
+    @Test func testStoreCapturePCMFileWrapsMediaLibraryStorageError() throws {
+        let library = MockMediaLibrary()
+        library.captureSourceStorageError = .captureSourceStorageFailed("disk full")
+        let sut = MediaIngestionService(
+            processRunner: MockProcessRunner(),
+            mediaLibrary: library
+        )
+
+        do {
+            _ = try sut.storeCapturePCMFile(
+                at: URL(fileURLWithPath: "/tmp/microphone.pcm"),
+                sessionID: UUID(),
+                sourceID: UUID(),
+                chunkSequence: 0
+            )
+            Issue.record("Expected capture-source storage error")
+        } catch let error as MediaIngestionError {
+            guard case .captureSourceStorageFailed(let message) = error else {
+                Issue.record("Expected capture-source storage error, got \(error)")
+                return
+            }
+            #expect(message == "disk full")
+        }
+    }
+
+    @Test func testStoreCapturePCMFileAsyncPreservesContentConflict() async throws {
+        let sessionID = UUID()
+        let sourceID = UUID()
+        let relativePath = CaptureSourceArtifactPath.relativePath(
+            sessionID: sessionID,
+            sourceID: sourceID,
+            chunkSequence: 0
+        )
+        let library = MockMediaLibrary()
+        library.captureSourceStorageError = .captureSourceStorageContentConflict(relativePath: relativePath)
+        let sut = MediaIngestionService(
+            processRunner: MockProcessRunner(),
+            mediaLibrary: library
+        )
+
+        do {
+            _ = try await sut.storeCapturePCMFile(
+                at: URL(fileURLWithPath: "/tmp/microphone.pcm"),
+                sessionID: sessionID,
+                sourceID: sourceID,
+                chunkSequence: 0
+            )
+            Issue.record("Expected capture-source content conflict")
+        } catch let error as MediaIngestionError {
+            guard case .captureSourceStorageContentConflict(let actualPath) = error else {
+                Issue.record("Expected capture-source content conflict, got \(error)")
+                return
+            }
+            #expect(actualPath == relativePath)
+        }
     }
     @Test func testIngestLinkThrowsWhenRequiredToolingIsMissing() async throws {
         let processRunner = MockProcessRunner()
@@ -296,9 +358,201 @@ struct MediaIngestionServiceTests {
         #expect(library.finalizeSourceURL == youtubeURL)
         #expect(library.finalizeSuggestedTitle == "Example video")
     }
+
+    @Test func testMeetingMediaWrappersDelegateOffMainAndReturnResults() async throws {
+        let sessionID = UUID()
+        let microphoneSourceID = UUID()
+        let systemAudioSourceID = UUID()
+        let plan = MeetingCaptureSpoolPlan(
+            libraryRootURL: URL(fileURLWithPath: "/tmp/media-library", isDirectory: true),
+            sessionID: sessionID,
+            microphoneSourceID: microphoneSourceID,
+            systemAudioSourceID: systemAudioSourceID
+        )
+        let microphoneChunk = SealedAudioSourceChunk(
+            sessionID: sessionID,
+            sourceID: microphoneSourceID,
+            sequence: 2,
+            startOffset: 600,
+            duration: 300,
+            fileURL: URL(fileURLWithPath: "/tmp/microphone-2.pcm"),
+            relativePath: "CaptureSessions/\(sessionID.uuidString)/Sources/\(microphoneSourceID.uuidString)/chunk-00002.pcm",
+            byteCount: 19_200_000,
+            sha256: "microphone-hash"
+        )
+        let systemAudioChunk = SealedAudioSourceChunk(
+            sessionID: sessionID,
+            sourceID: systemAudioSourceID,
+            sequence: 2,
+            startOffset: 600,
+            duration: 300,
+            fileURL: URL(fileURLWithPath: "/tmp/system-audio-2.pcm"),
+            relativePath: "CaptureSessions/\(sessionID.uuidString)/Sources/\(systemAudioSourceID.uuidString)/chunk-00002.pcm",
+            byteCount: 19_200_000,
+            sha256: "system-audio-hash"
+        )
+        let expectedURL = URL(fileURLWithPath: "/tmp/resolved-microphone-2.pcm")
+        let expectedMixedArtifact = ManagedMixedMeetingChunkArtifact(
+            sessionID: sessionID,
+            sequence: 2,
+            relativePath: "CaptureSessions/\(sessionID.uuidString)/Mixed/chunk-00002.pcm",
+            byteCount: 19_200_000,
+            sha256: "mixed-hash"
+        )
+        let library = MockMediaLibrary()
+        library.meetingCaptureSpoolPlan = plan
+        library.recoveredMeetingArtifacts = MeetingArtifactRecoveryResult(
+            sealedChunks: [microphoneChunk, systemAudioChunk],
+            failures: []
+        )
+        library.resolvedMeetingArtifactURL = expectedURL
+        library.mixedMeetingChunkArtifact = expectedMixedArtifact
+        let sut = MediaIngestionService(
+            processRunner: MockProcessRunner(),
+            mediaLibrary: library
+        )
+
+        let returnedPlan = try await sut.makeMeetingCaptureSpoolPlan(
+            sessionID: sessionID,
+            microphoneSourceID: microphoneSourceID,
+            systemAudioSourceID: systemAudioSourceID
+        )
+        let recoveredArtifacts = try await sut.recoverMeetingArtifacts(for: plan)
+        let resolvedURL = try await sut.resolveArtifactURL(for: microphoneChunk)
+        let mixedArtifact = try await sut.makeMixedMeetingChunk(
+            sessionID: sessionID,
+            sequence: 2,
+            microphone: microphoneChunk,
+            systemAudio: systemAudioChunk
+        )
+        try await sut.removeMixedMeetingChunk(expectedMixedArtifact)
+        try await sut.removeMixedMeetingChunks(for: sessionID)
+
+        #expect(returnedPlan == plan)
+        #expect(recoveredArtifacts.sealedChunks == [microphoneChunk, systemAudioChunk])
+        #expect(resolvedURL == expectedURL)
+        #expect(mixedArtifact == expectedMixedArtifact)
+        #expect(library.meetingPlanSessionID == sessionID)
+        #expect(library.meetingPlanMicrophoneSourceID == microphoneSourceID)
+        #expect(library.meetingPlanSystemAudioSourceID == systemAudioSourceID)
+        #expect(library.recoveredMeetingPlan == plan)
+        #expect(library.resolvedMeetingChunk == microphoneChunk)
+        #expect(library.mixedMeetingSessionID == sessionID)
+        #expect(library.mixedMeetingSequence == 2)
+        #expect(library.mixedMeetingMicrophone == microphoneChunk)
+        #expect(library.mixedMeetingSystemAudio == systemAudioChunk)
+        #expect(library.removedMixedMeetingChunk == expectedMixedArtifact)
+        #expect(library.removedMixedMeetingSessionID == sessionID)
+        #expect(library.meetingOperationsRanOffMain.count == 6)
+        #expect(library.meetingOperationsRanOffMain.allSatisfy { $0 })
+    }
+
+    @Test func testMeetingMediaWrappersMapMediaLibraryErrors() async throws {
+        let sessionID = UUID()
+        let microphoneSourceID = UUID()
+        let systemAudioSourceID = UUID()
+        let plan = MeetingCaptureSpoolPlan(
+            libraryRootURL: URL(fileURLWithPath: "/tmp/media-library", isDirectory: true),
+            sessionID: sessionID,
+            microphoneSourceID: microphoneSourceID,
+            systemAudioSourceID: systemAudioSourceID
+        )
+        let chunk = SealedAudioSourceChunk(
+            sessionID: sessionID,
+            sourceID: microphoneSourceID,
+            sequence: 0,
+            startOffset: 0,
+            duration: 300,
+            fileURL: URL(fileURLWithPath: "/tmp/microphone-0.pcm"),
+            relativePath: "CaptureSessions/\(sessionID.uuidString)/Sources/\(microphoneSourceID.uuidString)/chunk-00000.pcm",
+            byteCount: 19_200_000,
+            sha256: "microphone-hash"
+        )
+        let mixedArtifact = ManagedMixedMeetingChunkArtifact(
+            sessionID: sessionID,
+            sequence: 0,
+            relativePath: "CaptureSessions/\(sessionID.uuidString)/Mixed/chunk-00000.pcm",
+            byteCount: 19_200_000,
+            sha256: "mixed-hash"
+        )
+        let library = MockMediaLibrary()
+        let sut = MediaIngestionService(
+            processRunner: MockProcessRunner(),
+            mediaLibrary: library
+        )
+
+        library.meetingMediaError = .captureSourceStorageFailed("disk full")
+        do {
+            _ = try await sut.makeMeetingCaptureSpoolPlan(
+                sessionID: sessionID,
+                microphoneSourceID: microphoneSourceID,
+                systemAudioSourceID: systemAudioSourceID
+            )
+            Issue.record("Expected capture-source storage error")
+        } catch let error as MediaIngestionError {
+            guard case .captureSourceStorageFailed(let message) = error else {
+                Issue.record("Expected capture-source storage error, got \(error)")
+                return
+            }
+            #expect(message == "disk full")
+        }
+
+        library.meetingMediaError = .captureSourceStorageUnsupported
+        do {
+            _ = try await sut.recoverMeetingArtifacts(for: plan)
+            Issue.record("Expected capture-source storage unsupported error")
+        } catch let error as MediaIngestionError {
+            guard case .captureSourceStorageUnsupported = error else {
+                Issue.record("Expected capture-source storage unsupported error, got \(error)")
+                return
+            }
+        }
+
+        let relativePath = "CaptureSessions/\(sessionID.uuidString)/Mixed/chunk-00000.pcm"
+        library.meetingMediaError = .captureSourceStorageContentConflict(relativePath: relativePath)
+        await assertCaptureSourceContentConflict(relativePath: relativePath) {
+            _ = try await sut.recoverMeetingArtifacts(for: plan)
+        }
+        await assertCaptureSourceContentConflict(relativePath: relativePath) {
+            _ = try await sut.resolveArtifactURL(for: chunk)
+        }
+        await assertCaptureSourceContentConflict(relativePath: relativePath) {
+            _ = try await sut.makeMixedMeetingChunk(
+                sessionID: sessionID,
+                sequence: 0,
+                microphone: chunk,
+                systemAudio: nil
+            )
+        }
+        await assertCaptureSourceContentConflict(relativePath: relativePath) {
+            try await sut.removeMixedMeetingChunk(mixedArtifact)
+        }
+        await assertCaptureSourceContentConflict(relativePath: relativePath) {
+            try await sut.removeMixedMeetingChunks(for: sessionID)
+        }
+    }
 }
 
-private final class MockMediaLibrary: MediaLibraryManaging {
+
+@MainActor
+private func assertCaptureSourceContentConflict(
+    relativePath: String,
+    operation: @MainActor () async throws -> Void
+) async {
+    do {
+        try await operation()
+        Issue.record("Expected capture-source content conflict")
+    } catch let error as MediaIngestionError {
+        guard case .captureSourceStorageContentConflict(let actualPath) = error else {
+            Issue.record("Expected capture-source content conflict, got \(error)")
+            return
+        }
+        #expect(actualPath == relativePath)
+    } catch {
+        Issue.record("Expected MediaIngestionError, got \(error)")
+    }
+}
+private final class MockMediaLibrary: MediaLibraryManaging, @unchecked Sendable {
     var importedSourceURL: URL?
     var importedAsset = ManagedMediaAsset(
         directoryURL: URL(fileURLWithPath: "/tmp/job"),
@@ -324,6 +578,49 @@ private final class MockMediaLibrary: MediaLibraryManaging {
     var finalizeDirectoryURL: URL?
     var finalizeSourceURL: String?
     var finalizeSuggestedTitle: String?
+    var captureSourceURL: URL?
+    var captureSourceSessionID: UUID?
+    var captureSourceID: UUID?
+    var captureSourceChunkSequence: Int?
+    var captureSourceStorageError: MediaLibraryError?
+    var captureSourceArtifact = ManagedCaptureSourceArtifact(
+        sessionID: UUID(),
+        sourceID: UUID(),
+        chunkSequence: 0,
+        relativePath: "CaptureSessions/test/Sources/test/chunk-00000.pcm",
+        byteCount: 0,
+        sha256: ""
+    )
+
+    var meetingCaptureSpoolPlan = MeetingCaptureSpoolPlan(
+        libraryRootURL: URL(fileURLWithPath: "/tmp/media-library", isDirectory: true),
+        sessionID: UUID(),
+        microphoneSourceID: UUID(),
+        systemAudioSourceID: UUID()
+    )
+    var recoveredMeetingArtifacts = MeetingArtifactRecoveryResult(sealedChunks: [], failures: [])
+    var resolvedMeetingArtifactURL = URL(fileURLWithPath: "/tmp/resolved-artifact.pcm")
+    var mixedMeetingChunkArtifact = ManagedMixedMeetingChunkArtifact(
+        sessionID: UUID(),
+        sequence: 0,
+        relativePath: "CaptureSessions/test/Mixed/chunk-00000.pcm",
+        byteCount: 0,
+        sha256: ""
+    )
+    var meetingMediaError: MediaLibraryError?
+    var meetingPlanSessionID: UUID?
+    var meetingPlanMicrophoneSourceID: UUID?
+    var meetingPlanSystemAudioSourceID: UUID?
+    var recoveredMeetingPlan: MeetingCaptureSpoolPlan?
+    var resolvedMeetingChunk: SealedAudioSourceChunk?
+    var mixedMeetingSessionID: UUID?
+    var mixedMeetingSequence: Int?
+    var mixedMeetingMicrophone: SealedAudioSourceChunk?
+    var mixedMeetingSystemAudio: SealedAudioSourceChunk?
+    var removedMixedMeetingChunk: ManagedMixedMeetingChunkArtifact?
+    var removedMixedMeetingSessionID: UUID?
+    var meetingOperationsRanOffMain: [Bool] = []
+
 
     func makeJobDirectory(for jobID: UUID) throws -> URL {
         makeJobDirectoryCallCount += 1
@@ -351,6 +648,91 @@ private final class MockMediaLibrary: MediaLibraryManaging {
             hasSourceMetadataTitle: false,
             originalSourceURL: nil
         )
+    }
+    func storeCapturePCMFile(
+        at sourceURL: URL,
+        sessionID: UUID,
+        sourceID: UUID,
+        chunkSequence: Int
+    ) throws -> ManagedCaptureSourceArtifact {
+        if let captureSourceStorageError {
+            throw captureSourceStorageError
+        }
+        captureSourceURL = sourceURL
+        captureSourceSessionID = sessionID
+        captureSourceID = sourceID
+        captureSourceChunkSequence = chunkSequence
+        return captureSourceArtifact
+    }
+
+    func makeMeetingCaptureSpoolPlan(
+        sessionID: UUID,
+        microphoneSourceID: UUID,
+        systemAudioSourceID: UUID?
+    ) throws -> MeetingCaptureSpoolPlan {
+        recordMeetingOperation()
+        if let meetingMediaError {
+            throw meetingMediaError
+        }
+        meetingPlanSessionID = sessionID
+        meetingPlanMicrophoneSourceID = microphoneSourceID
+        meetingPlanSystemAudioSourceID = systemAudioSourceID
+        return meetingCaptureSpoolPlan
+    }
+
+    func recoverMeetingArtifacts(for plan: MeetingCaptureSpoolPlan) throws -> MeetingArtifactRecoveryResult {
+        recordMeetingOperation()
+        if let meetingMediaError {
+            throw meetingMediaError
+        }
+        recoveredMeetingPlan = plan
+        return recoveredMeetingArtifacts
+    }
+
+    func resolveArtifactURL(for chunk: SealedAudioSourceChunk) throws -> URL {
+        recordMeetingOperation()
+        if let meetingMediaError {
+            throw meetingMediaError
+        }
+        resolvedMeetingChunk = chunk
+        return resolvedMeetingArtifactURL
+    }
+
+    func makeMixedMeetingChunk(
+        sessionID: UUID,
+        sequence: Int,
+        microphone: SealedAudioSourceChunk?,
+        systemAudio: SealedAudioSourceChunk?
+    ) throws -> ManagedMixedMeetingChunkArtifact {
+        recordMeetingOperation()
+        if let meetingMediaError {
+            throw meetingMediaError
+        }
+        mixedMeetingSessionID = sessionID
+        mixedMeetingSequence = sequence
+        mixedMeetingMicrophone = microphone
+        mixedMeetingSystemAudio = systemAudio
+        return mixedMeetingChunkArtifact
+    }
+
+    func removeMixedMeetingChunk(_ artifact: ManagedMixedMeetingChunkArtifact) throws {
+        recordMeetingOperation()
+        if let meetingMediaError {
+            throw meetingMediaError
+        }
+        removedMixedMeetingChunk = artifact
+    }
+
+    func removeMixedMeetingChunks(for sessionID: UUID) throws {
+        recordMeetingOperation()
+        if let meetingMediaError {
+            throw meetingMediaError
+        }
+        removedMixedMeetingSessionID = sessionID
+    }
+
+    private func recordMeetingOperation() {
+        meetingOperationsRanOffMain.append(!Thread.isMainThread)
     }
 
     func finalizeDownloadedAsset(
@@ -410,6 +792,7 @@ private final class MockProcessRunner: ProcessRunning, @unchecked Sendable {
         }
         return _responses.remove(at: responseIndex)
     }
+
 
     func run(
         executableURL: URL,

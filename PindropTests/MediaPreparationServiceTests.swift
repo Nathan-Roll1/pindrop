@@ -1,45 +1,20 @@
 //
 //  MediaPreparationServiceTests.swift
-//  Pindrop
+//  PindropTests
 //
-//  Created on 2026-07-11.
+//  macOS ffmpeg/Process fallback adapter coverage. Portable AVFoundation preparation
+//  lives in PindropMediaTests.
 //
 
 @preconcurrency import AVFoundation
 import Foundation
 import Testing
+import PindropMedia
 @testable import Pindrop
 
 @MainActor
 @Suite
-struct MediaPreparationServiceTests {
-    @Test func testPrepareAudioConvertsWAVToTranscriptionFormat() async throws {
-        let sourceURL = try makeAudioFile()
-        defer { try? FileManager.default.removeItem(at: sourceURL) }
-
-        let prepared = try await MediaPreparationService().prepareAudio(from: sourceURL)
-
-        #expect(prepared.audioData.count > 0)
-        #expect(abs(prepared.duration - 1) < 0.01)
-    }
-
-    @Test func testPrepareAudioHonorsCancellationBeforeDecode() async throws {
-        let sourceURL = URL(fileURLWithPath: "/tmp/does-not-need-to-exist.wav")
-        let task = Task {
-            try await MediaPreparationService().prepareAudio(from: sourceURL)
-        }
-        task.cancel()
-
-        do {
-            _ = try await task.value
-            Issue.record("Expected cancellation")
-        } catch is CancellationError {
-            // Expected: cancellation is checked before any synchronous decode work.
-        } catch {
-            Issue.record("Expected CancellationError, got \(error)")
-        }
-    }
-
+struct MediaPreparationFFmpegAdapterTests {
     @Test func testPrepareAudioReapsTermIgnoringFFmpegBeforeRemovingPartialOutput() async throws {
         let temporaryDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -52,9 +27,12 @@ struct MediaPreparationServiceTests {
         try Data(fakeFFmpegScript.utf8).write(to: scriptURL)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
 
-        let sut = MediaPreparationService(temporaryDirectory: temporaryDirectory)
+        let sut = MediaPreparationService(
+            temporaryDirectory: temporaryDirectory,
+            fallbackTranscoder: MacFFmpegFallbackTranscoder(ffmpegPath: scriptURL.path)
+        )
         let task = Task {
-            try await sut.prepareAudio(from: sourceURL, ffmpegPath: scriptURL.path)
+            try await sut.prepareAudio(from: sourceURL)
         }
 
         let started = await waitForPartialOutput(in: temporaryDirectory)

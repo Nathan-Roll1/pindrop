@@ -147,7 +147,17 @@ struct HomePresentationTests {
             timeSaved: saved,
             locale: en
         )
-        #expect(line == "2 h 38 m of dictation — about 1 h 51 m saved over typing it out.")
+        #expect(line == "2 h 38 m of dictation. About 1 h 51 m saved over typing it out.")
+    }
+
+    @Test func subLineCarriesNoSentenceDashes() {
+        let line = HomePresentation.subLine(
+            dictationDuration: 2 * 3600 + 38 * 60,
+            timeSaved: 1 * 3600 + 51 * 60,
+            locale: en
+        )
+        #expect(!line.contains("—"))
+        #expect(!line.contains("–"))
     }
 
     @Test func subLineEmptyWhenNoDictation() {
@@ -305,5 +315,124 @@ struct HomePresentationTests {
         // Weekly panel (280) + two panel gaps (48) + divider (1) = 329.
         let width = HomePresentation.activityAvailableWidth(chartRowWidth: 857)
         #expect(abs(width - 528) < 0.001)
+    }
+
+    // MARK: - Dictate action frame
+
+    @Test func captureControlStartsWithShortcutInsideTheButton() {
+        let control = HomePresentation.captureControl(
+            isDictating: false,
+            elapsed: 0,
+            isStartAvailable: true,
+            isCaptureBusy: false,
+            hotkey: "⌥Space",
+            locale: en
+        )
+        #expect(control.mode == .start)
+        #expect(control.startTitle == "Start dictating")
+        #expect(control.shortcut == "⌥ Space")
+        #expect(control.isStartEnabled)
+        #expect(control.disabledReason == nil)
+        #expect(control.elapsedText.isEmpty)
+    }
+
+    @Test func captureControlFallsBackToTheDefaultShortcut() {
+        let control = HomePresentation.captureControl(
+            isDictating: false,
+            elapsed: 0,
+            isStartAvailable: true,
+            isCaptureBusy: false,
+            hotkey: "   ",
+            locale: en
+        )
+        #expect(control.shortcut == "⌥ Space")
+    }
+
+    @Test func captureControlSwapsToRecordingWithAClock() {
+        let control = HomePresentation.captureControl(
+            isDictating: true,
+            elapsed: 125,
+            isStartAvailable: true,
+            isCaptureBusy: false,
+            hotkey: "⌥Space",
+            locale: en
+        )
+        #expect(control.mode == .recording)
+        #expect(control.elapsedText == "2:05")
+        #expect(control.stopTitle == "Stop")
+        // The start face never draws while recording, so it cannot be pressed.
+        #expect(!control.isStartEnabled)
+    }
+
+    @Test func captureControlDisablesStartWhileAnotherCaptureRuns() {
+        let control = HomePresentation.captureControl(
+            isDictating: false,
+            elapsed: 0,
+            isStartAvailable: true,
+            isCaptureBusy: true,
+            hotkey: "⌥Space",
+            locale: en
+        )
+        #expect(control.mode == .start)
+        #expect(!control.isStartEnabled)
+        #expect(control.disabledReason == "Finish the current capture before starting another.")
+    }
+
+    @Test func captureControlDisablesStartWithoutAStartHandler() {
+        let control = HomePresentation.captureControl(
+            isDictating: false,
+            elapsed: 0,
+            isStartAvailable: false,
+            isCaptureBusy: false,
+            hotkey: "⌥Space",
+            locale: en
+        )
+        #expect(!control.isStartEnabled)
+        // Nothing to explain: no handler is a wiring gap, not a busy recorder.
+        #expect(control.disabledReason == nil)
+    }
+
+    // MARK: - Dictate stats
+
+    @Test func statTilesAreWordsTodayWordsPerMinuteAndStreak() {
+        let tiles = HomePresentation.statTiles(
+            wordsToday: 4210,
+            wpmThisWeek: 96.4,
+            streakDays: 14,
+            locale: en
+        )
+        #expect(tiles.count == 3)
+        #expect(tiles.map(\.label) == ["Words today", "Words / min", "Streak"])
+        #expect(tiles.map(\.value) == ["4,210", "96", "14-day"])
+    }
+
+    @Test func statTilesNoLongerCarrySessions() {
+        let tiles = HomePresentation.statTiles(
+            wordsToday: 0,
+            wpmThisWeek: 0,
+            streakDays: 0,
+            locale: en
+        )
+        #expect(!tiles.contains { $0.label == "Sessions" })
+    }
+
+    @Test func sessionMetricReadsAsChartHeaderMeta() {
+        #expect(HomePresentation.sessionMetric(count: 1, locale: en) == "1 session")
+        #expect(HomePresentation.sessionMetric(count: 12, locale: en) == "12 sessions")
+        #expect(HomePresentation.sessionMetric(count: 0, locale: en) == "0 sessions")
+        #expect(HomePresentation.sessionMetric(count: 4210, locale: en) == "4,210 sessions")
+    }
+
+    // MARK: - Dictate empty state
+
+    @Test func emptyStateNamesTheSituationAndTheNextAction() {
+        let state = HomePresentation.emptyState(hotkey: "⌥Space", locale: en)
+        #expect(state.title == "No dictations yet.")
+        #expect(state.guidance == "Press ⌥ Space anywhere to start.")
+    }
+
+    @Test func emptyStatePrintsTheUsersOwnShortcut() {
+        let state = HomePresentation.emptyState(hotkey: "⌃⌥D", locale: en)
+        #expect(state.guidance == "Press ⌃⌥ D anywhere to start.")
     }
 }

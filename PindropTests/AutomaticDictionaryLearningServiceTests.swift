@@ -10,6 +10,8 @@ import CoreGraphics
 import Foundation
 import Testing
 @testable import Pindrop
+import PindropCore
+import PindropData
 
 @MainActor
 private final class MockFocusedTextSnapshotProvider: FocusedTextSnapshotCapturing {

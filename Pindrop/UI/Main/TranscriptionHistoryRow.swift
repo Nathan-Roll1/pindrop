@@ -2,19 +2,20 @@
 //  TranscriptionHistoryRow.swift
 //  Pindrop
 //
-//  Shared row component used by the Dashboard "Recent Activity" list and
-//  HistoryView. Driven by callbacks so each caller decides what happens on
-//  tap — Dashboard navigates to history; History expands in place (voice)
-//  or pushes into the media detail view.
+//  Shared row used by the Dictate recent list and Library page. Callers decide
+//  what tapping does. Dictate opens the record in Library. Library expands voice
+//  records in place or opens media detail.
 //
 
 import SwiftUI
 import SwiftData
+import PindropCore
+import PindropData
 
 struct TranscriptionHistoryRow: View {
     enum TimestampStyle {
-        case relative   // "5m ago" — used on Dashboard
-        case absolute   // "3:42 PM" — used in History's date-grouped list
+        case relative   // "5m ago", used on Dictate
+        case absolute   // "3:42 PM", used in Library's date-grouped list
     }
 
     let record: TranscriptionRecord

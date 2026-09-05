@@ -12,6 +12,12 @@ import Combine
 import AVFoundation
 import AppKit
 import os.log
+import UserNotifications
+import PindropCore
+import PindropAI
+import PindropData
+import PindropSpeech
+import PindropMedia
 
 private final class EventTapRunLoopThread: Thread {
 
@@ -215,25 +221,56 @@ struct SettingsObservationSnapshot: Equatable {
     let mcpServerEnabled: Bool
     let mcpServerPort: Int
     let dictationAudioRetention: DictationAudioRetention
+    let watchForCalls: Bool
 }
 
 enum RecordingStopRoute: Equatable {
     case dictation
-    case quickCapture
     case noteAppend(UUID)
-    case manualTranscription
+    /// Every note capture, whichever surface started it. The durable lifecycle
+    /// in `NoteCaptureController` owns the stop.
+    case noteCapture
 
     static func resolve(
-        isQuickCapture: Bool,
         noteAppendEditorID: UUID?,
-        isManualTranscription: Bool
+        isNoteCapture: Bool
     ) -> RecordingStopRoute {
         if let noteAppendEditorID { return .noteAppend(noteAppendEditorID) }
-        if isQuickCapture { return .quickCapture }
-        if isManualTranscription { return .manualTranscription }
+        if isNoteCapture { return .noteCapture }
         return .dictation
     }
 }
+/// IDs that cross persistence boundaries during voice-note linkage.
+///
+/// History owns the transcription record ID used by notes and editor notifications;
+/// capture owns the final revision ID used only to complete the capture session.
+struct VoiceNoteLinkageIDs: Equatable, Sendable {
+    let historyRecordID: UUID
+    let finalTranscriptRevisionID: UUID
+}
+
+
+enum CoordinatorTranscriptionRoute: Equatable {
+    case dictation
+    case noteAppend
+    case manualCapture(AudioRecordingMode)
+    case importedMedia
+
+    var appliesVoiceIsolation: Bool {
+        switch self {
+        case .dictation, .noteAppend:
+            return true
+        case .manualCapture(let mode):
+            // Mic-only note captures are the successors of quick capture and
+            // voice notes, which applied isolation. Mixed system audio must
+            // stay raw: isolation would suppress the other speakers.
+            return mode == .microphone
+        case .importedMedia:
+            return false
+        }
+    }
+}
+
 
 /// A synchronous, coordinator-owned admission gate shared by every stop source.
 /// It lets only the first user/limit event own a recording's finalization route.
@@ -276,6 +313,44 @@ final class RecordingStopAdmission {
         guard isClaimed else { return }
         isClaimed = false
         currentClaimID &+= 1
+    }
+}
+
+/// A synchronous admission gate for a pending meeting-capture start.
+/// A claim is acquired before the start task is created, so a second trigger
+/// cannot enter while the first one is suspended in recorder preparation.
+struct MeetingCaptureStartClaim: Equatable, Sendable {
+    let id: UInt64
+}
+
+final class MeetingCaptureStartAdmission {
+    private let lock = NSLock()
+    private var isClaimed = false
+    private var currentClaimID: UInt64 = 0
+    private var nextClaimID: UInt64 = 0
+
+    func claim() -> MeetingCaptureStartClaim? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !isClaimed else { return nil }
+        nextClaimID &+= 1
+        currentClaimID = nextClaimID
+        isClaimed = true
+        return MeetingCaptureStartClaim(id: currentClaimID)
+    }
+
+    func isCurrent(_ claim: MeetingCaptureStartClaim) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isClaimed && currentClaimID == claim.id
+    }
+
+    /// Releases only the exact pending start that owns the admission.
+    func release(_ claim: MeetingCaptureStartClaim) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard isClaimed, currentClaimID == claim.id else { return }
+        isClaimed = false
     }
 }
 
@@ -416,6 +491,53 @@ final class AppCoordinator {
         case noteAppend = "note-append"
     }
 
+    private struct VoiceNoteCaptureContext {
+        let handle: PindropCore.NoteCaptureHandle
+        let noteID: UUID?
+        let liveAssignment: CaptureStageAssignment
+
+        /// `CaptureSessionStore`'s streaming lifecycle API keys on the microphone
+        /// source alone, so a mic-only note capture maps onto it unchanged.
+        var storeHandle: PindropCore.NoteCaptureHandle { handle }
+    }
+
+    private struct VoiceNoteCaptureResult {
+        let context: VoiceNoteCaptureContext
+        let rawText: String
+        let finalText: String
+        let duration: TimeInterval
+        let languageCode: String
+        let finalModelIdentifier: String
+        let enhancedWithModel: String?
+        let title: String?
+        let tags: [String]
+    }
+
+    private struct PendingNoteAppendStart: Equatable {
+        let generation: UInt64
+        let editorID: UUID
+        let noteID: UUID
+    }
+
+    private struct PendingNoteAppendCapture {
+        let request: PendingNoteAppendStart
+        let context: VoiceNoteCaptureContext
+    }
+
+    private enum VoiceNoteCaptureAdmissionError: LocalizedError {
+        case captureAlreadyActive
+        case recorderDidNotStart
+
+        var errorDescription: String? {
+            switch self {
+            case .captureAlreadyActive:
+                "A voice-note capture is already active."
+            case .recorderDidNotStart:
+                "The recorder did not begin recording."
+            }
+        }
+    }
+
     enum EventTapRecoveryAction: Equatable {
         case reenable
         case recreate
@@ -488,32 +610,34 @@ final class AppCoordinator {
     
     let permissionManager: PermissionManager
     let audioRecorder: AudioRecorder
-    let transcriptionService: TranscriptionService
-    let modelManager: ModelManager
-    let aiEnhancementService: AIEnhancementService
+    let transcriptionService: PindropSpeech.TranscriptionService
+    let modelManager: PindropSpeech.ModelManager
+    let aiEnhancementService: PindropAI.AIEnhancementService
     let hotkeyManager: HotkeyManager
     let launchAtLoginManager: LaunchAtLoginManager
     let updateService: UpdateService
     let outputManager: OutputManager
-    let historyStore: HistoryStore
-    let speakerIdentityService: SpeakerIdentityService
-    let dictionaryStore: DictionaryStore
+    let historyStore: PindropData.HistoryStore
+    let speakerIdentityService: PindropData.SpeakerIdentityService
+    let dictionaryStore: PindropData.DictionaryStore
     let settingsStore: SettingsStore
-    let notesStore: NotesStore
+    let notesStore: PindropData.NotesStore
+    let captureSessionStore: PindropData.CaptureSessionStore
+    let captureAssignmentResolver: CaptureStageAssignmentResolver
     let contextCaptureService: ContextCaptureService
     let contextEngineService: ContextEngineService
     let toastService: ToastService
     let automaticDictionaryLearningService: AutomaticDictionaryLearningService
-    let promptPresetStore: PromptPresetStore
+    let promptPresetStore: PindropData.PromptPresetStore
     let mentionRewriteService: MentionRewriteService
     let mediaPauseService: MediaPauseService
     let mediaIngestionService: MediaIngestionService
-    let mediaPreparationService: MediaPreparationService
+    let mediaPreparationService: PindropMedia.MediaPreparationService
     let announcementService: AnnouncementService
     let telemetryService: TelemetryService
     let telemetryConsentService: TelemetryConsentService
-    let contributionService: ContributionService
-    let dictationAudioRetentionService: DictationAudioRetentionService
+    let contributionService: PindropData.ContributionService
+    let dictationAudioRetentionService: PindropMedia.DictationAudioRetentionService
     let recordingState: RecordingFeatureState
     let mediaTranscriptionState: MediaTranscriptionFeatureState
     private(set) var mcpServer: MCPServer?
@@ -529,6 +653,7 @@ final class AppCoordinator {
     /// Owns the streaming session lifecycle: engine callbacks, audio forwarding,
     /// refinement coordinator + overlay sink, and the post-stop finalize pipeline.
     let streamingSession: StreamingSessionController
+    private var activeStreamingSessionToken: StreamingSessionController.SessionToken?
     let floatingIndicatorController: FloatingIndicatorController
     let pillFloatingIndicatorController: PillFloatingIndicatorController
     let caretBubbleFloatingIndicatorController: CaretBubbleFloatingIndicatorController
@@ -541,18 +666,56 @@ final class AppCoordinator {
     let splashController: SplashWindowController
     let settingsWindowController: SettingsWindowController
     let mainWindowController: MainWindowController
+    private var mainWindowCaptureStartTask: Task<Void, Never>?
     let noteEditorWindowController: NoteEditorWindowController
     let toastWindowController: ToastWindowController
-    
+    /// Observable state for the note capture the UI is showing. Written only by
+    /// `noteCaptureController`.
+    let noteCaptureState = NoteCaptureState()
+    /// Owner of the note-capture lifecycle. Assigned at the end of `init`, once
+    /// the coordinator can be handed over as the capture arbiter.
+    private(set) var noteCaptureController: NoteCaptureController!
+    /// Generates the enhanced panels of a note. The note page uses it to
+    /// regenerate under another template; the controller uses it on finish.
+    private(set) var noteEnhancementService: NoteEnhancementService!
+    /// Answers questions about one note from that note's own evidence. The note
+    /// page's Ask dock is its only caller, and it holds the conversation for the
+    /// life of this app run.
+    private(set) var noteChatService: NoteChatService!
+    private let meetingCaptureStartAdmission = MeetingCaptureStartAdmission()
+    /// One admitted capture start owns both gates. The arbiter hands the
+    /// controller a single opaque claim so it cannot release one and keep the
+    /// other.
+    struct CaptureClaimPair {
+        let start: CaptureStartClaim
+        let meeting: MeetingCaptureStartClaim
+    }
+    fileprivate var captureClaims: [UInt64: CaptureClaimPair] = [:]
+    fileprivate var nextCaptureClaimID: UInt64 = 0
+    private var pendingMeetingCaptureStart: MeetingCaptureStartClaim?
+    private var pendingMeetingCaptureStartTask: Task<Void, Never>?
+    private var meetingCancellationTasks: [UUID: Task<Void, Never>] = [:]
+    private var meetingRecoveryTask: Task<Void, Never>?
+
     // MARK: - Quick Capture State
     
-    private var isQuickCaptureMode = false
     private var isNoteAppendMode = false
     private let recordingStopAdmission = RecordingStopAdmission()
     private var isRecordingFeatureCaptureActive = false
     private var manualExpectedSpeakerCount: Int?
-    private var quickCaptureTranscription: String?
     private var noteAppendEditorID: UUID?
+    private var voiceNoteCaptureContext: VoiceNoteCaptureContext?
+    /// The exact capture allocated for a pending editor request. Stop must only
+    /// cancel this handle, never whichever capture happens to be active later.
+    private var pendingNoteAppendStartCapture: PendingNoteAppendCapture?
+    /// Retained until the cancelled start task unwinds so its stale catch can
+    /// clean recorder startup without clobbering a newer start.
+    private var pendingNoteAppendAudioStartupRequest: PendingNoteAppendStart?
+    /// A start request is installed before its task can run so Stop/teardown can
+    /// synchronously invalidate it while the editor is still closing.
+    private var pendingNoteAppendStartTask: Task<Void, Never>?
+    private var pendingNoteAppendStart: PendingNoteAppendStart?
+    private var nextNoteAppendStartGeneration: UInt64 = 0
     private var mediaTranscriptionTask: Task<Void, Never>? {
         didSet {
             refreshEscapeSuppression()
@@ -579,12 +742,20 @@ final class AppCoordinator {
         didSet {
             refreshEscapeSuppression()
             resumeDeferredMediaQueueIfIdle()
+            recordingState.setCaptureActivity(
+                isRecording: isRecording,
+                isProcessing: isProcessing
+            )
         }
     }
     private(set) var isProcessing = false {
         didSet {
             refreshEscapeSuppression()
             resumeDeferredMediaQueueIfIdle()
+            recordingState.setCaptureActivity(
+                isRecording: isRecording,
+                isProcessing: isProcessing
+            )
         }
     }
 
@@ -634,6 +805,7 @@ final class AppCoordinator {
     private let promptRoutingResolver: any PromptRoutingResolver = NoOpPromptRoutingResolver()
     private let enableSystemHooks: Bool
     private var isShutdown = false
+    private var isPreparingForTermination = false
     private var lastObservedSettingsSnapshot: SettingsObservationSnapshot?
     private var hasRequestedAccessibilityPermissionThisLaunch = false
     private var hasShownAccessibilityFallbackAlertThisLaunch = false
@@ -661,6 +833,13 @@ final class AppCoordinator {
     private var modifierEventTapRecoveryTask: Task<Void, Never>?
     private var inputDeviceListMonitor: AudioDeviceListMonitor?
     private var inputMuteMonitor: InputMuteMonitor?
+    /// Watches audio process state for a conference call. Nil when system audio
+    /// capture is unavailable, which is the one gate on every meeting affordance.
+    private(set) var conferenceAudioMonitor: ConferenceAudioMonitor?
+    /// Offers to record a detected call. Nil for the same reason the monitor is.
+    private(set) var meetingInvitationController: MeetingInvitationController?
+    /// The notification centre holds its delegate weakly, so the app holds it here.
+    private var userNotificationDelegate: AppUserNotificationDelegate?
     private var lastEscapeSignalTime: Date?
     private let duplicateEscapeSignalThreshold: TimeInterval = 0.08
     /// First press of a double-Escape cancel sequence; cleared on cancel/finish.
@@ -685,21 +864,41 @@ final class AppCoordinator {
             Log.app.error("Failed to initialize AudioRecorder: \(error)")
             fatalError("Failed to initialize AudioRecorder: \(error)")
         }
-        self.speakerIdentityService = SpeakerIdentityService(modelContext: modelContext)
-        self.modelManager = ModelManager()
-        self.aiEnhancementService = AIEnhancementService()
+        let applicationSupportRoot = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let modelStorageLocations = ModelStorageLocations(
+            pindropApplicationSupportRoot: applicationSupportRoot
+                .appendingPathComponent("Pindrop", isDirectory: true),
+            fluidAudioModelsRoot: applicationSupportRoot
+                .appendingPathComponent("FluidAudio", isDirectory: true)
+                .appendingPathComponent("Models", isDirectory: true)
+        )
+        let mediaLibraryBaseURL = applicationSupportRoot
+            .appendingPathComponent("Pindrop", isDirectory: true)
+            .appendingPathComponent("MediaLibrary", isDirectory: true)
+        let dictationAudioDirectoryURL = mediaLibraryBaseURL
+            .appendingPathComponent("DictationAudio", isDirectory: true)
+
+        self.speakerIdentityService = PindropData.SpeakerIdentityService(modelContext: modelContext)
+        self.settingsStore = SettingsStore()
+        self.telemetryService = TelemetryService(settingsStore: settingsStore)
+        self.modelManager = PindropSpeech.ModelManager(
+            storageLocations: modelStorageLocations,
+            modelDownloadEventReporter: telemetryService
+        )
+        self.aiEnhancementService = PindropAI.AIEnhancementService()
         self.hotkeyManager = HotkeyManager()
         self.launchAtLoginManager = LaunchAtLoginManager()
         self.updateService = UpdateService()
-        self.settingsStore = SettingsStore()
         // TranscriptionService is built after SettingsStore so the streaming chunk
         // profile and backend providers can read the user's toggles when the engine
         // is (re)loaded.
         let settingsRef = self.settingsStore
-        self.transcriptionService = TranscriptionService(
+        self.transcriptionService = PindropSpeech.TranscriptionService(
+            storageLocations: modelStorageLocations,
             openAIAPIKeyProvider: { [weak settingsRef] in
                 guard let key = settingsRef?.loadTranscriptionAPIKey(for: .openAI) else {
-                    throw OpenAITranscriptionEngine.EngineError.apiKeyMissing
+                    throw PindropSpeech.OpenAITranscriptionEngine.EngineError.apiKeyMissing
                 }
                 return key
             },
@@ -719,17 +918,44 @@ final class AppCoordinator {
         
         let initialOutputMode: OutputMode = settingsStore.outputMode == "directInsert" ? .directInsert : .clipboard
         self.outputManager = OutputManager(outputMode: initialOutputMode)
-        self.contributionService = ContributionService(
+        self.contributionService = PindropData.ContributionService(
             modelContext: modelContext,
-            settingsStore: settingsStore
+            metadataProvider: { [weak settingsRef] in
+                ContributionCaptureMetadata(
+                    isEnabled: settingsRef?.trainingDataContributionEnabled ?? false,
+                    languageRawValue: settingsRef?.selectedAppLanguage.rawValue ?? AppLanguage.automatic.rawValue,
+                    localeIdentifier: settingsRef?.selectedAppLocale.locale.identifier
+                        ?? Locale.current.identifier,
+                    appVersion: Bundle.main.appShortVersionString
+                )
+            }
         )
-        self.historyStore = HistoryStore(
+        self.historyStore = PindropData.HistoryStore(
             modelContext: modelContext,
             speakerIdentityService: speakerIdentityService,
             contributionService: contributionService
         )
-        self.dictionaryStore = DictionaryStore(modelContext: modelContext)
-        self.notesStore = NotesStore(modelContext: modelContext, aiEnhancementService: aiEnhancementService, settingsStore: settingsStore)
+        self.dictionaryStore = PindropData.DictionaryStore(modelContext: modelContext)
+        let aiEnhancementServiceRef = self.aiEnhancementService
+        self.notesStore = PindropData.NotesStore(
+            modelContext: modelContext,
+            metadataGenerator: { [weak settingsRef, weak aiEnhancementServiceRef] content, existingTags in
+                guard let settingsRef, let aiEnhancementServiceRef else { return nil }
+                guard let assignment = settingsRef.resolveAssignment(for: .noteMetadata) else {
+                    return nil
+                }
+                let metadata = try await aiEnhancementServiceRef.generateNoteMetadata(
+                    content: content,
+                    apiEndpoint: assignment.endpoint ?? "",
+                    apiKey: assignment.apiKey,
+                    model: assignment.modelID,
+                    existingTags: existingTags,
+                    provider: assignment.kind
+                )
+                return NoteMetadata(title: metadata.title, tags: metadata.tags)
+            }
+        )
+        self.captureSessionStore = PindropData.CaptureSessionStore(modelContext: modelContext)
         self.contextCaptureService = ContextCaptureService()
         self.contextEngineService = ContextEngineService()
         self.floatingIndicatorFocusTracker = FloatingIndicatorFocusTracker(
@@ -742,21 +968,40 @@ final class AppCoordinator {
             dictionaryStore: dictionaryStore,
             toastService: toastService
         )
-        self.promptPresetStore = PromptPresetStore(modelContext: modelContext)
+        self.promptPresetStore = PindropData.PromptPresetStore(modelContext: modelContext)
+        self.captureAssignmentResolver = CaptureStageAssignmentResolver(
+            settings: settingsStore,
+            modelManager: modelManager,
+            promptPresetStore: promptPresetStore
+        )
         self.mentionRewriteService = MentionRewriteService()
         self.mediaPauseService = MediaPauseService()
         self.mediaIngestionService = MediaIngestionService()
-        self.mediaPreparationService = MediaPreparationService()
-        self.dictationAudioRetentionService = DictationAudioRetentionService(
+        self.mediaPreparationService = PindropMedia.MediaPreparationService(
+            fallbackTranscoder: MacFFmpegFallbackTranscoder()
+        )
+        self.dictationAudioRetentionService = PindropMedia.DictationAudioRetentionService(
             historyStore: historyStore,
-            settingsStore: settingsStore
+            directoryURL: dictationAudioDirectoryURL,
+            retentionPolicyProvider: { [weak settingsRef] in
+                settingsRef?.dictationAudioRetention ?? .days7
+            }
         )
         self.recordingState = RecordingFeatureState()
         self.mediaTranscriptionState = MediaTranscriptionFeatureState()
 
+        // System audio availability is the whole gate on the meeting feature:
+        // below macOS 14.2 there is no call to record, so the monitor is never
+        // built and every meeting affordance stays absent.
+        let conferenceMonitor = audioRecorder.isSystemAudioCaptureAvailable
+            ? ConferenceAudioMonitor()
+            : nil
+        self.conferenceAudioMonitor = conferenceMonitor
+
         self.statusBarController = StatusBarController(
             audioRecorder: audioRecorder,
-            settingsStore: settingsStore
+            settingsStore: settingsStore,
+            conferenceAudioMonitor: conferenceMonitor
         )
         self.floatingIndicatorState = FloatingIndicatorState()
         self.liveTranscriptState = LiveTranscriptState()
@@ -768,8 +1013,29 @@ final class AppCoordinator {
             toastService: toastService,
             liveTranscriptState: liveTranscriptState,
             audioRecorder: audioRecorder,
+            captureSessionStore: captureSessionStore,
             normalizeText: { AppCoordinator.normalizedTranscriptionText($0) },
-            isEffectivelyEmptyText: { AppCoordinator.isTranscriptionEffectivelyEmpty($0) }
+            isEffectivelyEmptyText: { AppCoordinator.isTranscriptionEffectivelyEmpty($0) },
+            makeLiveDiarizationEngine: { [modelManager, modelStorageLocations] in
+                // Readiness is the gate that keeps a download off the capture
+                // path: the engine's load entry point fetches a missing or
+                // partial bundle, and a fetch from here is how a half-written
+                // model gets loaded mid-recording.
+                guard modelManager.isLiveDiarizationReady() else { return nil }
+                return PindropSpeech.LiveDiarizationEngine.forCapture(
+                    modelsDirectory: modelStorageLocations.fluidAudioModelsRoot
+                )
+            },
+            makeLiveSpeakerEmbedder: { [modelManager, modelStorageLocations] in
+                // `.named` needs a second optional model. Without it slots stop
+                // at "Speaker 2", and the readiness check here is what keeps the
+                // embedder from fetching it from the capture path.
+                guard modelManager.isOfflineDiarizationReady() else { return nil }
+                return PindropSpeech.LiveSpeakerEmbedder(
+                    modelsDirectory: modelStorageLocations.fluidAudioModelsRoot
+                )
+            },
+            speakerIdentityMatcher: speakerIdentityService
         )
         self.floatingIndicatorController = FloatingIndicatorController(
             state: floatingIndicatorState,
@@ -801,7 +1067,6 @@ final class AppCoordinator {
             settingsStore: settingsStore,
             presenter: announcementController
         )
-        self.telemetryService = TelemetryService(settingsStore: settingsStore)
         self.telemetryConsentController = TelemetryConsentWindowController()
         self.telemetryConsentService = TelemetryConsentService(
             settingsStore: settingsStore,
@@ -816,25 +1081,44 @@ final class AppCoordinator {
             updateService: updateService
         )
         self.mainWindowController = MainWindowController()
-        self.modelManager.telemetryService = telemetryService
         self.mainWindowController.setModelContainer(modelContainer)
         self.noteEditorWindowController = NoteEditorWindowController()
         self.noteEditorWindowController.setModelContainer(modelContainer)
-        self.mainWindowController.configureMeetingCapture(
+        // "Ask this note" reads the note it is asked about and writes nothing
+        // back, so it needs no place in the capture lifecycle: the note page is
+        // its only caller.
+        let noteChatService = NoteChatService(
+            captureSessionStore: captureSessionStore,
+            aiEnhancementService: aiEnhancementService,
+            settingsStore: settingsStore
+        )
+        self.noteChatService = noteChatService
+        self.mainWindowController.configureCapture(
             floatingIndicatorState: floatingIndicatorState,
             recordingState: recordingState,
-            onNewTranscription: { [weak self] in
-                Task { @MainActor in
-                    await self?.handleToggleRecording(source: .statusBarMenu)
-                }
+            noteCaptureState: noteCaptureState,
+            onStartDictation: { [weak self] in
+                self?.handleMainWindowDictationStart()
             },
-            onStartMeetingCapture: { [weak self] expectedSpeakerCount in
-                self?.handleStartMeetingCapture(expectedSpeakerCount: expectedSpeakerCount)
+            onStopDictation: { [weak self] in
+                self?.handleMainWindowDictationStop()
             },
-            onStartNoteCapture: { [weak self] in
-                Task { @MainActor in
-                    await self?.handleQuickCaptureToggle()
-                }
+            onStartNoteCapture: { [weak self] request in
+                self?.handleStartNoteCapture(request, origin: .mainWindow) ?? false
+            },
+            onFinishNoteCapture: { [weak self] in
+                self?.handleFinishNoteCapture()
+            },
+            onCancelNoteCapture: { [weak self] in
+                self?.handleCancelNoteCapture()
+            },
+            onGenerateEnhancedPanel: { [weak self] request in
+                guard let self else { return nil }
+                return await self.handleGenerateEnhancedPanel(request)
+            },
+            noteChatService: noteChatService,
+            onDownloadSpeakerModels: { [weak self] in
+                self?.handleDownloadSpeakerModels()
             }
         )
         self.mainWindowController.configureTranscribeFeature(
@@ -847,9 +1131,6 @@ final class AppCoordinator {
             onSubmitMediaLink: { [weak self] link, options in
                 self?.handleSubmitMediaLink(link, options: options)
             },
-            onClearMediaQueue: { [weak self] in
-                self?.clearTranscriptionQueue()
-            },
             onDownloadDiarizationModel: { [weak self] in
                 self?.handleDownloadDiarizationModel()
             }
@@ -857,6 +1138,14 @@ final class AppCoordinator {
 
         self.statusBarController.onToggleRecording = { [weak self] in
             await self?.handleToggleRecording(source: .statusBarMenu)
+        }
+
+        self.statusBarController.configureNoteCapture { [weak self] request in
+            guard let self else { return false }
+            self.mainWindowController.show()
+            // Same work as the main window seam, but the recorded intent has to
+            // say the menu bar asked for it.
+            return self.handleStartNoteCapture(request, origin: .menuBar)
         }
 
         self.statusBarController.onCopyLastTranscript = { [weak self] in
@@ -883,8 +1172,8 @@ final class AppCoordinator {
             self?.handleSelectPromptPreset(option)
         }
 
-        self.statusBarController.onOpenHistory = { [weak self] in
-            self?.handleOpenHistory()
+        self.statusBarController.onOpenLibrary = { [weak self] in
+            self?.handleOpenLibrary()
         }
 
         self.statusBarController.onShowApp = { [weak self] in
@@ -907,10 +1196,40 @@ final class AppCoordinator {
             if self?.isRecordingFeatureCaptureActive == true {
                 self?.recordingState.audioLevel = level
             }
+            self?.noteCaptureController.updateAudioLevel(level)
         }
         self.audioRecorder.onAudioBandLevels = { [weak self] bands in
             self?.floatingIndicatorState.updateBandLevels(bands)
+            self?.noteCaptureController.updateBandLevels(bands)
         }
+        // The controller owns the note-capture lifecycle and reaches the shell
+        // only through `CaptureArbiter`, which this coordinator implements.
+        let noteEnhancementService = NoteEnhancementService(
+            captureSessionStore: captureSessionStore,
+            notesStore: notesStore,
+            promptPresetStore: promptPresetStore,
+            assignmentResolver: captureAssignmentResolver,
+            aiEnhancementService: aiEnhancementService,
+            settingsStore: settingsStore
+        )
+        self.noteEnhancementService = noteEnhancementService
+        self.noteCaptureController = NoteCaptureController(
+            audioRecorder: audioRecorder,
+            streamingSession: streamingSession,
+            captureSessionStore: captureSessionStore,
+            notesStore: notesStore,
+            historyStore: historyStore,
+            mediaIngestionService: mediaIngestionService,
+            assignmentResolver: captureAssignmentResolver,
+            aiEnhancementService: aiEnhancementService,
+            noteEnhancementService: noteEnhancementService,
+            transcriptionService: transcriptionService,
+            settingsStore: settingsStore,
+            toastService: toastService,
+            arbiter: self,
+            state: noteCaptureState
+        )
+
         self.streamingSession.configure(postStopEnhance: { [weak self] text, vocabularyWords in
             await self?.runBasicPostStopEnhance(text: text, vocabularyWords: vocabularyWords)
         })
@@ -944,8 +1263,8 @@ final class AppCoordinator {
             onGoToSettings: { [weak self] in
                 self?.statusBarController.showSettings(tab: .general)
             },
-            onViewTranscriptHistory: { [weak self] in
-                self?.handleOpenHistory()
+            onOpenLibrary: { [weak self] in
+                self?.handleOpenLibrary()
             },
             onPasteLastTranscript: { [weak self] in
                 await self?.handlePasteLastTranscript()
@@ -996,6 +1315,8 @@ final class AppCoordinator {
             setupEscapeKeyMonitor()
             setupModifierKeyMonitor()
             setupInputDeviceMonitoring()
+            setupUserNotificationRouting()
+            setupConferenceCallMonitoring()
         } else {
             Log.app.debug("Skipping global hotkey and key monitor setup in test environment")
         }
@@ -1071,15 +1392,10 @@ final class AppCoordinator {
                 object: nil,
                 queue: .main
             ) { [weak self] notification in
-                Task { @MainActor [weak self] in
-                    guard let self, !self.isShutdown,
-                          let editorID = notification.userInfo?["editorID"] as? UUID,
-                          let action = notification.userInfo?["action"] as? String else { return }
-                    if action == "start" {
-                        await self.handleNoteAppendStart(editorID: editorID)
-                    } else if action == "stop" {
-                        await self.handleNoteAppendStop(editorID: editorID)
-                    }
+                // `queue: .main` delivers on MainActor. Install/cancel the task
+                // before returning so a Stop cannot race a deferred Start task.
+                MainActor.assumeIsolated {
+                    self?.handleNoteAppendRequestNotification(notification)
                 }
             }
         )
@@ -1356,7 +1672,7 @@ final class AppCoordinator {
 
     private func loadAndActivateModel(
         named modelName: String,
-        provider: ModelManager.ModelProvider
+        provider: PindropSpeech.ModelManager.ModelProvider
     ) async throws {
         do {
             if provider == .whisperKit,
@@ -1380,7 +1696,7 @@ final class AppCoordinator {
     }
 
     private func updateSplashDownloadState(
-        with snapshot: ModelManager.DownloadSnapshot,
+        with snapshot: PindropSpeech.ModelManager.DownloadSnapshot,
         displayName: String
     ) {
         let loadingText: String
@@ -1415,7 +1731,7 @@ final class AppCoordinator {
 
         do {
             try await modelManager.deleteModel(named: modelName)
-        } catch ModelManager.ModelError.modelNotFound {
+        } catch PindropSpeech.ModelManager.ModelError.modelNotFound {
             Log.model.debug("Model \(modelName) was not present when starting repair")
         }
 
@@ -1435,10 +1751,6 @@ final class AppCoordinator {
         self.error = error
         Log.app.error("\(context): \(error)")
 
-        let errorMessage = (error as? LocalizedError)?.errorDescription ?? ""
-        if errorMessage.contains("timed out") {
-            AlertManager.shared.showModelTimeoutAlert()
-        }
     }
     
     private func startNormalOperation() async {
@@ -1542,15 +1854,114 @@ final class AppCoordinator {
 
         updateVibeRuntimeStateFromSettings()
         applyMCPServerSettings()
+        fetchMissingRequiredFeatureModels()
         prewarmStreamingEngineIfEnabled()
+        scheduleMeetingRecovery()
         Log.boot.info("startNormalOperation complete")
     }
+    /// Schedules the one startup recovery pass.
+    ///
+    /// The shell decides when recovery may run — never while a capture is live,
+    /// never twice, never into a shutdown. What recovery does belongs to
+    /// `NoteCaptureController`: every step is a durable capture step.
+    private func scheduleMeetingRecovery() {
+        guard Self.canBeginMeetingRecovery(
+            activeHandle: noteCaptureController.activeHandle,
+            recoveryTaskActive: meetingRecoveryTask != nil,
+            isShutdown: isShutdown || isPreparingForTermination
+        ) else { return }
 
+        meetingRecoveryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.meetingRecoveryTask = nil }
+            await self.noteCaptureController.recoverInterruptedCaptures()
+        }
+    }
+
+    /// Seals and inventories an active meeting before AppKit is allowed to terminate.
+    ///
+    /// This is deliberately awaited by the AppKit terminate-later bridge. `shutdown()`
+    /// remains synchronous and only provides a best-effort persistence fallback for
+    /// callers that cannot await this preparation.
+    func prepareForTermination() async {
+        guard !isShutdown, !isPreparingForTermination else { return }
+        isPreparingForTermination = true
+        defer { isPreparingForTermination = false }
+
+        let noteAppendStartTask = pendingNoteAppendStartTask
+        let meetingStartTask = pendingMeetingCaptureStartTask
+        let windowStartTask = mainWindowCaptureStartTask
+        let cancellationTasks = Array(meetingCancellationTasks.values)
+        cancelPendingNoteAppendStart()
+        cancelPendingMeetingCaptureStart()
+        recordingState.invalidateCaptureStart()
+        windowStartTask?.cancel()
+        if let noteAppendStartTask {
+            await noteAppendStartTask.value
+        }
+        if let meetingStartTask {
+            await meetingStartTask.value
+        }
+        if let windowStartTask {
+            await windowStartTask.value
+        }
+        for cancellationTask in cancellationTasks {
+            await cancellationTask.value
+        }
+        meetingCancellationTasks.removeAll()
+        mainWindowCaptureStartTask = nil
+        do {
+            try await noteCaptureController.cancelPendingStartHandle()
+        } catch {
+            noteCaptureController.reportTerminalPersistenceFailure(error)
+        }
+
+        noteCaptureController.invalidateRecovery()
+        meetingRecoveryTask?.cancel()
+        if let meetingRecoveryTask {
+            await meetingRecoveryTask.value
+        }
+        meetingRecoveryTask = nil
+
+        // Sealing and inventorying an active capture before AppKit terminates is
+        // a lifecycle step, so the controller owns it: a quit mid-capture must
+        // still leave a recoverable session.
+        await noteCaptureController.checkpointForTermination()
+    }
     /// Loads the streaming (Nemotron) engine and runs its CoreML warm-up inference
     /// in the background so the first dictation session doesn't pay that cost while
     /// the recording indicator is animating in. `prepareStreamingEngine` coalesces
     /// concurrent callers, so a session that starts mid-prewarm awaits this same
     /// load rather than failing over to batch.
+    /// Fetches the required helper models an install is missing.
+    ///
+    /// Live transcription and voice activity detection became part of setting
+    /// the app up, so an install from before that has to catch up. It runs in
+    /// the background at low priority: nothing on screen waits for it, and a
+    /// launch with no network simply tries again next time. Tests never
+    /// download anything.
+    private func fetchMissingRequiredFeatureModels() {
+        guard !Self.isRunningTests else { return }
+        Task(priority: .utility) { [weak self] in
+            guard let self else { return }
+            await self.modelManager.refreshDownloadedFeatureModels()
+            let missing = self.modelManager.missingRequiredFeatureModels(
+                streamingChunkProfile: self.settingsStore.streamingChunkProfile
+            )
+            guard !missing.isEmpty else { return }
+            Log.boot.info("Fetching required feature models: \(missing.map(\.rawValue))")
+            let failures = await self.modelManager.downloadMissingRequiredFeatureModels(
+                streamingChunkProfile: self.settingsStore.streamingChunkProfile
+            )
+            await self.modelManager.refreshDownloadedFeatureModels()
+            for failure in failures {
+                Log.model.error(
+                    "Required feature model \(failure.type.rawValue) is still missing: \(failure.error.localizedDescription)"
+                )
+            }
+        }
+    }
+
     private func prewarmStreamingEngineIfEnabled() {
         guard settingsStore.streamingFeatureEnabled else { return }
         Task(priority: .utility) { [weak self] in
@@ -1634,7 +2045,7 @@ final class AppCoordinator {
     /// Loads and activates a transcription model by name for MCP callers.
     func loadAndActivateModelForMCP(named modelName: String) async throws {
         guard let model = modelManager.availableModels.first(where: { $0.name == modelName }) else {
-            throw ModelManager.ModelError.modelNotFound(modelName)
+            throw PindropSpeech.ModelManager.ModelError.modelNotFound(modelName)
         }
         if !modelManager.isModelDownloaded(modelName),
            modelManager.existingLocalModelPath(for: modelName) == nil {
@@ -1771,7 +2182,7 @@ final class AppCoordinator {
 
         if !settingsStore.quickCapturePTTHotkey.isEmpty,
            let binding = validatedHotkeyBinding(
-               displayName: "Note Capture (Push-to-Talk)",
+               displayName: "Voice Note — Hold",
                hotkeyString: settingsStore.quickCapturePTTHotkey,
                keyCodeValue: settingsStore.quickCapturePTTHotkeyCode,
                modifiersValue: settingsStore.quickCapturePTTHotkeyModifiers
@@ -1780,7 +2191,7 @@ final class AppCoordinator {
 
             if canRegisterHotkey(
                 identifier: "quick-capture-ptt",
-                displayName: "Note Capture (Push-to-Talk)",
+                displayName: "Voice Note — Hold",
                 hotkeyString: settingsStore.quickCapturePTTHotkey,
                 keyCode: binding.keyCode,
                 modifiers: binding.modifiers,
@@ -1804,14 +2215,14 @@ final class AppCoordinator {
                 )
 
                 if !didRegister {
-                    handleHotkeyRegistrationFailure(displayName: "Note Capture (Push-to-Talk)", hotkeyString: settingsStore.quickCapturePTTHotkey)
+                    handleHotkeyRegistrationFailure(displayName: "Voice Note — Hold", hotkeyString: settingsStore.quickCapturePTTHotkey)
                 }
             }
         }
 
         if !settingsStore.quickCaptureToggleHotkey.isEmpty,
            let binding = validatedHotkeyBinding(
-               displayName: "Note Capture (Toggle)",
+               displayName: "Voice Note — Toggle",
                hotkeyString: settingsStore.quickCaptureToggleHotkey,
                keyCodeValue: settingsStore.quickCaptureToggleHotkeyCode,
                modifiersValue: settingsStore.quickCaptureToggleHotkeyModifiers
@@ -1819,7 +2230,7 @@ final class AppCoordinator {
             Log.hotkey.info("Registering quick-capture-toggle: keyCode=\(binding.keyCode), modifiers=0x\(String(binding.modifiers.rawValue, radix: 16)), string=\(self.settingsStore.quickCaptureToggleHotkey)")
             if canRegisterHotkey(
                 identifier: "quick-capture-toggle",
-                displayName: "Note Capture (Toggle)",
+                displayName: "Voice Note — Toggle",
                 hotkeyString: settingsStore.quickCaptureToggleHotkey,
                 keyCode: binding.keyCode,
                 modifiers: binding.modifiers,
@@ -1838,7 +2249,7 @@ final class AppCoordinator {
                     onKeyUp: nil
                 )
                 if !didRegister {
-                    handleHotkeyRegistrationFailure(displayName: "Note Capture (Toggle)", hotkeyString: settingsStore.quickCaptureToggleHotkey)
+                    handleHotkeyRegistrationFailure(displayName: "Voice Note — Toggle", hotkeyString: settingsStore.quickCaptureToggleHotkey)
                 }
             }
         }
@@ -1866,7 +2277,7 @@ final class AppCoordinator {
                     mode: .toggle,
                     onKeyDown: { [weak self] in
                         Task { @MainActor in
-                            self?.handleOpenHistory()
+                            self?.handleOpenLibrary()
                         }
                     },
                     onKeyUp: nil
@@ -1918,22 +2329,24 @@ final class AppCoordinator {
         keyCodeValue: Int,
         modifiersValue: Int
     ) -> (keyCode: UInt32, modifiers: HotkeyManager.ModifierFlags)? {
+        let localizedDisplayName = localized(displayName, locale: settingsStore.selectedAppLocale.locale)
         guard let keyCode = UInt32(exactly: keyCodeValue),
               let modifiersRawValue = UInt32(exactly: modifiersValue) else {
             Log.hotkey.error("Invalid hotkey values for \(displayName): string=\(hotkeyString), keyCode=\(keyCodeValue), modifiers=\(modifiersValue)")
             AlertManager.shared.showGenericErrorAlert(
                 title: "Invalid Hotkey Configuration",
-                message: "The saved hotkey for \(displayName) is invalid. Re-record this hotkey in Settings."
+                message: "The saved hotkey for \(localizedDisplayName) is invalid. Re-record this hotkey in Settings."
             )
             return nil
         }
         return (keyCode: keyCode, modifiers: HotkeyManager.ModifierFlags(rawValue: modifiersRawValue))
     }
     private func handleHotkeyRegistrationFailure(displayName: String, hotkeyString: String) {
+        let localizedDisplayName = localized(displayName, locale: settingsStore.selectedAppLocale.locale)
         Log.hotkey.error("Failed to register hotkey for \(displayName): \(hotkeyString)")
         AlertManager.shared.showGenericErrorAlert(
             title: "Hotkey Registration Failed",
-            message: "Could not register '\(hotkeyString)' for \(displayName). Choose a different shortcut in Settings."
+            message: "Could not register '\(hotkeyString)' for \(localizedDisplayName). Choose a different shortcut in Settings."
         )
     }
 
@@ -1973,9 +2386,9 @@ final class AppCoordinator {
         case "copy-last-transcript":
             return "Copy Last Transcript"
         case "quick-capture-ptt":
-            return "Note Capture (Push-to-Talk)"
+            return "Voice Note — Hold"
         case "quick-capture-toggle":
-            return "Note Capture (Toggle)"
+            return "Voice Note — Toggle"
         case "open-library":
             return "Open Library"
         case "cancel-operation":
@@ -2040,7 +2453,8 @@ final class AppCoordinator {
             ),
             mcpServerEnabled: settingsStore.mcpServerEnabled,
             mcpServerPort: settingsStore.mcpServerPort,
-            dictationAudioRetention: settingsStore.dictationAudioRetention
+            dictationAudioRetention: settingsStore.dictationAudioRetention,
+            watchForCalls: settingsStore.watchForCalls
         )
     }
     private func observeSettings() {
@@ -2120,6 +2534,10 @@ final class AppCoordinator {
 
                     if previousSnapshot.dictationAudioRetention != snapshot.dictationAudioRetention {
                         self.dictationAudioRetentionService.applyRetentionPolicyChange()
+                    }
+
+                    if previousSnapshot.watchForCalls != snapshot.watchForCalls {
+                        self.applyWatchForCallsSetting()
                     }
 
                     self.statusBarController.updateDynamicItems()
@@ -2398,7 +2816,7 @@ final class AppCoordinator {
         return lastSignature != signature
     }
 
-    private func currentLiveSessionContext() -> AIEnhancementService.LiveSessionContext? {
+    private func currentLiveSessionContext() -> PindropAI.AIEnhancementService.LiveSessionContext? {
         guard let contextSessionState else { return nil }
 
         let enrichment = contextSessionState.latestAdapterEnrichment
@@ -2410,7 +2828,7 @@ final class AppCoordinator {
             contextSessionState.transitions.flatMap { $0.contextTags }
         )
 
-        return AIEnhancementService.LiveSessionContext(
+        return PindropAI.AIEnhancementService.LiveSessionContext(
             runtimeState: contextSessionState.runtimeState,
             latestAppName: contextSessionState.latestSnapshot.appContext?.appName,
             latestWindowTitle: contextSessionState.latestSnapshot.appContext?.windowTitle,
@@ -2708,11 +3126,11 @@ final class AppCoordinator {
     /// finalization. Claiming occurs synchronously before the first suspension so
     /// simultaneous events cannot stop or transcribe the same recording twice.
     private func dispatchRecordingStop() async throws {
-        guard isRecording else { return }
+        let isNoteRetry = noteCaptureController.canRetryFinalization
+        guard isRecording || isNoteRetry else { return }
         let route = RecordingStopRoute.resolve(
-            isQuickCapture: isQuickCaptureMode,
             noteAppendEditorID: isNoteAppendMode ? noteAppendEditorID : nil,
-            isManualTranscription: isRecordingFeatureCaptureActive
+            isNoteCapture: isRecordingFeatureCaptureActive || isNoteRetry
         )
         guard let claim = recordingStopAdmission.claim(route) else {
             Log.app.debug("Ignoring duplicate recording stop request")
@@ -2755,30 +3173,33 @@ final class AppCoordinator {
         switch route {
         case .dictation:
             try await stopRecordingAndTranscribe(token: token)
-        case .quickCapture:
-            if let enhancedNote = try await stopRecordingAndTranscribeForQuickCapture(token: token) {
-                try ensureOperationCurrent(token)
-                openNoteEditorWithEnhancedNote(enhancedNote)
-            }
-            isQuickCaptureMode = false
         case .noteAppend(let editorID):
-            if let text = try await stopRecordingAndTranscribeForNoteAppend(token: token) {
-                try ensureOperationCurrent(token)
-                NotificationCenter.default.post(
-                    name: .noteSpeakToAppendTranscript,
-                    object: nil,
-                    userInfo: ["editorID": editorID, "text": text]
-                )
+            if let result = try await stopRecordingAndTranscribeForNoteAppend(token: token) {
+                try await persistNoteAppend(result, editorID: editorID, token: token)
             }
             clearNoteAppendMode()
-        case .manualTranscription:
-            try await stopManualTranscriptionRecording(token: token)
+        case .noteCapture:
+            // The lifecycle lives in `NoteCaptureController`. The coordinator's
+            // operation token goes along as the staleness guard so an explicit
+            // cancel still stops finalization at a durable checkpoint.
+            guard noteCaptureController.isActive,
+                  isRecordingFeatureCaptureActive || noteCaptureController.canRetryFinalization else {
+                throw AudioRecorderError.notRecording
+            }
+            try await noteCaptureController.stop(operationGuard: { [weak self] in
+                guard let self else { throw CancellationError() }
+                try self.ensureOperationCurrent(token)
+            })
         }
     }
     
     private func handlePushToTalkStart() async {
-        guard !isRecording && !isProcessing else { return }
-        guard NoteAppendGate.canStartGlobalDictation(isNoteAppendListening: isNoteAppendMode) else {
+        guard !isRecording,
+              !isProcessing,
+              !recordingState.isCaptureStartPending else { return }
+        guard NoteAppendGate.canStartGlobalDictation(
+            isNoteAppendListening: isNoteAppendMode || pendingNoteAppendStart != nil
+        ) else {
             Log.app.info("Refuse global dictation: note-append listening is active")
             return
         }
@@ -2786,6 +3207,7 @@ final class AppCoordinator {
         do {
             try await startRecording(source: .hotkeyPushToTalk)
         } catch {
+            guard !Self.isTaskCancellation(error) else { return }
             self.error = error
             audioRecorder.resetAudioEngine()
             Log.app.error("Failed to start recording: \(error)")
@@ -2811,32 +3233,39 @@ final class AppCoordinator {
         }
     }
 
-    // MARK: - Quick Capture Handlers (Push-to-Talk)
+    // MARK: - Quick Capture Handlers (hotkey)
 
-    private func handleQuickCapturePTTStart() async {
-        guard !isRecording && !isProcessing else { return }
-        guard NoteAppendGate.canStartGlobalDictation(isNoteAppendListening: isNoteAppendMode) else {
+    /// Whether the capture running now is the one the quick-capture hotkey
+    /// started.
+    ///
+    /// The hotkey has only ever owned its own session: a note capture the main
+    /// window or the menu bar started is finished from there, not by pressing
+    /// the hotkey again.
+    private var isQuickCaptureActive: Bool {
+        noteCaptureController.isActive && noteCaptureState.origin == .hotkey
+    }
+
+    /// Starts the hotkey's capture on the durable note path.
+    ///
+    /// Quick capture is a microphone-only note that makes its own note. Saying
+    /// the hotkey asked for it is what lets the lifecycle deliver the finished
+    /// transcript into that note, and take the note back out when nothing was
+    /// said.
+    private func startQuickCapture(source: RecordingTriggerSource) {
+        guard NoteAppendGate.canStartGlobalDictation(
+            isNoteAppendListening: isNoteAppendMode || pendingNoteAppendStart != nil
+        ) else {
             Log.app.info("Refuse quick-capture: note-append listening is active")
             return
         }
-
-        isQuickCaptureMode = true
-        quickCaptureTranscription = nil
-
-        do {
-            try await startRecording(source: .hotkeyQuickCapturePTT)
-        } catch {
-            self.error = error
-            isQuickCaptureMode = false
-            audioRecorder.resetAudioEngine()
-            Log.app.error("Failed to start quick capture recording: \(error)")
-            handleRecordingStartFailure(error, source: .hotkeyQuickCapturePTT)
-        }
+        _ = handleStartNoteCapture(
+            NoteCaptureRequest(includeSystemAudio: false),
+            origin: .hotkey,
+            startFailureSource: source
+        )
     }
 
-    private func handleQuickCapturePTTEnd() async {
-        guard isRecording && isQuickCaptureMode else { return }
-
+    private func stopQuickCapture() async {
         do {
             try await dispatchRecordingStop()
         } catch {
@@ -2844,75 +3273,330 @@ final class AppCoordinator {
             audioRecorder.resetAudioEngine()
             Log.app.error("Failed to stop quick capture recording: \(error)")
         }
-
-        isQuickCaptureMode = false
     }
 
-    // MARK: - Quick Capture Handlers (Toggle)
+    private func handleQuickCapturePTTStart() async {
+        guard !isRecording,
+              !isProcessing,
+              !recordingState.isCaptureStartPending else { return }
+        startQuickCapture(source: .hotkeyQuickCapturePTT)
+    }
+
+    private func handleQuickCapturePTTEnd() async {
+        // A short tap releases the key before the durable start has finished.
+        // The release waits for that start rather than walking away from a
+        // capture that is no longer bounded by anything but disk.
+        if let startTask = pendingMeetingCaptureStartTask {
+            await startTask.value
+        }
+        guard isRecording, isQuickCaptureActive else { return }
+        await stopQuickCapture()
+    }
 
     private func handleQuickCaptureToggle() async {
-        if isRecording && isQuickCaptureMode {
-            do {
-                try await dispatchRecordingStop()
-            } catch {
-                self.error = error
-                audioRecorder.resetAudioEngine()
-                Log.app.error("Failed to stop quick capture recording: \(error)")
-            }
-            isQuickCaptureMode = false
-        } else if !isRecording && !isProcessing {
-            guard NoteAppendGate.canStartGlobalDictation(isNoteAppendListening: isNoteAppendMode) else {
-                Log.app.info("Refuse quick-capture toggle: note-append listening is active")
-                return
-            }
-            isQuickCaptureMode = true
-            quickCaptureTranscription = nil
-
-            do {
-                try await startRecording(source: .hotkeyQuickCaptureToggle)
-            } catch {
-                self.error = error
-                isQuickCaptureMode = false
-                audioRecorder.resetAudioEngine()
-                Log.app.error("Failed to start quick capture recording: \(error)")
-                handleRecordingStartFailure(error, source: .hotkeyQuickCaptureToggle)
-            }
+        if isRecording, isQuickCaptureActive {
+            await stopQuickCapture()
+        } else if !isRecording,
+                  !isProcessing,
+                  !recordingState.isCaptureStartPending {
+            startQuickCapture(source: .hotkeyQuickCaptureToggle)
         }
     }
 
     // MARK: - Speak-to-Append (open note editor)
 
-    private func handleNoteAppendStart(editorID: UUID) async {
-        guard NoteAppendGate.canStartNoteAppend(isRecording: isRecording, isProcessing: isProcessing) else {
-            Log.app.info("Refuse note-append listening: global dictation or processing is active")
+    private func handleNoteAppendRequestNotification(_ notification: Notification) {
+        guard !isShutdown,
+              let editorID = notification.userInfo?["editorID"] as? UUID,
+              let noteID = notification.userInfo?["noteID"] as? UUID,
+              let action = notification.userInfo?["action"] as? String else {
             return
         }
 
-        isNoteAppendMode = true
-        noteAppendEditorID = editorID
-        NoteAppendListeningCoordinator.shared.state.startListening(editorID: editorID)
-
-        do {
-            try await startRecording(source: .noteAppend)
-        } catch {
-            self.error = error
-            clearNoteAppendMode()
-            audioRecorder.resetAudioEngine()
-            Log.app.error("Failed to start note-append recording: \(error)")
-            handleRecordingStartFailure(error, source: .noteAppend)
+        switch action {
+        case "start":
+            installPendingNoteAppendStart(editorID: editorID, noteID: noteID)
+        case "stop":
+            // This happens before creating the stop task. A closed editor can
+            // therefore cancel an installed Start before its async body runs.
+            cancelPendingNoteAppendStart(editorID: editorID, noteID: noteID)
+            Task { @MainActor [weak self] in
+                await self?.handleNoteAppendStop(editorID: editorID, noteID: noteID)
+            }
+        default:
+            return
         }
     }
 
-    private func handleNoteAppendStop(editorID: UUID) async {
-        guard isRecording && isNoteAppendMode else {
-            // Allow stop when only processing state is stuck, or ignore stale stop.
-            if noteAppendEditorID == editorID, !isProcessing {
-                clearNoteAppendMode()
-            }
+    private func installPendingNoteAppendStart(editorID: UUID, noteID: UUID) {
+        guard Self.canBeginVoiceNoteCapture(activeHandle: voiceNoteCaptureContext?.handle),
+              pendingNoteAppendStart == nil else {
+            Log.app.info("Refuse note-append listening: a voice-note capture start is already active")
+            postNoteAppendStartRejected(editorID: editorID, noteID: noteID)
             return
         }
-        guard noteAppendEditorID == editorID else {
-            Log.app.info("Ignore note-append stop for non-active editor")
+
+        nextNoteAppendStartGeneration &+= 1
+        let request = PendingNoteAppendStart(
+            generation: nextNoteAppendStartGeneration,
+            editorID: editorID,
+            noteID: noteID
+        )
+        pendingNoteAppendStart = request
+        pendingNoteAppendStartTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.handleNoteAppendStart(request)
+        }
+    }
+
+    private func postNoteAppendStartRejected(editorID: UUID, noteID: UUID) {
+        NotificationCenter.default.post(
+            name: .noteSpeakToAppendRejected,
+            object: nil,
+            userInfo: [
+                "editorID": editorID,
+                "noteID": noteID
+            ]
+        )
+    }
+
+    private func cancelPendingNoteAppendStart(editorID: UUID, noteID: UUID) {
+        guard let request = pendingNoteAppendStart,
+              request.editorID == editorID,
+              request.noteID == noteID else {
+            return
+        }
+
+        let capture = pendingNoteAppendStartCapture
+        pendingNoteAppendStartTask?.cancel()
+        pendingNoteAppendStartTask = nil
+        pendingNoteAppendStart = nil
+        clearPendingNoteAppendStartCapture(ifCurrent: capture, request: request)
+        nextNoteAppendStartGeneration &+= 1
+
+        if let capture {
+            cancelPendingNoteAppendCapture(
+                capture.context,
+                request: request,
+                preservingAudioStartupOwnership: true
+            )
+        }
+    }
+
+    private func isPendingNoteAppendStartCurrent(_ request: PendingNoteAppendStart) -> Bool {
+        pendingNoteAppendStart == request && !Task.isCancelled
+    }
+
+    private func cancelPendingNoteAppendStart() {
+        guard let request = pendingNoteAppendStart else { return }
+        let capture = pendingNoteAppendStartCapture
+        pendingNoteAppendStartTask?.cancel()
+        pendingNoteAppendStartTask = nil
+        if let capture, capture.request == request {
+            cancelPendingNoteAppendCapture(capture.context, request: request)
+        }
+        pendingNoteAppendStart = nil
+        clearPendingNoteAppendStartCapture(ifCurrent: capture, request: request)
+        if pendingNoteAppendAudioStartupRequest == request {
+            pendingNoteAppendAudioStartupRequest = nil
+        }
+        nextNoteAppendStartGeneration &+= 1
+    }
+
+    private func clearPendingNoteAppendStart(ifCurrent request: PendingNoteAppendStart) {
+        guard pendingNoteAppendStart == request else { return }
+        pendingNoteAppendStartTask = nil
+        pendingNoteAppendStart = nil
+        clearPendingNoteAppendStartCapture(
+            ifCurrent: pendingNoteAppendStartCapture,
+            request: request
+        )
+        if pendingNoteAppendAudioStartupRequest == request {
+            pendingNoteAppendAudioStartupRequest = nil
+        }
+    }
+
+    private func trackPendingNoteAppendStartCapture(
+        _ context: VoiceNoteCaptureContext,
+        for request: PendingNoteAppendStart
+    ) throws {
+        try ensurePendingNoteAppendStartCurrent(request, context: context)
+        pendingNoteAppendStartCapture = PendingNoteAppendCapture(
+            request: request,
+            context: context
+        )
+        pendingNoteAppendAudioStartupRequest = request
+    }
+
+    private func clearPendingNoteAppendStartCapture(
+        ifCurrent capture: PendingNoteAppendCapture?,
+        request: PendingNoteAppendStart
+    ) {
+        guard let capture,
+              capture.request == request,
+              Self.isPendingNoteAppendCaptureCurrent(
+                pendingEditorID: pendingNoteAppendStartCapture?.request.editorID,
+                pendingNoteID: pendingNoteAppendStartCapture?.request.noteID,
+                pendingHandle: pendingNoteAppendStartCapture?.context.handle,
+                candidateEditorID: request.editorID,
+                candidateNoteID: request.noteID,
+                candidateHandle: capture.context.handle
+              ) else {
+            return
+        }
+        pendingNoteAppendStartCapture = nil
+    }
+
+    @discardableResult
+    private func resetPendingNoteAppendAudioStartup(
+        ifOwnedBy request: PendingNoteAppendStart,
+        preservingOwnership: Bool = false
+    ) -> Bool {
+        let capture = pendingNoteAppendStartCapture
+        guard pendingNoteAppendAudioStartupRequest == request else { return false }
+        audioRecorder.cancelRecording()
+        audioRecorder.resetAudioEngine()
+        if let capture, capture.request == request {
+            streamingSession.cancelArtifactCaptureDetached(for: capture.context.handle)
+        }
+        if !preservingOwnership {
+            pendingNoteAppendAudioStartupRequest = nil
+        }
+        return true
+    }
+
+    private func cancelPendingNoteAppendCapture(
+        _ context: VoiceNoteCaptureContext,
+        request: PendingNoteAppendStart,
+        preservingAudioStartupOwnership: Bool = false
+    ) {
+        do {
+            try captureSessionStore.cancel(context.storeHandle, at: .now)
+        } catch {
+            Log.app.error("Failed to cancel pending voice-note capture: \(error)")
+        }
+
+        let ownsActiveCapture = isVoiceNoteCaptureContextCurrent(context)
+        _ = resetPendingNoteAppendAudioStartup(
+            ifOwnedBy: request,
+            preservingOwnership: preservingAudioStartupOwnership
+        )
+        guard ownsActiveCapture else { return }
+
+        clearNoteAppendMode(
+            ifCurrent: context,
+            editorID: request.editorID,
+            noteID: request.noteID
+        )
+        clearVoiceNoteCaptureContext(ifCurrent: context)
+        mediaPauseService.endRecordingSession()
+        recordingState.endRecording(
+            message: localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale)
+        )
+        recordingState.clearCurrentJob()
+        isRecording = false
+        isProcessing = false
+        recordingStartTime = nil
+        statusBarController.setIdleState()
+        statusBarController.updateMenuState()
+    }
+
+    private func ensurePendingNoteAppendStartCurrent(
+        _ request: PendingNoteAppendStart,
+        context: VoiceNoteCaptureContext? = nil
+    ) throws {
+        guard isPendingNoteAppendStartCurrent(request) else {
+            throw CancellationError()
+        }
+        if let context {
+            guard isVoiceNoteCaptureContextCurrent(context) else {
+                throw CancellationError()
+            }
+        }
+    }
+    private func handleNoteAppendStart(_ request: PendingNoteAppendStart) async {
+        guard isPendingNoteAppendStartCurrent(request) else { return }
+        guard !recordingState.isCaptureStartPending,
+              NoteAppendGate.canStartNoteAppend(
+                  isRecording: isRecording,
+                  isProcessing: isProcessing
+              ) else {
+            clearPendingNoteAppendStart(ifCurrent: request)
+            postNoteAppendStartRejected(editorID: request.editorID, noteID: request.noteID)
+            return
+        }
+
+        var context: VoiceNoteCaptureContext?
+        do {
+            let noteExists = try notesStore.contains(id: request.noteID)
+            try ensurePendingNoteAppendStartCurrent(request)
+            guard noteExists else {
+                Log.app.info("Refuse note-append listening: note is no longer durable")
+                clearPendingNoteAppendStart(ifCurrent: request)
+                postNoteAppendStartRejected(editorID: request.editorID, noteID: request.noteID)
+                return
+            }
+
+            isNoteAppendMode = true
+            noteAppendEditorID = request.editorID
+            NoteAppendListeningCoordinator.shared.state.startListening(
+                editorID: request.editorID,
+                noteID: request.noteID
+            )
+
+            try beginVoiceNoteCapture(noteID: request.noteID, origin: .mainWindow)
+            guard let activeContext = voiceNoteCaptureContext else {
+                throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
+            }
+            context = activeContext
+            try trackPendingNoteAppendStartCapture(activeContext, for: request)
+            try await startRecording(
+                source: .noteAppend,
+                voiceNoteContext: activeContext,
+                pendingNoteAppendStart: request
+            )
+            try ensurePendingNoteAppendStartCurrent(request, context: activeContext)
+            guard isRecording else {
+                throw VoiceNoteCaptureAdmissionError.recorderDidNotStart
+            }
+            clearPendingNoteAppendStart(ifCurrent: request)
+        } catch {
+            if Self.isTaskCancellation(error) {
+                if let context {
+                    cancelPendingNoteAppendCapture(context, request: request)
+                }
+                clearPendingNoteAppendStart(ifCurrent: request)
+                return
+            }
+            guard isPendingNoteAppendStartCurrent(request) else {
+                if let context {
+                    cancelPendingNoteAppendCapture(context, request: request)
+                }
+                return
+            }
+
+            self.error = error
+            _ = resetPendingNoteAppendAudioStartup(ifOwnedBy: request)
+            if let context, isVoiceNoteCaptureContextCurrent(context) {
+                clearNoteAppendMode(
+                    ifCurrent: context,
+                    editorID: request.editorID,
+                    noteID: request.noteID
+                )
+                failVoiceNoteCapture(context, stage: "recording-start", error: error)
+            } else if noteAppendEditorID == request.editorID {
+                clearNoteAppendMode()
+            }
+            clearPendingNoteAppendStart(ifCurrent: request)
+            Log.app.error("Failed to start note-append recording: \(error)")
+            handleRecordingStartFailure(error, source: .noteAppend)
+            postNoteAppendStartRejected(editorID: request.editorID, noteID: request.noteID)
+        }
+    }
+
+    private func handleNoteAppendStop(editorID: UUID, noteID: UUID) async {
+        guard isNoteAppendRequestCurrent(editorID: editorID, noteID: noteID) else {
+            Log.app.info("Ignore note-append stop for non-active editor or note")
             return
         }
 
@@ -2927,15 +3611,334 @@ final class AppCoordinator {
         if !isRecording { clearNoteAppendMode() }
     }
 
+    private func isNoteAppendRequestCurrent(editorID: UUID, noteID: UUID) -> Bool {
+        noteAppendEditorID == editorID && voiceNoteCaptureContext?.noteID == noteID
+    }
+
+    private func clearNoteAppendMode(
+        ifCurrent context: VoiceNoteCaptureContext,
+        editorID: UUID,
+        noteID: UUID
+    ) {
+        guard isVoiceNoteCaptureContextCurrent(context),
+              isNoteAppendRequestCurrent(editorID: editorID, noteID: noteID) else {
+            return
+        }
+        clearNoteAppendMode()
+    }
+
     private func clearNoteAppendMode() {
+
         isNoteAppendMode = false
         noteAppendEditorID = nil
         NoteAppendListeningCoordinator.shared.state.finishSession()
     }
 
-    private func stopRecordingAndTranscribeForNoteAppend(token: DictationOperationToken) async throws -> String? {
-        guard recordingStartTime != nil else {
-            Log.app.warning("stopRecordingAndTranscribeForNoteAppend called but recordingStartTime is nil")
+    static func canBeginVoiceNoteCapture(
+        activeHandle: PindropCore.NoteCaptureHandle?
+    ) -> Bool {
+        activeHandle == nil
+    }
+
+    static func isVoiceNoteCaptureCurrent(
+        activeHandle: PindropCore.NoteCaptureHandle?,
+        candidateHandle: PindropCore.NoteCaptureHandle
+    ) -> Bool {
+        activeHandle == candidateHandle
+    }
+
+    static func canBeginMeetingCapture(
+        activeHandle: PindropCore.NoteCaptureHandle?,
+        recoveryTaskActive: Bool = false,
+        isShutdown: Bool = false
+    ) -> Bool {
+        activeHandle == nil && !recoveryTaskActive && !isShutdown
+    }
+
+    static func canCancelCurrentOperation(
+        isRecording: Bool,
+        isProcessing: Bool,
+        hasActiveOperationTask: Bool,
+        hasMeetingCaptureContext: Bool,
+        hasPendingMeetingCaptureStart: Bool
+    ) -> Bool {
+        isRecording
+            || isProcessing
+            || hasActiveOperationTask
+            || hasMeetingCaptureContext
+            || hasPendingMeetingCaptureStart
+    }
+
+    static func isMeetingCaptureCurrent(
+        activeHandle: PindropCore.NoteCaptureHandle?,
+        candidateHandle: PindropCore.NoteCaptureHandle
+    ) -> Bool {
+        activeHandle == candidateHandle
+    }
+
+    static func canBeginMeetingRecovery(
+        activeHandle: PindropCore.NoteCaptureHandle?,
+        recoveryTaskActive: Bool,
+        isShutdown: Bool
+    ) -> Bool {
+        activeHandle == nil && !recoveryTaskActive && !isShutdown
+    }
+
+    static func isPendingNoteAppendCaptureCurrent(
+        pendingEditorID: UUID?,
+        pendingNoteID: UUID?,
+        pendingHandle: PindropCore.NoteCaptureHandle?,
+        candidateEditorID: UUID,
+        candidateNoteID: UUID,
+        candidateHandle: PindropCore.NoteCaptureHandle
+    ) -> Bool {
+        pendingEditorID == candidateEditorID
+            && pendingNoteID == candidateNoteID
+            && pendingHandle == candidateHandle
+    }
+
+    static func noteAppendNotificationSourceTranscriptionID(
+        _ append: PindropData.NoteAppendResult
+    ) -> UUID {
+        append.sourceTranscriptionID
+    }
+
+    private func isVoiceNoteCaptureContextCurrent(_ context: VoiceNoteCaptureContext) -> Bool {
+        Self.isVoiceNoteCaptureCurrent(
+            activeHandle: voiceNoteCaptureContext?.handle,
+            candidateHandle: context.handle
+        )
+    }
+
+    static func revalidateVoiceCaptureAfterArtifactAdmission(
+        ensureCurrent: @MainActor () throws -> Void,
+        tearDownStreaming: @MainActor () async -> Void
+    ) async throws {
+        do {
+            try ensureCurrent()
+        } catch {
+            await tearDownStreaming()
+            throw error
+        }
+    }
+
+    private func ensureVoiceNoteCaptureCurrentAfterArtifactAdmission(
+        _ context: VoiceNoteCaptureContext,
+        pendingNoteAppendStart: PendingNoteAppendStart?
+    ) async throws {
+        try await Self.revalidateVoiceCaptureAfterArtifactAdmission(
+            ensureCurrent: { [self] in
+                if let pendingNoteAppendStart {
+                    try ensurePendingNoteAppendStartCurrent(
+                        pendingNoteAppendStart,
+                        context: context
+                    )
+                } else {
+                    guard isVoiceNoteCaptureContextCurrent(context) else {
+                        throw CancellationError()
+                    }
+                }
+            },
+            tearDownStreaming: { [streamingSession] in
+                await streamingSession.cancelArtifactCapture(for: context.handle)
+            }
+        )
+    }
+
+    private func ensureVoiceNoteCaptureCurrent(
+        _ context: VoiceNoteCaptureContext,
+        token: DictationOperationToken
+    ) throws {
+        try ensureOperationCurrent(token)
+        guard isVoiceNoteCaptureContextCurrent(context) else {
+            throw CancellationError()
+        }
+    }
+
+    static func finishArtifactCaptureThenBeginFinalization(
+        finishArtifactCapture: @MainActor () async -> Void,
+        ensureCurrent: @MainActor () throws -> Void,
+        beginFinalization: @MainActor () throws -> Void
+    ) async throws {
+        try ensureCurrent()
+        await finishArtifactCapture()
+        try ensureCurrent()
+        try beginFinalization()
+    }
+
+    private func clearVoiceNoteCaptureContext(ifCurrent context: VoiceNoteCaptureContext) {
+        guard isVoiceNoteCaptureContextCurrent(context) else { return }
+        voiceNoteCaptureContext = nil
+    }
+
+    private func isPendingMeetingCaptureStartCurrent(_ claim: MeetingCaptureStartClaim) -> Bool {
+        pendingMeetingCaptureStart == claim
+            && meetingCaptureStartAdmission.isCurrent(claim)
+            && !isShutdown
+            && !isPreparingForTermination
+            && !Task.isCancelled
+    }
+
+    private func ensurePendingMeetingCaptureStartCurrent(
+        _ claim: MeetingCaptureStartClaim
+    ) throws {
+        try Task.checkCancellation()
+        guard isPendingMeetingCaptureStartCurrent(claim) else {
+            throw CancellationError()
+        }
+    }
+
+    private func clearPendingMeetingCaptureStart(
+        ifCurrent claim: MeetingCaptureStartClaim
+    ) {
+        guard pendingMeetingCaptureStart == claim else { return }
+        pendingMeetingCaptureStartTask = nil
+        pendingMeetingCaptureStart = nil
+        meetingCaptureStartAdmission.release(claim)
+    }
+
+    private func cancelPendingMeetingCaptureStart() {
+        guard let claim = pendingMeetingCaptureStart else { return }
+        pendingMeetingCaptureStartTask?.cancel()
+        pendingMeetingCaptureStartTask = nil
+        pendingMeetingCaptureStart = nil
+        meetingCaptureStartAdmission.release(claim)
+    }
+
+    private func captureAssignment(
+        sessionID: UUID,
+        stage: CapturePipelineStage,
+        attempt: Int
+    ) throws -> CaptureStageAssignment {
+        let activeBatchModelName = activeModelName
+        return try captureSessionStore.resolveAssignment(
+            sessionID: sessionID,
+            stage: stage,
+            attempt: attempt
+        ) { [captureAssignmentResolver] in
+            try captureAssignmentResolver.select(
+                stage: stage,
+                attempt: attempt,
+                activeBatchModelName: activeBatchModelName
+            )
+        }
+    }
+
+    private func activateAssignedFinalModel(
+        _ assignment: CaptureStageAssignment
+    ) async throws {
+        guard NoteCaptureController.assignedFinalModelNeedsActivation(
+            assignment,
+            activeModelName: activeModelName
+        ) else {
+            return
+        }
+        guard let modelName = assignment.modelIdentifier,
+              let model = modelManager.availableModels.first(where: {
+                  $0.name == modelName && $0.provider.rawValue == assignment.providerIdentifier
+              })
+        else {
+            throw CaptureStageAssignmentResolverError.unknownBatchModel(
+                assignment.modelIdentifier ?? "missing-final-model"
+            )
+        }
+        try await loadAndActivateModel(named: model.name, provider: model.provider)
+    }
+
+    private func beginVoiceNoteCapture(
+        noteID: UUID?,
+        origin: CaptureIntentOrigin = .mainWindow
+    ) throws {
+        guard Self.canBeginVoiceNoteCapture(activeHandle: voiceNoteCaptureContext?.handle) else {
+            throw VoiceNoteCaptureAdmissionError.captureAlreadyActive
+        }
+        let preferredInputUID = audioRecorder.currentPreferredInputDeviceUID
+            ?? settingsStore.selectedInputDeviceUID
+        let microphoneDisplayName = AudioDeviceManager.inputDevices()
+            .first(where: { $0.uid == preferredInputUID })?
+            .displayName ?? "Microphone"
+        // A voice note is a mic-only note capture: no system-audio source row.
+        // A note id at start means this capture appends to a note that already
+        // exists. Without one the capture creates its own note, so the intent
+        // says `newNote` now and is bound once that note is committed.
+        let handle = try captureSessionStore.startNoteCapture(
+            startedAt: .now,
+            includeSystemAudio: false,
+            intent: CaptureIntentRequest(
+                destination: noteID == nil ? .newNote : .existingNote,
+                destinationNoteID: noteID,
+                origin: origin
+            ),
+            microphoneDisplayName: microphoneDisplayName
+        )
+        do {
+            let liveAssignment = try captureAssignment(
+                sessionID: handle.sessionID,
+                stage: .liveTranscription,
+                attempt: NoteCaptureController.captureAssignmentAttempt(for: .liveTranscription)
+            )
+            voiceNoteCaptureContext = VoiceNoteCaptureContext(
+                handle: handle,
+                noteID: noteID,
+                liveAssignment: liveAssignment
+            )
+        } catch {
+            failVoiceNoteCapture(handle, stage: "recording-start", error: error)
+            throw error
+        }
+    }
+
+    private func failVoiceNoteCapture(
+        _ context: VoiceNoteCaptureContext,
+        stage: String,
+        error: Error
+    ) {
+        guard isVoiceNoteCaptureContextCurrent(context) else { return }
+        failVoiceNoteCapture(context.handle, stage: stage, error: error)
+        clearVoiceNoteCaptureContext(ifCurrent: context)
+    }
+
+    private func failVoiceNoteCapture(
+        _ handle: PindropCore.NoteCaptureHandle,
+        stage: String,
+        error: Error
+    ) {
+        let nsError = error as NSError
+        let captureStage: CapturePipelineStage? = switch stage {
+        case "transcribe", "no-speech":
+            .finalTranscription
+        case "persist":
+            .noteGeneration
+        default:
+            nil
+        }
+        do {
+            try captureSessionStore.fail(
+                handle,
+                stage: captureStage,
+                errorDomain: nsError.domain,
+                errorCode: String(nsError.code),
+                message: error.localizedDescription,
+                at: .now
+            )
+        } catch {
+            Log.app.error("Failed to mark voice-note capture as failed: \(error)")
+        }
+    }
+
+    private func cancelActiveVoiceNoteCapture() {
+        guard let context = voiceNoteCaptureContext else { return }
+        do {
+            try captureSessionStore.cancel(context.storeHandle, at: .now)
+        } catch {
+            Log.app.error("Failed to cancel voice-note capture: \(error)")
+        }
+        clearVoiceNoteCaptureContext(ifCurrent: context)
+    }
+
+    private func stopRecordingAndTranscribeForNoteAppend(token: DictationOperationToken) async throws -> VoiceNoteCaptureResult? {
+        guard let recordingStartTime, let context = voiceNoteCaptureContext, context.noteID != nil else {
+            Log.app.warning("stopRecordingAndTranscribeForNoteAppend called without an active voice-note capture")
             return nil
         }
 
@@ -2947,7 +3950,6 @@ final class AppCoordinator {
 
         statusBarController.setProcessingState()
         NoteAppendListeningCoordinator.shared.state.transitionToProcessing()
-        // No global indicator session was started for note-append.
 
         defer {
             if Self.shouldResetProcessingStateOnExit(
@@ -2961,36 +3963,69 @@ final class AppCoordinator {
         let audioData: Data
         do {
             audioData = try await audioRecorder.stopRecording()
-            try ensureOperationCurrent(token)
+            try await Self.finishArtifactCaptureThenBeginFinalization(
+                finishArtifactCapture: { [streamingSession] in
+                    await streamingSession.finishArtifactCapture(for: context.handle)
+                },
+                ensureCurrent: { [self] in
+                    try ensureVoiceNoteCaptureCurrent(context, token: token)
+                },
+                beginFinalization: { [captureSessionStore] in
+                    try captureSessionStore.beginFinalization(context.storeHandle, at: .now)
+                }
+            )
         } catch {
+            await streamingSession.cancelArtifactCapture(for: context.handle)
             if Self.isTaskCancellation(error) { throw CancellationError() }
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
+            failVoiceNoteCapture(context, stage: "recording-stop", error: error)
             Log.app.error("Failed to stop note-append recording: \(error)")
             throw error
         }
 
         guard !audioData.isEmpty else {
+            let noSpeechError = NSError(
+                domain: "tech.watzon.pindrop.capture",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "No audio data recorded"]
+            )
+            failVoiceNoteCapture(context, stage: "no-speech", error: noSpeechError)
             Log.app.warning("No audio data recorded for note-append")
             handleNoSpeechDetected(context: "note-append")
             return nil
         }
-
-        let diarizationEnabled = Self.dictationUsesSpeakerDiarization
+        let duration = Date.now.timeIntervalSince(recordingStartTime)
 
         let transcriptionOutput: TranscriptionOutput
+        let finalModelIdentifier: String
         do {
+            let finalAssignment = try captureAssignment(
+                sessionID: context.handle.sessionID,
+                stage: .finalTranscription,
+                attempt: NoteCaptureController.captureAssignmentAttempt(for: .finalTranscription)
+            )
+            guard let modelIdentifier = NoteCaptureController.finalHistoryModelIdentifier(from: finalAssignment) else {
+                throw CaptureStageAssignmentError.missingModelIdentifier(
+                    providerKind: finalAssignment.providerKind
+                )
+            }
+            finalModelIdentifier = modelIdentifier
+            try await activateAssignedFinalModel(finalAssignment)
             transcriptionOutput = try await transcriptionService.transcribe(
                 audioData: audioData,
-                diarizationEnabled: diarizationEnabled,
-                options: makeTranscriptionOptions(),
+                diarizationEnabled: Self.dictationUsesSpeakerDiarization,
+                options: makeTranscriptionOptions(route: .noteAppend),
                 diarizationOptions: .init(),
                 diarizationFailurePolicy: .bestEffort
             )
-            try ensureOperationCurrent(token)
-        } catch let error as TranscriptionService.TranscriptionError {
-            // Stale/cancelled operations must not toast or mutate UI after a newer session started.
-            guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else {
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
+        } catch let error as PindropSpeech.TranscriptionService.TranscriptionError {
+            guard operationController.isCurrent(token),
+                  isVoiceNoteCaptureContextCurrent(context),
+                  !Self.isTaskCancellation(error) else {
                 throw CancellationError()
             }
+            failVoiceNoteCapture(context, stage: "transcribe", error: error)
             Log.app.error("Note-append transcription failed: \(error)")
             reportTranscriptionFailureSignal(error, stage: "transcribe")
             resetProcessingState()
@@ -3003,9 +4038,12 @@ final class AppCoordinator {
             toastService.show(ToastPayload(message: message, style: .error))
             throw error
         } catch {
-            guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else {
+            guard operationController.isCurrent(token),
+                  isVoiceNoteCaptureContextCurrent(context),
+                  !Self.isTaskCancellation(error) else {
                 throw CancellationError()
             }
+            failVoiceNoteCapture(context, stage: "transcribe", error: error)
             Log.app.error("Note-append transcription failed: \(error)")
             reportTranscriptionFailureSignal(error, stage: "transcribe")
             resetProcessingState()
@@ -3020,217 +4058,247 @@ final class AppCoordinator {
             throw error
         }
 
-        try ensureOperationCurrent(token)
-        let transcribedText = transcriptionOutput.text
-        var (textAfterReplacements, appliedReplacements) = try dictionaryStore.applyReplacements(to: transcribedText)
-        textAfterReplacements = normalizedTranscriptionText(textAfterReplacements)
+        do {
+            let rawText = transcriptionOutput.text
+            var (finalText, appliedReplacements) = try dictionaryStore.applyReplacements(to: rawText)
+            finalText = normalizedTranscriptionText(finalText)
 
-        guard !isTranscriptionEffectivelyEmpty(textAfterReplacements) else {
-            handleNoSpeechDetected(context: "note-append")
-            return nil
+            guard !isTranscriptionEffectivelyEmpty(finalText) else {
+                let noSpeechError = NSError(
+                    domain: "tech.watzon.pindrop.capture",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "No speech detected"]
+                )
+                failVoiceNoteCapture(context, stage: "no-speech", error: noSpeechError)
+                handleNoSpeechDetected(context: "note-append")
+                return nil
+            }
+            try ensureVoiceNoteCaptureCurrent(context, token: token)
+            self.lastAppliedReplacements = appliedReplacements
+            try dictionaryStore.recordVocabularyHits(in: finalText)
+
+            if !appliedReplacements.isEmpty {
+                Log.app.info("Applied \(appliedReplacements.count) dictionary replacements (note-append)")
+            }
+
+            return VoiceNoteCaptureResult(
+                context: context,
+                rawText: rawText,
+                finalText: finalText,
+                duration: duration,
+                languageCode: settingsStore.selectedAppLanguage.rawValue,
+                finalModelIdentifier: finalModelIdentifier,
+                enhancedWithModel: nil,
+                title: nil,
+                tags: []
+            )
+        } catch {
+            guard Self.shouldEmitOperationFailureSideEffects(
+                isOperationCurrent: operationController.isCurrent(token),
+                error: error
+            ), isVoiceNoteCaptureContextCurrent(context) else {
+                throw CancellationError()
+            }
+            failVoiceNoteCapture(context, stage: "transcribe", error: error)
+            throw error
         }
-        self.lastAppliedReplacements = appliedReplacements
-        try? dictionaryStore.recordVocabularyHits(in: textAfterReplacements)
-
-        if !appliedReplacements.isEmpty {
-            Log.app.info("Applied \(appliedReplacements.count) dictionary replacements (note-append)")
-        }
-
-        Log.app.info("Note-append transcript ready (\(textAfterReplacements.count) chars)")
-        return textAfterReplacements
     }
 
-    private func stopRecordingAndTranscribeForQuickCapture(token: DictationOperationToken) async throws -> AIEnhancementService.EnhancedNote? {
-        guard recordingStartTime != nil else {
-            Log.app.warning("stopRecordingAndTranscribeForQuickCapture called but recordingStartTime is nil")
-            return nil
+    private func persistNoteAppend(
+        _ result: VoiceNoteCaptureResult,
+        editorID: UUID,
+        token: DictationOperationToken
+    ) async throws {
+        guard let noteID = result.context.noteID else {
+            throw CancellationError()
         }
 
-        isRecording = false
-        mediaPauseService.endRecordingSession()
-        suspendLiveContextSessionUpdates()
-        isProcessing = true
-        var didResetProcessingState = false
-
-        statusBarController.setProcessingState()
-
-        transitionRecordingIndicatorToProcessing()
-
-        defer {
-            if Self.shouldResetProcessingStateOnExit(
-                didResetProcessingState: didResetProcessingState,
-                isOperationCurrent: operationController.isCurrent(token)
-            ) {
-                resetProcessingState()
-            }
-        }
-
-        let audioData: Data
         do {
-            audioData = try await audioRecorder.stopRecording()
-            try ensureOperationCurrent(token)
-        } catch {
-            if Self.isTaskCancellation(error) { throw CancellationError() }
-            Log.app.error("Failed to stop recording: \(error)")
-            throw error
-        }
-
-        guard !audioData.isEmpty else {
-            Log.app.warning("No audio data recorded")
-            handleNoSpeechDetected(context: "quick-capture")
-            return nil
-        }
-
-        let diarizationEnabled = Self.dictationUsesSpeakerDiarization
-
-        let transcriptionOutput: TranscriptionOutput
-        do {
-            transcriptionOutput = try await transcriptionService.transcribe(
-                audioData: audioData,
-                diarizationEnabled: diarizationEnabled,
-                options: makeTranscriptionOptions(),
-                diarizationOptions: .init(),
-                diarizationFailurePolicy: .bestEffort
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            let revisions = try captureSessionStore.saveTranscriptRevisions(
+                for: result.context.storeHandle,
+                rawText: result.rawText,
+                finalText: result.finalText,
+                duration: result.duration,
+                languageCode: result.languageCode,
+                createdAt: .now
             )
-            try ensureOperationCurrent(token)
-        } catch let error as TranscriptionService.TranscriptionError {
-            guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else {
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            let record = try historyStore.save(
+                text: result.finalText,
+                originalText: result.rawText,
+                duration: result.duration,
+                modelUsed: result.finalModelIdentifier,
+                enhancedWith: nil,
+                sourceKind: .voiceRecording
+            )
+            let linkageIDs = VoiceNoteLinkageIDs(
+                historyRecordID: record.id,
+                finalTranscriptRevisionID: revisions.finalRevisionID
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            try captureSessionStore.linkTranscriptionRecord(
+                linkageIDs.historyRecordID,
+                to: result.context.storeHandle,
+                at: .now
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            let append = try notesStore.appendTranscript(
+                to: noteID,
+                content: result.finalText,
+                sourceTranscriptionID: linkageIDs.historyRecordID
+            )
+            try ensureVoiceNoteCaptureCurrent(result.context, token: token)
+            try captureSessionStore.complete(
+                result.context.storeHandle,
+                noteID: append.noteID,
+                finalTranscriptRevisionID: linkageIDs.finalTranscriptRevisionID,
+                at: .now
+            )
+            clearVoiceNoteCaptureContext(ifCurrent: result.context)
+            NotificationCenter.default.post(
+                name: .noteSpeakToAppendTranscript,
+                object: nil,
+                userInfo: [
+                    "editorID": editorID,
+                    "noteID": append.noteID,
+                    "content": append.content,
+                    "sourceTranscriptionID": Self.noteAppendNotificationSourceTranscriptionID(append)
+                ]
+            )
+        } catch {
+            guard operationController.isCurrent(token),
+                  isVoiceNoteCaptureContextCurrent(result.context) else {
                 throw CancellationError()
             }
-            Log.app.error("Transcription failed: \(error)")
-            reportTranscriptionFailureSignal(error, stage: "transcribe")
-            resetProcessingState()
-            didResetProcessingState = true
-            let locale = settingsStore.selectedAppLocale.locale
-            let message = if case .modelNotLoaded = error {
-                localized("No model loaded. Please download a model in Settings.", locale: locale)
-            } else {
-                String(format: localized("Transcription failed: %@", locale: locale), locale: locale, error.localizedDescription)
-            }
-            toastService.show(
-                ToastPayload(message: message, style: .error)
-            )
-            throw error
-        } catch {
-            guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else {
-                throw CancellationError()
-            }
-            Log.app.error("Transcription failed: \(error)")
-            reportTranscriptionFailureSignal(error, stage: "transcribe")
-            resetProcessingState()
-            didResetProcessingState = true
-            let locale = settingsStore.selectedAppLocale.locale
-            toastService.show(
-                ToastPayload(
-                    message: String(format: localized("Transcription failed: %@", locale: locale), locale: locale, error.localizedDescription),
-                    style: .error
-                )
-            )
+            failVoiceNoteCapture(result.context, stage: "persist", error: error)
             throw error
         }
+    }
 
-        if diarizationEnabled {
-            let segmentCount = transcriptionOutput.diarizedSegments?.count ?? 0
-            if segmentCount > 0 {
-                Log.app.info("Quick capture diarization produced \(segmentCount) segments")
-            } else {
-                Log.app.info("Quick capture diarization produced no attributed segments")
+    private func handleMainWindowDictationStart() {
+        guard !isRecording,
+              !isProcessing,
+              let claim = recordingState.claimCaptureStart() else { return }
+
+        mainWindowCaptureStartTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.recordingState.releaseCaptureStart(claim)
+                self.mainWindowCaptureStartTask = nil
             }
+            await self.handleToggleRecording(
+                source: .statusBarMenu,
+                captureStartClaim: claim
+            )
+        }
+    }
+
+    /// Stop from the Dictate page's recording frame. Same toggle the indicator
+    /// and the hotkey use; the guard keeps it from starting one by accident.
+    private func handleMainWindowDictationStop() {
+        guard isRecording else { return }
+        Task { @MainActor [weak self] in
+            await self?.handleToggleRecording(source: .statusBarMenu)
+        }
+    }
+
+    /// Starts one note capture on behalf of an entry point.
+    ///
+    /// Every note capture, microphone-only included, runs the durable path
+    /// inside `NoteCaptureController`. `origin` is what the recorded intent will
+    /// say asked for the capture. `startFailureSource` names the trigger for the
+    /// permission toast a hotkey start must still show; UI entry points pass
+    /// nothing because they surface the failure in place.
+    private func handleStartNoteCapture(
+        _ request: NoteCaptureRequest,
+        origin: CaptureIntentOrigin,
+        startFailureSource: RecordingTriggerSource? = nil
+    ) -> Bool {
+        guard !isCaptureBusy, !isCaptureHostStopping else {
+            recordingState.message = localized(
+                "Finish the active transcription before starting another one.",
+                locale: settingsStore.selectedAppLocale.locale
+            )
+            return false
         }
 
-        let transcribedText = transcriptionOutput.text
-
-        var (textAfterReplacements, appliedReplacements) = try dictionaryStore.applyReplacements(to: transcribedText)
-        textAfterReplacements = normalizedTranscriptionText(textAfterReplacements)
-
-        guard !isTranscriptionEffectivelyEmpty(textAfterReplacements) else {
-            handleNoSpeechDetected(context: "quick-capture")
-            return nil
-        }
-        self.lastAppliedReplacements = appliedReplacements
-        try? dictionaryStore.recordVocabularyHits(in: textAfterReplacements)
-
-        if !appliedReplacements.isEmpty {
-            Log.app.info("Applied \(appliedReplacements.count) dictionary replacements")
-        }
-
-        if let noteAssignment = settingsStore.resolveAssignment(for: .noteEnhancement) {
+        pendingMeetingCaptureStartTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.pendingMeetingCaptureStartTask = nil }
             do {
-                let notePrompt = resolvedPrompt(
-                    for: noteAssignment,
-                    fallback: SettingsStore.Defaults.noteEnhancementPrompt
-                )
-                let vocabularyWords = try dictionaryStore.fetchAllVocabularyWords().map(\.word)
-                let replacementCorrections = appliedReplacements.map {
-                    AIEnhancementService.ContextMetadata.ReplacementCorrection(
-                        original: $0.original,
-                        replacement: $0.replacement
-                    )
-                }
-                let enhancementContext = AIEnhancementService.ContextMetadata(
-                    hasClipboardText: false,
-                    clipboardText: nil,
-                    hasClipboardImage: false,
-                    appContext: nil,
-                    vocabularyWords: vocabularyWords,
-                    replacementCorrections: replacementCorrections
-                )
-
-                let existingTags = (try? notesStore.getAllUniqueTags()) ?? []
-                let enhancedNote = try await aiEnhancementService.enhanceNote(
-                    content: textAfterReplacements,
-                    apiEndpoint: noteAssignment.endpoint ?? "",
-                    apiKey: noteAssignment.apiKey,
-                    model: noteAssignment.modelID,
-                    contentPrompt: notePrompt,
-                    generateMetadata: true,
-                    existingTags: existingTags,
-                    context: enhancementContext,
-                    provider: noteAssignment.kind
-                )
-                try ensureOperationCurrent(token)
-                Log.app.info("Note enhancement completed: title='\(enhancedNote.title)', tags=\(enhancedNote.tags.count)")
-                let normalizedEnhancedContent = normalizedTranscriptionText(enhancedNote.content)
-                guard !isTranscriptionEffectivelyEmpty(normalizedEnhancedContent) else {
-                    handleNoSpeechDetected(context: "quick-capture")
-                    return nil
-                }
-                return AIEnhancementService.EnhancedNote(
-                    content: normalizedEnhancedContent,
-                    title: enhancedNote.title,
-                    tags: enhancedNote.tags
+                _ = try await self.noteCaptureController.startNote(
+                    request: request,
+                    origin: origin
                 )
             } catch {
-                if Self.isTaskCancellation(error) || !operationController.isCurrent(token) {
-                    throw CancellationError()
+                guard !self.isShutdown,
+                      !self.isPreparingForTermination,
+                      !Self.isTaskCancellation(error) else { return }
+                self.error = error
+                self.audioRecorder.resetAudioEngine()
+                self.isRecordingFeatureCaptureActive = false
+                self.recordingState.endRecording(message: error.localizedDescription)
+                Log.app.error("Failed to start note capture: \(error)")
+                if let startFailureSource {
+                    self.handleRecordingStartFailure(error, source: startFailureSource)
                 }
-                Log.app.error("Note enhancement failed: \(error)")
             }
         }
-
-        try ensureOperationCurrent(token)
-        let fallbackTitle = aiEnhancementService.generateFallbackTitle(from: textAfterReplacements)
-        return AIEnhancementService.EnhancedNote(
-            content: textAfterReplacements,
-            title: fallbackTitle,
-            tags: []
-        )
+        return true
     }
 
-    private func openNoteEditorWithEnhancedNote(_ enhancedNote: AIEnhancementService.EnhancedNote) {
-        let newNote = NoteSchema.Note(
-            title: enhancedNote.title,
-            content: enhancedNote.content,
-            tags: enhancedNote.tags,
-            sourceTranscriptionID: nil
-        )
-
-        noteEditorWindowController.show(note: newNote, isNewNote: true)
-
-        Log.app.info("Opened note editor with enhanced note")
+    /// Finishes the note capture from the note page.
+    ///
+    /// It goes through the same stop dispatch every other trigger uses, so the
+    /// operation token, the stop-admission gate, and the durable finalization
+    /// path are exactly the ones a hotkey or menu-bar stop would take.
+    private func handleFinishNoteCapture() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await self.dispatchRecordingStop()
+            } catch {
+                guard !Self.isTaskCancellation(error) else { return }
+                self.error = error
+                self.audioRecorder.resetAudioEngine()
+                Log.app.error("Failed to finish note capture: \(error)")
+            }
+        }
     }
 
-    private func handleToggleRecording(source: RecordingTriggerSource) async {
+    /// Throws the note capture away from the note page's overflow menu.
+    ///
+    /// It goes through the one cancel path the hotkey and the menu bar use, so
+    /// the recorder teardown, the pending-start sweep, and the terminal capture
+    /// cancellation are the ones that were already proven.
+    private func handleCancelNoteCapture() {
+        cancelCurrentOperation(source: "note-page")
+    }
+
+    /// Generates one enhanced panel for a note. Returns nil when it worked, or
+    /// the message the note page shows when it did not.
+    private func handleGenerateEnhancedPanel(_ request: NoteEnhancementRequest) async -> String? {
+        do {
+            _ = try await noteEnhancementService.generatePanel(
+                sessionID: request.sessionID,
+                noteID: request.noteID,
+                templatePresetIdentifier: request.templatePresetIdentifier
+            )
+            return nil
+        } catch {
+            guard !Self.isTaskCancellation(error) else { return nil }
+            Log.aiEnhancement.warning(
+                "Enhanced note generation failed: \(error.localizedDescription)"
+            )
+            return error.localizedDescription
+        }
+    }
+
+    private func handleToggleRecording(
+        source: RecordingTriggerSource,
+        captureStartClaim: CaptureStartClaim? = nil
+    ) async {
         if isRecording {
             do {
                 if isNoteAppendMode {
@@ -3244,14 +4312,21 @@ final class AppCoordinator {
                 audioRecorder.resetAudioEngine()
                 Log.app.error("Failed to stop recording: \(error)")
             }
-        } else if !isProcessing {
-            guard NoteAppendGate.canStartGlobalDictation(isNoteAppendListening: isNoteAppendMode) else {
+        } else if !isProcessing,
+                  captureStartClaim != nil || !recordingState.isCaptureStartPending {
+            guard NoteAppendGate.canStartGlobalDictation(
+                isNoteAppendListening: isNoteAppendMode || pendingNoteAppendStart != nil
+            ) else {
                 Log.app.info("Refuse global dictation toggle: note-append listening is active")
                 return
             }
             do {
-                try await startRecording(source: source)
+                try await startRecording(
+                    source: source,
+                    captureStartClaim: captureStartClaim
+                )
             } catch {
+                guard !Self.isTaskCancellation(error) else { return }
                 self.error = error
                 audioRecorder.resetAudioEngine()
                 Log.app.error("Failed to start recording: \(error)")
@@ -3260,7 +4335,23 @@ final class AppCoordinator {
         }
     }
     
-    private func startRecording(source: RecordingTriggerSource) async throws {
+    private func startRecording(
+        source: RecordingTriggerSource,
+        voiceNoteContext: VoiceNoteCaptureContext? = nil,
+        pendingNoteAppendStart: PendingNoteAppendStart? = nil,
+        captureStartClaim: CaptureStartClaim? = nil
+    ) async throws {
+        let claim: CaptureStartClaim
+        if let captureStartClaim {
+            claim = captureStartClaim
+        } else {
+            guard let claimedStart = recordingState.claimCaptureStart() else {
+                throw CancellationError()
+            }
+            claim = claimedStart
+        }
+        defer { recordingState.releaseCaptureStart(claim) }
+        try ensureCaptureStartCurrent(claim)
         automaticDictionaryLearningService.cancelObservation()
         logRecordingStartAttempt(source: source)
 
@@ -3268,29 +4359,85 @@ final class AppCoordinator {
         // so escape-to-cancel and modifier tracking become available mid-session.
         ensureGlobalKeyMonitorsIfPossible()
 
-        await beginStreamingSessionIfAvailable()
+        if let voiceNoteContext {
+            if let pendingNoteAppendStart {
+                try ensurePendingNoteAppendStartCurrent(
+                    pendingNoteAppendStart,
+                    context: voiceNoteContext
+                )
+            } else {
+                guard isVoiceNoteCaptureContextCurrent(voiceNoteContext) else {
+                    throw CancellationError()
+                }
+            }
+        }
+        let startedStreamingSession = await beginStreamingSessionIfAvailable(for: voiceNoteContext)
+        do {
+            try ensureCaptureStartCurrent(claim)
+            if let voiceNoteContext {
+                try await ensureVoiceNoteCaptureCurrentAfterArtifactAdmission(
+                    voiceNoteContext,
+                    pendingNoteAppendStart: pendingNoteAppendStart
+                )
+                try ensureCaptureStartCurrent(claim)
+            }
+        } catch {
+            await cancelCaptureStartStreaming(
+                voiceNoteContext: voiceNoteContext,
+                session: startedStreamingSession
+            )
+            throw error
+        }
 
         // Retention encodes a native-rate copy so kept audio isn't the 16 kHz ASR feed.
         audioRecorder.retainNativeAudioForSession =
             settingsStore.dictationAudioRetention != .off
 
+        var recorderStarted = false
         let didStartRecording: Bool
         do {
             didStartRecording = try await audioRecorder.startRecording()
-        } catch {
-            if streamingSession.isSessionActive {
-                await streamingSession.cancel()
+            recorderStarted = didStartRecording
+            try ensureCaptureStartCurrent(claim)
+            if let voiceNoteContext, let pendingNoteAppendStart {
+                try ensurePendingNoteAppendStartCurrent(
+                    pendingNoteAppendStart,
+                    context: voiceNoteContext
+                )
+                try ensureCaptureStartCurrent(claim)
             }
-            Log.app.error("Audio engine failed to start: \(error)")
-            throw error
+        } catch {
+            if recorderStarted || Self.isTaskCancellation(error) {
+                audioRecorder.resetAudioEngine()
+            }
+            await cancelCaptureStartStreaming(
+                voiceNoteContext: voiceNoteContext,
+                session: startedStreamingSession
+            )
+            if !Self.isTaskCancellation(error) {
+                Log.app.error("Audio engine failed to start: \(error)")
+                throw error
+            }
+            throw CancellationError()
+        }
+
+        if didStartRecording {
+            switch source {
+            case .noteAppend:
+                break
+            default:
+                // A newer capture owns the recorder now, so a cancelled
+                // note-append start must not reset it when its task unwinds.
+                pendingNoteAppendAudioStartupRequest = nil
+            }
         }
 
         guard didStartRecording else {
-            if streamingSession.isSessionActive {
-                await streamingSession.cancel()
-            }
-            Log.app.debug("Recording start already in progress; ignoring duplicate start request")
-            return
+            await cancelCaptureStartStreaming(
+                voiceNoteContext: voiceNoteContext,
+                session: startedStreamingSession
+            )
+            throw VoiceNoteCaptureAdmissionError.recorderDidNotStart
         }
 
         if settingsStore.pauseMediaOnRecording || settingsStore.muteAudioDuringRecording {
@@ -3365,6 +4512,29 @@ final class AppCoordinator {
         }
     }
 
+    private func ensureCaptureStartCurrent(_ claim: CaptureStartClaim) throws {
+        try Task.checkCancellation()
+        guard !isShutdown,
+              !isPreparingForTermination,
+              recordingState.isCaptureStartClaimCurrent(claim) else {
+            throw CancellationError()
+        }
+    }
+
+    private func cancelCaptureStartStreaming(
+        voiceNoteContext: VoiceNoteCaptureContext?,
+        session: StreamingSessionController.SessionToken?
+    ) async {
+        if let voiceNoteContext {
+            await streamingSession.cancelArtifactCapture(for: voiceNoteContext.handle)
+        } else if let session {
+            await streamingSession.cancel(session: session)
+            if activeStreamingSessionToken == session {
+                activeStreamingSessionToken = nil
+            }
+        }
+    }
+
     private func logRecordingStartAttempt(source: RecordingTriggerSource) {
         recordingStartAttemptCounter += 1
         let snapshot = permissionManager.microphoneAuthorizationSnapshot()
@@ -3382,13 +4552,25 @@ final class AppCoordinator {
 
     /// Builds transcription options including WhisperKit vocabulary bias words.
     private func makeTranscriptionOptions(
-        language: AppLanguage? = nil
+        language: AppLanguage? = nil,
+        route: CoordinatorTranscriptionRoute
     ) -> TranscriptionOptions {
         let bias = (try? dictionaryStore.vocabularyBiasWords()) ?? []
         return TranscriptionOptions(
             language: language ?? settingsStore.selectedAppLanguage,
-            vocabularyBiasWords: bias
+            vocabularyBiasWords: bias,
+            audioPreprocessingMode: Self.audioPreprocessingMode(
+                for: route,
+                voiceIsolationEnabled: settingsStore.voiceIsolationEnabled
+            )
         )
+    }
+
+    static func audioPreprocessingMode(
+        for route: CoordinatorTranscriptionRoute,
+        voiceIsolationEnabled: Bool
+    ) -> AudioPreprocessingMode {
+        voiceIsolationEnabled && route.appliesVoiceIsolation ? .voiceIsolation : .none
     }
 
     private func normalizedTranscriptionText(_ text: String) -> String {
@@ -3427,8 +4609,10 @@ final class AppCoordinator {
     /// text once, via a single paste at stop (after dictionary replacements and the
     /// optional post-stop enhancement rewrite).
     ///
-    /// Gates that matter: feature flag, quick-capture mode, and floating-indicator
-    /// availability. With overlay streaming the live transcript renders in Pindrop's own
+    /// Gates that matter: feature flag, note-append listening, and floating-indicator
+    /// availability. Note captures never reach this gate: their live transcription is
+    /// chosen by the assignment frozen at capture start.
+    /// With overlay streaming the live transcript renders in Pindrop's own
     /// indicator overlay and the target app receives one paste at the end, so:
     ///   - `outputMode` no longer gates — clipboard-mode users get the live overlay too;
     ///     the final landing routes through `output(_:)` per mode.
@@ -3437,12 +4621,10 @@ final class AppCoordinator {
     ///     force-show UI the user disabled or temporarily hid.
     static func shouldUseStreamingTranscription(
         streamingFeatureEnabled: Bool,
-        isQuickCaptureMode: Bool,
         floatingIndicatorAvailable: Bool,
         isNoteAppendMode: Bool = false
     ) -> Bool {
         streamingFeatureEnabled
-            && !isQuickCaptureMode
             && !isNoteAppendMode
             && floatingIndicatorAvailable
     }
@@ -3484,7 +4666,6 @@ final class AppCoordinator {
     private func shouldUseStreamingTranscriptionForCurrentSession() -> Bool {
         Self.shouldUseStreamingTranscription(
             streamingFeatureEnabled: settingsStore.streamingFeatureEnabled,
-            isQuickCaptureMode: isQuickCaptureMode,
             floatingIndicatorAvailable: isFloatingIndicatorAvailable(),
             isNoteAppendMode: isNoteAppendMode
         )
@@ -3585,22 +4766,40 @@ final class AppCoordinator {
         )
     }
 
-    private func beginStreamingSessionIfAvailable() async {
-        let shouldUseStreaming = shouldUseStreamingTranscriptionForCurrentSession()
-        guard shouldUseStreaming else {
-            let indicatorAvailable = isFloatingIndicatorAvailable()
-            let reasons = [
-                settingsStore.streamingFeatureEnabled ? nil : "feature-disabled",
-                indicatorAvailable ? nil : "indicator-unavailable",
-                isQuickCaptureMode ? "quick-capture-mode" : nil
-            ].compactMap { $0 }
-            Log.transcription.info("Streaming transcription disabled for session: \(reasons.joined(separator: ","))")
-            streamingSession.deactivate()
-            return
+    private func beginStreamingSessionIfAvailable(
+        for voiceNoteContext: VoiceNoteCaptureContext? = nil
+    ) async -> StreamingSessionController.SessionToken? {
+        if let voiceNoteContext {
+            switch NoteCaptureController.liveArtifactCaptureAdmission(for: voiceNoteContext.liveAssignment) {
+            case .capture:
+                _ = await streamingSession.beginArtifactCapture(
+                    for: voiceNoteContext.handle,
+                    assignment: voiceNoteContext.liveAssignment
+                )
+            case .deactivate:
+                streamingSession.deactivate()
+            }
+            return nil
         }
 
-        await streamingSession.begin()
+        guard shouldUseStreamingTranscriptionForCurrentSession() else {
+            streamingSession.deactivate()
+            return nil
+        }
+        let session = await streamingSession.begin()
+        // A canceled older begin can resume after its successor has installed a token.
+        // Its nil admission result must not erase that successor's global reference.
+        if let session {
+            activeStreamingSessionToken = session
+        }
+        return session
     }
+    private func cancelActiveStreamingSession() async {
+        guard let session = activeStreamingSessionToken else { return }
+        activeStreamingSessionToken = nil
+        await streamingSession.cancel(session: session)
+    }
+
 
     /// Resolves prompt overrides, stable built-in identifiers, and persisted preset
     /// UUIDs through one path so every enhancement entry point sends the same text.
@@ -3644,7 +4843,7 @@ final class AppCoordinator {
             fallback: SettingsStore.Defaults.aiEnhancementPrompt
         )
 
-        let context = AIEnhancementService.ContextMetadata(
+        let context = PindropAI.AIEnhancementService.ContextMetadata(
             hasClipboardText: false,
             hasClipboardImage: false,
             appContext: nil,
@@ -3665,7 +4864,7 @@ final class AppCoordinator {
                 context: context,
                 provider: assignment.kind
             )
-            let sanitized = AIEnhancementService.stripResponsePreamble(result.text)
+            let sanitized = PindropAI.AIEnhancementService.stripResponsePreamble(result.text)
             return StreamingSessionController.PostStopEnhanceOutcome(
                 enhancedText: sanitized,
                 modelID: assignment.modelID,
@@ -3679,7 +4878,7 @@ final class AppCoordinator {
                 return nil
             }
             Log.aiEnhancement.warning(
-                "Streaming post-stop enhance failed: \(error.localizedDescription)")
+                "Streaming post-stop enhance failed provider=\(assignment.kind.rawValue)")
             toastService.show(
                 ToastPayload(
                     message: localized(
@@ -3693,7 +4892,10 @@ final class AppCoordinator {
         }
     }
 
-    private func stopRecordingAndFinalizeStreaming(token: DictationOperationToken) async throws {
+    private func stopRecordingAndFinalizeStreaming(
+        token: DictationOperationToken,
+        session: StreamingSessionController.SessionToken
+    ) async throws {
         guard let startTime = recordingStartTime else {
             Log.app.warning("stopRecordingAndFinalizeStreaming called but recordingStartTime is nil")
             return
@@ -3730,16 +4932,27 @@ final class AppCoordinator {
             audioStopSeconds = audioStopStart.duration(to: pipelineClock.now).pipelineSeconds
             try ensureOperationCurrent(token)
         } catch {
+            if Self.shouldCancelStreamingAfterStopFailure(
+                isOperationCurrent: operationController.isCurrent(token)
+            ) {
+                await streamingSession.cancel(session: session)
+                if activeStreamingSessionToken == session {
+                    activeStreamingSessionToken = nil
+                }
+            }
             if Self.isTaskCancellation(error) { throw CancellationError() }
             Log.app.error("Failed to stop recording for streaming session: \(error)")
-            await streamingSession.cancel()
             throw error
         }
 
         var outcome = try await streamingSession.finalize(
             recordedAudioData: recordedAudioData,
-            recordingDuration: Date().timeIntervalSince(startTime)
+            recordingDuration: Date().timeIntervalSince(startTime),
+            session: session
         )
+        if activeStreamingSessionToken == session {
+            activeStreamingSessionToken = nil
+        }
         outcome.pipelineMetrics.audioStopSeconds = audioStopSeconds
         outcome.pipelineMetrics.totalSeconds = pipelineStart.duration(to: pipelineClock.now).pipelineSeconds
         Log.app.info("Pipeline timing: \(outcome.pipelineMetrics.logSummary)")
@@ -3811,8 +5024,8 @@ final class AppCoordinator {
             return
         }
 
-        if streamingSession.isSessionActive {
-            try await stopRecordingAndFinalizeStreaming(token: token)
+        if let session = activeStreamingSessionToken {
+            try await stopRecordingAndFinalizeStreaming(token: token, session: session)
             return
         }
 
@@ -3867,13 +5080,13 @@ final class AppCoordinator {
             transcriptionOutput = try await transcriptionService.transcribe(
                 audioData: audioData,
                 diarizationEnabled: diarizationEnabled,
-                options: makeTranscriptionOptions(),
+                options: makeTranscriptionOptions(route: .dictation),
                 diarizationOptions: .init(),
                 diarizationFailurePolicy: .bestEffort
             )
             pipelineMetrics.transcriptionSeconds = transcriptionStart.duration(to: pipelineClock.now).pipelineSeconds
             try ensureOperationCurrent(token)
-        } catch let error as TranscriptionService.TranscriptionError {
+        } catch let error as PindropSpeech.TranscriptionService.TranscriptionError {
             guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else {
                 throw CancellationError()
             }
@@ -4015,7 +5228,7 @@ final class AppCoordinator {
 
                 let vocabularyWords = try dictionaryStore.fetchAllVocabularyWords().map(\.word)
                 let replacementCorrections = lastAppliedReplacements.map {
-                    AIEnhancementService.ContextMetadata.ReplacementCorrection(
+                    PindropAI.AIEnhancementService.ContextMetadata.ReplacementCorrection(
                         original: $0.original,
                         replacement: $0.replacement
                     )
@@ -4025,7 +5238,7 @@ final class AppCoordinator {
                     basePrompt += "\n\nIf the input contains file placeholders formatted as [[:relative/path.ext:]], preserve each placeholder token exactly. Do not change brackets, colons, slashes, file names, or extensions inside those tokens."
                 }
                 
-                var contextMetadata = AIEnhancementService.ContextMetadata.none
+                var contextMetadata = PindropAI.AIEnhancementService.ContextMetadata.none
                 var clipboardText: String? = nil
 
                 var workspaceTreeSummary: String? = nil
@@ -4042,7 +5255,7 @@ final class AppCoordinator {
                     let hasClipboardText = context.clipboardText != nil && !context.clipboardText!.isEmpty
                     clipboardText = hasClipboardText ? context.clipboardText : nil
                     
-                    contextMetadata = AIEnhancementService.ContextMetadata(
+                    contextMetadata = PindropAI.AIEnhancementService.ContextMetadata(
                         hasClipboardText: hasClipboardText,
                         clipboardText: clipboardText,
                         hasClipboardImage: false,
@@ -4055,7 +5268,7 @@ final class AppCoordinator {
                         replacementCorrections: replacementCorrections
                     )
                 } else if let appContext = capturedSnapshot?.appContext {
-                    contextMetadata = AIEnhancementService.ContextMetadata(
+                    contextMetadata = PindropAI.AIEnhancementService.ContextMetadata(
                         hasClipboardText: false,
                         clipboardText: nil,
                         hasClipboardImage: false,
@@ -4068,7 +5281,7 @@ final class AppCoordinator {
                         replacementCorrections: replacementCorrections
                     )
                 } else if let liveSessionContext {
-                    contextMetadata = AIEnhancementService.ContextMetadata(
+                    contextMetadata = PindropAI.AIEnhancementService.ContextMetadata(
                         hasClipboardText: false,
                         clipboardText: nil,
                         hasClipboardImage: false,
@@ -4081,7 +5294,7 @@ final class AppCoordinator {
                         replacementCorrections: replacementCorrections
                     )
                 } else if !vocabularyWords.isEmpty || !replacementCorrections.isEmpty {
-                    contextMetadata = AIEnhancementService.ContextMetadata(
+                    contextMetadata = PindropAI.AIEnhancementService.ContextMetadata(
                         hasClipboardText: false,
                         clipboardText: nil,
                         hasClipboardImage: false,
@@ -4697,6 +5910,12 @@ final class AppCoordinator {
         isOperationCurrent && !isTaskCancellation(error)
     }
 
+    /// A failed generic stop may cancel the shared streaming engine only while its
+    /// operation still owns the coordinator; a stale stop must leave its successor alone.
+    static func shouldCancelStreamingAfterStopFailure(isOperationCurrent: Bool) -> Bool {
+        isOperationCurrent
+    }
+
     private func resetProcessingStateIfCurrent(_ token: DictationOperationToken) {
         guard Self.shouldResetProcessingStateOnExit(
             didResetProcessingState: false,
@@ -4823,7 +6042,15 @@ final class AppCoordinator {
     }
 
     private func cancelCurrentOperation(source: String = "cancel") {
-        guard isRecording || isProcessing || activeOperationTask != nil else {
+        guard !isShutdown, !isPreparingForTermination else { return }
+        guard Self.canCancelCurrentOperation(
+            isRecording: isRecording,
+            isProcessing: isProcessing,
+            hasActiveOperationTask: activeOperationTask != nil,
+            hasMeetingCaptureContext: noteCaptureController.isActive,
+            hasPendingMeetingCaptureStart: pendingMeetingCaptureStart != nil
+                || noteCaptureController.hasPendingStart
+        ) else {
             Log.app.debug("Cancel requested (\(source)) but no operation in progress")
             return
         }
@@ -4838,27 +6065,64 @@ final class AppCoordinator {
         }
 
         Log.app.info("Cancelling current operation via \(source)")
+        let capturedStreamingSessionToken = activeStreamingSessionToken
+        let capturedVoiceNoteHandle = voiceNoteCaptureContext?.handle
+        let capturedNoteCaptureIsActive = noteCaptureController.isActive
+        let capturedPendingMeetingStartTask = pendingMeetingCaptureStartTask
+        let capturedActiveOperationTask = activeOperationTask
 
         escapeCancelArmedAt = nil
         // Invalidate any in-flight stop/transcribe/enhance pipeline first so post-await
         // stages discard results even if cooperative cancellation is delayed.
         operationController.cancel()
+        cancelPendingNoteAppendStart()
+        cancelPendingMeetingCaptureStart()
         activeOperationTask?.cancel()
         activeOperationTask = nil
         // Free stop admission immediately so a new recording can stop even while the
         // cancelled finalize task is still unwinding its defer.
         recordingStopAdmission.invalidateCurrentClaim()
+        cancelActiveVoiceNoteCapture()
+        audioRecorder.resetAudioEngine()
+        let meetingCancellationTaskID = UUID()
+        meetingCancellationTasks[meetingCancellationTaskID] = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.meetingCancellationTasks[meetingCancellationTaskID] = nil }
+            if let capturedPendingMeetingStartTask {
+                await capturedPendingMeetingStartTask.value
+            }
+            if let capturedActiveOperationTask {
+                _ = await capturedActiveOperationTask.result
+            }
+            do {
+                try await self.noteCaptureController.cancelPendingStartHandle()
+            } catch {
+                self.noteCaptureController.reportTerminalPersistenceFailure(error)
+            }
+            if capturedNoteCaptureIsActive {
+                await self.noteCaptureController.cancel()
+            }
+        }
 
-        streamingSession.cancelDetached()
+        if let capturedStreamingSessionToken {
+            if activeStreamingSessionToken == capturedStreamingSessionToken {
+                activeStreamingSessionToken = nil
+            }
+            streamingSession.cancelDetached(session: capturedStreamingSessionToken)
+        }
+        if let capturedVoiceNoteHandle {
+            streamingSession.cancelArtifactCaptureDetached(for: capturedVoiceNoteHandle)
+        }
+        if capturedStreamingSessionToken == nil, capturedVoiceNoteHandle == nil {
+            streamingSession.deactivate()
+        }
         recordingState.endRecording(message: localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale))
         recordingState.clearCurrentJob()
 
-        audioRecorder.resetAudioEngine()
         mediaPauseService.endRecordingSession()
         isRecording = false
         isProcessing = false
         isRecordingFeatureCaptureActive = false
-        isQuickCaptureMode = false
         clearNoteAppendMode()
         recordingStartTime = nil
         manualExpectedSpeakerCount = nil
@@ -4868,7 +6132,6 @@ final class AppCoordinator {
         capturedRoutingSignal = nil
         stopLiveContextSession()
         updateVibeRuntimeStateFromSettings()
-        error = nil
 
         statusBarController.setIdleState()
         statusBarController.updateMenuState()
@@ -4881,11 +6144,22 @@ final class AppCoordinator {
             handleRecordingLimitReached(failure)
             return
         }
+        let capturedStreamingSessionToken = activeStreamingSessionToken
+        let capturedVoiceNoteHandle = voiceNoteCaptureContext?.handle
         error = failure
         Log.app.error("Audio capture failed: \(failure.localizedDescription)")
-
-        let hadStreamingSession = streamingSession.isSessionActive
-        streamingSession.cancelDetached()
+        if let capturedStreamingSessionToken,
+           activeStreamingSessionToken == capturedStreamingSessionToken {
+            activeStreamingSessionToken = nil
+        }
+        let hadCapturedStreamingOwner =
+            capturedStreamingSessionToken != nil || capturedVoiceNoteHandle != nil
+        if let capturedStreamingSessionToken {
+            streamingSession.cancelDetached(session: capturedStreamingSessionToken)
+        }
+        if let capturedVoiceNoteHandle {
+            streamingSession.cancelArtifactCaptureDetached(for: capturedVoiceNoteHandle)
+        }
         let captureFailureLocale = settingsStore.selectedAppLocale.locale
         let captureFailureMessage = String(
             format: localized("Recording stopped: %@", locale: captureFailureLocale),
@@ -4893,8 +6167,12 @@ final class AppCoordinator {
             failure.localizedDescription
         )
         recordingState.endRecording(message: captureFailureMessage)
+        if let context = voiceNoteCaptureContext {
+            failVoiceNoteCapture(context, stage: "audio-capture", error: failure)
+        }
+        noteCaptureController.interruptActiveCapture(with: failure)
         recordingState.clearCurrentJob()
-        if hadStreamingSession {
+        if hadCapturedStreamingOwner {
             Log.transcription.info("Cancelled streaming transcription after audio capture failure")
         }
 
@@ -4902,9 +6180,7 @@ final class AppCoordinator {
         isRecording = false
         isProcessing = false
         isRecordingFeatureCaptureActive = false
-        isQuickCaptureMode = false
         clearNoteAppendMode()
-        recordingStartTime = nil
         manualExpectedSpeakerCount = nil
         capturedContext = nil
         capturedSnapshot = nil
@@ -5046,6 +6322,94 @@ final class AppCoordinator {
         setupInputMuteMonitoring()
     }
 
+    /// Installs the app's single `UNUserNotificationCenter` delegate.
+    ///
+    /// Set here rather than inside the meeting setup below, because Sparkle's
+    /// update reminder needs this delegate on every machine, including the ones
+    /// that cannot record a call at all.
+    private func setupUserNotificationRouting() {
+        let delegate = AppUserNotificationDelegate(
+            onCallAction: { [weak self] action in
+                Task { @MainActor in
+                    self?.meetingInvitationController?.handleNotificationAction(action)
+                }
+            },
+            forwardedDelegate: updateService.sparkleNotificationDelegate
+        )
+        userNotificationDelegate = delegate
+        UNUserNotificationCenter.current().delegate = delegate
+    }
+
+    private func setupConferenceCallMonitoring() {
+        // The monitor is built in `init`, because the status bar menu takes it
+        // as an initializer argument. Nil means this machine cannot capture
+        // system audio, so there is nothing to watch for.
+        guard let monitor = conferenceAudioMonitor else {
+            settingsWindowController.configureMeetings(
+                isAvailable: false,
+                invitationController: nil
+            )
+            return
+        }
+
+        let controller = MeetingInvitationController(
+            monitor: monitor,
+            settingsStore: settingsStore,
+            notifier: MeetingCallNotificationCenter(),
+            askPresenter: AlertManager.shared,
+            isCaptureRunning: { [weak self] in
+                guard let self else { return false }
+                // `handleStartNoteCapture` sets no busy flag synchronously, it
+                // only assigns this task. Both menu starts and the notification
+                // action call `show()` first, so the ask task is already queued
+                // ahead of the start task; without this term the ask would open
+                // a modal over the capture the person just asked for.
+                return self.isCaptureBusy || self.pendingMeetingCaptureStartTask != nil
+            },
+            isMainWindowVisible: { [weak self] in self?.mainWindowController.isVisible ?? false }
+        )
+        controller.onRecordCall = { [weak self] in
+            guard let self else { return }
+            self.mainWindowController.show()
+            // A notification action is not a person reaching for a menu, so the
+            // recorded intent says `.automation`.
+            _ = self.handleStartNoteCapture(
+                .meetingNote(
+                    recordsSystemAudio: self.settingsStore.recordSystemAudioInMeetingNotes
+                ),
+                origin: .automation
+            )
+        }
+        meetingInvitationController = controller
+        controller.start()
+
+        // The first detected call almost always happens with the call app in
+        // front, so the one-time ask waits for the main window to come up.
+        mainWindowController.onDidPresent = { [weak controller] in
+            Task { @MainActor in await controller?.presentPendingAskIfNeeded() }
+        }
+
+        settingsWindowController.configureMeetings(
+            isAvailable: true,
+            invitationController: controller
+        )
+
+        applyWatchForCallsSetting()
+    }
+
+    /// Starts or stops the conference monitor from the Meetings setting.
+    ///
+    /// Stopping publishes "no call", which is what takes "Record this call" out
+    /// of the menu and the dot off the status item.
+    private func applyWatchForCallsSetting() {
+        guard let monitor = conferenceAudioMonitor else { return }
+        if settingsStore.watchForCalls {
+            monitor.start()
+        } else {
+            monitor.stop()
+        }
+    }
+
     private func setupInputMuteMonitoring() {
         let muteMonitor = InputMuteMonitor(
             preferredDeviceUID: settingsStore.selectedInputDeviceUID
@@ -5184,8 +6548,8 @@ final class AppCoordinator {
     // MARK: - Media Transcription
     static func mediaTranscriptionProvider(
         named modelName: String,
-        availableModels: [ModelManager.WhisperModel]
-    ) -> ModelManager.ModelProvider {
+        availableModels: [PindropSpeech.ModelManager.WhisperModel]
+    ) -> PindropSpeech.ModelManager.ModelProvider {
         availableModels.first(where: { $0.name == modelName })?.provider ?? .whisperKit
     }
 
@@ -5261,202 +6625,68 @@ final class AppCoordinator {
         }
     }
 
-    private func handleStartMeetingCapture(expectedSpeakerCount: Int?) {
+    /// Fetches the speaker models the note page's setup banner offers.
+    ///
+    /// Both bundles, not only the streaming one. `.named` needs the offline
+    /// embedder, so a download that fetched the live model alone would leave
+    /// every slot reading "Speaker 2" with nothing left for the reader to press.
+    /// Bundles already on disk are skipped, and progress is reported across
+    /// whatever is actually missing.
+    private func handleDownloadSpeakerModels() {
+        guard !recordingState.isDiarizationModelDownloading else { return }
+
+        let pending = [FeatureModelType.liveDiarization, .diarization]
+            .filter { !modelManager.isFeatureModelDownloaded($0) }
+        guard !pending.isEmpty else {
+            noteCaptureState.clearLiveSpeakerSetupIssue()
+            return
+        }
+
+        recordingState.isDiarizationModelDownloading = true
+        recordingState.diarizationModelDownloadProgress = 0.0
+        // The reason for the previous attempt is not the reason for this one.
+        noteCaptureState.setLiveSpeakerDownloadFailure(nil)
+
         Task { @MainActor [weak self] in
             guard let self else { return }
-            do {
-                try await self.startManualTranscriptionRecording(
-                    mode: .microphoneAndSystemAudio,
-                    expectedSpeakerCount: expectedSpeakerCount
-                )
-            } catch {
-                self.error = error
-                self.audioRecorder.resetAudioEngine()
-                self.isRecordingFeatureCaptureActive = false
-                self.recordingState.endRecording(message: error.localizedDescription)
-                Log.app.error("Failed to start meeting capture: \(error)")
-            }
-        }
-    }
+            defer { self.recordingState.isDiarizationModelDownloading = false }
 
-    private func startManualTranscriptionRecording(
-        mode: AudioRecordingMode,
-        expectedSpeakerCount: Int? = nil
-    ) async throws {
-        guard !isRecording && !isProcessing else {
-            recordingState.message = "Finish the active transcription before starting another one."
-            return
-        }
-
-        await modelManager.refreshDownloadedFeatureModels()
-        guard modelManager.isFeatureModelDownloaded(.diarization) else {
-            recordingState.setSetupIssue(
-                localized(
-                    "Download the speaker diarization model before starting recording.",
-                    locale: settingsStore.selectedAppLocale.locale
-                )
-            )
-            return
-        }
-
-        let didStartRecording = try await audioRecorder.startRecording(
-            configuration: AudioRecordingConfiguration(mode: mode)
-        )
-        guard didStartRecording else { return }
-        manualExpectedSpeakerCount = expectedSpeakerCount
-
-        isRecording = true
-        isRecordingFeatureCaptureActive = true
-        recordingStartTime = Date()
-        recordingState.beginRecording(mode: mode, startedAt: recordingStartTime ?? Date())
-        statusBarController.setRecordingState()
-        statusBarController.updateMenuState()
-        startRecordingIndicatorSession()
-    }
-
-
-    private func stopManualTranscriptionRecording(token: DictationOperationToken) async throws {
-        guard isRecordingFeatureCaptureActive else {
-            throw AudioRecorderError.notRecording
-        }
-
-        let mode = recordingState.selectedCaptureMode
-        let duration = recordingStartTime.map { Date().timeIntervalSince($0) } ?? 0
-        let audioData = try await audioRecorder.stopRecording()
-        // Ownership check immediately after the first await — before any global
-        // mutation/store that would clobber a newer session started after cancel.
-        try ensureOperationCurrent(token)
-
-        isRecording = false
-        isRecordingFeatureCaptureActive = false
-        recordingState.endRecording()
-        statusBarController.setProcessingState()
-        statusBarController.updateMenuState()
-        transitionRecordingIndicatorToProcessing()
-        isProcessing = true
-        let expectedSpeakerCount = manualExpectedSpeakerCount
-        manualExpectedSpeakerCount = nil
-
-        let job = MediaTranscriptionJobState(
-            request: .manualCapture(mode),
-            options: TranscriptionJobOptions(
-                modelName: settingsStore.selectedModel,
-                language: settingsStore.selectedAppLanguage,
-                outputFormat: .plainText,
-                diarizationEnabled: true,
-                expectedSpeakerCount: expectedSpeakerCount
-            ),
-            destinationFolderID: nil,
-            stage: .preparingAudio,
-            progress: nil,
-            detail: "Preparing captured audio"
-        )
-
-        recordingState.beginJob(job)
-
-        var didResetProcessingState = false
-        defer {
-            if Self.shouldResetProcessingStateOnExit(
-                didResetProcessingState: didResetProcessingState,
-                isOperationCurrent: operationController.isCurrent(token)
-            ) {
-                resetProcessingState()
-            }
-        }
-
-        do {
-            let managedAsset = try mediaIngestionService.storeRecordedAudio(
-                audioData,
-                jobID: job.id,
-                displayName: mode.libraryDisplayName,
-                sourceKind: .manualCapture
-            )
-            try ensureOperationCurrent(token)
-
-            recordingState.updateJob(
-                stage: .transcribing,
-                progress: nil,
-                detail: job.options.diarizationEnabled ? "Running diarization and transcription" : "Running transcription",
-                errorMessage: nil
-            )
-
-            let transcriptionOutput = try await transcriptionService.transcribe(
-                audioData: audioData,
-                diarizationEnabled: job.options.diarizationEnabled,
-                options: makeTranscriptionOptions(),
-                diarizationOptions: .init(expectedSpeakerCount: job.options.expectedSpeakerCount),
-                diarizationFailurePolicy: .required
-            )
-            try ensureOperationCurrent(token)
-            let diarizationSegmentsJSON = encodeDiarizationSegmentsJSON(transcriptionOutput.diarizedSegments)
-
-            recordingState.updateJob(
-                stage: .saving,
-                progress: nil,
-                detail: "Saving transcript to history",
-                errorMessage: nil
-            )
-
-            let finalText = normalizedTranscriptionText(transcriptionOutput.text)
-            guard !isTranscriptionEffectivelyEmpty(finalText) else {
-                throw MediaPreparationError.readFailed("No speech could be transcribed from this recording.")
+            let total = Double(pending.count)
+            for (index, type) in pending.enumerated() {
+                do {
+                    try await self.modelManager.downloadFeatureModel(type) { [weak self] progress in
+                        guard let self else { return }
+                        self.recordingState.diarizationModelDownloadProgress =
+                            (Double(index) + progress) / total
+                    }
+                } catch {
+                    self.recordingState.diarizationModelDownloadProgress = 0.0
+                    self.recordingState.setSetupIssue(error.localizedDescription)
+                    // The Dictate and Library pages are not the surface the
+                    // reader pressed. The note page's banner is, so it carries
+                    // the reason too.
+                    self.noteCaptureState.setLiveSpeakerDownloadFailure(error.localizedDescription)
+                    return
+                }
             }
 
-            let transcriptionMetadata = await generateTranscriptionMetadataIfNeeded(
-                from: finalText,
-                managedAsset: managedAsset
-            )
-            try ensureOperationCurrent(token)
-
-            let record = try historyStore.save(
-                text: finalText,
-                originalText: nil,
-                duration: duration,
-                modelUsed: settingsStore.selectedModel,
-                enhancedWith: nil,
-                diarizationSegmentsJSON: diarizationSegmentsJSON,
-                sourceKind: managedAsset.sourceKind,
-                sourceDisplayName: managedAsset.displayName,
-                generatedTitle: transcriptionMetadata.generatedTitle,
-                aiSummary: transcriptionMetadata.summary,
-                sourceTitleOrigin: managedAsset.hasSourceMetadataTitle ? .sourceMetadata : .fallback,
-                originalSourceURL: managedAsset.originalSourceURL,
-                managedMediaPath: managedAsset.mediaURL.path,
-                thumbnailPath: managedAsset.thumbnailURL?.path,
-                folderID: job.destinationFolderID
-            )
-            updateRecentTranscriptsMenu()
-
-            if operationController.isCurrent(token) {
-                resetProcessingState()
-                didResetProcessingState = true
+            await self.modelManager.refreshDownloadedFeatureModels()
+            self.recordingState.diarizationModelDownloadProgress = 0.0
+            for type in pending {
+                // Only what was actually fetched. The two flags are two
+                // settings: taking this download must not silently switch on a
+                // stage the person turned off.
+                guard type != .diarization || self.modelManager.isOfflineDiarizationReady()
+                else {
+                    continue
+                }
+                self.settingsStore.setFeatureEnabled(type, enabled: true)
             }
-            recordingState.completeCurrentJob(with: record.id, message: "Meeting recording transcribed successfully.")
-            let meetingRecordID = record.id
-            mainWindowController.showHistory()
-            // Post after nav so HistoryView is mounted and listening.
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 150_000_000)
-                NotificationCenter.default.post(
-                    name: .openHistoryRecord,
-                    object: nil,
-                    userInfo: ["recordID": meetingRecordID.uuidString]
-                )
-            }
-        } catch is CancellationError {
-            // Only the current operation may mutate shared RecordingState after cancel.
-            guard operationController.isCurrent(token) else { return }
-            resetProcessingState()
-            didResetProcessingState = true
-            recordingState.clearCurrentJob()
-            recordingState.message = localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale)
-        } catch {
-            // Stale cancelled work completing after a newer session started: no state mutation.
-            guard operationController.isCurrent(token), !Self.isTaskCancellation(error) else { return }
-            Log.app.error("Manual media transcription failed: \(error)")
-            resetProcessingState()
-            didResetProcessingState = true
-            recordingState.failCurrentJob(error.localizedDescription)
+            self.recordingState.setupIssue = nil
+            // Nothing is loaded into the running capture: the rule that keeps a
+            // half-written bundle out of the capture path is the same rule that
+            // keeps this one at channel labels until the next recording.
+            self.noteCaptureState.clearLiveSpeakerSetupIssue()
         }
     }
 
@@ -5659,7 +6889,7 @@ final class AppCoordinator {
         )
 
         mediaTranscriptionState.beginJob(job)
-        mainWindowController.showTranscribe()
+        mainWindowController.navigate(to: .library)
 
         isProcessing = true
         statusBarController.setProcessingState()
@@ -5733,11 +6963,8 @@ final class AppCoordinator {
                 detail: "Preparing audio for transcription",
                 errorMessage: nil
             )
-            let tooling = await mediaIngestionService.checkTooling()
-            try ensureMediaTranscriptionOwnerCurrent(generation)
             let preparedAudio = try await mediaPreparationService.prepareAudio(
-                from: managedAsset.mediaURL,
-                ffmpegPath: tooling.ffmpegPath
+                from: managedAsset.mediaURL
             )
 
             try ensureMediaTranscriptionOwnerCurrent(generation)
@@ -5752,7 +6979,10 @@ final class AppCoordinator {
             let transcriptionOutput = try await transcriptionService.transcribe(
                 audioData: preparedAudio.audioData,
                 diarizationEnabled: options.diarizationEnabled,
-                options: makeTranscriptionOptions(language: options.language),
+                options: makeTranscriptionOptions(
+                    language: options.language,
+                    route: .importedMedia
+                ),
                 diarizationOptions: .init(expectedSpeakerCount: options.expectedSpeakerCount),
                 diarizationFailurePolicy: options.diarizationEnabled ? .required : .bestEffort
             )
@@ -5769,7 +6999,7 @@ final class AppCoordinator {
             let renderedText = renderTranscriptionOutput(transcriptionOutput, format: options.outputFormat)
             let finalText = normalizedTranscriptionText(renderedText)
             guard !isTranscriptionEffectivelyEmpty(finalText) else {
-                throw MediaPreparationError.readFailed("No speech could be transcribed from this media.")
+                throw PindropMedia.MediaPreparationError.readFailed("No speech could be transcribed from this media.")
             }
 
             let transcriptionMetadata = await generateTranscriptionMetadataIfNeeded(
@@ -5873,7 +7103,8 @@ final class AppCoordinator {
                 trimmedSummary.isEmpty ? nil : trimmedSummary
             )
         } catch {
-            Log.aiEnhancement.warning("Transcription metadata generation failed: \(error.localizedDescription)")
+            Log.aiEnhancement.warning(
+                "Transcription metadata generation failed provider=\(assignment.kind.rawValue)")
             return (nil, nil)
         }
     }
@@ -5885,7 +7116,10 @@ final class AppCoordinator {
             finishIndicatorSession()
             return
         }
+        let capturedStreamingSessionToken = activeStreamingSessionToken
+        let capturedVoiceNoteHandle = voiceNoteCaptureContext?.handle
 
+        cancelPendingNoteAppendStart()
         Log.app.info("Clearing audio buffer")
         // Mirror cancel's teardown: invalidate any in-flight operation and stop
         // admission so a half-dispatched stop can't run against the cleared audio.
@@ -5893,11 +7127,20 @@ final class AppCoordinator {
         activeOperationTask?.cancel()
         activeOperationTask = nil
         recordingStopAdmission.invalidateCurrentClaim()
-
+        cancelActiveVoiceNoteCapture()
         audioRecorder.cancelRecording()
-        if streamingSession.isSessionActive {
-            await streamingSession.cancel()
-        } else {
+        await noteCaptureController.cancel()
+
+        if let capturedStreamingSessionToken {
+            if activeStreamingSessionToken == capturedStreamingSessionToken {
+                activeStreamingSessionToken = nil
+            }
+            streamingSession.cancelDetached(session: capturedStreamingSessionToken)
+        }
+        if let capturedVoiceNoteHandle {
+            streamingSession.cancelArtifactCaptureDetached(for: capturedVoiceNoteHandle)
+        }
+        if capturedStreamingSessionToken == nil, capturedVoiceNoteHandle == nil {
             streamingSession.deactivate()
         }
         recordingState.endRecording(message: localized("Recording canceled.", locale: settingsStore.selectedAppLocale.locale))
@@ -5908,7 +7151,6 @@ final class AppCoordinator {
         // Capture modes must not survive a cleared buffer: a lingering note-append
         // mode blocks global dictation (NoteAppendGate) and leaves sticky listening UI.
         isRecordingFeatureCaptureActive = false
-        isQuickCaptureMode = false
         clearNoteAppendMode()
         recordingStartTime = nil
         manualExpectedSpeakerCount = nil
@@ -6068,10 +7310,10 @@ final class AppCoordinator {
         updateService.checkForUpdates()
     }
 
-    // MARK: - Open History
+    // MARK: - Open Library
 
-    private func handleOpenHistory() {
-        mainWindowController.showHistory()
+    private func handleOpenLibrary() {
+        mainWindowController.navigate(to: .library)
     }
 
     // MARK: - Show App
@@ -6082,8 +7324,18 @@ final class AppCoordinator {
 
     // MARK: - Main Menu Actions
 
+    /// ⌘N creates the note durably first, then opens it in the main window, so
+    /// the note page always has an identity to bind capture and panels to.
     func openNewNoteFromMenu() {
-        noteEditorWindowController.show(note: nil, isNewNote: true)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let note = try await self.notesStore.create(content: "")
+                self.mainWindowController.openNote(id: note.id)
+            } catch {
+                Log.app.error("Could not create a note from the menu: \(error.localizedDescription)")
+            }
+        }
     }
 
     func exportLastTranscriptFromMenu() async {
@@ -6163,7 +7415,16 @@ final class AppCoordinator {
 
     func shutdown() {
         guard !isShutdown else { return }
+        let shutdownStreamingSessionToken = activeStreamingSessionToken
+        let shutdownVoiceNoteHandle = voiceNoteCaptureContext?.handle
+        if let shutdownStreamingSessionToken,
+           activeStreamingSessionToken == shutdownStreamingSessionToken {
+            activeStreamingSessionToken = nil
+        }
         isShutdown = true
+        recordingState.invalidateCaptureStart()
+        mainWindowCaptureStartTask?.cancel()
+        mainWindowCaptureStartTask = nil
 
         // Stop Carbon callbacks first. The sources must be disabled and detached on
         // their owning run loop before the pass-unretained coordinator refcon can die.
@@ -6177,10 +7438,16 @@ final class AppCoordinator {
 
         notificationResources.tearDown()
         cancellables.removeAll()
-
-        floatingIndicatorHiddenTask?.cancel()
-        floatingIndicatorHiddenTask = nil
-        escapeEventTapRecoveryTask?.cancel()
+        cancelPendingNoteAppendStart()
+        cancelPendingMeetingCaptureStart()
+        cancelActiveVoiceNoteCapture()
+        noteCaptureController.invalidateRecovery()
+        meetingRecoveryTask?.cancel()
+        meetingRecoveryTask = nil
+        // `prepareForTermination()` normally owns and awaits tail sealing. This
+        // synchronous fallback only persists an interruption.
+        let interruptedNoteCapture = noteCaptureController.isActive
+        noteCaptureController.checkpointForSynchronousShutdown()
         escapeEventTapRecoveryTask = nil
         modifierEventTapRecoveryTask?.cancel()
         modifierEventTapRecoveryTask = nil
@@ -6198,8 +7465,19 @@ final class AppCoordinator {
         mediaQueueDeferredUntilIdle = false
         mediaTranscriptionState.clearAllJobs()
 
-        streamingSession.cancelDetached()
-        audioRecorder.resetAudioEngine()
+        if let shutdownStreamingSessionToken {
+            streamingSession.cancelDetached(session: shutdownStreamingSessionToken)
+        }
+        if let shutdownVoiceNoteHandle {
+            streamingSession.cancelArtifactCaptureDetached(for: shutdownVoiceNoteHandle)
+        } else {
+            // Application shutdown has no successor, so terminal cleanup may safely
+            // abort any unowned artifact lifecycle left by a failed admission.
+            streamingSession.cancelDetached()
+        }
+        if !interruptedNoteCapture {
+            audioRecorder.resetAudioEngine()
+        }
         mediaPauseService.endRecordingSession()
         isRecording = false
         isProcessing = false
@@ -6208,6 +7486,9 @@ final class AppCoordinator {
 
         inputMuteMonitor?.stop()
         inputMuteMonitor = nil
+        conferenceAudioMonitor?.stop()
+        conferenceAudioMonitor = nil
+        meetingInvitationController = nil
         inputDeviceListMonitor?.stop()
         inputDeviceListMonitor = nil
         floatingIndicatorFocusTracker.stop()
@@ -6215,5 +7496,214 @@ final class AppCoordinator {
         hotkeyManager.unregisterAll()
         stopMCPServerIfRunning()
         dictationAudioRetentionService.stopPeriodicSweep()
+    }
+}
+
+// MARK: - CaptureArbiter
+
+/// The coordinator's side of the note-capture seam.
+///
+/// Every gate and side effect here already existed: the capture-start claim,
+/// the meeting start admission, the recording/processing flags, the status item,
+/// the floating indicator, the media pause, the batch model, and where finished
+/// output lands. `NoteCaptureController` reaches none of them directly.
+extension AppCoordinator: CaptureArbiter {
+
+    var isCaptureBusy: Bool {
+        isRecording
+            || isProcessing
+            || pendingMeetingCaptureStartTask != nil
+            || recordingState.isCaptureStartPending
+            || noteCaptureController.isActive
+            || noteCaptureController.hasPendingStart
+    }
+
+    var isCaptureHostStopping: Bool {
+        isShutdown || isPreparingForTermination
+    }
+
+    func claimCapture() throws -> CaptureClaim {
+        guard !isRecording,
+              !isProcessing,
+              Self.canBeginMeetingCapture(
+                  activeHandle: noteCaptureController.activeHandle,
+                  recoveryTaskActive: meetingRecoveryTask != nil,
+                  isShutdown: isCaptureHostStopping
+              ),
+              let startClaim = recordingState.claimCaptureStart() else {
+            throw CaptureArbiterError.captureBusy
+        }
+        guard let meetingClaim = meetingCaptureStartAdmission.claim() else {
+            recordingState.releaseCaptureStart(startClaim)
+            throw CaptureArbiterError.captureBusy
+        }
+
+        nextCaptureClaimID &+= 1
+        let claim = CaptureClaim(id: nextCaptureClaimID)
+        captureClaims[claim.id] = CaptureClaimPair(start: startClaim, meeting: meetingClaim)
+        pendingMeetingCaptureStart = meetingClaim
+        return claim
+    }
+
+    func release(_ claim: CaptureClaim) {
+        guard let pair = captureClaims.removeValue(forKey: claim.id) else { return }
+        recordingState.releaseCaptureStart(pair.start)
+        if pendingMeetingCaptureStart == pair.meeting {
+            pendingMeetingCaptureStart = nil
+        }
+        meetingCaptureStartAdmission.release(pair.meeting)
+    }
+
+    func isClaimCurrent(_ claim: CaptureClaim) -> Bool {
+        guard let pair = captureClaims[claim.id] else { return false }
+        return pendingMeetingCaptureStart == pair.meeting
+            && meetingCaptureStartAdmission.isCurrent(pair.meeting)
+            && recordingState.isCaptureStartClaimCurrent(pair.start)
+            && !isCaptureHostStopping
+            && !Task.isCancelled
+    }
+
+    func captureDidBegin(startedAt: Date) {
+        let mode: AudioRecordingMode = noteCaptureState.includesSystemAudio
+            ? .microphoneAndSystemAudio
+            : .microphone
+        isRecording = true
+        isRecordingFeatureCaptureActive = true
+        recordingStartTime = startedAt
+        recordingState.beginRecording(mode: mode, startedAt: startedAt)
+        statusBarController.setRecordingState()
+        statusBarController.updateMenuState()
+        startRecordingIndicatorSession()
+        // A capture that records system audio must never pause or mute it.
+        if !noteCaptureState.includesSystemAudio,
+           settingsStore.pauseMediaOnRecording || settingsStore.muteAudioDuringRecording {
+            mediaPauseService.beginRecordingSession(
+                pauseMedia: settingsStore.pauseMediaOnRecording,
+                muteSystemAudio: settingsStore.muteAudioDuringRecording
+            )
+        }
+    }
+
+    func captureDidEnterProcessing() {
+        isRecording = false
+        isRecordingFeatureCaptureActive = false
+        recordingState.endRecording()
+        mediaPauseService.endRecordingSession()
+        statusBarController.setProcessingState()
+        statusBarController.updateMenuState()
+        transitionRecordingIndicatorToProcessing()
+        isProcessing = true
+        recordingState.beginJob(
+            MediaTranscriptionJobState(
+                request: .manualCapture(recordingState.selectedCaptureMode.rawValue),
+                options: TranscriptionJobOptions(
+                    modelName: settingsStore.selectedModel,
+                    language: settingsStore.selectedAppLanguage,
+                    outputFormat: .plainText,
+                    diarizationEnabled: settingsStore.diarizationFeatureEnabled,
+                    expectedSpeakerCount: manualExpectedSpeakerCount
+                ),
+                destinationFolderID: nil,
+                stage: .transcribing,
+                progress: 0,
+                detail: "Preparing durable chunks"
+            )
+        )
+    }
+
+    func captureDidEnd(message: String?) {
+        isRecording = false
+        isRecordingFeatureCaptureActive = false
+        manualExpectedSpeakerCount = nil
+        mediaPauseService.endRecordingSession()
+        resetProcessingState()
+        if recordingState.currentJob != nil {
+            if let message {
+                recordingState.failCurrentJob(message)
+            } else {
+                recordingState.clearCurrentJob()
+            }
+        } else if let message {
+            recordingState.message = message
+        }
+    }
+
+    var activeBatchModelName: String? {
+        activeModelName
+    }
+
+    func activateBatchModel(named name: String, providerIdentifier: String) async throws {
+        guard let model = modelManager.availableModels.first(where: {
+            $0.name == name && $0.provider.rawValue == providerIdentifier
+        }) else {
+            throw CaptureStageAssignmentResolverError.unknownBatchModel(name)
+        }
+        try await loadAndActivateModel(named: model.name, provider: model.provider)
+    }
+
+    func captureTranscriptionOptions() -> TranscriptionOptions {
+        makeTranscriptionOptions(
+            route: .manualCapture(
+                noteCaptureState.includesSystemAudio ? .microphoneAndSystemAudio : .microphone
+            )
+        )
+    }
+
+    func captureDidReportProgress(
+        stage: NoteCaptureState.FinalizationStage,
+        detail: String,
+        errorMessage: String?
+    ) {
+        let progress: Double?
+        switch stage {
+        case .sealingAudio:
+            progress = 0
+        case .transcribing(let value), .diarizing(let value):
+            progress = value
+        case .matchingSpeakers, .assembling:
+            progress = 1
+        }
+        recordingState.updateJob(
+            stage: .transcribing,
+            progress: progress,
+            detail: detail,
+            errorMessage: errorMessage
+        )
+    }
+
+    func captureDidFinishWithoutSpeech() {
+        handleNoSpeechDetected(context: "note-capture")
+    }
+
+    /// A capture the person started in the app opens its note right away so they
+    /// can type into it. A hotkey capture stays out of the way: it was started
+    /// from whatever app they are working in, and pulling a window forward
+    /// mid-sentence is the one thing quick capture must never do.
+    func captureDidCreateNote(id: UUID) {
+        guard noteCaptureState.origin != .hotkey else { return }
+        mainWindowController.openNote(id: id)
+    }
+
+    func captureDidProduceRecord(id: UUID) {
+        recordingState.completeCurrentJob(
+            with: id,
+            message: localized(
+                "Recording transcribed.",
+                locale: settingsStore.selectedAppLocale.locale
+            )
+        )
+        updateRecentTranscriptsMenu()
+        // A capture that wrote into a note lands on that note: the note page is
+        // where the transcript and the enhanced note live. The library detail
+        // is only for records with no note behind them.
+        if let noteID = noteCaptureState.noteID {
+            mainWindowController.openNote(id: noteID)
+        } else {
+            mainWindowController.openLibrary(recordID: id)
+        }
+    }
+
+    func captureDidObserveError(_ error: Error) {
+        self.error = error
     }
 }

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import PindropData
 import SwiftData
 import Testing
 @testable import Pindrop

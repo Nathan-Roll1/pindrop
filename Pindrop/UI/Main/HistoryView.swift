@@ -10,6 +10,8 @@ import SwiftData
 import Foundation
 import AppKit
 import UniformTypeIdentifiers
+import PindropCore
+import PindropData
 
 struct HistoryLoadRequest: Equatable {
     let query: String
@@ -32,14 +34,20 @@ struct HistoryView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.layoutDirection) private var layoutDirection
 
-    var recordIDToOpen: UUID? = nil
+    var libraryOpenRequest: LibraryOpenRequest?
+    var librarySearchRequest: UInt?
+    var onConsumeLibraryOpenRequest: ((UInt) -> Void)?
+    var onConsumeLibrarySearchRequest: ((UInt) -> Void)?
     var mediaTranscriptionState: MediaTranscriptionFeatureState?
     var recordingState: RecordingFeatureState?
     var settingsStore: SettingsStore?
     var onImportMediaFiles: (([URL], TranscriptionJobOptions) -> Void)?
     var onSubmitMediaLink: ((String, TranscriptionJobOptions) -> Void)?
-    var onStartMeetingCapture: ((Int?) -> Void)?
     var onDownloadDiarizationModel: (() -> Void)?
+    /// Opens a note page in the shell. A record that came out of a note capture
+    /// routes there instead of the transcript detail: the note page already
+    /// shows the transcript, the enhanced note, and the typed notes.
+    var onOpenNote: ((UUID) -> Void)?
 
     // MARK: - State
 
@@ -76,7 +84,6 @@ struct HistoryView: View {
     @State private var transcribeMenuAnchorView: NSView?
     @State private var isSpeakerDiarizationEnabled = true
     @State private var expectedSpeakerCount: Int?
-    @State private var showMeetingCaptureOptions = false
 
     @Query private var mediaFolders: [MediaFolder]
 
@@ -94,8 +101,18 @@ struct HistoryView: View {
         HistoryStore(
             modelContext: modelContext,
             speakerIdentityService: SpeakerIdentityService(modelContext: modelContext),
-            contributionService: settingsStore.map {
-                ContributionService(modelContext: modelContext, settingsStore: $0)
+            contributionService: settingsStore.map { store in
+                ContributionService(
+                    modelContext: modelContext,
+                    metadataProvider: {
+                        ContributionCaptureMetadata(
+                            isEnabled: store.trainingDataContributionEnabled,
+                            languageRawValue: store.selectedAppLanguage.rawValue,
+                            localeIdentifier: store.selectedAppLocale.locale.identifier,
+                            appVersion: Bundle.main.appShortVersionString
+                        )
+                    }
+                )
             }
         )
     }
@@ -185,19 +202,19 @@ struct HistoryView: View {
         .task(id: "\(trimmedSearchText)_\(selectedFilter.rawValue)_\(selectedSort.rawValue)") {
             reloadTranscriptions()
         }
-        .task(id: recordIDToOpen) {
-            guard let recordIDToOpen,
-                  let record = try? historyStore.fetchRecord(with: recordIDToOpen) else { return }
-            handleRowTap(record)
+        .task(id: libraryOpenRequest?.generation) {
+            guard let request = libraryOpenRequest else { return }
+            defer { onConsumeLibraryOpenRequest?(request.generation) }
+            guard let record = try? historyStore.fetchRecord(with: request.recordID) else { return }
+            openLibraryRecord(record)
+        }
+        .task(id: librarySearchRequest) {
+            guard let generation = librarySearchRequest else { return }
+            defer { onConsumeLibrarySearchRequest?(generation) }
+            focusLibrarySearch()
         }
         .onReceive(NotificationCenter.default.publisher(for: .historyStoreDidChange)) { _ in
             refreshVisibleTranscriptions()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .openHistoryRecord)) { notification in
-            guard let idString = notification.userInfo?["recordID"] as? String,
-                  let id = UUID(uuidString: idString),
-                  let record = try? historyStore.fetchRecord(with: id) else { return }
-            handleRowTap(record)
         }
         .confirmationDialog(
             localized("Delete transcription?", locale: locale),
@@ -223,14 +240,8 @@ struct HistoryView: View {
         .sheet(isPresented: $showPasteLinkSheet) {
             pasteLinkSheet
         }
-        .sheet(isPresented: $showMeetingCaptureOptions) {
-            MeetingCaptureOptionsSheet { expectedSpeakerCount in
-                onStartMeetingCapture?(expectedSpeakerCount)
-            }
-        }
         .onAppear {
             installKeyMonitorIfNeeded()
-            consumePendingSearchFocusIfNeeded()
         }
         .onDisappear {
             removeKeyMonitor()
@@ -242,9 +253,6 @@ struct HistoryView: View {
             } else {
                 removeKeyMonitor()
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .focusHistorySearch)) { _ in
-            applySearchFocus()
         }
     }
 
@@ -264,10 +272,11 @@ struct HistoryView: View {
                 .background(AppColors.contentBackground)
 
             if let setupIssue = activeSetupIssue {
-                diarizationSetupIssueBanner(
+                DiarizationSetupIssueBanner(
                     message: setupIssue,
                     isDownloading: isDiarizationModelDownloading,
-                    progress: diarizationModelDownloadProgress
+                    progress: diarizationModelDownloadProgress,
+                    onDownload: onDownloadDiarizationModel
                 )
                     .padding(.horizontal, 40)
                     .padding(.bottom, 8)
@@ -315,61 +324,12 @@ struct HistoryView: View {
             ?? 0.0
     }
 
-    private func diarizationSetupIssueBanner(
-        message: String,
-        isDownloading: Bool,
-        progress: Double
-    ) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: isDownloading ? "arrow.down.circle" : "exclamationmark.triangle")
-                .font(.system(size: 14))
-                .foregroundStyle(isDownloading ? AppColors.accent : AppColors.warning)
-
-            if isDownloading {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(message)
-                        .font(AppTypography.caption)
-                        .foregroundStyle(AppColors.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    ProgressView(value: min(max(progress, 0), 1))
-                        .progressViewStyle(.linear)
-                        .tint(AppColors.accent)
-                        .frame(maxWidth: 180)
-                        .accessibilityValue("\(Int(progress * 100))%")
-                }
-            } else {
-                Text(message)
-                    .font(AppTypography.caption)
-                    .foregroundStyle(AppColors.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 8)
-
-            if !isDownloading, onDownloadDiarizationModel != nil {
-                Button(localized("Download model", locale: locale)) {
-                    onDownloadDiarizationModel?()
-                }
-                .buttonStyle(.plain)
-                .font(AppTypography.caption.weight(.semibold))
-                .foregroundStyle(AppColors.accent)
-                .accessibilityIdentifier("diarizationSetupIssueDownloadButton")
-            }
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(AppColors.warningBackground)
-        )
-    }
-
     // MARK: - Header
 
     private var headerSection: some View {
         PageHeader(title: localized("Library", locale: locale), meta: headerMetaText) {
             HStack(spacing: 10) {
-                if onImportMediaFiles != nil || onSubmitMediaLink != nil || onStartMeetingCapture != nil {
+                if onImportMediaFiles != nil || onSubmitMediaLink != nil {
                     importMenu
                 }
                 SearchFieldChrome(
@@ -646,7 +606,10 @@ struct HistoryView: View {
                 ForEach(groupedSections, id: \.key) { group in
                     SectionHeader(
                         title: LibraryDayGrouping.displayTitle(group.key, locale: locale),
-                        trailing: "\(group.records.count)",
+                        trailing: String(
+                            format: localized("%lld items", locale: locale),
+                            group.records.count
+                        ),
                         isFirst: group.key == groupedSections.first?.key
                     )
                     .padding(.horizontal, 24)
@@ -758,10 +721,28 @@ struct HistoryView: View {
         }
     }
 
-    /// Play chip and row agree: detail-page kinds → detail; dictations with audio → expand.
+    /// The note behind this record, when it came out of a note capture and the
+    /// shell gave this view a way to open one. Resolved on activation, not per
+    /// row: it is one indexed fetch, and only clicks pay for it.
+    private func noteDestination(for record: TranscriptionRecord) -> UUID? {
+        guard onOpenNote != nil, record.resolvedSourceKind == .manualCapture else {
+            return nil
+        }
+        return try? CaptureSessionStore(modelContext: modelContext)
+            .noteID(forTranscriptionRecordID: record.id)
+    }
+
+    /// Play chip and row agree: note-backed records → their note page;
+    /// detail-page kinds → detail; dictations with audio → expand.
     private func playChipAction(for record: TranscriptionRecord, hasAudio: Bool) -> (() -> Void)? {
         if opensDetailPage(record) {
-            return { openDetail(record) }
+            return {
+                if let noteID = noteDestination(for: record) {
+                    onOpenNote?(noteID)
+                } else {
+                    openDetail(record)
+                }
+            }
         }
         guard hasAudio else { return nil }
         return { toggleExpansion(for: record) }
@@ -770,12 +751,39 @@ struct HistoryView: View {
     private func handleRowTap(_ record: TranscriptionRecord) {
         selectedTranscriptionID = record.persistentModelID
 
+        if let noteID = noteDestination(for: record) {
+            onOpenNote?(noteID)
+            return
+        }
         if opensDetailPage(record) {
             openDetail(record)
             return
         }
 
         toggleExpansion(for: record)
+    }
+
+    /// Opens a routed record without adopting row-tap's intentional expand/collapse toggle.
+    private func openLibraryRecord(_ record: TranscriptionRecord) {
+        selectedTranscriptionID = record.persistentModelID
+
+        if let noteID = noteDestination(for: record) {
+            onOpenNote?(noteID)
+            return
+        }
+        if opensDetailPage(record) {
+            openDetail(record)
+            return
+        }
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            detailRecord = nil
+        }
+        withAnimation(reduceMotion ? nil : AppTheme.Animation.fast) {
+            expandedTranscriptionID = record.persistentModelID
+        }
     }
 
     private func toggleExpansion(for record: TranscriptionRecord) {
@@ -958,15 +966,6 @@ struct HistoryView: View {
             expectedSpeakersItem.isEnabled = isSpeakerDiarizationEnabled
             expectedSpeakersItem.submenu = makeExpectedSpeakersSubmenu()
             menu.addItem(expectedSpeakersItem)
-        }
-        if onStartMeetingCapture != nil {
-            menu.addItem(.separator())
-            menu.addItem(ClosureMenuItem(
-                title: localized("Record Meeting…", locale: locale),
-                systemImage: "person.2.wave.2"
-            ) {
-                showMeetingCaptureOptions = true
-            })
         }
 
         // Non-flipped view coords: (0, 0) is the bottom-left corner, and popUp
@@ -1339,16 +1338,10 @@ struct HistoryView: View {
         return false
     }
 
-    private func applySearchFocus() {
-        MainWindowController.pendingHistorySearchFocus = false
+    private func focusLibrarySearch() {
         DispatchQueue.main.async {
             isSearchFieldFocused = true
         }
-    }
-
-    private func consumePendingSearchFocusIfNeeded() {
-        guard MainWindowController.pendingHistorySearchFocus else { return }
-        applySearchFocus()
     }
 
     private func handleListKeyEvent(_ event: NSEvent) -> NSEvent? {
@@ -1419,17 +1412,17 @@ struct HistoryView: View {
 
 // MARK: - Previews
 
-#Preview("History") {
+#Preview("Library") {
     HistoryView()
         .modelContainer(PreviewContainer.withSampleData)
 }
 
-#Preview("History Empty") {
+#Preview("Library Empty") {
     HistoryView()
         .modelContainer(PreviewContainer.empty)
 }
 
-#Preview("History Dark") {
+#Preview("Library Dark") {
     HistoryView()
         .modelContainer(PreviewContainer.withSampleData)
         .preferredColorScheme(.dark)

@@ -10,167 +10,8 @@ import FoundationModels
 #endif
 import Foundation
 import SwiftUI
-
-enum AIProvider: String, CaseIterable, Identifiable {
-   case openai = "OpenAI"
-   case google = "Google"
-   case anthropic = "Anthropic"
-   case openrouter = "OpenRouter"
-   case apple = "Apple"
-   case custom = "Custom"
-
-   var id: String { rawValue }
-
-   var displayName: String {
-      switch self {
-      case .apple:
-         return "Apple Intelligence"
-      case .custom:
-         return "Custom/Local"
-      default:
-         return rawValue
-      }
-   }
-
-   var icon: Icon {
-      switch self {
-      case .openai: return .openai
-      case .google: return .google
-      case .anthropic: return .anthropic
-      case .openrouter: return .openrouter
-      case .apple: return .sparkles
-      case .custom: return .server
-      }
-   }
-
-   var defaultEndpoint: String {
-      switch self {
-      case .openai: return "https://api.openai.com/v1/chat/completions"
-      case .google: return "https://generativelanguage.googleapis.com/v1beta"
-      case .anthropic: return "https://api.anthropic.com/v1/messages"
-      case .openrouter: return "https://openrouter.ai/api/v1/chat/completions"
-      case .apple: return ""
-      case .custom: return ""
-      }
-   }
-
-   var apiKeyPlaceholder: String {
-      switch self {
-      case .openai: return "sk-..."
-      case .google: return "AIza..."
-      case .anthropic: return "sk-ant-..."
-      case .openrouter: return "sk-or-..."
-      case .apple: return "Not required"
-      case .custom: return "Enter API key"
-      }
-   }
-
-   /// Whether this provider requires API credentials (key + endpoint) to operate.
-   var requiresAPICredentials: Bool {
-      switch self {
-      case .apple: return false
-      default: return true
-      }
-   }
-
-   var isImplemented: Bool {
-      switch self {
-      case .openai, .openrouter, .custom, .anthropic, .apple: return true
-      default: return false
-      }
-   }
-}
-
-enum CustomProviderType: String, CaseIterable, Identifiable {
-   case custom = "Custom"
-   case ollama = "Ollama"
-   case lmStudio = "LM Studio"
-
-   var id: String { rawValue }
-
-   var icon: Icon {
-      switch self {
-      case .custom:
-         return .server
-      case .ollama, .lmStudio:
-         return .hardDrive
-      }
-   }
-
-   var storageKey: String {
-      switch self {
-      case .custom:
-         return "custom"
-      case .ollama:
-         return "ollama"
-      case .lmStudio:
-         return "lm-studio"
-      }
-   }
-
-   var requiresAPIKey: Bool {
-      self == .custom
-   }
-
-   var supportsModelListing: Bool {
-      self != .custom
-   }
-
-   var defaultEndpoint: String {
-      switch self {
-      case .custom:
-         return ""
-      case .ollama:
-         return "http://localhost:11434/v1/chat/completions"
-      case .lmStudio:
-         return "http://localhost:1234/v1/chat/completions"
-      }
-   }
-
-   var defaultModelsEndpoint: String? {
-      switch self {
-      case .custom:
-         return nil
-      case .ollama:
-         return "http://localhost:11434/v1/models"
-      case .lmStudio:
-         return "http://localhost:1234/v1/models"
-      }
-   }
-
-   var apiKeyPlaceholder: String {
-      switch self {
-      case .custom:
-         return "Enter API key"
-      case .ollama:
-         return "Optional (usually not needed)"
-      case .lmStudio:
-         return "Optional unless auth is enabled"
-      }
-   }
-
-   var endpointPlaceholder: String {
-      switch self {
-      case .custom:
-         return "https://your-api.com/v1/chat/completions"
-      case .ollama:
-         return defaultEndpoint
-      case .lmStudio:
-         return defaultEndpoint
-      }
-   }
-
-   var modelPlaceholder: String {
-      switch self {
-      case .custom:
-         return "e.g., gpt-4o"
-      case .ollama:
-         return "e.g., llama3.2"
-      case .lmStudio:
-         return "e.g., local-model"
-      }
-   }
-}
+import PindropCore
+import PindropAI
 
 struct AIEnhancementStepView: View {
     @ObservedObject var settings: SettingsStore
@@ -188,7 +29,12 @@ struct AIEnhancementStepView: View {
     @State private var availableModels: [AIModelService.AIModel] = []
     @State private var isLoadingModels = false
     @State private var modelError: String?
-    @State private var modelService = AIModelService()
+    @State private var modelService = AIModelService(
+        storageBaseURL: FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Pindrop", isDirectory: true)
+            .appendingPathComponent("AIModels", isDirectory: true)
+    )
 
     var body: some View {
        VStack(spacing: 0) {
@@ -425,7 +271,7 @@ struct AIEnhancementStepView: View {
           if provider == .custom && resolvedCustomProvider.supportsModelListing {
              availableModels = []
           }
-          Log.aiEnhancement.error("Failed to fetch \(provider.rawValue) models: \(error)")
+          Log.aiEnhancement.error("Failed to fetch models provider=\(provider.rawValue)")
           modelError = error.localizedDescription
        }
     }

@@ -10,16 +10,57 @@ import Foundation
 import Testing
 
 @testable import Pindrop
+import PindropSpeech
+import PindropCore
+import PindropData
 
 @MainActor
 @Suite
 struct AppCoordinatorContextFlowTests {
     @Test func recordingStopRoutePreservesEveryRecordingMode() {
         let editorID = UUID()
-        #expect(RecordingStopRoute.resolve(isQuickCapture: false, noteAppendEditorID: nil, isManualTranscription: false) == .dictation)
-        #expect(RecordingStopRoute.resolve(isQuickCapture: true, noteAppendEditorID: nil, isManualTranscription: false) == .quickCapture)
-        #expect(RecordingStopRoute.resolve(isQuickCapture: false, noteAppendEditorID: editorID, isManualTranscription: false) == .noteAppend(editorID))
-        #expect(RecordingStopRoute.resolve(isQuickCapture: false, noteAppendEditorID: nil, isManualTranscription: true) == .manualTranscription)
+        #expect(RecordingStopRoute.resolve(noteAppendEditorID: nil, isNoteCapture: false) == .dictation)
+        #expect(RecordingStopRoute.resolve(noteAppendEditorID: editorID, isNoteCapture: false) == .noteAppend(editorID))
+        #expect(RecordingStopRoute.resolve(noteAppendEditorID: nil, isNoteCapture: true) == .noteCapture)
+        // Note-append owns the stop even while a note capture is active: an open
+        // editor's speak-to-append session is the one being finished.
+        #expect(RecordingStopRoute.resolve(noteAppendEditorID: editorID, isNoteCapture: true) == .noteAppend(editorID))
+    }
+
+    @Test func voiceIsolationRouteMatrixKeepsNonDictationAudioRaw() {
+        let enabledRoutes: [CoordinatorTranscriptionRoute] = [
+            .dictation,
+            .noteAppend,
+            .manualCapture(.microphone),
+        ]
+        for route in enabledRoutes {
+            #expect(
+                AppCoordinator.audioPreprocessingMode(
+                    for: route,
+                    voiceIsolationEnabled: true
+                ) == .voiceIsolation
+            )
+            #expect(
+                AppCoordinator.audioPreprocessingMode(
+                    for: route,
+                    voiceIsolationEnabled: false
+                ) == .none
+            )
+        }
+
+        let excludedRoutes: [CoordinatorTranscriptionRoute] = [
+            .manualCapture(.systemAudio),
+            .manualCapture(.microphoneAndSystemAudio),
+            .importedMedia,
+        ]
+        for route in excludedRoutes {
+            #expect(
+                AppCoordinator.audioPreprocessingMode(
+                    for: route,
+                    voiceIsolationEnabled: true
+                ) == .none
+            )
+        }
     }
 
     @Test func recordingStopAdmissionLetsOnlyFirstUserOrLimitEventClaimStop() {
@@ -27,11 +68,11 @@ struct AppCoordinatorContextFlowTests {
 
         let first = admission.claim(.dictation)
         #expect(first?.route == .dictation)
-        #expect(admission.claim(.quickCapture) == nil)
+        #expect(admission.claim(.noteCapture) == nil)
         if let first {
             admission.release(first)
         }
-        #expect(admission.claim(.quickCapture)?.route == .quickCapture)
+        #expect(admission.claim(.noteCapture)?.route == .noteCapture)
     }
 
     @Test func recordingStopAdmissionCancellationReleasesImmediatelyForNewClaim() {
@@ -41,18 +82,18 @@ struct AppCoordinatorContextFlowTests {
 
         // Cancel frees the gate even while the old stop task is still alive.
         admission.invalidateCurrentClaim()
-        let second = admission.claim(.quickCapture)
-        #expect(second?.route == .quickCapture)
+        let second = admission.claim(.noteCapture)
+        #expect(second?.route == .noteCapture)
 
         // Stale deferred release from the cancelled stop must not clear the new claim.
         if let first {
             admission.release(first)
         }
-        #expect(admission.claim(.manualTranscription) == nil)
+        #expect(admission.claim(.noteCapture) == nil)
         if let second {
             admission.release(second)
         }
-        #expect(admission.claim(.manualTranscription)?.route == .manualTranscription)
+        #expect(admission.claim(.noteCapture)?.route == .noteCapture)
     }
 
     @Test func recordingStopAdmissionStaleReleaseDoesNotClearNewerClaim() throws {
@@ -60,12 +101,454 @@ struct AppCoordinatorContextFlowTests {
         let first = try #require(admission.claim(.dictation))
         admission.release(first)
 
-        let second = try #require(admission.claim(.quickCapture))
+        let second = try #require(admission.claim(.noteCapture))
         // Releasing an already-finished claim is a no-op against the newer lease.
         admission.release(first)
         #expect(admission.claim(.noteAppend(UUID())) == nil)
         admission.release(second)
         #expect(admission.claim(.dictation)?.route == .dictation)
+    }
+
+    @Test func meetingCaptureStartAdmissionRejectsSecondSynchronousClaim() throws {
+        let admission = MeetingCaptureStartAdmission()
+        let first = try #require(admission.claim())
+
+        #expect(admission.isCurrent(first))
+        #expect(admission.claim() == nil)
+
+        admission.release(first)
+        let second = try #require(admission.claim())
+        #expect(second != first)
+        #expect(admission.isCurrent(second))
+    }
+
+    @Test func meetingCaptureStartAdmissionInvalidationMakesPostAwaitAndStaleCatchNoOps() throws {
+        let admission = MeetingCaptureStartAdmission()
+        let stale = try #require(admission.claim())
+
+        // Cancellation releases the exact pending start while its task is suspended.
+        admission.release(stale)
+        #expect(!admission.isCurrent(stale))
+
+        // A post-await check rejects the stale task before it can publish recorder/UI state.
+        var staleCatchMutatedWinner = false
+        if admission.isCurrent(stale) {
+            staleCatchMutatedWinner = true
+        }
+        #expect(!staleCatchMutatedWinner)
+
+        let winner = try #require(admission.claim())
+        admission.release(stale) // Stale defer/catch release cannot clear the winner.
+        #expect(admission.isCurrent(winner))
+        #expect(admission.claim() == nil)
+        admission.release(winner)
+    }
+
+    @Test func retainedMeetingCaptureContextAdmitsCancelWithoutUIFlagsOrTask() {
+        #expect(
+            AppCoordinator.canCancelCurrentOperation(
+                isRecording: false,
+                isProcessing: false,
+                hasActiveOperationTask: false,
+                hasMeetingCaptureContext: true,
+                hasPendingMeetingCaptureStart: false
+            )
+        )
+        // A failed pre-context cancellation retains its exact handle as pending
+        // work, so a second cancel is admitted even after the start task unwinds.
+        #expect(
+            AppCoordinator.canCancelCurrentOperation(
+                isRecording: false,
+                isProcessing: false,
+                hasActiveOperationTask: false,
+                hasMeetingCaptureContext: false,
+                hasPendingMeetingCaptureStart: true
+            )
+        )
+        #expect(
+            !AppCoordinator.canCancelCurrentOperation(
+                isRecording: false,
+                isProcessing: false,
+                hasActiveOperationTask: false,
+                hasMeetingCaptureContext: false,
+                hasPendingMeetingCaptureStart: false
+            )
+        )
+    }
+    @Test func voiceNoteLinkageUsesHistoryIDsForNotesAndRevisionIDsForCompletion() {
+        let historyRecordID = UUID()
+        let finalRevisionID = UUID()
+        let linkageIDs = VoiceNoteLinkageIDs(
+            historyRecordID: historyRecordID,
+            finalTranscriptRevisionID: finalRevisionID
+        )
+
+        #expect(linkageIDs.historyRecordID == historyRecordID)
+        #expect(linkageIDs.finalTranscriptRevisionID == finalRevisionID)
+        #expect(linkageIDs.historyRecordID != linkageIDs.finalTranscriptRevisionID)
+    }
+
+    @Test func voiceNoteCaptureAdmissionAndComparisonAreHandleExact() {
+        let activeHandle = NoteCaptureHandle(
+            sessionID: UUID(),
+            microphoneSourceID: UUID()
+        )
+        let differentHandle = NoteCaptureHandle(
+            sessionID: activeHandle.sessionID,
+            microphoneSourceID: UUID()
+        )
+
+        #expect(AppCoordinator.canBeginVoiceNoteCapture(activeHandle: nil))
+        #expect(!AppCoordinator.canBeginVoiceNoteCapture(activeHandle: activeHandle))
+        #expect(
+            AppCoordinator.isVoiceNoteCaptureCurrent(
+                activeHandle: activeHandle,
+                candidateHandle: activeHandle
+            )
+        )
+        #expect(
+            !AppCoordinator.isVoiceNoteCaptureCurrent(
+                activeHandle: activeHandle,
+                candidateHandle: differentHandle
+            )
+        )
+    }
+    @Test func staleArtifactAdmissionTearsDownStreamingBeforeReturningFailure() async {
+        var events: [String] = []
+
+        await #expect(throws: CancellationError.self) {
+            try await AppCoordinator.revalidateVoiceCaptureAfterArtifactAdmission(
+                ensureCurrent: {
+                    events.append("context-checked")
+                    throw CancellationError()
+                },
+                tearDownStreaming: {
+                    events.append("streaming-torn-down")
+                }
+            )
+        }
+
+        #expect(events == ["context-checked", "streaming-torn-down"])
+    }
+
+
+    @Test func artifactFinishPrecedesFinalizationAndCancellationBlocksTransition() async {
+        var events: [String] = []
+        var isCurrent = true
+
+        await #expect(throws: CancellationError.self) {
+            try await AppCoordinator.finishArtifactCaptureThenBeginFinalization(
+                finishArtifactCapture: {
+                    events.append("artifact-finished")
+                    isCurrent = false
+                },
+                ensureCurrent: {
+                    events.append("context-checked")
+                    guard isCurrent else {
+                        throw CancellationError()
+                    }
+                },
+                beginFinalization: {
+                    events.append("finalization-began")
+                }
+            )
+        }
+
+        #expect(events == [
+            "context-checked",
+            "artifact-finished",
+            "context-checked"
+        ])
+    }
+
+    @Test func meetingCaptureAdmissionAndComparisonAreHandleExact() {
+        let activeHandle = NoteCaptureHandle(
+            sessionID: UUID(),
+            microphoneSourceID: UUID(),
+            systemAudioSourceID: UUID()
+        )
+        let differentHandle = NoteCaptureHandle(
+            sessionID: activeHandle.sessionID,
+            microphoneSourceID: activeHandle.microphoneSourceID,
+            systemAudioSourceID: UUID()
+        )
+
+        #expect(AppCoordinator.canBeginMeetingCapture(activeHandle: nil))
+        #expect(!AppCoordinator.canBeginMeetingCapture(activeHandle: activeHandle))
+        #expect(
+            !AppCoordinator.canBeginMeetingCapture(
+                activeHandle: nil,
+                recoveryTaskActive: true
+            )
+        )
+        #expect(
+            !AppCoordinator.canBeginMeetingCapture(
+                activeHandle: nil,
+                isShutdown: true
+            )
+        )
+        #expect(
+            AppCoordinator.isMeetingCaptureCurrent(
+                activeHandle: activeHandle,
+                candidateHandle: activeHandle
+            )
+        )
+        #expect(
+            !AppCoordinator.isMeetingCaptureCurrent(
+                activeHandle: activeHandle,
+                candidateHandle: differentHandle
+            )
+        )
+    }
+
+    @Test func sourceLessMeetingWorkItemNeverCreatesASRInput() {
+        let workItem = NoteCaptureController.MeetingChunkWorkItem(
+            sequence: 1,
+            chunkID: UUID(),
+            startOffset: 300,
+            duration: 300,
+            microphone: nil,
+            systemAudio: nil
+        )
+
+        #expect(!NoteCaptureController.shouldCreateMeetingTranscriptionInput(for: workItem))
+    }
+
+    @Test func meetingFinalizerSkipsModelActivationForPermanentSourceGaps() {
+        let workItems = [
+            NoteCaptureController.MeetingChunkWorkItem(
+                sequence: 0,
+                chunkID: UUID(),
+                startOffset: 0,
+                duration: 300,
+                microphone: nil,
+                systemAudio: nil
+            ),
+            NoteCaptureController.MeetingChunkWorkItem(
+                sequence: 1,
+                chunkID: UUID(),
+                startOffset: 300,
+                duration: 300,
+                microphone: nil,
+                systemAudio: nil
+            )
+        ]
+
+        #expect(NoteCaptureController.expectedMeetingFinalASRSequences(workItems: workItems).isEmpty)
+        #expect(
+            !NoteCaptureController.meetingFinalizationNeedsFinalModelActivation(
+                workItems: workItems,
+                completedASRSequences: []
+            )
+        )
+    }
+
+    @Test func meetingFinalizerActivatesModelOnlyForMissingDurableChunkCheckpoints() {
+        let sourceID = UUID()
+        let workItems = [
+            NoteCaptureController.MeetingChunkWorkItem(
+                sequence: 0,
+                chunkID: UUID(),
+                startOffset: 0,
+                duration: 300,
+                microphone: MeetingChunkCheckpoint(
+                    sourceID: sourceID,
+                    sequence: 0,
+                    startOffset: 0,
+                    duration: 300,
+                    managedMediaPath: "meeting/0.pcm",
+                    byteCount: 9_600_000,
+                    sha256: String(repeating: "a", count: 64),
+                    sealedAt: .now
+                ),
+                systemAudio: nil
+            ),
+            NoteCaptureController.MeetingChunkWorkItem(
+                sequence: 1,
+                chunkID: UUID(),
+                startOffset: 300,
+                duration: 300,
+                microphone: nil,
+                systemAudio: MeetingChunkCheckpoint(
+                    sourceID: sourceID,
+                    sequence: 1,
+                    startOffset: 300,
+                    duration: 300,
+                    managedMediaPath: "meeting/1.pcm",
+                    byteCount: 9_600_000,
+                    sha256: String(repeating: "b", count: 64),
+                    sealedAt: .now
+                )
+            ),
+            NoteCaptureController.MeetingChunkWorkItem(
+                sequence: 2,
+                chunkID: UUID(),
+                startOffset: 600,
+                duration: 300,
+                microphone: nil,
+                systemAudio: nil
+            )
+        ]
+
+        #expect(NoteCaptureController.expectedMeetingFinalASRSequences(workItems: workItems) == [0, 1])
+        #expect(
+            NoteCaptureController.missingMeetingFinalASRSequences(
+                workItems: workItems,
+                completedASRSequences: [0]
+            ) == [1]
+        )
+        #expect(
+            NoteCaptureController.meetingFinalizationNeedsFinalModelActivation(
+                workItems: workItems,
+                completedASRSequences: [0]
+            )
+        )
+    }
+
+    /// Scheduling admission stays with the shell: it decides when recovery may
+    /// run. What a recovery pass does, and whether one is still current, moved
+    /// onto `NoteCaptureController` (see `NoteCaptureControllerTests`).
+    @Test func meetingRecoveryAdmissionIsExact() {
+        let activeHandle = NoteCaptureHandle(
+            sessionID: UUID(),
+            microphoneSourceID: UUID(),
+            systemAudioSourceID: UUID()
+        )
+
+        #expect(AppCoordinator.canBeginMeetingRecovery(
+            activeHandle: nil,
+            recoveryTaskActive: false,
+            isShutdown: false
+        ))
+        #expect(!AppCoordinator.canBeginMeetingRecovery(
+            activeHandle: activeHandle,
+            recoveryTaskActive: false,
+            isShutdown: false
+        ))
+        #expect(!AppCoordinator.canBeginMeetingRecovery(
+            activeHandle: nil,
+            recoveryTaskActive: true,
+            isShutdown: false
+        ))
+        #expect(!AppCoordinator.canBeginMeetingRecovery(
+            activeHandle: nil,
+            recoveryTaskActive: false,
+            isShutdown: true
+        ))
+    }
+
+
+    @Test func postTranscriptionFailureOnlyTerminatesCurrentExactVoiceNoteCapture() {
+        struct PostProcessingError: Error {}
+
+        let controller = DictationOperationController()
+        let token = controller.begin()
+        let handle = NoteCaptureHandle(
+            sessionID: UUID(),
+            microphoneSourceID: UUID()
+        )
+        let differentHandle = NoteCaptureHandle(
+            sessionID: handle.sessionID,
+            microphoneSourceID: UUID()
+        )
+
+        #expect(
+            AppCoordinator.shouldEmitOperationFailureSideEffects(
+                isOperationCurrent: controller.isCurrent(token),
+                error: PostProcessingError()
+            )
+        )
+        #expect(
+            AppCoordinator.isVoiceNoteCaptureCurrent(
+                activeHandle: handle,
+                candidateHandle: handle
+            )
+        )
+        #expect(
+            !AppCoordinator.isVoiceNoteCaptureCurrent(
+                activeHandle: handle,
+                candidateHandle: differentHandle
+            )
+        )
+
+        controller.cancel()
+        let newerToken = controller.begin()
+        #expect(controller.isCurrent(newerToken))
+        #expect(
+            !AppCoordinator.shouldEmitOperationFailureSideEffects(
+                isOperationCurrent: controller.isCurrent(token),
+                error: PostProcessingError()
+            )
+        )
+        #expect(
+            !AppCoordinator.shouldEmitOperationFailureSideEffects(
+                isOperationCurrent: true,
+                error: CancellationError()
+            )
+        )
+    }
+
+    @Test func pendingNoteAppendCaptureOwnershipIsRequestAndHandleExact() {
+        let editorID = UUID()
+        let noteID = UUID()
+        let handle = NoteCaptureHandle(
+            sessionID: UUID(),
+            microphoneSourceID: UUID()
+        )
+        let differentHandle = NoteCaptureHandle(
+            sessionID: handle.sessionID,
+            microphoneSourceID: UUID()
+        )
+
+        #expect(
+            AppCoordinator.isPendingNoteAppendCaptureCurrent(
+                pendingEditorID: editorID,
+                pendingNoteID: noteID,
+                pendingHandle: handle,
+                candidateEditorID: editorID,
+                candidateNoteID: noteID,
+                candidateHandle: handle
+            )
+        )
+        #expect(
+            !AppCoordinator.isPendingNoteAppendCaptureCurrent(
+                pendingEditorID: editorID,
+                pendingNoteID: noteID,
+                pendingHandle: handle,
+                candidateEditorID: UUID(),
+                candidateNoteID: noteID,
+                candidateHandle: handle
+            )
+        )
+        #expect(
+            !AppCoordinator.isPendingNoteAppendCaptureCurrent(
+                pendingEditorID: editorID,
+                pendingNoteID: noteID,
+                pendingHandle: handle,
+                candidateEditorID: editorID,
+                candidateNoteID: noteID,
+                candidateHandle: differentHandle
+            )
+        )
+    }
+
+    @Test func noteAppendNotificationKeepsEffectiveSourceTranscriptionID() {
+        let firstSourceTranscriptionID = UUID()
+        let newAppendHistoryRecordID = UUID()
+        let append = NoteAppendResult(
+            noteID: UUID(),
+            content: "First transcript\n\nSecond transcript",
+            sourceTranscriptionID: firstSourceTranscriptionID
+        )
+
+        #expect(
+            AppCoordinator.noteAppendNotificationSourceTranscriptionID(append)
+                == firstSourceTranscriptionID
+        )
+        #expect(
+            AppCoordinator.noteAppendNotificationSourceTranscriptionID(append)
+                != newAppendHistoryRecordID
+        )
     }
 
     private func makeContextEngine() -> (
@@ -227,6 +710,7 @@ struct AppCoordinatorContextFlowTests {
         #expect(controller.isCurrent(second) == false)
     }
 
+
     @Test func productionCleanupSkipsResetWhenOperationSupersededAfterCancel() {
         // Production stop paths defer through shouldResetProcessingStateOnExit.
         // After cancel invalidates the operation token, a stale cancelled stop must
@@ -305,7 +789,7 @@ struct AppCoordinatorContextFlowTests {
         let admission = RecordingStopAdmission()
 
         let firstToken = controller.begin()
-        let firstClaim = admission.claim(.manualTranscription)
+        let firstClaim = admission.claim(.noteCapture)
         #expect(firstClaim != nil)
 
         // Cancel operation and free admission so a newer manual job can start.
@@ -314,7 +798,7 @@ struct AppCoordinatorContextFlowTests {
         #expect(controller.isCurrent(firstToken) == false)
 
         let secondToken = controller.begin()
-        let secondClaim = admission.claim(.manualTranscription)
+        let secondClaim = admission.claim(.noteCapture)
         #expect(secondClaim != nil)
         #expect(controller.isCurrent(secondToken))
 
@@ -512,13 +996,12 @@ struct AppCoordinatorContextFlowTests {
     }
 
     @Test func shouldUseStreamingTranscriptionTruthTable() {
-        // Baseline: streaming enabled, indicator available, not quick-capture → stream.
+        // Baseline: streaming enabled, indicator available → stream.
         // Output mode no longer gates — the live transcript renders in the overlay, and
         // the final text lands via output() per mode (clipboard users stream too).
         #expect(
             AppCoordinator.shouldUseStreamingTranscription(
                 streamingFeatureEnabled: true,
-                isQuickCaptureMode: false,
                 floatingIndicatorAvailable: true
             )
         )
@@ -527,7 +1010,6 @@ struct AppCoordinatorContextFlowTests {
         #expect(
             AppCoordinator.shouldUseStreamingTranscription(
                 streamingFeatureEnabled: false,
-                isQuickCaptureMode: false,
                 floatingIndicatorAvailable: true
             ) == false
         )
@@ -538,17 +1020,16 @@ struct AppCoordinatorContextFlowTests {
         #expect(
             AppCoordinator.shouldUseStreamingTranscription(
                 streamingFeatureEnabled: true,
-                isQuickCaptureMode: false,
                 floatingIndicatorAvailable: false
             ) == false
         )
 
-        // Quick-capture mode → never stream.
+        // Note-append listening → never stream; the in-editor chip is the surface.
         #expect(
             AppCoordinator.shouldUseStreamingTranscription(
                 streamingFeatureEnabled: true,
-                isQuickCaptureMode: true,
-                floatingIndicatorAvailable: true
+                floatingIndicatorAvailable: true,
+                isNoteAppendMode: true
             ) == false
         )
     }
@@ -557,6 +1038,12 @@ struct AppCoordinatorContextFlowTests {
         // Dictation output is a single-speaker paste; "Speaker N:" attribution is
         // reserved for meeting and media transcription jobs.
         #expect(AppCoordinator.dictationUsesSpeakerDiarization == false)
+    }
+
+    @Test func sessionBackedCaptureStagesStartAtAttemptOne() {
+        for stage in NoteCaptureController.captureStartAssignmentStages {
+            #expect(NoteCaptureController.captureAssignmentAttempt(for: stage) == 1)
+        }
     }
 
     @Test func escapeCancelDecisionTruthTable() {
@@ -721,4 +1208,17 @@ struct AppCoordinatorContextFlowTests {
             ) == nil
         )
     }
+    @Test func terminationRepliesOnlyAfterPreparationAndSynchronousShutdown() async {
+        let delegate = AppDelegate()
+        var events: [String] = []
+
+        await delegate.performTerminationSequence(
+            preparation: { events.append("prepared") },
+            shutdown: { events.append("shutdown") },
+            reply: { events.append("reply") }
+        )
+
+        #expect(events == ["prepared", "shutdown", "reply"])
+    }
+
 }

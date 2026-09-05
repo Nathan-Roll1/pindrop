@@ -7,6 +7,7 @@
 
 import AppKit
 import SwiftUI
+import PindropCore
 
 @MainActor
 final class PindropThemeController: ObservableObject {
@@ -274,8 +275,13 @@ struct TypographyRoleMetrics: Equatable, Sendable {
     /// Design line box (pt). `lineSpacing` = max(0, lineHeight − size).
     let lineHeight: CGFloat
     var italic: Bool = false
+    /// Letter spacing in em, as authored in the design file (negative tightens).
+    var trackingEm: CGFloat = 0
 
     var lineSpacing: CGFloat { max(0, lineHeight - size) }
+
+    /// Point tracking for `Text.tracking(_:)` (em × size).
+    var tracking: CGFloat { trackingEm * size }
 
     var font: Font {
         FontLoader.font(family: family, size: size, weight: weight, italic: italic)
@@ -306,6 +312,11 @@ enum AppTypography {
     )
     static let bodyMetaMetrics = TypographyRoleMetrics(
         family: .inter, size: 13, weight: .regular, lineHeight: 22
+    )
+    /// Newsreader Italic 16/22 · 400 — page-header meta beside the title
+    /// (Notes list: "24 notes, three from today").
+    static let pageMetaMetrics = TypographyRoleMetrics(
+        family: .newsreader, size: 16, weight: .regular, lineHeight: 22, italic: true
     )
     static let labelMetrics = TypographyRoleMetrics(
         family: .inter, size: 12, weight: .medium, lineHeight: 16
@@ -338,6 +349,11 @@ enum AppTypography {
     static let monoTimeMetrics = TypographyRoleMetrics(
         family: .jetbrainsMono, size: 12, weight: .medium, lineHeight: 16
     )
+    /// JetBrains Mono 13/17 · 500 — the elapsed clock on a page-sized capture
+    /// frame (Dictate action row), one notch above the row-time `monoTime`.
+    static let monoTimeLargeMetrics = TypographyRoleMetrics(
+        family: .jetbrainsMono, size: 13, weight: .medium, lineHeight: 17
+    )
     static let monoSmallMetrics = TypographyRoleMetrics(
         family: .jetbrainsMono, size: 11, weight: .medium, lineHeight: 14
     )
@@ -350,16 +366,40 @@ enum AppTypography {
     static let statMediumMetrics = TypographyRoleMetrics(
         family: .newsreader, size: 24, weight: .semibold, lineHeight: 28
     )
+    /// Newsreader 46/52 · 400 · -0.02em — capture-page hero sentence.
+    static let heroDisplayMetrics = TypographyRoleMetrics(
+        family: .newsreader, size: 46, weight: .regular, lineHeight: 52, trackingEm: -0.02
+    )
+    /// Same box as `heroDisplayMetrics`, medium italic — the accented metric inside the sentence.
+    static let heroDisplayEmphasisMetrics = TypographyRoleMetrics(
+        family: .newsreader, size: 46, weight: .medium, lineHeight: 52, italic: true, trackingEm: -0.02
+    )
+    /// JetBrains Mono 22/28 · 500 — stats-strip numbers.
+    static let statNumberMetrics = TypographyRoleMetrics(
+        family: .jetbrainsMono, size: 22, weight: .medium, lineHeight: 28
+    )
+    /// Inter 11/14 · 600 · +0.08em — overline / kicker labels (date kicker, group labels,
+    /// list section headers).
+    static let overlineMetrics = TypographyRoleMetrics(
+        family: .inter, size: 11, weight: .semibold, lineHeight: 14, trackingEm: 0.08
+    )
+    /// Inter 11/14 · 600 · +0.07em — stats-strip and chart labels. Sits one notch tighter
+    /// than `overlineMetrics` because those labels run longer.
+    static let statLabelMetrics = TypographyRoleMetrics(
+        family: .inter, size: 11, weight: .semibold, lineHeight: 14, trackingEm: 0.07
+    )
 
     /// All primary roles for exhaustive metric tests.
     static var allRoleMetrics: [TypographyRoleMetrics] {
         [
             wordmarkMetrics, pageTitleMetrics, transcriptBodyMetrics, pinnedCardTitleMetrics,
-            bodyMetrics, bodyMetaMetrics, labelMetrics, labelSemiboldMetrics,
+            bodyMetrics, bodyMetaMetrics, pageMetaMetrics, labelMetrics, labelSemiboldMetrics,
             labelStrongMetrics, labelStrongSelectedMetrics, badgeMetrics,
             captionMetrics, captionMediumMetrics, captionLargeMetrics,
-            monoTimeMetrics, monoSmallMetrics, sectionHeaderMetrics,
+            monoTimeMetrics, monoTimeLargeMetrics, monoSmallMetrics, sectionHeaderMetrics,
             statLargeMetrics, statMediumMetrics,
+            heroDisplayMetrics, heroDisplayEmphasisMetrics, statNumberMetrics,
+            overlineMetrics, statLabelMetrics,
         ]
     }
 
@@ -377,6 +417,8 @@ enum AppTypography {
     static let body = bodyMetrics.font
     /// Inter 13/22 · 400 — header meta line
     static let bodyMeta = bodyMetaMetrics.font
+    /// Newsreader Italic 16/22 · 400 — page-header meta beside the title
+    static let pageMeta = pageMetaMetrics.font
     /// Inter 12/16 · 500 — buttons, chips, nav secondary
     static let label = labelMetrics.font
     /// Inter 12/16 · 600 — status titles, strong chip labels
@@ -394,10 +436,22 @@ enum AppTypography {
     static let captionLarge = captionLargeMetrics.font
     /// JetBrains Mono 12/16 · 500 — row times
     static let monoTime = monoTimeMetrics.font
+    /// JetBrains Mono 13/17 · 500 — elapsed clock on a page-sized capture frame
+    static let monoTimeLarge = monoTimeLargeMetrics.font
     /// JetBrains Mono 11/14 · 400–500 — counts, kbd hints
     static let monoSmall = monoSmallMetrics.font
     /// Inter 11–12/14 · 500 · uppercase section headers
     static let sectionHeader = sectionHeaderMetrics.font
+    /// Newsreader 46/52 · 400 · -0.02em — capture-page hero sentence
+    static let heroDisplay = heroDisplayMetrics.font
+    /// Newsreader 46/52 · 500 italic — accented metric inside the hero sentence
+    static let heroDisplayEmphasis = heroDisplayEmphasisMetrics.font
+    /// JetBrains Mono 22/28 · 500 — stats-strip numbers
+    static let statNumber = statNumberMetrics.font
+    /// Inter 11/14 · 600 · +0.08em — overline / kicker labels
+    static let overline = overlineMetrics.font
+    /// Inter 11/14 · 600 · +0.07em — stats-strip and chart labels
+    static let statLabel = statLabelMetrics.font
 
     // MARK: Line spacing (lineHeight − size) for multi-line Text sites
 
@@ -409,6 +463,7 @@ enum AppTypography {
     static let bodyMetaLineSpacing = bodyMetaMetrics.lineSpacing
     static let labelLineSpacing = labelMetrics.lineSpacing
     static let captionLineSpacing = captionMetrics.lineSpacing
+    static let heroDisplayLineSpacing = heroDisplayMetrics.lineSpacing
 
     // MARK: Legacy members (mapped onto the new ramp — migrate call sites over time)
 
@@ -435,6 +490,9 @@ enum AppTypography {
 
     static let wordmarkTracking: CGFloat = -0.01 * wordmarkMetrics.size
     static let pageTitleTracking: CGFloat = -0.015 * pageTitleMetrics.size
+    static let heroDisplayTracking = heroDisplayMetrics.tracking
+    static let overlineTracking = overlineMetrics.tracking
+    static let statLabelTracking = statLabelMetrics.tracking
 }
 
 /// Builds the ~37 semantic roles from Scorched Earth tokens (spec §1).
@@ -789,6 +847,61 @@ private struct AppAnimationModifier<Value: Equatable>: ViewModifier {
     }
 }
 
+/// Corner radius tokens a focus ring can take, so call sites name the token
+/// instead of repeating raw point values.
+enum FocusRingRadius: Equatable, Sendable {
+    case sm
+    case md
+    case lg
+    case xl
+
+    var points: CGFloat {
+        switch self {
+        case .sm: return AppTheme.Radius.sm
+        case .md: return AppTheme.Radius.md
+        case .lg: return AppTheme.Radius.lg
+        case .xl: return AppTheme.Radius.xl
+        }
+    }
+}
+
+/// Shape family for `View.focusRing(_:)`.
+enum FocusRingStyle: Equatable, Sendable {
+    case rounded(FocusRingRadius)
+    case capsule
+    case circle
+
+    var shape: FocusRingShape { FocusRingShape(style: self) }
+}
+
+/// One insettable shape covering every focus-ring family. Outsetting grows the
+/// corner radius with the inset so the ring stays concentric with the control.
+struct FocusRingShape: InsettableShape {
+    let style: FocusRingStyle
+    var insetAmount: CGFloat = 0
+
+    func path(in rect: CGRect) -> Path {
+        let insetRect = rect.insetBy(dx: insetAmount, dy: insetAmount)
+        switch style {
+        case .rounded(let radius):
+            return RoundedRectangle(
+                cornerRadius: max(0, radius.points - insetAmount),
+                style: .continuous
+            ).path(in: insetRect)
+        case .capsule:
+            return Capsule(style: .continuous).path(in: insetRect)
+        case .circle:
+            return Circle().path(in: insetRect)
+        }
+    }
+
+    func inset(by amount: CGFloat) -> FocusRingShape {
+        var copy = self
+        copy.insetAmount += amount
+        return copy
+    }
+}
+
 private struct KeyboardFocusRingModifier<FocusShape: InsettableShape>: ViewModifier {
     @FocusState private var isFocused: Bool
 
@@ -827,6 +940,12 @@ extension View {
         _ shape: FocusShape
     ) -> some View {
         modifier(KeyboardFocusRingModifier(shape: shape))
+    }
+
+    /// Keyboard focus ring with a theme radius, so call sites name the token
+    /// instead of repeating `RoundedRectangle(cornerRadius:style:)`.
+    func focusRing(_ style: FocusRingStyle) -> some View {
+        modifier(KeyboardFocusRingModifier(shape: style.shape))
     }
 
     func hairlineBorder<BorderShape: InsettableShape, BorderStyle: ShapeStyle>(

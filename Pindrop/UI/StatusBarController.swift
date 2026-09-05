@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import SwiftUI
 import os.log
+import PindropCore
 
 @MainActor
 final class StatusBarController: NSObject, NSMenuDelegate {
@@ -23,6 +24,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     private let audioRecorder: AudioRecorder
     private let settingsStore: SettingsStore
+    /// Watches audio process state for a conference call. Held here so the
+    /// menu's subscription cannot outlive the object it subscribed to. Nil on a
+    /// machine that cannot capture system audio, which is the same machine that
+    /// has no call to record.
+    private let conferenceAudioMonitor: ConferenceAudioMonitor?
 
     // MARK: - Menu Item References
 
@@ -32,12 +38,17 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private var cancelOperationItem: NSMenuItem?
     private var contextualItemsInserted = false
 
+    private var newMeetingNoteItem: NSMenuItem?
+    private var newNoteItem: NSMenuItem?
+    private var recordThisCallItem: NSMenuItem?
+    private var noteCaptureItemsInserted = false
+
     private var transcriptsMenu: NSMenu?
     private var copyLastTranscriptItem: NSMenuItem?
     private var pasteLastTranscriptItem: NSMenuItem?
     private var exportLastTranscriptItem: NSMenuItem?
 
-    private var openHistoryItem: NSMenuItem?
+    private var openLibraryItem: NSMenuItem?
 
     private var promptPresetMenuItem: NSMenuItem?
     private var promptPresetMenu: NSMenu?
@@ -48,13 +59,16 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     // MARK: - Callbacks
 
     var onToggleRecording: (() async -> Void)?
+    /// Starts a note that records. Set through `configureNoteCapture(onStartNoteCapture:)`;
+    /// the note rows only appear once it is set, so an unwired build shows no dead items.
+    private(set) var onStartNoteCapture: ((NoteCaptureRequest) -> Bool)?
     var onShowApp: (() -> Void)?
     var onCopyLastTranscript: (() async -> Void)?
     var onPasteLastTranscript: (() async -> Void)?
     var onExportLastTranscript: (() async -> Void)?
     var onClearAudioBuffer: (() async -> Void)?
     var onCancelOperation: (() async -> Void)?
-    var onOpenHistory: (() -> Void)?
+    var onOpenLibrary: (() -> Void)?
     var onOpenSettings: ((SettingsTab) -> Void)?
     var onSelectPromptPreset: ((PromptPresetOption) -> Void)?
     var onMenuWillOpen: (() -> Void)?
@@ -80,13 +94,27 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
     }
 
-    init(audioRecorder: AudioRecorder, settingsStore: SettingsStore) {
+    /// True while the monitor reports a call. Drives the "Record this call" row
+    /// and the dot on the status item, and nothing else.
+    private var isConferenceCallDetected = false
+
+    init(
+        audioRecorder: AudioRecorder,
+        settingsStore: SettingsStore,
+        conferenceAudioMonitor: ConferenceAudioMonitor? = nil
+    ) {
         self.audioRecorder = audioRecorder
         self.settingsStore = settingsStore
+        self.conferenceAudioMonitor = conferenceAudioMonitor
+        self.isConferenceCallDetected = conferenceAudioMonitor?.detectedCall != nil
         super.init()
         startInputDeviceCacheObservation()
         setupStatusItem()
         setupMenu()
+        conferenceAudioMonitor?.addDetectedCallObserver { [weak self] call in
+            self?.setConferenceCallDetected(call != nil)
+        }
+        updateStatusBarIcon()
     }
 
     deinit {
@@ -172,6 +200,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.removeAllItems()
         menu.delegate = self
         contextualItemsInserted = false
+        noteCaptureItemsInserted = false
 
         // === STATUS ROW ===
         recordingStatusItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
@@ -207,6 +236,39 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         cancelOperationItem?.target = self
         cancelOperationItem?.isEnabled = false
         cancelOperationItem?.image = NSImage(systemSymbolName: "stop.circle", accessibilityDescription: nil)
+
+        // === NEW NOTE ===
+        // Built here, inserted by syncNoteCaptureItems() once a start closure exists.
+        newMeetingNoteItem = NSMenuItem(
+            title: localized("New meeting note", locale: locale),
+            action: #selector(startNewMeetingNote),
+            keyEquivalent: ""
+        )
+        newMeetingNoteItem?.target = self
+        newMeetingNoteItem?.image = NSImage(
+            systemSymbolName: "waveform.badge.mic",
+            accessibilityDescription: nil
+        )
+
+        newNoteItem = NSMenuItem(
+            title: localized("New note", locale: locale),
+            action: #selector(startNewNote),
+            keyEquivalent: ""
+        )
+        newNoteItem?.target = self
+        newNoteItem?.image = NSImage(systemSymbolName: "square.and.pencil", accessibilityDescription: nil)
+
+        recordThisCallItem = NSMenuItem(
+            title: localized("Record this call", locale: locale),
+            action: #selector(recordDetectedCall),
+            keyEquivalent: ""
+        )
+        recordThisCallItem?.target = self
+        recordThisCallItem?.image = NSImage(
+            systemSymbolName: "phone.badge.waveform",
+            accessibilityDescription: nil
+        )
+        syncNoteCaptureItems()
 
         menu.addItem(NSMenuItem.separator())
 
@@ -265,15 +327,15 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        // === OPEN HISTORY / SHOW APP ===
-        openHistoryItem = NSMenuItem(
+        // === OPEN LIBRARY / SHOW APP ===
+        openLibraryItem = NSMenuItem(
             title: localized("Open Library", locale: locale),
-            action: #selector(openHistory),
+            action: #selector(openLibrary),
             keyEquivalent: ""
         )
-        openHistoryItem?.target = self
-        openHistoryItem?.image = NSImage(systemSymbolName: "clock.arrow.circlepath", accessibilityDescription: nil)
-        menu.addItem(openHistoryItem!)
+        openLibraryItem?.target = self
+        openLibraryItem?.image = NSImage(systemSymbolName: "books.vertical", accessibilityDescription: nil)
+        menu.addItem(openLibraryItem!)
 
         let showAppItem = NSMenuItem(
             title: localized("Show App", locale: locale),
@@ -307,6 +369,91 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         // updateMenuState resolves the status row once (state + cached device label).
         updateMenuState()
         applyInterfaceLayoutDirection(to: menu, locale: locale)
+    }
+
+    /// Wires the note-capture entry points. The "New note" rows appear only after
+    /// this is called, so a build that never wires them shows no dead menu items.
+    func configureNoteCapture(onStartNoteCapture: @escaping (NoteCaptureRequest) -> Bool) {
+        self.onStartNoteCapture = onStartNoteCapture
+        syncNoteCaptureItems()
+    }
+
+    /// Inserts (or removes) the note rows next to the dictation rows, following
+    /// whether a start closure is wired.
+    ///
+    /// "New meeting note" records the system output as well, so it is offered
+    /// only where system audio can be captured at all. "New note" is offered
+    /// everywhere.
+    private func syncNoteCaptureItems() {
+        guard let newNoteItem, let newMeetingNoteItem else { return }
+
+        guard onStartNoteCapture != nil else {
+            if noteCaptureItemsInserted {
+                removeMenuItemIfPresent(recordThisCallItem)
+                removeMenuItemIfPresent(newNoteItem)
+                removeMenuItemIfPresent(newMeetingNoteItem)
+                noteCaptureItemsInserted = false
+            }
+            return
+        }
+
+        guard !noteCaptureItemsInserted, let toggleRecordingItem else { return }
+        let toggleIndex = menu.index(of: toggleRecordingItem)
+        guard toggleIndex >= 0 else { return }
+        // Sits after Start/Stop Recording and its contextual rows.
+        var insertIndex = toggleIndex + (contextualItemsInserted ? 2 : 0) + 1
+        if isMeetingAffordanceAvailable {
+            menu.insertItem(newMeetingNoteItem, at: insertIndex)
+            insertIndex += 1
+        }
+        menu.insertItem(newNoteItem, at: insertIndex)
+        noteCaptureItemsInserted = true
+        syncRecordThisCallItem()
+    }
+
+    /// Inserts or removes the "Record this call" row.
+    ///
+    /// The row is absent when there is no call, not disabled, and it always sits
+    /// below the note rows. A conditional row above Start Recording would move
+    /// the primary action under the cursor exactly while a call is running,
+    /// which is when a person is least able to read the menu before clicking.
+    private func syncRecordThisCallItem() {
+        guard let recordThisCallItem else { return }
+
+        let shouldShow = noteCaptureItemsInserted
+            && isMeetingAffordanceAvailable
+            && isConferenceCallDetected
+        guard shouldShow else {
+            removeMenuItemIfPresent(recordThisCallItem)
+            return
+        }
+
+        guard menu.index(of: recordThisCallItem) < 0, let newNoteItem else { return }
+        let newNoteIndex = menu.index(of: newNoteItem)
+        guard newNoteIndex >= 0 else { return }
+        menu.insertItem(recordThisCallItem, at: newNoteIndex + 1)
+    }
+
+    /// Applies one report from the conference monitor.
+    private func setConferenceCallDetected(_ isDetected: Bool) {
+        guard isConferenceCallDetected != isDetected else { return }
+        isConferenceCallDetected = isDetected
+        syncRecordThisCallItem()
+        updateStatusBarIcon()
+    }
+
+    /// The one gate on every meeting affordance. Without system audio capture
+    /// there is no call to record, so the meeting row, the call row, and the
+    /// call dot are all absent and only "New note" remains.
+    private var isMeetingAffordanceAvailable: Bool {
+        audioRecorder.isSystemAudioCaptureAvailable
+    }
+
+    /// `NSMenu.removeItem` raises on an item the menu does not hold, and these
+    /// rows come and go.
+    private func removeMenuItemIfPresent(_ item: NSMenuItem?) {
+        guard let item, menu.index(of: item) >= 0 else { return }
+        menu.removeItem(item)
     }
 
     /// Inserts the contextual "Clear Audio Buffer" / "Cancel Operation" rows directly
@@ -403,6 +550,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             item.isEnabled = assignment != nil
             item.state = option.assignmentID == activePresetID ? .on : .off
         }
+    }
+
+    func menuForTesting() -> NSMenu {
+        menu
     }
 
     func promptPresetMenuForTesting() -> NSMenu? {
@@ -523,6 +674,26 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
     }
 
+    @objc private func startNewMeetingNote() {
+        _ = onStartNoteCapture?(meetingNoteRequest())
+    }
+
+    @objc private func startNewNote() {
+        _ = onStartNoteCapture?(.soloNote())
+    }
+
+    /// The detected call and "New meeting note" start the same capture. This row
+    /// exists to say so at the moment it is true.
+    @objc private func recordDetectedCall() {
+        _ = onStartNoteCapture?(meetingNoteRequest())
+    }
+
+    /// The Meetings section owns what a meeting note records, so both meeting
+    /// rows read it at the moment they are pressed.
+    private func meetingNoteRequest() -> NoteCaptureRequest {
+        .meetingNote(recordsSystemAudio: settingsStore.recordSystemAudioInMeetingNotes)
+    }
+
     @objc private func copyLastTranscript() {
         Task {
             await onCopyLastTranscript?()
@@ -569,8 +740,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         updatePromptPresetItems()
     }
 
-    @objc private func openHistory() {
-        onOpenHistory?()
+    @objc private func openLibrary() {
+        onOpenLibrary?()
     }
 
     @objc private func showApp() {
@@ -648,6 +819,66 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         return image
     }
 
+    private var cachedCallBadgeIcon: NSImage?
+
+    /// The status icon with a small filled dot, shown while a call is detected.
+    ///
+    /// Composed from the same base icon, so an icon change carries through. The
+    /// dot is knocked out of the icon first, which keeps it readable as a
+    /// template image against both menu bar appearances.
+    private func getCallBadgeIcon() -> NSImage? {
+        if let cached = cachedCallBadgeIcon { return cached }
+        guard let baseIcon = getBaseIcon() else { return nil }
+
+        let size = baseIcon.size
+        let dotDiameter: CGFloat = 5
+        let dotRect = NSRect(
+            x: size.width - dotDiameter - 0.5,
+            y: size.height - dotDiameter - 0.5,
+            width: dotDiameter,
+            height: dotDiameter
+        )
+
+        let badge = NSImage(size: size)
+        badge.lockFocus()
+        baseIcon.draw(
+            in: NSRect(origin: .zero, size: size),
+            from: NSRect(origin: .zero, size: baseIcon.size),
+            operation: .sourceOver,
+            fraction: 1.0
+        )
+        NSGraphicsContext.current?.compositingOperation = .clear
+        NSBezierPath(ovalIn: dotRect.insetBy(dx: -1, dy: -1)).fill()
+        NSGraphicsContext.current?.compositingOperation = .sourceOver
+        NSColor.black.setFill()
+        NSBezierPath(ovalIn: dotRect).fill()
+        badge.unlockFocus()
+        badge.isTemplate = true
+
+        cachedCallBadgeIcon = badge
+        return badge
+    }
+
+    /// The call dot applies only while idle. Recording and processing already
+    /// own the icon with their ripple, and a second signal layered on top would
+    /// say less, not more.
+    private var isCallBadgeVisible: Bool {
+        isMeetingAffordanceAvailable && isConferenceCallDetected
+    }
+
+    /// Says in words what the dot says in pixels.
+    ///
+    /// A five point mark in the menu bar carries the whole "Pindrop noticed a
+    /// call" cue, and VoiceOver cannot read a mark. The notification title is
+    /// reused rather than adding a string that says the same thing twice.
+    private func updateStatusButtonDescription(_ button: NSStatusBarButton) {
+        let description = isCallBadgeVisible
+            ? localized("A call started", locale: locale)
+            : "Pindrop"
+        button.toolTip = description
+        button.setAccessibilityLabel(description)
+    }
+
     private func updateStatusBarIcon() {
         guard let button = statusItem?.button else { return }
 
@@ -655,10 +886,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         button.contentTintColor = nil
         button.alphaValue = 1.0
+        updateStatusButtonDescription(button)
 
         switch currentState {
         case .idle:
-            button.image = getBaseIcon()
+            button.image = isCallBadgeVisible ? getCallBadgeIcon() : getBaseIcon()
             button.image?.isTemplate = true
 
         case .recording:

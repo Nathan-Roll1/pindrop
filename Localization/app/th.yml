@@ -4,16 +4,25 @@
   local_processing: "การประมวลผลในท้องถิ่น 100%"
 1:
   folder: "1 โฟลเดอร์"
+  is_now_2: "%1$@ ตอนนี้คือ %2$@"
   note: "1 บันทึก"
+  said_2: "%1$@ พูดว่า: %2$@"
   speaker: "1 ผู้พูด"
   transcription: "การถอดเสียง 1 รายการ"
   word: "1 คำ"
   year: "1 year"
+  edited_2: "%1$@ · แก้ไข %2$@"
+  recording: "บันทึกเสียง %1$@"
+  recording_2: "บันทึกเสียง %1$@ · %2$@"
+  result: "1 ผลลัพธ์"
+  d_of_2_d: "%1$d จาก %2$d"
 90:
   days: "90 days"
 a:
   big_round_of_upgrades_and_two_community_shout: "การอัปเกรดชุดใหญ่ — และคำขอบคุณจากชุมชนสองรายการ"
+  call_started: "การโทรเริ่มขึ้นแล้ว"
   native_macos_menu_bar_dictation_app_using_loca: "แอพเขียนตามคำบอกบนแถบเมนู macOS ที่ใช้การแปลงคำพูดเป็นข้อความในเครื่องด้วย WhisperKit การประมวลผลภายในเครื่อง 100% ตามค่าเริ่มต้นพร้อมการเพิ่มประสิทธิภาพ AI ที่เป็นตัวเลือก"
+  note_capture_is_already_running: "มีการบันทึกโน้ตทำงานอยู่แล้ว"
 about:
   _self: "เกี่ยวกับ"
   pindrop: "เกี่ยวกับ พินดรอป"
@@ -68,6 +77,7 @@ ai:
 all:
   _self: "ทั้งหมด"
   time: "All time"
+  templates: "เทมเพลตทั้งหมด…"
 also:
   new_rtl_layout_support_and_20_new_interface: "ใหม่ด้วย: รองรับเลย์เอาต์ RTL และภาษาอินเทอร์เฟซใหม่ 20 ภาษา"
 an:
@@ -79,6 +89,7 @@ an:
     การถอดเสียงต้นฉบับได้รับการบันทึกโดยไม่มีการปรับปรุง
     คุณสามารถลองเปิดใช้งานการเพิ่มประสิทธิภาพ AI อีกครั้งได้ในการตั้งค่า
   error_occurred_while_enhancing_your_transcrip_1790ad05: "เกิดข้อผิดพลาดขณะปรับปรุงการถอดเสียงของคุณ:nn%@nnการถอดเสียงต้นฉบับถูกบันทึกโดยไม่มีการปรับปรุงnคุณสามารถลองเปิดใช้งานการปรับปรุง AI อีกครั้งได้ในการตั้งค่า"
+  earlier_version_of_pindrop_wrote_this_note_it: "โน้ตนี้เขียนโดย Pindrop รุ่นก่อนหน้า จึงเขียนใหม่ไม่ได้"
 anthropic:
   _self: "มานุษยวิทยา"
 api:
@@ -110,6 +121,7 @@ attach:
 audio:
   duration: "Audio duration"
   input: "อินพุตเสียง"
+  sealed: "ปิดผนึกเสียงแล้ว"
 automatic:
   follow_system: "อัตโนมัติ (ติดตามระบบ)"
   updates: "อัพเดตอัตโนมัติ"
@@ -119,6 +131,7 @@ automatically:
   start_pindrop_when_you_sign_in: "เริ่ม Pindrop โดยอัตโนมัติเมื่อคุณลงชื่อเข้าใช้"
 available:
   models: "รุ่นที่มีจำหน่าย"
+  when_the_recording_is_finished: "ใช้ได้เมื่อบันทึกเสียงเสร็จ"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +143,7 @@ avg:
 back:
   _self: "กลับ"
   to_library: "กลับไปที่ห้องสมุด"
+  to_notes: "กลับไปที่โน้ต"
 base:
   _self: "ฐาน"
 bearer:
@@ -146,10 +160,13 @@ built:
   in_read_only: "ในตัว (อ่านอย่างเดียว)"
 by:
   weekday: "By weekday"
+call:
+  audio: "เสียงการโทร"
 cancel:
   _self: "ยกเลิก"
   operation: "ยกเลิกการดำเนินการ"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
+  recording: "ยกเลิกการบันทึก"
 capture:
   directly_into_the_note_editor_with_a_hol: "บันทึกลงในเครื่องมือแก้ไขบันทึกโดยตรงด้วยโฟลว์การระงับเพื่อบันทึก"
 change:
@@ -158,6 +175,7 @@ change:
   your_choice_anytime_in_settings_privacy: "เปลี่ยนตัวเลือกของคุณได้ทุกเมื่อใน การตั้งค่า → ความเป็นส่วนตัว"
 changes:
   the_language_used_by_pindrop_s_interface: "Changes the language used by Pindrop's interface."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "การเปลี่ยนแปลงข้อมูลรับรองและปลายทางของผู้ให้บริการนี้จะมีผลกับการบันทึกที่กำลังดำเนินอยู่และการบันทึกที่กู้คืนมา โมเดลและพรอมต์ที่เลือกไว้จะยังคงเดิม"
 check:
   for_updates: "ตรวจสอบการอัปเดต..."
   for_updates_736b9062: "ตรวจสอบการอัปเดต"
@@ -192,6 +210,7 @@ choose:
 clean:
   up_filler_words: "ทำความสะอาดคำเติม"
 clear:
+  _self: "ล้าง"
   audio_buffer: "ล้างบัฟเฟอร์เสียง"
   hotkey: "ล้างปุ่มลัด"
   shortcut: "ล้างทางลัด"
@@ -203,6 +222,8 @@ click:
   or_press: "คลิกหรือกด"
   or_set_a_hotkey_to_start_talking: "คลิกหรือตั้งค่าปุ่มลัดเพื่อเริ่มพูด"
   this_icon_anytime_to: "คลิกไอคอนนี้เมื่อใดก็ได้เพื่อ:"
+  a_number_to_see_it_in_the_transcript: "คลิกหมายเลขเพื่อดูในข้อความถอดเสียง"
+  new_note_to_start_one: "คลิกโน้ตใหม่เพื่อเริ่ม Pindrop บันทึกเสียงขณะที่คุณพิมพ์"
 client:
   _self: "ไคลเอนต์"
 clipboard:
@@ -253,6 +274,8 @@ copy:
   the_most_recent_transcript_to_the_clipboard_03a8d47b: "Copy the most recent transcript to the clipboard."
   to_clipboard: "คัดลอกไปยังคลิปบอร์ด"
   transcript: "คัดลอกใบรับรองผลการเรียน"
+  content: "คัดลอกเนื้อหา"
+  note: "คัดลอกโน้ต"
 correct:
   grammar_mistakes: "แก้ไขข้อผิดพลาดทางไวยากรณ์"
 could:
@@ -278,6 +301,7 @@ custom:
   local: "กำหนดเอง / ท้องถิ่น"
   openai_compatible: "กำหนดเอง (รองรับ OpenAI)"
   presets: "ค่าที่ตั้งล่วงหน้าแบบกำหนดเอง"
+  templates: "เทมเพลตของคุณ"
 customize:
   hotkey: "ปรับแต่งปุ่มลัด"
 cut:
@@ -287,6 +311,7 @@ d:
   samples: "%d samples · %@"
   speakers: "%d ผู้พูด"
   words: "%d คำ"
+  results: "%d ผลลัพธ์"
 dark:
   _self: "มืด"
   preview: "การแสดงตัวอย่างสีเข้ม"
@@ -318,6 +343,9 @@ delete:
   transcription_f82187c4: "ลบการถอดเสียงเป็นคำใช่ไหม"
   all_contributions: "ลบการมีส่วนร่วมทั้งหมด…"
   all_stored_text_pairs: "ลบคู่ข้อความที่จัดเก็บไว้ทั้งหมดหรือไม่"
+  this_note: "ลบโน้ตนี้"
+  this_transcript: "ลบข้อความถอดเสียงนี้ไหม"
+  transcript: "ลบข้อความถอดเสียง"
 destinations:
   _self: "Destinations"
 diarization:
@@ -335,6 +363,8 @@ diarized:
   _self: "แยกผู้พูดแล้ว"
 dictate:
   in_russian_and_ukrainian: "ป้อนตามคำบอกเป็นภาษารัสเซียและยูเครน"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "การเขียนตามคำบอก"
   language: "ภาษาการเขียนตามคำบอก"
@@ -352,6 +382,8 @@ display:
   name: "ชื่อที่แสดง"
   name_c7874aaa: "ชื่อที่แสดง"
   pindrop_in_the_dock_instead_of_running_o: "แสดง Pindrop ใน Dock แทนที่จะทำงานเป็นแอปแถบเมนูเท่านั้น"
+do:
+  you_want_a_notification_when_a_call_starts: "ต้องการการแจ้งเตือนเมื่อการโทรเริ่มขึ้นไหม?"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "วางแถบด้านข้างไว้ที่ขอบซ้ายหรือขวาของหน้าต่าง"
 done:
@@ -398,6 +430,8 @@ english:
   only: "ภาษาอังกฤษเท่านั้น"
 enhanced:
   _self: "ปรับปรุงแล้ว"
+  note: "โน้ตที่ปรับปรุงแล้ว"
+  notes: "โน้ตที่ปรับปรุงแล้ว"
 enhancement:
   prompts: "แจ้งการเพิ่มประสิทธิภาพ"
 enhancing:
@@ -457,6 +491,7 @@ file:
   _self: "ไฟล์"
 find:
   _self: "ค้นหา"
+  in_this_note: "ค้นหาในโน้ตนี้"
 fix:
   punctuation_and_capitalization: "แก้ไขเครื่องหมายวรรคตอนและการใช้อักษรตัวพิมพ์ใหญ่"
 floating:
@@ -505,6 +540,7 @@ help:
 hide:
   api_key: "ซ่อนคีย์ API"
   this_for_1_hour: "ซ่อนสิ่งนี้เป็นเวลา 1 ชั่วโมง"
+  live_transcript: "ซ่อนข้อความถอดเสียงสด"
 history:
   _self: "ประวัติศาสตร์"
 hold:
@@ -601,7 +637,12 @@ limited:
 listening:
   _self: "กำลังฟัง…"
 live:
+  names_cover_up_to_four_voices: "ชื่อแบบสดรองรับได้ถึงสี่เสียง"
+  speaker_names_need_the_speaker_model_downlo: "ชื่อผู้พูดแบบสดต้องใช้โมเดลผู้พูด ดาวน์โหลดเพื่อตั้งชื่อผู้คนขณะบันทึกเสียง"
+  speaker_names_paused: "หยุดชื่อผู้พูดแบบสดชั่วคราว"
   streaming_refinement: "การปรับแต่งการสตรีมสด"
+  text_stopped_the_recording_continues: "ข้อความสดหยุดแล้ว การบันทึกยังดำเนินต่อ"
+  transcript: "ข้อความถอดเสียงสด"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -642,6 +683,7 @@ manage:
   presets: "จัดการค่าที่ตั้งล่วงหน้า"
   presets_ab87986d: "จัดการค่าที่ตั้งล่วงหน้า..."
   presets_d5d4c2c2: "Manage Presets…"
+  templates: "จัดการเทมเพลต…"
 manual:
   capture: "Manual capture"
 manually:
@@ -666,6 +708,7 @@ meet:
   the_new_orb: "พบกับ Orb ใหม่"
 meeting:
   saved: "บันทึกการประชุมแล้ว"
+  note: "โน้ตการประชุม"
 metric:
   _self: "Metric"
 microphone:
@@ -696,16 +739,22 @@ mute:
   system_audio_during_recording: "ปิดเสียงระบบระหว่างการบันทึก"
 name:
   _self: "ชื่อ"
+  speakers_while_recording: "ตั้งชื่อผู้พูดขณะบันทึก"
 nemotron:
   default: "Nemotron (default)"
 new:
   folder: "โฟลเดอร์ใหม่"
+  meeting_note: "โน้ตการประชุมใหม่"
   note: "หมายเหตุใหม่"
   preset: "พรีเซ็ตใหม่"
+  note_with_system_audio: "โน้ตใหม่พร้อมเสียงระบบ"
+  note_without_recording: "โน้ตใหม่โดยไม่บันทึกเสียง"
+  template: "เทมเพลตใหม่"
 newest:
   _self: "ใหม่สุด"
 next:
   _self: "ต่อไป"
+  match: "ที่ตรงกันถัดไป"
 no:
   activity_in_this_period: "No activity in this period"
   api_key: "ไม่มีคีย์ API"
@@ -734,10 +783,17 @@ no:
   results_found: "ไม่พบผลลัพธ์"
   settings_found: "ไม่พบการตั้งค่า"
   speech_detected_try_speaking_closer_to_your: "ไม่พบคำพูด ลองพูดให้ใกล้ไมโครโฟนมากขึ้น"
+  template_the_note_is_written_as_plain_notes: "ไม่ใช้เทมเพลต โน้ตจะถูกเขียนเป็นโน้ตธรรมดา"
+  thanks: "ไม่เป็นไร ขอบคุณ"
   transcriptions_yet: "ยังไม่มีการถอดเสียงเป็นคำ"
   vocabulary_words: "ไม่มีคำศัพท์"
   transcripts_audio_prompts_file_names_or_perso: "ไม่มีการถอดเสียง เสียง พรอมต์ ชื่อไฟล์ หรือเนื้อหาส่วนบุคคล — ไม่มีเลย"
   contributions_yet_pairs_are_stored_when_ai_en: "ยังไม่มีการมีส่วนร่วม คู่ข้อความจะถูกจัดเก็บเมื่อการปรับปรุงด้วย AI หรือการแก้ไขด้วยตนเองเปลี่ยนแปลงการถอดเสียง"
+  audio_was_recorded_for_this_note: "ไม่มีการบันทึกเสียงสำหรับโน้ตนี้"
+  enhanced_note_yet: "ยังไม่มีโน้ตที่ปรับปรุงแล้ว"
+  notes_yet_sentence: "ยังไม่มีโน้ต"
+  results_try_another_word: "ไม่พบผลลัพธ์ ลองคำอื่น"
+  matches: "ไม่พบที่ตรงกัน"
 not:
   assigned: "ไม่ได้รับมอบหมาย"
   enough_voice_data_yet: "Not enough voice data yet"
@@ -747,6 +803,7 @@ not:
   set: "ไม่ได้ตั้งค่า"
   set_93039e60: "ไม่ได้ตั้งค่า"
   now: "ไว้ก่อน"
+  helpful: "ไม่มีประโยชน์"
 note:
   _self: "บันทึก"
   capture_hold: "Note Capture — Hold"
@@ -758,9 +815,19 @@ note:
   metadata: "หมายเหตุ ข้อมูลเมตา"
   saved: "บันทึกโน้ตแล้ว"
   title: "หมายเหตุ ชื่อเรื่อง"
+  actions: "การดำเนินการของโน้ต"
 notes:
   _self: "หมายเหตุ"
   3add7b96: "บันทึกย่อ"
+  header_meta_empty: "ยังไม่มีอะไรที่นี่"
+  header_meta_today: "%1$@ โดย %2$@ เป็นของวันนี้"
+  new_note_options_label: "ตัวเลือกโน้ตใหม่เพิ่มเติม"
+  row_recording_elapsed: "REC %@"
+notifications:
+  are_turned_off_for_pindrop_turn_th: "การแจ้งเตือนถูกปิดอยู่สำหรับ Pindrop เปิดในการตั้งค่าระบบเพื่อให้ระบบถามคุณเกี่ยวกับการโทร"
+notify:
+  me: "แจ้งเตือนฉัน"
+  me_when_a_call_starts: "แจ้งเตือนฉันเมื่อการโทรเริ่มขึ้น"
 off:
   _self: "ปิด"
 ok:
@@ -783,6 +850,7 @@ open:
   settings: "เปิดการตั้งค่า"
   settings_fd7108f8: "เปิดการตั้งค่า"
   system_settings: "เปิดการตั้งค่าระบบ"
+  note: "เปิดโน้ต"
 openai:
   _self: "OpenAI"
   compatible_local_server: "เซิร์ฟเวอร์ภายในที่เข้ากันได้กับ OpenAI"
@@ -829,35 +897,73 @@ permissions:
 pick:
   which_provider_and_model_handles_each_ai_ta: "เลือกผู้ให้บริการและโมเดลที่จะจัดการงาน AI แต่ละรายการ ปล่อยให้เป็น \"ไม่ได้มอบหมาย\" เพื่อข้ามวัตถุประสงค์"
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
+  a_model_for_note_enhancement_in_settings_th: "เลือกโมเดลสำหรับปรับปรุงโน้ตในการตั้งค่า แล้วลองอีกครั้ง"
 pill:
   _self: "ยา"
+pillars:
+  capture: "การบันทึก"
+  workspace: "พื้นที่ทำงาน"
+  tools: "เครื่องมือ"
+  dictate: "ป้อนตามคำบอก"
+  voice_note: "โน้ตเสียง"
+  meeting: "การประชุม"
+  dictate_description: "พูด แล้ว Pindrop จะเขียนลงในแอปที่คุณกำลังใช้งาน"
+  voice_note_description: "บันทึกความคิดและเก็บไว้ในโน้ต"
+  meeting_description: "บันทึกเสียงจากไมโครโฟนและระบบ แล้วเก็บการประชุมไว้ในไลบรารี"
+  start_dictating: "เริ่มป้อนตามคำบอก"
+  start_voice_note: "เริ่มโน้ตเสียง"
+  open_notes: "เปิดโน้ต"
+  change_shortcut: "เปลี่ยนปุ่มลัด"
+  capture_in_progress: "กำลังบันทึก"
+  finish_current_capture: "บันทึกปัจจุบันให้เสร็จก่อนเริ่มรายการใหม่"
+  voice_note_hold: "โน้ตเสียง — กดค้าง"
+  voice_note_toggle: "โน้ตเสียง — สลับ"
+  you_captured_this_week: "คุณบันทึก %@ ในสัปดาห์นี้"
+  you_recorded_this_week: "คุณอัด %@ ในสัปดาห์นี้"
+  one_voice_note: "1 โน้ตเสียง"
+  n_voice_notes: "%@ โน้ตเสียง"
+  one_meeting: "1 การประชุม"
+  n_meetings: "%@ การประชุม"
+  of_meeting_audio: "เสียงการประชุม %@"
+  voice_note_shortcut_hint: "กด %1$@ ค้างไว้หรือกด %2$@ จากที่ใดก็ได้"
+  hold_anywhere: "กด %@ ค้างไว้จากที่ใดก็ได้"
+  press_anywhere: "กด %@ จากที่ใดก็ได้"
+  voice_notes_empty: "โน้ตเสียงของคุณจะแสดงที่นี่"
+  meetings_empty: "การประชุมที่บันทึกไว้ของคุณจะแสดงที่นี่"
 pin:
   to_screen_always_on_top: "ปักหมุดที่หน้าจอ (อยู่ด้านบนเสมอ)"
 pindrop:
   _self: "พินดรอป"
   1_19: "Pindrop 1.19"
+  checks_the_speakers_again_when_the_recor: "Pindrop จะตรวจผู้พูดอีกครั้งเมื่อการบันทึกสิ้นสุด"
   help: "วิธีใช้ Pindrop"
   is_ready_to_use_click_the_menu_bar_icon: |-
     พินดรอปพร้อมใช้งานแล้ว
     คลิกไอคอนแถบเมนูเพื่อเริ่มต้น
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop พร้อมใช้งานแล้วคลิกไอคอนแถบเมนูเพื่อเริ่มต้น"
+  is_transcribing_only_your_microphone_the: "Pindrop ถอดเสียงเฉพาะไมโครโฟนของคุณ เสียงการโทรจะอยู่ในโน้ตฉบับสมบูรณ์"
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop ต้องการการอนุญาตเล็กน้อยในการทำงาน ความเป็นส่วนตัวของคุณได้รับการเคารพเสมอ"
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop ต้องการสิทธิ์บางอย่างในการทำงาน
     ความเป็นส่วนตัวของคุณได้รับการเคารพเสมอ
   needs_accessibility_permission_to_insert: "\"\" Pindrop ต้องการสิทธิ์การเข้าถึงเพื่อแทรกข้อความที่เคอร์เซอร์ของคุณ                          หากต้องการให้สิทธิ์: 1. คลิก \"เปิดการตั้งค่าระบบ\" ด้านล่าง 2. คลิกปุ่ม + 3. ไปที่แอปที่แสดงใน Finder 4. รีสตาร์ท Pindrop หลังจากให้สิทธิ์ หากไม่ได้รับสิทธิ์นี้ ข้อความจะถูกคัดลอกไปยังคลิปบอร์ดของคุณเท่านั้น             \"\""
   needs_microphone_access_to_record_and_tr: "Pindrop ต้องการการเข้าถึงไมโครโฟนเพื่อบันทึกและถอดเสียงของคุณ โปรดให้สิทธิ์ในการตั้งค่าระบบ"
+  noticed_a_call: "Pindrop พบการโทร"
   on_github: "Pindrop บน GitHub"
   orb: "ออร์บ Pindrop"
   pill: "ยาพินดรอป"
   theme: "ธีมพินดรอป"
   can_send_anonymous_privacy_preserving_si: "Pindrop สามารถส่งสัญญาณแบบไม่ระบุตัวตนที่ปกป้องความเป็นส่วนตัว เพื่อให้แก้ไขข้อบกพร่องได้เร็วขึ้น"
+  writes_one_from_your_notes_and_the_trans: "Pindrop จะเขียนให้จากโน้ตของคุณและข้อความถอดเสียง"
+  did_not_match_this_voice_to_a_saved_spea: "Pindrop จับคู่เสียงนี้กับผู้พูดที่บันทึกไว้ไม่ได้ จึงยังไม่มีชื่อให้เปลี่ยน"
+  needs_this_one_it_downloads_once: "Pindrop ต้องใช้ไฟล์นี้ ดาวน์โหลดเพียงครั้งเดียว"
 pinned:
   _self: "ปักหมุด"
 plain:
   text_txt: "ข้อความธรรมดา (.txt)"
 play:
   _self: "เล่น"
+  recording: "เล่นการบันทึก"
 please:
   check_your_internet_connection_and_try_ag: "โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ตของคุณแล้วลองอีกครั้ง"
   download_a_whisper_model_in_settings_befo: |-
@@ -950,6 +1056,10 @@ recommended:
   _self: "ที่แนะนำ"
 record:
   _self: "บันทึก"
+  it_as_a_note: "บันทึกเป็นโน้ตไหม?"
+  system_audio_in_meeting_notes: "บันทึกเสียงระบบในโน้ตการประชุม"
+  this_call: "บันทึกการโทรนี้"
+  with_system_audio: "บันทึกพร้อมเสียงระบบ"
 recording:
   _self: "การบันทึก"
   3f8fd48c: "🔴 การบันทึก"
@@ -957,6 +1067,8 @@ recording:
   in_progress_transcription_will_start: "กำลังบันทึกอยู่ — การถอดเสียงจะเริ่มเมื่อบันทึกเสร็จสิ้น"
   stopped_with_error: "การบันทึกหยุดลง: %@"
   from_external_and_bluetooth_microphone: "การบันทึกจากไมโครโฟนภายนอกและ Bluetooth ตอนนี้เสถียรมาก แม้ว่าเอาต์พุตเสียงจะถูกส่งไปที่อื่น"
+  continues_while_you_work: "การบันทึกดำเนินต่อขณะที่คุณทำงาน"
+  transcribed: "ถอดเสียงการบันทึกแล้ว"
 recordings:
   _self: "การบันทึก"
 redo:
@@ -990,6 +1102,7 @@ report:
 required:
   _self: "ที่จำเป็น"
   for_recording_your_voice: "จำเป็นสำหรับการบันทึกเสียงของคุณ"
+  helpers_download_when_you_set_pindrop_u: "ตัวช่วยที่จำเป็นจะดาวน์โหลดตอนตั้งค่า Pindrop หากขาดตัวใด Pindrop จะดึงมาในครั้งถัดไปที่เปิด"
 requires:
   a_fast_provider_apple_foundation_models: "ต้องมีผู้ให้บริการที่รวดเร็ว (แนะนำรุ่น Apple Foundation) ผู้ให้บริการคลาวด์จะทำการเรียก API หนึ่งครั้งต่อการหยุดชั่วคราว"
   diarization_model: "Requires diarization model"
@@ -1064,18 +1177,25 @@ setup:
 shortcuts:
   _self: "ทางลัด"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "แสดงวิธีบันทึกเมื่อแอปการประชุมเปิดไมโครโฟนของคุณ"
   api_key: "แสดงคีย์ API"
   app: "แสดงแอป"
   app_in_finder: "แสดงแอปใน Finder"
   floating_indicator: "แสดงตัวบ่งชี้แบบลอย"
   in_dock: "แสดงในด็อค"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  live_transcript: "แสดงข้อความถอดเสียงสด"
+  in_transcript: "แสดงในข้อความถอดเสียง"
+  the_transcript_so_far: "แสดงข้อความถอดเสียงจนถึงตอนนี้"
+  who_is_talking_in_the_live_transcript_names: "แสดงว่าใครกำลังพูดในข้อความถอดเสียงสด ชื่อจะถูกตรวจอีกครั้งเมื่อการบันทึกสิ้นสุด"
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "แสดงเป็นออร์บแก้วเหลวที่มุมหน้าจอ"
   as_a_pill_at_the_bottom_of_the_screen: "แสดงเป็นเม็ดยาที่ด้านล่างของหน้าจอ"
   beside_the_focused_text_field_caret: "แสดงข้างช่องข้อความ/คาเร็ตที่โฟกัส"
   in_the_menu_bar_notch_area: "แสดงในแถบเมนู/พื้นที่รอยบาก"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "ตำแหน่งแถบด้านข้าง"
   position_916f66ea: "ตำแหน่งแถบด้านข้าง"
 simplified:
@@ -1097,6 +1217,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     รุ่นเล็กจะเร็วกว่าแต่แม่นยำน้อยกว่า
     เริ่มต้นด้วยฐานเพื่อความสมดุลที่ดีที่สุด
+someone:
+  else_spoke_here_the_finished_note_has_it: "มีคนอื่นพูดตรงนี้ โน้ตฉบับสมบูรณ์มีข้อความนี้"
 something:
   went_wrong: "มีบางอย่างผิดพลาด"
 soon:
@@ -1107,17 +1229,25 @@ source:
   _self: "แหล่งที่มา"
 sources:
   _self: "Sources"
+  are_fixed_when_the_recording_starts: "แหล่งเสียงถูกกำหนดเมื่อเริ่มบันทึก"
+  d: "แหล่งที่มา (%d)"
 spanish:
   _self: "สเปน"
 speak:
   to_append: "พูดเพื่อเพิ่ม"
 speaker:
+  _self: "ผู้พูด"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "มีการแนบไดอะแกรมของลำโพงและการประทับเวลาไว้กับการเล่น"
   diarization_is_required: "จำเป็นต้องแปลงเสียงของผู้พูด"
+  names_were_checked_again_against_the_ful: "ตรวจชื่อผู้พูดอีกครั้งกับการบันทึกทั้งหมดแล้ว"
   profile_training: "Speaker profile training"
+  d: "ผู้พูด %d"
 speakers:
   _self: "ผู้พูด"
+  1: "ผู้พูด: %1$@"
+  are_set_when_the_recording_starts: "ผู้พูดถูกกำหนดเมื่อเริ่มบันทึก"
+  identified: "ระบุผู้พูดแล้ว"
 speed:
   _self: "ความเร็ว"
 start:
@@ -1128,9 +1258,12 @@ start:
   using_pindrop: "เริ่มใช้ Pindrop"
   in_the_menu_bar_without_opening_the_main_w: "เริ่มในแถบเมนูโดยไม่เปิดหน้าต่างหลัก คุณยังสามารถเปิดได้จากไอคอนแถบเมนู"
 stats:
-  _self: "Stats"
+  _self: "สถิติ"
 status:
   _self: "สถานะ"
+still:
+  hearing: "ยังได้ยิน: %@"
+  working_long_recordings_take_a_while: "ยังทำงานอยู่ การบันทึกที่ยาวใช้เวลาสักครู่"
 stop:
   listening: "หยุดฟัง"
   recording: "หยุดการบันทึก"
@@ -1158,6 +1291,7 @@ switching:
 system:
   _self: "ระบบ"
   default: "ค่าเริ่มต้นของระบบ"
+  audio: "เสียงระบบ"
 teach:
   custom_words: "สอนคำศัพท์ที่กำหนดเอง"
 temporarily:
@@ -1171,9 +1305,23 @@ thanks:
   to_for_the_contribution_pr_61: "ขอบคุณ %@ สำหรับการมีส่วนร่วม (PR #61)"
 the:
   floating_indicator_is_hidden: "ตัวบ่งชี้แบบลอยถูกซ่อนอยู่"
+  live_speaker_model_could_not_be_loaded_recor: "โหลดโมเดลผู้พูดแบบสดไม่สำเร็จ การบันทึกยังดำเนินต่อ และโน้ตฉบับสมบูรณ์ยังระบุชื่อทุกคน"
   model_failed_to_load_within_60_seconds_this: "\"\" ไม่สามารถโหลดโมเดลได้ภายใน 60 วินาที ซึ่งมักจะหมายถึงไฟล์โมเดลเสียหายหรือเข้ากันไม่ได้                          วิธีแก้ไขปัญหานี้: 1. เปิดการตั้งค่า → โมเดล 2. ลบโมเดลที่มีปัญหา 3. ดาวน์โหลดโมเดลอีกครั้ง หากปัญหายังคงอยู่ ให้ลองใช้โมเดลที่เล็กกว่า (จิ๋วหรือฐาน)             \"\""
   new_nemotron_streaming_engine_shows_words_as: "เอนจินสตรีมมิง Nemotron ใหม่จะแสดงคำตามที่คุณพูด และอุ่นเครื่องตอนเปิดแอปเพื่อให้การป้อนตามคำบอกครั้งแรกเริ่มได้โดยไม่ล่าช้า"
   selected_chunk_variant_isn_t_downloaded_yet: "ยังไม่ได้ดาวน์โหลดชุดย่อยที่เลือก การสลับจะเริ่มการดาวน์โหลด"
+  audio_and_the_live_transcript_are_deleted_yo: "เสียงและข้อความถอดเสียงสดจะถูกลบ โน้ตที่คุณพิมพ์ยังอยู่"
+  enhanced_note_could_not_be_generated_try_aga: "สร้างโน้ตที่ปรับปรุงแล้วไม่ได้ ลองอีกครั้ง"
+  enhanced_note_could_not_be_saved_try_again: "บันทึกโน้ตที่ปรับปรุงแล้วไม่ได้ ลองอีกครั้ง"
+  model_returned_an_empty_note_try_again: "โมเดลส่งกลับโน้ตว่าง ลองอีกครั้ง"
+  note_enhancement_model_is_unavailable_check: "โมเดลปรับปรุงโน้ตใช้ไม่ได้ ตรวจสอบในการตั้งค่า แล้วลองอีกครั้ง"
+  note_this_recording_belongs_to_could_not_be_opened: "เปิดโน้ตที่การบันทึกนี้สังกัดอยู่ไม่ได้"
+  recorded_audio_could_not_be_prepared: "เตรียมเสียงที่บันทึกไว้สำหรับการถอดเสียงไม่ได้"
+  recorder_did_not_start: "เครื่องบันทึกไม่เริ่มทำงาน"
+  transcript_fills_in_as_you_speak: "ข้อความถอดเสียงจะเติมขึ้นขณะที่คุณพูด"
+  transcript_starts_once_you_speak: "ข้อความถอดเสียงจะเริ่มทันทีที่คุณพูด"
+  answer_came_back_in_a_form_pindrop_could_not: "คำตอบกลับมาในรูปแบบที่ Pindrop อ่านไม่ได้ ถามอีกครั้ง"
+  answer_could_not_be_generated_check_your_con: "สร้างคำตอบไม่ได้ ตรวจสอบการเชื่อมต่อของคุณแล้วถามอีกครั้ง"
+  model_returned_an_empty_answer_ask_again: "โมเดลส่งกลับคำตอบว่างเปล่า ถามอีกครั้ง"
 theme:
   _self: "ธีม"
   changes_apply_live_across_the_workspace_se: "การเปลี่ยนแปลงธีมมีผลใช้งานจริงทั่วทั้งพื้นที่ทำงาน การตั้งค่า ตัวแก้ไขบันทึกย่อ และตัวบ่งชี้แบบลอย"
@@ -1198,6 +1346,8 @@ this:
   will_permanently_remove_the_transcript_and: "การดำเนินการนี้จะลบข้อความถอดเสียงและไฟล์สื่อที่มีการจัดการออกอย่างถาวร"
   will_permanently_remove_this_note: "การดำเนินการนี้จะลบบันทึกนี้อย่างถาวร"
   permanently_deletes_all_stored_text_pairs_f: "การดำเนินการนี้จะลบคู่ข้อความที่จัดเก็บไว้ทั้งหมดออกจาก Mac เครื่องนี้อย่างถาวร"
+  template_could_not_be_read_pick_another_tem: "อ่านเทมเพลตนี้ไม่ได้ เลือกเทมเพลตอื่นแล้วลองอีกครั้ง"
+  note_could_not_be_opened_close_it_and_open: "เปิดโน้ตนี้ไม่ได้ ปิดแล้วเปิดใหม่อีกครั้ง"
 time:
   of_day: "Time of day"
   range: "Time range"
@@ -1209,6 +1359,7 @@ to:
   dictate_and_let_pindrop_transcribe_for_you: "เพื่อกำหนดและให้ Pindrop ถอดเสียงให้คุณ"
   start_talking: "เพื่อเริ่มพูด"
 today:
+  comma_time: "%1$@, %2$@"
   _self: "วันนี้"
 toggle:
   _self: "สลับ"
@@ -1233,6 +1384,7 @@ transcription:
   metadata: "ข้อมูลเมตาของการถอดเสียง"
   saved: "บันทึกการถอดเสียงแล้ว"
   update: "อัปเดตการถอดเสียงเป็นคำ"
+  done: "ถอดเสียงเสร็จแล้ว"
 transcriptions:
   _self: "การถอดเสียง"
   f0972acc: "การถอดเสียง"
@@ -1244,12 +1396,14 @@ try:
   a_different_search_term_0ba628a3: "ลองใช้คำค้นหาอื่น"
   a_different_search_term_in_this_folder: "ลองใช้คำค้นหาอื่นในโฟลเดอร์นี้"
   searching_for_terms_like_hotkeys_microphone: "ลองค้นหาคำต่างๆ เช่น ปุ่มลัด ไมโครโฟน การอัปเดต หรือโหมดความรู้สึก"
+  again: "ลองอีกครั้ง"
 turkish:
   _self: "ภาษาตุรกี"
 two:
   new_dictation_languages_fully_wired_into_mod: "ภาษาป้อนตามคำบอกใหม่สองภาษา เชื่อมต่อกับคำแนะนำโมเดลอย่างสมบูรณ์"
 type:
   text_directly_into_the_active_app_when_poss: "พิมพ์ข้อความลงในแอปที่ใช้งานอยู่โดยตรงเมื่อเป็นไปได้"
+  a_question_about_this_note_then_send_it_aga: "พิมพ์คำถามเกี่ยวกับโน้ตนี้แล้วส่งอีกครั้ง"
 u10:
   floating_inserted_into: "แทรกลงใน %@ แล้ว"
   floating_microphone_unavailable: "ไมโครโฟนไม่พร้อมใช้งาน"
@@ -1320,7 +1474,7 @@ u4:
   home_recent_empty_hint: "การพิมพ์ตามคำบอกล่าสุดจะแสดงที่นี่"
   home_streak: "ต่อเนื่อง"
   home_subline_duration_only: "%@ ของการพิมพ์ตามคำบอก"
-  home_subline_full: "%@ ของการพิมพ์ตามคำบอก — ประหยัดประมาณ %@ เมื่อเทียบกับการพิมพ์"
+  home_subline_full: "บอกจด %@ ประหยัดไปประมาณ %@ เทียบกับการพิมพ์"
   home_this_week: "สัปดาห์นี้"
   home_welcome_tagline: "พูด แล้วจะถูกเขียน"
   home_words_per_min: "คำ / นาที"
@@ -1328,6 +1482,11 @@ u4:
   home_words_today: "คำวันนี้"
   home_you_spoke_this_week: "สัปดาห์นี้คุณพูด %@"
   home_zero_day: "0 วัน"
+  home_n_sessions_grouped: "%@ เซสชัน"
+  home_no_dictations_yet: "ยังไม่มีการบอกจด"
+  home_one_session: "1 เซสชัน"
+  home_press_hotkey_to_start: "กด %@ ที่ใดก็ได้เพื่อเริ่ม"
+  home_stop: "หยุด"
 u5:
   u7_add_replacement: "Add replacement"
   u7_add_word: "Add word"
@@ -1486,8 +1645,13 @@ vocabulary:
   _self: "คำศัพท์"
 voice:
   _self: "Voice"
+  isolation: "การแยกเสียงพูด"
+  reduce_background_noise_before_transcription: "ลดเสียงรบกวนเบื้องหลังก่อนถอดเสียง"
+  note: "โน้ตเสียง"
 vs:
   typing: "เทียบกับการพิมพ์"
+watch:
+  for_calls: "เฝ้าดูการโทร"
 web:
   link: "Web link"
 welcome:
@@ -1515,13 +1679,16 @@ wpm:
 yesterday:
   _self: "เมื่อวาน"
 you:
+  _self: "คุณ"
   are_a_note_formatting_assistant_transform_th: "คุณเป็นผู้ช่วยจัดรูปแบบบันทึกย่อ แปลงข้อความที่ถอดเสียงให้เป็นบันทึกที่มีโครงสร้างที่ดีnnกฎ:n- แก้ไขข้อผิดพลาดด้านไวยากรณ์ เครื่องหมายวรรคตอน และการสะกดคำn- สำหรับเนื้อหาที่ยาวกว่า (3 ย่อหน้าขึ้นไป) ให้เพิ่มการจัดรูปแบบมาร์กดาวน์:n - ใช้ส่วนหัว (## หรือ ###) เพื่อจัดระเบียบส่วนต่างๆn - ใช้สัญลักษณ์แสดงหัวข้อย่อยหรือรายการลำดับเลขตามความเหมาะสม - ใช้ **ตัวหนา** เพื่อเน้นคำสำคัญn- สำหรับเนื้อหาที่สั้นกว่า ให้เรียบง่ายโดยใช้การจัดรูปแบบน้อยที่สุดn- คงความหมายดั้งเดิมและโทนเสียงไว้- ทำ ไม่เพิ่มเนื้อหาที่ไม่ได้อยู่ในต้นฉบับ - ส่งกลับเฉพาะบันทึกย่อที่จัดรูปแบบแล้วโดยไม่มีคำอธิบายใดๆ"
   are_a_text_enhancement_assistant_improve_the: "คุณเป็นผู้ช่วยเพิ่มประสิทธิภาพข้อความ ปรับปรุงไวยากรณ์ เครื่องหมายวรรคตอน และการจัดรูปแบบของข้อความที่ให้ไว้โดยยังคงความหมายและน้ำเสียงดั้งเดิมไว้ ส่งกลับเฉพาะข้อความที่ได้รับการปรับปรุงโดยไม่มีคำอธิบายเพิ่มเติม"
   can_change_these_anytime_from_the_menu_bar_s: "คุณสามารถเปลี่ยนได้ตลอดเวลาจากแถบเมนู → การตั้งค่า → ปุ่มลัด"
   re_all_set: "คุณพร้อมแล้ว!"
   re_all_set_058a8130: "คุณพร้อมแล้ว!"
+  spoke_here_the_finished_note_has_it: "คุณพูดตรงนี้ โน้ตฉบับสมบูรณ์มีข้อความนี้"
   ve_exceeded_your_api_rate_limit_or_quota_to: "\"\" คุณใช้งานเกินขีดจำกัดอัตรา API หรือโควต้าของคุณ                                  วิธีแก้ไขปัญหานี้: 1. รอสักครู่แล้วลองอีกครั้ง 2. ตรวจสอบขีดจำกัดการใช้งานของผู้ให้บริการ API ของคุณ 3. พิจารณาอัปเกรดแผน API ของคุณ การถอดเสียงได้รับการบันทึกโดยไม่มีการปรับปรุง                 \"\""
   re_in_control: "คุณเป็นผู้ควบคุม"
+  deleted_this_transcript: "คุณลบข้อความถอดเสียงนี้แล้ว"
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\" รหัส API ของคุณดูเหมือนจะไม่ถูกต้องหรือหมดอายุแล้ว                                  วิธีแก้ไขปัญหานี้: 1. เปิดการตั้งค่า → การเพิ่มประสิทธิภาพ AI 2. ตรวจสอบคีย์ API ของคุณถูกต้อง 3. ตรวจสอบว่าจุดสิ้นสุด API ของคุณถูกต้อง การถอดเสียงได้รับการบันทึกโดยไม่มีการปรับปรุง                 \"\""
   floating_indicator_is_now_a_living_audio_re: "ตัวบ่งชี้แบบลอยของคุณตอนนี้เป็น orb ที่มีชีวิตและตอบสนองต่อเสียง หายใจเมื่ออยู่นิ่ง ขยายเมื่อคุณพูด และสตรีมคำของคุณแบบสดขณะป้อนตามคำบอก"
@@ -1533,6 +1700,8 @@ your:
   stats: "สถิติของคุณ"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "คำพูดของคุณยังเป็นของคุณ"
+  enhanced_note_is_ready: "โน้ตที่ปรับปรุงแล้วของคุณพร้อมแล้ว"
+  notes_and_the_enhanced_note_stay_the_transc: "โน้ตของคุณและโน้ตที่ปรับปรุงแล้วยังอยู่ ข้อความถอดเสียงจะถูกซ่อนจากโน้ตนี้"
 zoom:
   _self: "ซูม"
 polish:
@@ -1578,3 +1747,99 @@ total:
 tokens:
   in_out: "โทเค็นเข้า %@ / ออก %@"
   in_out_thinking: "โทเค็นเข้า %@ / ออก %@ / คิด %@"
+auto:
+  _self: "อัตโนมัติ"
+discard:
+  recording: "ทิ้งการบันทึก"
+  this_recording: "ทิ้งการบันทึกนี้ไหม"
+finalizing:
+  _self: "กำลังปิดงาน"
+finish:
+  _self: "เสร็จสิ้น"
+  the_active_transcription_before_starting: "ทำการถอดเสียงที่ทำอยู่ให้เสร็จก่อนเริ่มรายการใหม่"
+  the_active_transcription_before_starting_another: "ทำการถอดเสียงที่ทำอยู่ให้เสร็จก่อนเริ่มรายการใหม่"
+generate:
+  enhanced_note: "สร้างโน้ตที่ปรับปรุงแล้ว"
+generated:
+  _self: "สร้างเมื่อ %@"
+  1_2_template: "สร้างเมื่อ %1$@ · เทมเพลต %2$@"
+helpful:
+  _self: "มีประโยชน์"
+identifying:
+  speakers: "กำลังระบุผู้พูด"
+jump:
+  to_live: "ไปที่สด"
+  to_this_line: "ไปที่บรรทัดนี้"
+mic:
+  _self: "ไมโครโฟน"
+more:
+  note_actions: "การกระทำอื่นกับโน้ต"
+  recording_options: "ตัวเลือกการบันทึกเพิ่มเติม"
+my:
+  notes: "โน้ตของฉัน"
+nothing:
+  was_transcribed_yet: "ยังไม่มีการถอดเสียงใด ๆ"
+playback:
+  position: "ตำแหน่งการเล่น"
+s:
+  to_save: "⌘S เพื่อบันทึก"
+sealing:
+  audio: "กำลังปิดผนึกเสียง"
+  the_recording: "กำลังปิดผนึกการบันทึก"
+see:
+  this_in_the_transcript: "ดูสิ่งนี้ในข้อความถอดเสียง"
+  where_this_came_from: "ดูที่มาของสิ่งนี้"
+template:
+  _self: "เทมเพลต: %@"
+  3ec1ae06: "เทมเพลต"
+templates:
+  _self: "เทมเพลต"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "ยังไม่มีข้อความถอดเสียงให้ปรับปรุง บันทึกโน้ตนี้ก่อน"
+  is_nothing_to_ask_about_yet_record_or_writ: "ยังไม่มีอะไรให้ถาม บันทึกหรือเขียนอะไรบางอย่างก่อน"
+transcribing:
+  _self: "กำลังถอดเสียง"
+  failed_the_recording_is_saved_try_a: "การถอดเสียงล้มเหลว การบันทึกถูกเก็บไว้แล้ว ลองอีกครั้ง หรือเปิดเสียงจากโน้ต"
+transcript:
+  _self: "ข้อความถอดเสียง"
+  so_far_pindrop_is_checking_it_against: "ข้อความถอดเสียงจนถึงตอนนี้ Pindrop กำลังตรวจสอบกับการบันทึก"
+  source: "แหล่งข้อความถอดเสียง %@"
+was:
+  _self: "เดิม %@"
+  this_note_useful: "โน้ตนี้มีประโยชน์ไหม"
+writing:
+  note: "กำลังเขียนโน้ต"
+  your_enhanced_note: "กำลังเขียนโน้ตที่ปรับปรุงแล้วของคุณ"
+  your_enhanced_note_comes_next_long_recor: "ขั้นต่อไปคือการเขียนโน้ตที่ปรับปรุงแล้วของคุณ การบันทึกที่ยาวอาจใช้เวลาสองสามนาที คุณพิมพ์ต่อได้"
+  your_enhanced_note_with: "กำลังเขียนโน้ตที่ปรับปรุงแล้วของคุณด้วย %@"
+answers:
+  come_from_this_note_s_transcript_and_you: "คำตอบมาจากข้อความถอดเสียงของโน้ตนี้และผู้ให้บริการ AI ของคุณ ตรวจสอบสิ่งสำคัญทุกอย่าง"
+ask:
+  a_follow_up: "ถามคำถามต่อเนื่อง"
+  about_this_note: "ถามเกี่ยวกับโน้ตนี้"
+  this_note: "ถามโน้ตนี้"
+detected:
+  from_the_recording_renames_apply_to_the: "ตรวจพบจากการบันทึก การเปลี่ยนชื่อมีผลกับข้อความถอดเสียงและโน้ตในอนาคต"
+expect:
+  1: "คาดว่า: %1$@"
+from:
+  the_transcript: "จากข้อความถอดเสียง"
+list:
+  action_items: "แสดงรายการสิ่งที่ต้องทำ"
+match:
+  1_d_of_2_d: "ที่ตรงกัน %1$d จาก %2$d"
+previous:
+  match: "ที่ตรงกันก่อนหน้า"
+that:
+  speaker_profile_no_longer_exists_try_reopen: "โปรไฟล์ผู้พูดนั้นไม่มีอยู่แล้ว ลองเปิดโน้ตนี้อีกครั้ง"
+thinking:
+  _self: "กำลังคิด…"
+write:
+  this_note_again: "เขียนโน้ตนี้ใหม่"
+matching:
+  names: "กำลังจับคู่ชื่อ"
+skipped:
+  _self: "ข้ามแล้ว"
+recovered:
+  _self: "กู้คืนแล้ว"
+  from_a_recording_that_was_interrupted: "กู้คืนจากการบันทึกที่ถูกขัดจังหวะ"

@@ -30,9 +30,11 @@ struct SectionHeader<TrailingContent: View>: View {
     var body: some View {
         HStack(spacing: 10) {
             Text(title.uppercased())
-                .font(AppTypography.sectionHeader)
+                .font(AppTypography.overline)
                 .foregroundStyle(AppColors.textTertiary)
-                .tracking(0.88)
+                .tracking(AppTypography.overlineTracking)
+                // The hairline gives way first; a section title never truncates.
+                .fixedSize()
 
             Rectangle()
                 .fill(AppColors.border)

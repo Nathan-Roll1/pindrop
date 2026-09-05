@@ -3,8 +3,15 @@
 100:
   local_processing: "100% local processing"
 1:
+  d_of_2_d: "%1$d of %2$d"
+  edited_2: "%1$@ · edited %2$@"
   folder: "1 folder"
+  is_now_2: "%1$@ is now %2$@."
   note: "1 note"
+  recording: "%1$@ recording"
+  recording_2: "%1$@ recording · %2$@"
+  result: "1 result"
+  said_2: "%1$@ said: %2$@"
   speaker: "1 speaker"
   transcription: "1 transcription"
   word: "1 word"
@@ -12,6 +19,8 @@
 90:
   days: "90 days"
 a:
+  call_started: "A call started"
+  note_capture_is_already_running: "A note capture is already running."
   big_round_of_upgrades_and_two_community_shout: "A big round of upgrades — and two community shout-outs."
   native_macos_menu_bar_dictation_app_using_loca: "A native macOS menu bar dictation app using local speech-to-text with WhisperKit. 100% local processing by default with optional AI enhancement."
 about:
@@ -38,7 +47,7 @@ add:
   a_provider_to_start_using_ai_enhancement: "Add a provider to start using AI enhancement."
   custom_words_to_improve_transcription_accura: "Add custom words to improve transcription accuracy for specialized terms, names, or jargon."
   provider: "Add Provider"
-  tag: "Add tag..."
+  tag: "Add tag"
   this_to_claude_settings_json_in_your_project: "Add this to .claude/settings.json in your project root, or ~/.claude/settings.json for user-wide access."
   this_to_codex_config_toml_project_scoped_con: "Add this to ~/.codex/config.toml. Project-scoped configuration can live in .codex/config.toml for trusted projects."
   this_to_config_opencode_opencode_json_for_us: "Add this to ~/.config/opencode/opencode.json for user-wide access across all projects."
@@ -67,10 +76,12 @@ ai:
   model: "AI Model"
 all:
   _self: "All"
+  templates: "All templates…"
   time: "All time"
 also:
   new_rtl_layout_support_and_20_new_interface: "Also new: RTL layout support and 20 new interface languages."
 an:
+  earlier_version_of_pindrop_wrote_this_note_it: "An earlier version of Pindrop wrote this note. It cannot be written again."
   error_occurred_while_enhancing_your_transcrip: |-
     An error occurred while enhancing your transcription:
     
@@ -79,6 +90,8 @@ an:
     The original transcription was saved without enhancement.
     You can try enabling AI enhancement again in Settings.
   error_occurred_while_enhancing_your_transcrip_1790ad05: "An error occurred while enhancing your transcription:nn%@nnThe original transcription was saved without enhancement.nYou can try enabling AI enhancement again in Settings."
+answers:
+  come_from_this_note_s_transcript_and_you: "Answers come from this note's transcript and your AI provider. Check anything important."
 anthropic:
   _self: "Anthropic"
 api:
@@ -103,6 +116,10 @@ apple:
   speechtranscriber_unavailable_using_nemotr: "Apple SpeechTranscriber unavailable — using Nemotron"
 are:
   you_sure_you_want_to_delete_this_action_cann: "Are you sure you want to delete '%@'? This action cannot be undone."
+ask:
+  a_follow_up: "Ask a follow-up"
+  about_this_note: "Ask about this note"
+  this_note: "Ask this note"
 assignments:
   _self: "Assignments"
 attach:
@@ -110,6 +127,9 @@ attach:
 audio:
   duration: "Audio duration"
   input: "Audio Input"
+  sealed: "Audio sealed"
+auto:
+  _self: "Auto"
 automatic:
   follow_system: "Automatic (Follow System)"
   updates: "Automatic updates"
@@ -119,6 +139,7 @@ automatically:
   start_pindrop_when_you_sign_in: "Automatically start Pindrop when you sign in."
 available:
   models: "Available Models"
+  when_the_recording_is_finished: "Available when the recording is finished"
 average:
   session: "Average session"
   words_session: "Average words / session"
@@ -130,6 +151,7 @@ avg:
 back:
   _self: "Back"
   to_library: "Back to library"
+  to_notes: "Back to notes"
 base:
   _self: "Base"
 bearer:
@@ -146,9 +168,12 @@ built:
   in_read_only: "Built-in (read-only)"
 by:
   weekday: "By weekday"
+call:
+  audio: "Call audio"
 cancel:
   _self: "Cancel"
   operation: "Cancel Operation"
+  recording: "Cancel recording"
   the_active_recording_transcription_or_enhanc: "Cancel the active recording, transcription, or enhancement."
 capture:
   directly_into_the_note_editor_with_a_hol: "Capture directly into the note editor with a hold-to-record flow."
@@ -158,6 +183,7 @@ change:
   your_choice_anytime_in_settings_privacy: "Change your choice anytime in Settings → Privacy."
 changes:
   the_language_used_by_pindrop_s_interface: "Changes the language used by Pindrop's interface."
+  to_provider_credentials_and_endpoint_apply_to_active_and_recovered_captures: "Changes to this provider's credentials and endpoint apply to in-progress and recovered captures. The selected model and prompt stay fixed."
 check:
   for_updates: "Check for Updates..."
   for_updates_736b9062: "Check for updates"
@@ -192,6 +218,7 @@ choose:
 clean:
   up_filler_words: "Clean up filler words"
 clear:
+  _self: "Clear"
   audio_buffer: "Clear Audio Buffer"
   hotkey: "Clear hotkey"
   shortcut: "Clear shortcut"
@@ -199,6 +226,8 @@ clears:
   preferences_and_restarts_onboarding: "Clears preferences and restarts onboarding"
   preferences_and_restarts_onboarding_7d851: "Clears preferences and restarts onboarding."
 click:
+  a_number_to_see_it_in_the_transcript: "Click a number to see it in the transcript."
+  new_note_to_start_one: "Click New note to start one. Pindrop records while you type."
   or_hold: "Click or hold"
   or_press: "Click or press"
   or_set_a_hotkey_to_start_talking: "Click or set a hotkey to start talking"
@@ -243,8 +272,10 @@ copies:
 copy:
   _self: "Copy"
   and_edit_prompt: "Copy and Edit Prompt"
+  content: "Copy Content"
   enhanced: "Copy Enhanced"
   last_transcript: "Copy Last Transcript"
+  note: "Copy note"
   original: "Copy Original"
   system_info: "Copy System Info"
   system_info_for_bug_report: "Copy System Info for Bug Report"
@@ -275,6 +306,7 @@ current:
   _self: "Current: %@"
 custom:
   _self: "Custom"
+  templates: "Custom templates"
   local: "Custom / Local"
   openai_compatible: "Custom (OpenAI-compatible)"
   presets: "Custom Presets"
@@ -284,6 +316,7 @@ cut:
   _self: "Cut"
 d:
   characters: "%d characters"
+  results: "%d results"
   samples: "%d samples · %@"
   speakers: "%d speakers"
   words: "%d words"
@@ -306,20 +339,25 @@ degraded:
 delete:
   _self: "Delete"
   all: "Delete All"
+  all_contributions: "Delete all contributions…"
   all_participants: "Delete All Participants?"
   all_participants_60ed6e73: "Delete All Participants…"
+  all_stored_text_pairs: "Delete all stored text pairs?"
   folder: "Delete Folder"
   folder_e556e7c2: "Delete folder?"
   model: "Delete Model"
   note: "Delete note?"
   preset: "Delete Preset"
   preset_4f6cfe36: "Delete Preset?"
+  this_note: "Delete this note"
+  this_transcript: "Delete this transcript?"
+  transcript: "Delete transcript"
   transcription: "Delete transcription"
   transcription_f82187c4: "Delete transcription?"
-  all_contributions: "Delete all contributions…"
-  all_stored_text_pairs: "Delete all stored text pairs?"
 destinations:
   _self: "Destinations"
+detected:
+  from_the_recording_renames_apply_to_the: "Detected from the recording. Click a name to change it. Renames apply to the transcript and future notes."
 diarization:
   _self: "Speaker diarization"
   automatic: "Automatic"
@@ -335,6 +373,8 @@ diarized:
   _self: "diarized"
 dictate:
   in_russian_and_ukrainian: "Dictate in Russian and Ukrainian"
+dictating:
+  _self: "Dictating"
 dictation:
   _self: "Dictation"
   language: "Dictation Language"
@@ -346,12 +386,17 @@ direct:
   insert: "Direct Insert"
 disabled:
   _self: "Disabled"
+discard:
+  recording: "Discard recording"
+  this_recording: "Discard this recording?"
 dismiss:
   _self: "Dismiss"
 display:
   name: "Display Name"
   name_c7874aaa: "Display name"
   pindrop_in_the_dock_instead_of_running_o: "Display Pindrop in the Dock instead of running only as a menu bar app."
+do:
+  you_want_a_notification_when_a_call_starts: "Do you want a notification when a call starts?"
 dock:
   the_sidebar_to_the_left_or_right_edge_of_th: "Dock the sidebar to the left or right edge of the window."
 done:
@@ -398,6 +443,8 @@ english:
   only: "English-only"
 enhanced:
   _self: "Enhanced"
+  note: "Enhanced note"
+  notes: "Enhanced notes"
 enhancement:
   prompts: "Enhancement Prompts"
 enhancing:
@@ -414,6 +461,8 @@ european:
   multilingual: "European multilingual"
 excellent:
   _self: "Excellent"
+expect:
+  1: "Expect: %1$@"
 export:
   _self: "Export"
   as_csv: "Export as CSV"
@@ -457,8 +506,15 @@ file:
   _self: "File"
 find:
   _self: "Find"
+  in_this_note: "Find in this note"
 fix:
   punctuation_and_capitalization: "Fix punctuation and capitalization"
+finalizing:
+  _self: "Finalizing"
+finish:
+  _self: "Finish"
+  the_active_transcription_before_starting: "Finish the active transcription before starting another one."
+  the_active_transcription_before_starting_another: "Finish the active transcription before starting another one."
 floating:
   indicator: "%@ floating indicator"
   indicator_e0349402: "Floating Indicator"
@@ -471,8 +527,15 @@ format:
   text_appropriately: "Format text appropriately"
 french:
   _self: "French"
+from:
+  the_transcript: "From the transcript"
 general:
   _self: "General"
+generated:
+  _self: "Generated %@"
+  1_2_template: "Generated %1$@ · %2$@ template"
+generate:
+  enhanced_note: "Generate enhanced note"
 german:
   _self: "German"
 hindi:
@@ -504,6 +567,7 @@ help:
   improve_pindrop: "Help improve Pindrop?"
 hide:
   api_key: "Hide API Key"
+  live_transcript: "Hide live transcript"
   this_for_1_hour: "Hide this for 1 hour"
 history:
   _self: "History"
@@ -521,6 +585,8 @@ hotkeys:
   _self: "Hotkeys"
 identify:
   speakers_and_enable_timestamped_exports: "Identify speakers and enable timestamped exports."
+identifying:
+  speakers: "Identifying speakers"
 import:
   _self: "Import"
   dictionary: "Import Dictionary"
@@ -554,6 +620,9 @@ items:
   _self: "items"
 japanese:
   _self: "Japanese"
+jump:
+  to_live: "Jump to live"
+  to_this_line: "Jump to this line"
 keep:
   pindrop_current_automatically_or_check_for: "Keep Pindrop current automatically, or check for a new version now."
   pindrop_current_automatically_or_trigger_a: "Keep Pindrop current automatically, or trigger a manual check whenever you want."
@@ -598,10 +667,17 @@ light:
   theme: "Light Theme"
 limited:
   _self: "Limited"
+list:
+  action_items: "List action items"
 listening:
   _self: "Listening…"
 live:
+  names_cover_up_to_four_voices: "Live names cover up to four voices."
+  speaker_names_need_the_speaker_model_downlo: "Live speaker names need the speaker model. Download it to name people while you record."
+  speaker_names_paused: "Live speaker names paused."
   streaming_refinement: "Live Streaming Refinement"
+  text_stopped_the_recording_continues: "Live text stopped. The recording continues."
+  transcript: "Live transcript"
 lld:
   _self: "%1$lld %2$@"
   197eb092: "%lld%%"
@@ -637,6 +713,7 @@ low:
 main:
   window: "Main Window"
 manage:
+  templates: "Manage templates…"
   local_speech_models_feature_models_and_th: "Manage local speech models, feature models, and the default engine Pindrop uses for transcription."
   models: "Manage models"
   presets: "Manage Presets"
@@ -648,6 +725,8 @@ manually:
   check_for_new_versions_now: "Manually check for new versions now."
 markdown:
   md: "Markdown (.md)"
+match:
+  1_d_of_2_d: "Match %1$d of %2$d"
 may:
   conflict_with_a_system_shortcut: "May conflict with a system shortcut (%@)"
 mcp:
@@ -665,9 +744,12 @@ medium:
 meet:
   the_new_orb: "Meet the new Orb"
 meeting:
+  note: "Meeting note"
   saved: "Meeting saved"
 metric:
   _self: "Metric"
+mic:
+  _self: "Mic"
 microphone:
   _self: "Microphone"
   permission_is_required_to_continue: "Microphone permission is required to continue"
@@ -682,10 +764,12 @@ mode:
 model:
   _self: "Model"
   loading_failed: "Model Loading Failed"
-  loading_timed_out: "Model Loading Timed Out"
   validation: "Model Validation"
 models:
   _self: "Models"
+more:
+  note_actions: "More note actions"
+  recording_options: "More recording options"
 move:
   to_folder: "Move to Folder"
 multilingual:
@@ -694,29 +778,41 @@ must:
   be_openai_compatible: "Must be OpenAI-compatible"
 mute:
   system_audio_during_recording: "Mute system audio during recording"
+my:
+  notes: "My notes"
 name:
   _self: "Name"
+  speakers_while_recording: "Name speakers while recording"
 nemotron:
   default: "Nemotron (default)"
 new:
+  meeting_note: "New meeting note"
+  note_with_system_audio: "New note with system audio"
+  note_without_recording: "New note without recording"
   folder: "New Folder"
   note: "New Note"
   preset: "New Preset"
+  template: "New template"
 newest:
-  _self: "Newest"
+  _self: "Newest first"
 next:
   _self: "Next"
+  match: "Next match"
 no:
   activity_in_this_period: "No activity in this period"
   api_key: "No API key"
   api_key_endpoint: "No API key • Endpoint: %@"
+  audio_was_recorded_for_this_note: "No audio was recorded for this note."
   conflicts_found: "No conflicts found"
+  contributions_yet_pairs_are_stored_when_ai_en: "No contributions yet. Pairs are stored when AI enhancement or manual edits change a transcript."
   custom_presets: "No Custom Presets"
   destination_data: "No destination data"
   downloaded_models: "No downloaded models"
+  enhanced_note_yet: "No enhanced note yet."
   folders_yet: "No folders yet"
   items_in: "No items in %@"
   learned_participants_yet: "No learned participants yet"
+  matches: "No matches"
   media_transcriptions_yet: "No media transcriptions yet"
   model_loaded: "No Model Loaded"
   model_loaded_please_download_a_model: "No model loaded. Please download a model in Settings."
@@ -728,17 +824,21 @@ no:
   models_loaded_open_edit_to_fetch_models: "No models loaded. Open Edit to fetch models."
   models_match: "No models match \"%@\""
   notes_yet: "No notes yet"
+  notes_yet_sentence: "No notes yet."
   providers_configured_yet: "No providers configured yet."
   providers_configured_yet_e6bc0075: "No providers configured yet"
   replacements: "No Replacements"
+  results_try_another_word: "No results. Try another word."
   results_found: "No results found"
   settings_found: "No settings found"
   speech_detected_try_speaking_closer_to_your: "No speech detected. Try speaking closer to your microphone."
+  template_the_note_is_written_as_plain_notes: "No template. The note is written as plain notes."
+  thanks: "No thanks"
   transcriptions_yet: "No transcriptions yet"
-  vocabulary_words: "No Vocabulary Words"
   transcripts_audio_prompts_file_names_or_perso: "No transcripts, audio, prompts, file names, or personal content — ever."
-  contributions_yet_pairs_are_stored_when_ai_en: "No contributions yet. Pairs are stored when AI enhancement or manual edits change a transcript."
+  vocabulary_words: "No Vocabulary Words"
 not:
+  helpful: "Not helpful"
   assigned: "Not assigned"
   enough_voice_data_yet: "Not enough voice data yet"
   generated_yet_enable_the_server: "Not generated yet — enable the server"
@@ -749,6 +849,7 @@ not:
   now: "Not now"
 note:
   _self: "Note"
+  actions: "Note actions"
   capture_hold: "Note Capture — Hold"
   capture_push_to_talk: "Note Capture (Push-to-Talk)"
   capture_toggle: "Note Capture (Toggle)"
@@ -761,12 +862,23 @@ note:
 notes:
   _self: "Notes"
   3add7b96: "notes"
+  header_meta_empty: "nothing here yet"
+  header_meta_today: "%1$@, %2$@ from today"
+  new_note_options_label: "More new note options"
+  row_recording_elapsed: "REC %@"
+nothing:
+  was_transcribed_yet: "Nothing was transcribed yet."
+notifications:
+  are_turned_off_for_pindrop_turn_th: "Notifications are turned off for Pindrop. Turn them on in System Settings to be asked about calls."
+notify:
+  me: "Notify me"
+  me_when_a_call_starts: "Notify me when a call starts"
 off:
   _self: "Off"
 ok:
   _self: "OK"
 oldest:
-  _self: "Oldest"
+  _self: "Oldest first"
 ollama:
   _self: "Ollama"
   usually_does_not_require_authentication_f: "Ollama usually does not require authentication for local requests."
@@ -776,6 +888,7 @@ on:
 open:
   _self: "Open"
   history: "Open History"
+  note: "Open note"
   library: "Open Library"
   logs_in_finder: "Open Logs in Finder"
   original_link: "Open original link"
@@ -827,37 +940,77 @@ pause:
 permissions:
   _self: "Permissions"
 pick:
+  a_model_for_note_enhancement_in_settings_th: "Pick a model for note enhancement in Settings, then try again."
   which_provider_and_model_handles_each_ai_ta: "Pick which provider and model handles each AI task. Leave as \"Not assigned\" to skip a purpose."
   which_provider_and_model_handles_each_ai_ta_3140fe59: "Pick which provider and model handles each AI task. Leave a purpose unassigned to skip it."
 pill:
   _self: "Pill"
+pillars:
+  capture: "Capture"
+  workspace: "Workspace"
+  tools: "Tools"
+  dictate: "Dictate"
+  voice_note: "Voice Note"
+  meeting: "Meeting"
+  dictate_description: "Speak, then Pindrop writes in the app you are using."
+  voice_note_description: "Capture a thought and keep it in Notes."
+  meeting_description: "Record microphone and system audio, then keep the meeting in Library."
+  start_dictating: "Start dictating"
+  start_voice_note: "Start voice note"
+  open_notes: "Open Notes"
+  change_shortcut: "Change shortcut"
+  capture_in_progress: "Capture in progress"
+  finish_current_capture: "Finish the current capture before starting another."
+  voice_note_hold: "Voice Note — Hold"
+  voice_note_toggle: "Voice Note — Toggle"
+  you_captured_this_week: "You captured %@ this week."
+  you_recorded_this_week: "You recorded %@ this week."
+  one_voice_note: "1 voice note"
+  n_voice_notes: "%@ voice notes"
+  one_meeting: "1 meeting"
+  n_meetings: "%@ meetings"
+  of_meeting_audio: "%@ of meeting audio."
+  voice_note_shortcut_hint: "Hold %1$@ or press %2$@ anywhere."
+  hold_anywhere: "Hold %@ anywhere."
+  press_anywhere: "Press %@ anywhere."
+  voice_notes_empty: "Your voice notes will show up here."
+  meetings_empty: "Your recorded meetings will show up here."
 pin:
   to_screen_always_on_top: "Pin to screen (always on top)"
 pindrop:
   _self: "Pindrop"
   1_19: "Pindrop 1.19"
+  can_send_anonymous_privacy_preserving_si: "Pindrop can send anonymous, privacy-preserving signals so bugs get fixed faster."
+  checks_the_speakers_again_when_the_recor: "Pindrop checks the speakers again when the recording ends."
+  did_not_match_this_voice_to_a_saved_spea: "Pindrop did not match this voice to a saved speaker, so there is no name to change yet."
   help: "Pindrop Help"
   is_ready_to_use_click_the_menu_bar_icon: |-
     Pindrop is ready to use.
     Click the menu bar icon to get started.
   is_ready_to_use_nclick_the_menu_bar_icon: "Pindrop is ready to use.nClick the menu bar icon to get started."
+  is_transcribing_only_your_microphone_the: "Pindrop is transcribing only your microphone. The call audio is in the finished note."
   needs_a_few_permissions_to_work_nyour_pr: "Pindrop needs a few permissions to work.nYour privacy is always respected."
   needs_a_few_permissions_to_work_your_pri: |-
     Pindrop needs a few permissions to work.
     Your privacy is always respected.
   needs_accessibility_permission_to_insert: "\"\"             Pindrop needs Accessibility permission to insert text at your cursor.                          To grant permission:             1. Click \"Open System Settings\" below             2. Click the + button             3. Navigate to the app shown in Finder             4. Restart Pindrop after granting permission                          Without this permission, text will only be copied to your clipboard.             \"\""
   needs_microphone_access_to_record_and_tr: "Pindrop needs microphone access to record and transcribe your voice.nnPlease grant permission in System Settings."
+  needs_this_one_it_downloads_once: "Pindrop needs this one. It downloads once."
+  noticed_a_call: "Pindrop noticed a call."
   on_github: "Pindrop on GitHub"
   orb: "Pindrop Orb"
   pill: "Pindrop Pill"
   theme: "Pindrop Theme"
-  can_send_anonymous_privacy_preserving_si: "Pindrop can send anonymous, privacy-preserving signals so bugs get fixed faster."
+  writes_one_from_your_notes_and_the_trans: "Pindrop writes one from your notes and the transcript."
 pinned:
   _self: "Pinned"
 plain:
   text_txt: "Plain Text (.txt)"
 play:
   _self: "Play"
+  recording: "Play recording"
+playback:
+  position: "Playback position"
 please:
   check_your_internet_connection_and_try_ag: "Please check your internet connection and try again."
   download_a_whisper_model_in_settings_befo: |-
@@ -921,6 +1074,8 @@ press:
   once_to_start_recording_then_again_to_open: "Press once to start recording, then again to open the note editor."
   once_to_start_recording_then_press_again_t: "Press once to start recording, then press again to stop and transcribe."
   to_start_recording_press_again_to_open_not: "Press to start recording, press again to open note editor"
+previous:
+  match: "Previous match"
 primary:
   text: "Primary Text"
 processing:
@@ -967,10 +1122,16 @@ recommended:
   _self: "Recommended"
 record:
   _self: "Record"
+  it_as_a_note: "Record it as a note?"
+  system_audio_in_meeting_notes: "Record system audio in meeting notes"
+  this_call: "Record this call"
+  with_system_audio: "Record with system audio"
 recording:
   _self: "Recording"
   3f8fd48c: "🔴 Recording"
   canceled: "Recording canceled."
+  continues_while_you_work: "Recording continues while you work"
+  transcribed: "Recording transcribed."
   in_progress_transcription_will_start: "Recording in progress — transcription will start when it finishes."
   stopped_with_error: "Recording stopped: %@"
   from_external_and_bluetooth_microphone: "Recording from external and Bluetooth microphones is now rock solid, even when your audio output is routed elsewhere."
@@ -1007,6 +1168,7 @@ report:
 required:
   _self: "Required"
   for_recording_your_voice: "Required for recording your voice"
+  helpers_download_when_you_set_pindrop_u: "Required helpers download when you set Pindrop up. Pindrop fetches a missing one the next time it opens."
 requires:
   a_fast_provider_apple_foundation_models: "Requires a fast provider (Apple Foundation Models recommended). Cloud providers will issue one API call per pause."
   diarization_model: "Requires diarization model"
@@ -1028,6 +1190,8 @@ runtime:
   status: "Runtime Status"
 russian:
   _self: "Russian"
+s:
+  to_save: "⌘S to save"
 save:
   _self: "Save"
   as_note: "Save as Note"
@@ -1039,11 +1203,14 @@ saved:
   _self: "Saved"
   as_note: "Saved as Note"
   transcription: "Saved transcription"
+sealing:
+  audio: "Sealing audio"
+  the_recording: "Sealing the recording."
 search:
   media_transcripts: "Search media transcripts..."
   models: "Search models"
   models_61c1b9fe: "Search models..."
-  notes: "Search notes..."
+  notes: "Search notes"
   settings: "Search settings"
   settings_or_jump_between_sections_without: "Search settings or jump between sections without leaving the main workspace."
   transcriptions: "Search transcriptions..."
@@ -1081,18 +1248,25 @@ setup:
 shortcuts:
   _self: "Shortcuts"
 show:
+  a_way_to_record_when_a_meeting_app_opens_yo: "Show a way to record when a meeting app opens your microphone."
   api_key: "Show API Key"
   app: "Show App"
   app_in_finder: "Show App in Finder"
   floating_indicator: "Show floating indicator"
   in_dock: "Show in Dock"
+  in_transcript: "Show in transcript"
+  live_transcript: "Show live transcript"
   the_main_window_and_open_the_library: "Show the main window and open the Library."
+  the_transcript_so_far: "Show the transcript so far"
+  who_is_talking_in_the_live_transcript_names: "Show who is talking in the live transcript. Names are checked again when the recording ends."
 shows:
   as_a_liquid_glass_orb_in_the_corner_of_the: "Shows as a liquid glass orb in the corner of the screen"
   as_a_pill_at_the_bottom_of_the_screen: "Shows as a pill at the bottom of the screen"
   beside_the_focused_text_field_caret: "Shows beside the focused text field/caret"
   in_the_menu_bar_notch_area: "Shows in the menu bar/notch area"
 sidebar:
+  hotkey_anywhere: "%@ anywhere"
+  hotkey_to_stop: "%@ to stop"
   position: "Sidebar position"
   position_916f66ea: "Sidebar Position"
 simplified:
@@ -1114,6 +1288,8 @@ smaller:
   models_are_faster_but_less_accurate_star: |-
     Smaller models are faster but less accurate.
     Start with Base for the best balance.
+someone:
+  else_spoke_here_the_finished_note_has_it: "Someone else spoke here. The finished note has it."
 something:
   went_wrong: "Something went wrong"
 soon:
@@ -1124,17 +1300,25 @@ source:
   _self: "Source"
 sources:
   _self: "Sources"
+  d: "Sources (%d)"
+  are_fixed_when_the_recording_starts: "Sources are fixed when the recording starts."
 spanish:
   _self: "Spanish"
 speak:
   to_append: "Speak to append"
 speaker:
+  _self: "Speaker"
+  d: "Speaker %d"
   diarization: "Speaker diarization"
   diarization_and_timestamps_are_attached: "Speaker diarization and timestamps are attached to playback."
   diarization_is_required: "Speaker diarization is required"
+  names_were_checked_again_against_the_ful: "Speaker names were checked again against the full recording."
   profile_training: "Speaker profile training"
 speakers:
   _self: "Speakers"
+  1: "Speakers: %1$@"
+  are_set_when_the_recording_starts: "Speakers are set when the recording starts."
+  identified: "Speakers identified"
 speed:
   _self: "Speed"
 start:
@@ -1148,6 +1332,9 @@ stats:
   _self: "Stats"
 status:
   _self: "Status"
+still:
+  hearing: "Still hearing: %@"
+  working_long_recordings_take_a_while: "Still working. Long recordings take a while."
 stop:
   listening: "Stop listening"
   recording: "Stop Recording"
@@ -1174,6 +1361,7 @@ switching:
   to_for_this_queue: "Switching to %@ for this queue"
 system:
   _self: "System"
+  audio: "System audio"
   default: "System Default"
 teach:
   custom_words: "Teach custom words"
@@ -1186,20 +1374,42 @@ tertiary:
 thanks:
   to_for_investigating_and_kicking_off_the: "Thanks to %@ for investigating and kicking off the fix (PR #64)."
   to_for_the_contribution_pr_61: "Thanks to %@ for the contribution (PR #61)."
+that:
+  speaker_profile_no_longer_exists_try_reopen: "That speaker profile no longer exists. Try reopening this note."
 the:
+  answer_came_back_in_a_form_pindrop_could_not: "The answer came back in a form Pindrop could not read. Ask again."
+  answer_could_not_be_generated_check_your_con: "The answer could not be generated. Check your connection, then ask again."
+  audio_and_the_live_transcript_are_deleted_yo: "The audio and the live transcript are deleted. Your typed notes stay."
+  enhanced_note_could_not_be_generated_try_aga: "The enhanced note could not be generated. Try again."
+  enhanced_note_could_not_be_saved_try_again: "The enhanced note could not be saved. Try again."
   floating_indicator_is_hidden: "The floating indicator is hidden."
-  model_failed_to_load_within_60_seconds_this: "\"\"             The model failed to load within 60 seconds. This usually means the model files are corrupted or incompatible.                          To fix this:             1. Open Settings → Models             2. Delete the problematic model             3. Re-download the model                          If the problem persists, try a smaller model (Tiny or Base).             \"\""
+  live_speaker_model_could_not_be_loaded_recor: "The live speaker model could not be loaded. Recording continues, and the finished note still names everyone."
+  model_returned_an_empty_answer_ask_again: "The model returned an empty answer. Ask again."
+  model_returned_an_empty_note_try_again: "The model returned an empty note. Try again."
   new_nemotron_streaming_engine_shows_words_as: "The new Nemotron streaming engine shows words as you say them, and the engine prewarms at launch so your first dictation starts without a delay."
+  note_enhancement_model_is_unavailable_check: "The note enhancement model is unavailable. Check it in Settings, then try again."
+  note_this_recording_belongs_to_could_not_be_opened: "The note this recording belongs to could not be opened."
+  recorded_audio_could_not_be_prepared: "The recorded audio could not be prepared for transcription."
+  recorder_did_not_start: "The recorder did not start."
   selected_chunk_variant_isn_t_downloaded_yet: "The selected chunk variant isn't downloaded yet. Toggling will start a download."
+  transcript_fills_in_as_you_speak: "The transcript fills in as you speak."
+  transcript_starts_once_you_speak: "The transcript starts once you speak."
 theme:
   _self: "Theme"
   changes_apply_live_across_the_workspace_se: "Theme changes apply live across the workspace, settings, note editor, and floating indicators."
   mode: "Theme mode"
   mode_bb6b0b3d: "Theme Mode"
+there:
+  is_no_transcript_to_enhance_yet_record_thi: "There is no transcript to enhance yet. Record this note first."
+  is_nothing_to_ask_about_yet_record_or_writ: "There is nothing to ask about yet. Record or write something first."
 these:
   options_are_mutually_exclusive_enabling_on: "These options are mutually exclusive. Enabling one turns the other off."
+thinking:
+  _self: "Thinking…"
 this:
   preset_name_is_already_in_use: "This preset name is already in use."
+  note_could_not_be_opened_close_it_and_open: "This note could not be opened. Close it and open it again."
+  template_could_not_be_read_pick_another_tem: "This template could not be read. Pick another template and try again."
   provider_will_be_available_in_a_future_upda: |-
     This provider will be available in a future update.
     For now, try OpenAI or use a Custom endpoint.
@@ -1227,6 +1437,7 @@ to:
   start_talking: "to start talking"
 today:
   _self: "Today"
+  comma_time: "%1$@, %2$@"
 toggle:
   _self: "Toggle"
   recording: "Toggle Recording"
@@ -1238,10 +1449,18 @@ transcribed:
   _self: "transcribed"
   source_name: "Transcribed: %@"
   words: "Transcribed words"
+transcript:
+  _self: "Transcript"
+  so_far_pindrop_is_checking_it_against: "Transcript so far. Pindrop is checking it against the recording."
+  source: "Transcript source %@"
+transcribing:
+  _self: "Transcribing"
+  failed_the_recording_is_saved_try_a: "Transcribing failed. The recording is saved. Try again, or open the audio from the note."
 transcription:
   _self: "Transcription"
   backend: "Transcription backend"
   deleted: "Transcription deleted."
+  done: "Transcription done"
   enhancement: "Transcription Enhancement"
   failed: "Transcription Failed"
   failed_with_error: "Transcription failed: %@"
@@ -1260,12 +1479,14 @@ try:
   a_different_search_term: "Try a different search term"
   a_different_search_term_0ba628a3: "Try a different search term."
   a_different_search_term_in_this_folder: "Try a different search term in this folder."
+  again: "Try again"
   searching_for_terms_like_hotkeys_microphone: "Try searching for terms like hotkeys, microphone, updates, or vibe mode."
 turkish:
   _self: "Turkish"
 two:
   new_dictation_languages_fully_wired_into_mod: "Two new dictation languages, fully wired into model recommendations."
 type:
+  a_question_about_this_note_then_send_it_aga: "Type a question about this note, then send it again."
   text_directly_into_the_active_app_when_poss: "Type text directly into the active app when possible"
 u10:
   floating_inserted_into: "Inserted into %@"
@@ -1329,15 +1550,20 @@ u4:
   home_duration_h_m: "%d h %d m"
   home_duration_m: "%d m"
   home_n_day: "%d-day"
+  home_n_sessions_grouped: "%@ sessions"
   home_n_words_grouped: "%@ words"
+  home_no_dictations_yet: "No dictations yet."
   home_one_day: "1-day"
+  home_one_session: "1 session"
   home_open_library_arrow: "Open Library →"
   home_option_space_fallback: "⌥Space"
   home_press_hotkey_hint: "Press %@ anywhere to start dictating."
+  home_press_hotkey_to_start: "Press %@ anywhere to start."
   home_recent_empty_hint: "Your latest dictations will show up here."
+  home_stop: "Stop"
   home_streak: "Streak"
   home_subline_duration_only: "%@ of dictation."
-  home_subline_full: "%@ of dictation — about %@ saved over typing it out."
+  home_subline_full: "%@ of dictation. About %@ saved over typing it out."
   home_this_week: "This week"
   home_welcome_tagline: "Speak. It's written."
   home_words_per_min: "Words / min"
@@ -1503,8 +1729,13 @@ vocabulary:
   _self: "Vocabulary"
 voice:
   _self: "Voice"
+  isolation: "Voice isolation"
+  note: "Voice note"
+  reduce_background_noise_before_transcription: "Reduce background noise before transcription"
 vs:
   typing: "vs typing"
+watch:
+  for_calls: "Watch for calls"
 web:
   link: "Web link"
 welcome:
@@ -1529,24 +1760,36 @@ words:
   you_manually_correct_can_be_added_to_your: "Words you manually correct can be added to your vocabulary for future dictation."
 wpm:
   _self: "WPM"
+write:
+  this_note_again: "Write this note again"
+writing:
+  your_enhanced_note_with: "Writing your enhanced note with %@."
+  note: "Writing note"
+  your_enhanced_note: "Writing your enhanced note."
+  your_enhanced_note_comes_next_long_recor: "Writing your enhanced note comes next. Long recordings can take a few minutes. You can keep typing."
 yesterday:
   _self: "Yesterday"
 you:
+  _self: "You"
   are_a_note_formatting_assistant_transform_th: "You are a note formatting assistant. Transform the transcribed text into a well-structured note.nnRules:n- Fix grammar, punctuation, and spelling errorsn- For longer content (3+ paragraphs), add markdown formatting:n  - Use headers (## or ###) to organize sectionsn  - Use bullet points or numbered lists where appropriaten  - Use **bold** for emphasis on key termsn- For shorter content, keep it simple with minimal formattingn- Preserve the original meaning and tonen- Do not add content that wasn't in the originaln- Return only the formatted note without any commentary"
   are_a_text_enhancement_assistant_improve_the: "You are a text enhancement assistant. Improve the grammar, punctuation, and formatting of the provided text while preserving its original meaning and tone. Return only the enhanced text without any additional commentary."
   can_change_these_anytime_from_the_menu_bar_s: "You can change these anytime from the menu bar → Settings → Hotkeys"
+  deleted_this_transcript: "You deleted this transcript."
   re_all_set: "You're All Set!"
   re_all_set_058a8130: "You're all set!"
-  ve_exceeded_your_api_rate_limit_or_quota_to: "\"\"                 You've exceeded your API rate limit or quota.                                  To fix this:                 1. Wait a few minutes and try again                 2. Check your API provider's usage limits                 3. Consider upgrading your API plan                                  The transcription was saved without enhancement.                 \"\""
   re_in_control: "You're in control"
+  spoke_here_the_finished_note_has_it: "You spoke here. The finished note has it."
+  ve_exceeded_your_api_rate_limit_or_quota_to: "\"\"                 You've exceeded your API rate limit or quota.                                  To fix this:                 1. Wait a few minutes and try again                 2. Check your API provider's usage limits                 3. Consider upgrading your API plan                                  The transcription was saved without enhancement.                 \"\""
 your:
   api_key_appears_to_be_invalid_or_expired_to: "\"\"                 Your API key appears to be invalid or expired.                                  To fix this:                 1. Open Settings → AI Enhancement                 2. Verify your API key is correct                 3. Check that your API endpoint is correct                                  The transcription was saved without enhancement.                 \"\""
+  enhanced_note_is_ready: "Your enhanced note is ready."
   floating_indicator_is_now_a_living_audio_re: "Your floating indicator is now a living, audio-reactive orb. It breathes while idle, swells when you speak, and streams your words live as you dictate."
   hotkeys_are_ready_to_use_nyou_can_customize: "Your hotkeys are ready to use.nYou can customize them later in Settings."
   hotkeys_are_ready_to_use_you_can_customize: |-
     Your hotkeys are ready to use.
     You can customize them later in Settings.
   model_is_ready_to_use: "Your model is ready to use."
+  notes_and_the_enhanced_note_stay_the_transc: "Your notes and the enhanced note stay. The transcript is hidden from this note."
   stats: "Your Stats"
   stats_will_appear_after_you_create_transcri: "Your stats will appear after you create transcriptions."
   words_stay_yours: "Your words stay yours"
@@ -1595,3 +1838,23 @@ total:
 tokens:
   in_out: "%@ in / %@ out tokens"
   in_out_thinking: "%@ in / %@ out / %@ thinking tokens"
+see:
+  this_in_the_transcript: "See this in the transcript"
+  where_this_came_from: "See where this came from"
+templates:
+  _self: "Templates"
+was:
+  _self: "was %@"
+  this_note_useful: "Was this note useful?"
+helpful:
+  _self: "Helpful"
+template:
+  _self: "Template: %@"
+  3ec1ae06: "Template"
+matching:
+  names: "Matching names"
+skipped:
+  _self: "Skipped"
+recovered:
+  _self: "Recovered"
+  from_a_recording_that_was_interrupted: "Recovered from a recording that was interrupted."

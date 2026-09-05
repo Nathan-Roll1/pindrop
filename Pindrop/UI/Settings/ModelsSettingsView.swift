@@ -8,6 +8,9 @@
 //
 
 import SwiftUI
+import PindropCore
+import PindropAI
+import PindropSpeech
 
 struct ModelsSettingsView: View {
     @ObservedObject var settings: SettingsStore
@@ -51,7 +54,8 @@ struct ModelsSettingsView: View {
 
     /// On-device helpers: existing feature models (no deferred text-corrector row).
     private var helperFeatures: [FeatureModelType] {
-        Array(FeatureModelType.allCases)
+        FeatureModelType.allCases.filter(\.isRequired)
+            + FeatureModelType.allCases.filter { !$0.isRequired }
     }
 
     private var diskTotalText: String {
@@ -78,6 +82,7 @@ struct ModelsSettingsView: View {
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 0) {
                     speechToTextSection
+                    advancedAssignmentsSection
                     helpersSection
                     privacyFootnote
                         .padding(.top, 20)
@@ -316,6 +321,19 @@ struct ModelsSettingsView: View {
         )
     }
 
+    /// Says a helper is part of setting Pindrop up rather than an extra.
+    private var requiredBadge: some View {
+        Text(localized("Required", locale: locale))
+            .font(AppTypography.badge)
+            .foregroundStyle(AppColors.textSecondary)
+            .padding(.vertical, 2)
+            .padding(.horizontal, 9)
+            .background(
+                Capsule().fill(AppColors.windowBackground)
+            )
+            .overlay(Capsule().strokeBorder(AppColors.border, lineWidth: 1))
+    }
+
     private func downloadButton(action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 6) {
@@ -336,6 +354,122 @@ struct ModelsSettingsView: View {
         .keyboardFocusRing(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
+    // MARK: - NEXT-SESSION ASSIGNMENTS
+
+    private var assignmentSummaryRows: [CaptureStageAssignmentPreview] {
+        CaptureStageAssignmentResolver.previewAssignments(
+            settings: settings,
+            modelManager: modelManager,
+            activeBatchModelName: nil
+        )
+    }
+
+    private var advancedAssignmentsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(
+                title: localized("Advanced assignments", locale: locale),
+                isFirst: false
+            )
+            .padding(.horizontal, 20)
+            Text(nextRecordingAssignmentsLabel)
+                .font(AppTypography.label)
+                .foregroundStyle(AppColors.textSecondary)
+                .padding(.horizontal, 20)
+
+            VStack(spacing: 0) {
+                ForEach(assignmentSummaryRows) { row in
+                    assignmentSummaryRow(row)
+
+                    if row.stage != .noteGeneration {
+                        Divider()
+                            .overlay(AppColors.border)
+                            .padding(.leading, 16)
+                    }
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(AppColors.windowBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(AppColors.border, lineWidth: 1)
+            )
+            .padding(.horizontal, 20)
+        }
+        .padding(.top, 8)
+    }
+
+    private func assignmentSummaryRow(_ row: CaptureStageAssignmentPreview) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 16) {
+            Text(localized(assignmentSummaryTitleKey(row.stage), locale: locale))
+                .font(AppTypography.labelStrong)
+                .foregroundStyle(AppColors.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 12)
+
+            Text(assignmentSummaryStatusText(row))
+                .font(AppTypography.label)
+                .foregroundStyle(assignmentSummaryStatusColor(row.state))
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 11)
+        .padding(.horizontal, 16)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(assignmentSummaryAccessibilityLabel(row))
+    }
+
+    private func assignmentSummaryTitleKey(_ stage: CapturePipelineStage) -> String {
+        switch stage {
+        case .liveTranscription:
+            "Live Streaming Refinement"
+        case .finalTranscription:
+            "Speech to text"
+        case .diarization:
+            "Speaker diarization"
+        case .noteGeneration:
+            "Note Enhancement"
+        }
+    }
+
+    private var nextRecordingAssignmentsLabel: String {
+        String(
+            format: localized("%1$@ %2$@", locale: locale),
+            localized("Next", locale: locale),
+            localized("Recording", locale: locale)
+        )
+    }
+
+    private func assignmentSummaryAccessibilityLabel(_ row: CaptureStageAssignmentPreview) -> String {
+        String(
+            format: localized("%1$@ %2$@", locale: locale),
+            localized(assignmentSummaryTitleKey(row.stage), locale: locale),
+            assignmentSummaryStatusText(row)
+        )
+    }
+
+    private func assignmentSummaryStatusText(_ row: CaptureStageAssignmentPreview) -> String {
+        switch row.state {
+        case .disabled:
+            localized("Off", locale: locale)
+        case .unavailable:
+            localized("Setup required", locale: locale)
+        case .ready:
+            row.value ?? localized("Ready", locale: locale)
+        }
+    }
+
+    private func assignmentSummaryStatusColor(_ state: CaptureStageAssignmentPreview.State) -> Color {
+        switch state {
+        case .unavailable:
+            AppColors.warning
+        case .disabled, .ready:
+            AppColors.textSecondary
+        }
+    }
+
     // MARK: - ON-DEVICE HELPERS
 
     private var helpersSection: some View {
@@ -346,13 +480,20 @@ struct ModelsSettingsView: View {
             )
             .padding(.horizontal, 20)
 
-            // Speaker diarization is the design-featured helper; also show VAD.
-            // Streaming stays available for existing users (no text-corrector row).
+            // Required helpers first: they are part of setting Pindrop up, and a
+            // person reading this list should see what is not a choice before
+            // what is.
             ForEach(helperFeatures, id: \.id) { feature in
                 featureRowCard(feature)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 8)
             }
+
+            Text(localized("Required helpers download when you set Pindrop up. Pindrop fetches a missing one the next time it opens.", locale: locale))
+                .font(AppTypography.label)
+                .foregroundStyle(AppColors.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 20)
         }
         .padding(.top, 8)
     }
@@ -373,6 +514,10 @@ struct ModelsSettingsView: View {
 
                     if isActive {
                         activeBadge
+                    }
+
+                    if feature.isRequired {
+                        requiredBadge
                     }
                 }
 
@@ -542,6 +687,7 @@ struct ModelsSettingsView: View {
     }
 }
 
+
 private struct OpenAITranscriptionCredentialsSheet: View {
     @ObservedObject var settings: SettingsStore
     @Environment(\.dismiss) private var dismiss
@@ -630,7 +776,20 @@ private struct OpenAITranscriptionCredentialsSheet: View {
 }
 
 #Preview("Models page") {
-    ModelsSettingsView(settings: SettingsStore(), modelManager: ModelManager())
+    ModelsSettingsView(
+        settings: SettingsStore(),
+        modelManager: ModelManager(
+            storageLocations: ModelStorageLocations(
+                pindropApplicationSupportRoot: FileManager.default
+                    .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+                    .appendingPathComponent("Pindrop", isDirectory: true),
+                fluidAudioModelsRoot: FileManager.default
+                    .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+                    .appendingPathComponent("FluidAudio", isDirectory: true)
+                    .appendingPathComponent("Models", isDirectory: true)
+            )
+        )
+    )
         .frame(width: 720, height: 640)
         .preferredColorScheme(.light)
 }

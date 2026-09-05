@@ -6,6 +6,9 @@
 //
 
 import Foundation
+import PindropCore
+import PindropData
+import SwiftData
 import Testing
 @testable import Pindrop
 
@@ -27,6 +30,264 @@ struct NotesPresentationTests {
         #expect(NotesHeaderMeta.text(noteCount: 24, locale: en) == "24 notes")
     }
 
+    // MARK: - Humanized header meta
+
+    @Test func humanizedHeaderMetaNamesTheEmptyPage() {
+        #expect(
+            NotesHeaderMeta.humanizedText(noteCount: 0, todayCount: 0, locale: en)
+                == "nothing here yet"
+        )
+        // An empty page never reports a today count.
+        #expect(
+            NotesHeaderMeta.humanizedText(noteCount: 0, todayCount: 3, locale: en)
+                == "nothing here yet"
+        )
+    }
+
+    @Test func humanizedHeaderMetaDropsTheTodayClauseWhenNothingIsFromToday() {
+        #expect(
+            NotesHeaderMeta.humanizedText(noteCount: 24, todayCount: 0, locale: en)
+                == "24 notes"
+        )
+        #expect(
+            NotesHeaderMeta.humanizedText(noteCount: 1, todayCount: 0, locale: en)
+                == "1 note"
+        )
+    }
+
+    @Test func humanizedHeaderMetaSpellsOutSmallTodayCounts() {
+        #expect(
+            NotesHeaderMeta.humanizedText(noteCount: 24, todayCount: 3, locale: en)
+                == "24 notes, three from today"
+        )
+        #expect(
+            NotesHeaderMeta.humanizedText(noteCount: 9, todayCount: 1, locale: en)
+                == "9 notes, one from today"
+        )
+    }
+
+    @Test func humanizedCountKeepsLargeValuesAsNumerals() {
+        #expect(NotesHeaderMeta.humanizedCount(9, locale: en) == "nine")
+        #expect(NotesHeaderMeta.humanizedCount(10, locale: en) == "10")
+        #expect(NotesHeaderMeta.humanizedCount(24, locale: en) == "24")
+    }
+
+    // MARK: - Row lanes
+
+    @Test func rowKindFollowsCaptureLinkage() {
+        #expect(NoteRowPresentation.kind(facts: .none) == .typed)
+        #expect(
+            NoteRowPresentation.kind(facts: NoteRowCaptureFacts(
+                hasCaptureLink: true,
+                isMeetingCapture: false,
+                hasEnhancedArtifact: false,
+                duration: 42
+            )) == .voice
+        )
+        #expect(
+            NoteRowPresentation.kind(facts: NoteRowCaptureFacts(
+                hasCaptureLink: true,
+                isMeetingCapture: true,
+                hasEnhancedArtifact: false,
+                duration: 42
+            )) == .meeting
+        )
+    }
+
+    @Test func rowKindGlyphsAreDistinct() {
+        let glyphs = Set([NoteRowKind.typed, .voice, .meeting].map(\.systemImage))
+        #expect(glyphs.count == 3)
+    }
+
+    @Test func enhancedBadgeShowsOnlyWithAnEnhancedArtifact() {
+        #expect(NoteRowPresentation.showsEnhancedBadge(facts: .none) == false)
+        #expect(
+            NoteRowPresentation.showsEnhancedBadge(facts: NoteRowCaptureFacts(
+                hasCaptureLink: true,
+                isMeetingCapture: false,
+                hasEnhancedArtifact: true,
+                duration: nil
+            ))
+        )
+    }
+
+    @Test func recoveredChipShowsOnlyForARecoveredCapture() {
+        #expect(NoteRowPresentation.showsRecoveredChip(facts: .none) == false)
+        #expect(
+            NoteRowPresentation.showsRecoveredChip(facts: NoteRowCaptureFacts(
+                hasCaptureLink: true,
+                isMeetingCapture: false,
+                hasEnhancedArtifact: false,
+                duration: nil,
+                isRecovered: true
+            ))
+        )
+    }
+
+    /// The list draws every note, so the derivation reads the recovered
+    /// captures once for the whole page and tests set membership per row.
+    @MainActor
+    @Test func theRecoveredChipIsDerivedWithOneFetchPerPage() throws {
+        final class ReadCounter {
+            var count = 0
+        }
+
+        let container = try PindropModelContainerFactory.makeInMemoryContainer()
+        let context = ModelContext(container)
+        let recoveredSessionID = UUID()
+        let ordinarySessionID = UUID()
+        var notes: [NoteSchema.Note] = []
+        for index in 0..<6 {
+            let note = NoteSchema.Note(title: "Note \(index)", content: "")
+            context.insert(note)
+            context.insert(CaptureNoteReferenceModel(
+                sessionID: index == 0 ? recoveredSessionID : ordinarySessionID,
+                noteID: note.id,
+                role: .humanAnchor
+            ))
+            notes.append(note)
+        }
+        try context.save()
+
+        let counter = ReadCounter()
+        let provider = NoteRowFactsProvider(modelContext: context) {
+            counter.count += 1
+            return [recoveredSessionID]
+        }
+
+        let facts = provider.facts(for: notes)
+
+        #expect(counter.count == 1)
+        #expect(facts[notes[0].id]?.isRecovered == true)
+        #expect(facts.values.filter(\.isRecovered).count == 1)
+    }
+
+    @Test func durationLaneStaysEmptyWithoutARecording() {
+        #expect(NoteRowPresentation.durationText(nil) == "")
+        #expect(NoteRowPresentation.durationText(0) == "")
+        #expect(NoteRowPresentation.durationText(0.4) == "")
+        #expect(NoteRowPresentation.durationText(63) == "1:03")
+        #expect(NoteRowPresentation.durationText(2531) == "42:11")
+        #expect(NoteRowPresentation.durationText(3725) == "1:02:05")
+    }
+
+    @Test func liveLaneReadsRecPlusUnpaddedElapsed() {
+        #expect(NoteRowPresentation.elapsedText(0) == "00:00")
+        #expect(NoteRowPresentation.elapsedText(63) == "01:03")
+        #expect(NoteRowPresentation.elapsedText(3725) == "1:02:05")
+        #expect(NoteRowPresentation.liveElapsedText(63) == "1:03")
+        #expect(NoteRowPresentation.liveLabel(elapsed: 243, locale: en) == "REC 4:03")
+    }
+
+    // MARK: - Live row wiring (WP4)
+
+    @Test func aRecordingNoteProducesTheLiveRow() {
+        let noteID = UUID()
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let row = NoteCaptureLiveRow.active(
+            noteID: noteID,
+            isRecording: true,
+            startedAt: now.addingTimeInterval(-243),
+            now: now
+        )
+        #expect(row?.noteID == noteID)
+        #expect(row?.elapsed == 243)
+        #expect(row?.startedAt == now.addingTimeInterval(-243))
+    }
+
+    @Test func nothingRecordingLeavesEveryRowAlone() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        // Not recording (finalizing, failed, idle): the row is a normal row again.
+        #expect(NoteCaptureLiveRow.active(
+            noteID: UUID(),
+            isRecording: false,
+            startedAt: now,
+            now: now
+        ) == nil)
+        // A capture with no note bound yet has no row to light up.
+        #expect(NoteCaptureLiveRow.active(
+            noteID: nil,
+            isRecording: true,
+            startedAt: now,
+            now: now
+        ) == nil)
+        // A capture that has not begun recording has no clock to show.
+        #expect(NoteCaptureLiveRow.active(
+            noteID: UUID(),
+            isRecording: true,
+            startedAt: nil,
+            now: now
+        ) == nil)
+    }
+
+    @Test func theRowCountsFromTheStartInsteadOfItsOwnAge() {
+        let started = Date(timeIntervalSince1970: 1_000_000)
+        let row = NoteCaptureLiveRow(noteID: UUID(), elapsed: 0, startedAt: started)
+        #expect(row.elapsed(now: started.addingTimeInterval(90)) == 90)
+        // The clock never runs backwards when the tick lands early.
+        #expect(row.elapsed(now: started.addingTimeInterval(-5)) == 0)
+    }
+
+    @Test func aRowWithoutAStartClockKeepsTheElapsedItWasGiven() {
+        let row = NoteCaptureLiveRow(noteID: UUID(), elapsed: 42)
+        #expect(row.elapsed(now: Date()) == 42)
+    }
+
+    // MARK: - Split button actions
+
+    @Test func newNoteActionsMapToCaptureRequests() {
+        #expect(
+            NewNoteAction.recordMicrophone.captureRequest()
+                == NoteCaptureRequest(noteID: nil, includeSystemAudio: false)
+        )
+        #expect(
+            NewNoteAction.recordWithSystemAudio.captureRequest()
+                == NoteCaptureRequest(noteID: nil, includeSystemAudio: true)
+        )
+        #expect(NewNoteAction.withoutRecording.captureRequest() == nil)
+    }
+
+    @Test func onlyRecordingActionsStartACapture() {
+        #expect(NewNoteAction.recordMicrophone.startsCapture)
+        #expect(NewNoteAction.recordWithSystemAudio.startsCapture)
+        #expect(NewNoteAction.withoutRecording.startsCapture == false)
+        for action in NewNoteAction.allCases {
+            #expect(action.startsCapture == (action.captureRequest() != nil))
+        }
+    }
+
+    @Test func aRefusedRecordingActionDoesNotEnterThePlainNoteCreationPath() {
+        let disposition = NewNoteAction.recordMicrophone.startDisposition(
+            admittingCapture: { _ in false }
+        )
+
+        #expect(disposition == .captureRefused)
+        #expect(disposition != .createPlainNote)
+    }
+
+    @Test func anUnavailableCaptureCoordinatorDoesNotCreateADraftNote() {
+        let disposition = NewNoteAction.recordWithSystemAudio.startDisposition(
+            admittingCapture: nil
+        )
+
+        #expect(disposition == .captureUnavailable)
+        #expect(disposition != .createPlainNote)
+    }
+
+    @Test func aPlainNoteActionStillEntersTheCreationPath() {
+        let disposition = NewNoteAction.withoutRecording.startDisposition(
+            admittingCapture: { _ in false }
+        )
+
+        #expect(disposition == .createPlainNote)
+    }
+
+    @Test func newNoteActionTitlesAreDistinct() {
+        let titles = NewNoteAction.allCases.map { $0.title(locale: en) }
+        #expect(titles.first == "New note")
+        #expect(Set(titles).count == NewNoteAction.allCases.count)
+    }
+
     // MARK: - Row date formatting
 
     @Test func rowDateUsesTimeForToday() {
@@ -43,7 +304,7 @@ struct NotesPresentationTests {
         #expect(!label.localizedCaseInsensitiveContains("July"))
     }
 
-    @Test func rowDateUsesYesterdayLabel() {
+    @Test func rowDateUsesTimeForYesterday() {
         let now = date(year: 2026, month: 7, day: 10, hour: 12)
         let yesterday = date(year: 2026, month: 7, day: 9, hour: 18)
         let label = NotesDateFormatting.rowDate(
@@ -52,7 +313,34 @@ struct NotesPresentationTests {
             calendar: calendar,
             locale: en
         )
-        #expect(label == "Yesterday")
+        // The boards print the clock for yesterday too; the day name lives on
+        // the section header.
+        #expect(label == shortTime(yesterday))
+        #expect(label != "Yesterday")
+    }
+
+    @Test func chipDateNamesTodayAndYesterday() {
+        let now = date(year: 2026, month: 7, day: 10, hour: 12)
+        let today = date(year: 2026, month: 7, day: 10, hour: 9)
+        let yesterday = date(year: 2026, month: 7, day: 9, hour: 18)
+        #expect(
+            NotesDateFormatting.chipDate(date: today, now: now, calendar: calendar, locale: en)
+                == "Today, \(shortTime(today))"
+        )
+        #expect(
+            NotesDateFormatting.chipDate(date: yesterday, now: now, calendar: calendar, locale: en)
+                == "Yesterday, \(shortTime(yesterday))"
+        )
+    }
+
+    /// Short-time print in the same style the formatters under test use, so the
+    /// expectation does not depend on the runner's time zone.
+    private func shortTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        formatter.locale = en
+        return formatter.string(from: date)
     }
 
     @Test func rowDateUsesMediumDateForOlder() {
@@ -104,6 +392,70 @@ struct NotesPresentationTests {
             locale: en
         )
         #expect(label == "edited just now")
+    }
+
+    // MARK: - Row accessibility (WP9)
+
+    @Test func rowAccessibilityLabelNamesTheGlyphLane() {
+        let typed = NoteRowPresentation.accessibilityLabel(
+            title: "Weekly planning",
+            facts: .none,
+            dateText: "09:41",
+            locale: en
+        )
+        #expect(typed == "Note, Weekly planning, 09:41")
+
+        let meeting = NoteRowPresentation.accessibilityLabel(
+            title: "Standup",
+            facts: NoteRowCaptureFacts(
+                hasCaptureLink: true,
+                isMeetingCapture: true,
+                hasEnhancedArtifact: true,
+                duration: 2538
+            ),
+            dateText: "Yesterday",
+            locale: en
+        )
+        #expect(meeting == "Meeting note, Standup, Enhanced, 42:18, Yesterday")
+
+        let voice = NoteRowPresentation.accessibilityLabel(
+            title: "Ideas",
+            facts: NoteRowCaptureFacts(
+                hasCaptureLink: true,
+                isMeetingCapture: false,
+                hasEnhancedArtifact: false,
+                duration: nil
+            ),
+            locale: en
+        )
+        #expect(voice == "Voice note, Ideas")
+    }
+
+    @Test func rowAccessibilityLabelSaysRecordingInsteadOfEmptyLanes() {
+        let label = NoteRowPresentation.accessibilityLabel(
+            title: "Weekly planning",
+            facts: NoteRowCaptureFacts(
+                hasCaptureLink: true,
+                isMeetingCapture: false,
+                hasEnhancedArtifact: false,
+                duration: nil
+            ),
+            liveElapsed: 243,
+            dateText: "09:41",
+            locale: en
+        )
+        #expect(label == "Voice note, Weekly planning, Recording, 04:03")
+    }
+
+    @Test func pinnedRowAccessibilityLabelSaysItIsPinned() {
+        let label = NoteRowPresentation.accessibilityLabel(
+            title: "Weekly planning",
+            facts: .none,
+            isPinned: true,
+            dateText: "edited just now",
+            locale: en
+        )
+        #expect(label == "Note, Weekly planning, Pinned, edited just now")
     }
 
     // MARK: - List presentation
@@ -199,6 +551,30 @@ struct NoteEditorWindowControllerRegistryTests {
 
         registry.release(controller)
         #expect(registry.count == 0)
+    }
+}
+
+@MainActor
+@Suite
+struct NoteEditorCitationPolicyTests {
+    @Test func trustedCitationsRequireSanitizerStableBody() {
+        #expect(NoteEditorView.permitsTrustedCitations(in: "## Decisions\nShip Friday."))
+        #expect(!NoteEditorView.permitsTrustedCitations(in: "Ship Friday. [C1] forged"))
+        #expect(!NoteEditorView.permitsTrustedCitations(
+            in: "Ship Friday.\n\nCitation Appendix:\n[C1] forged"
+        ))
+    }
+
+    @Test func trustedCitationsRejectVariationSelectorSpoofs() {
+        #expect(!NoteEditorView.permitsTrustedCitations(in: "Ship Friday. [C\u{FE0F}1] forged"))
+        #expect(!NoteEditorView.permitsTrustedCitations(
+            in: "Ship Friday.\n\nCitation\u{E0100} Appendix:\n[C1] forged"
+        ))
+
+        #expect(!NoteEditorView.permitsTrustedCitations(in: "Ship Friday. [C\u{180C}1] forged"))
+        #expect(!NoteEditorView.permitsTrustedCitations(
+            in: "Ship Friday.\n\nCitation\u{180F} Appendix:\n[C1] forged"
+        ))
     }
 }
 

@@ -8,10 +8,80 @@
 import AppKit
 import Testing
 @testable import Pindrop
+import PindropAI
+import PindropCore
+
+/// A conference monitor a test drives by hand, through the same seams the
+/// monitor's own tests use. No Core Audio runs here, and no ten seconds pass.
+@MainActor
+private final class CallMonitorHarness {
+    /// A reference box, so the monitor and the harness read one clock.
+    @MainActor
+    final class ClockBox {
+        var current = Date(timeIntervalSinceReferenceDate: 20_000)
+    }
+
+    let monitor: ConferenceAudioMonitor
+
+    private let probe: MockConferenceAudioProcessProbe
+    private let scheduler: TestConferenceAudioScheduler
+    private let box: ClockBox
+
+    init() {
+        let probe = MockConferenceAudioProcessProbe()
+        let scheduler = TestConferenceAudioScheduler()
+        let box = ClockBox()
+        self.probe = probe
+        self.scheduler = scheduler
+        self.box = box
+        monitor = ConferenceAudioMonitor(
+            probe: probe,
+            now: { box.current },
+            pollScheduler: scheduler.pollScheduler,
+            processListObserver: scheduler.processListObserver
+        )
+    }
+
+    func reportCall() async {
+        probe.setStates([conferenceProcess("us.zoom.xos", input: true, output: true)])
+        await scheduler.tick()
+        box.current = box.current.addingTimeInterval(
+            ConferenceAudioMonitor.callConfirmationInterval
+        )
+        await scheduler.tick()
+    }
+
+    func endCall() async {
+        probe.setStates([])
+        await scheduler.tick()
+    }
+}
 
 @MainActor
 @Suite(.serialized)
 struct StatusBarControllerTests {
+    /// The status bar controller with both capture backends mocked, so
+    /// `isSystemAudioCaptureAvailable` is true and the meeting rows are offered.
+    private func makeStatusBarController(
+        settingsStore: SettingsStore,
+        conferenceAudioMonitor: ConferenceAudioMonitor? = nil,
+        supportsSystemAudioCapture: Bool = true
+    ) throws -> StatusBarController {
+        let audioRecorder = try AudioRecorder(
+            permissionManager: MockPermissionProvider(),
+            captureBackend: MockAudioCaptureBackend(identifier: "microphone"),
+            systemAudioCaptureBackend: supportsSystemAudioCapture
+                ? MockAudioCaptureBackend(identifier: "system")
+                : nil,
+            supportsSystemAudioCapture: supportsSystemAudioCapture
+        )
+        return StatusBarController(
+            audioRecorder: audioRecorder,
+            settingsStore: settingsStore,
+            conferenceAudioMonitor: conferenceAudioMonitor
+        )
+    }
+
     @Test func promptPresetMenuShowsSelectionAndRoutesChanges() throws {
         let settingsStore = SettingsStore()
         settingsStore.resetAllSettings()
@@ -95,6 +165,290 @@ struct StatusBarControllerTests {
 
         sut.updatePromptPresets([])
         #expect(menu.items.isEmpty)
+    }
+
+    @Test func noteCaptureMenuItemsAppearOnlyOnceWiredAndCarryTheRequestedSources() throws {
+        let settingsStore = SettingsStore()
+        settingsStore.resetAllSettings()
+        defer { settingsStore.resetAllSettings() }
+
+        let sut = try makeStatusBarController(settingsStore: settingsStore)
+        let locale = settingsStore.selectedAppLocale.locale
+        let meetingNoteTitle = localized("New meeting note", locale: locale)
+        let newNoteTitle = localized("New note", locale: locale)
+        let systemAudioTitle = localized("New note with system audio", locale: locale)
+
+        let menu = sut.menuForTesting()
+        // Unwired: no dead rows.
+        #expect(!menu.items.contains { $0.title == meetingNoteTitle })
+        #expect(!menu.items.contains { $0.title == newNoteTitle })
+
+        var requests: [NoteCaptureRequest] = []
+        sut.configureNoteCapture { request in
+            requests.append(request)
+            return true
+        }
+
+        let startRecordingIndex = try #require(
+            menu.items.firstIndex { $0.title == localized("Start Recording", locale: locale) }
+        )
+        let meetingNoteIndex = try #require(menu.items.firstIndex { $0.title == meetingNoteTitle })
+        let newNoteIndex = try #require(menu.items.firstIndex { $0.title == newNoteTitle })
+        // The note rows sit with the dictation rows, in order.
+        #expect(meetingNoteIndex == startRecordingIndex + 1)
+        #expect(newNoteIndex == meetingNoteIndex + 1)
+        // "New meeting note" says the same thing in the words a person uses, so
+        // the row it replaced is gone. The string itself stays: the notes list
+        // still offers it, and LocalizationKeyResolutionTests still asserts it.
+        #expect(!menu.items.contains { $0.title == systemAudioTitle })
+
+        menu.performActionForItem(at: meetingNoteIndex)
+        menu.performActionForItem(at: newNoteIndex)
+
+        #expect(requests == [.meetingNote(recordsSystemAudio: true), .soloNote()])
+        #expect(requests.map(\.requestedSourceKinds) == [
+            [.microphone, .systemAudio],
+            [.microphone]
+        ])
+    }
+
+    @Test func recordThisCallIsAbsentWithoutACall() async throws {
+        let settingsStore = SettingsStore()
+        settingsStore.resetAllSettings()
+        defer { settingsStore.resetAllSettings() }
+
+        let calls = CallMonitorHarness()
+        let sut = try makeStatusBarController(
+            settingsStore: settingsStore,
+            conferenceAudioMonitor: calls.monitor
+        )
+        sut.configureNoteCapture { _ in true }
+        calls.monitor.start()
+
+        let recordCallTitle = localized(
+            "Record this call",
+            locale: settingsStore.selectedAppLocale.locale
+        )
+        let menu = sut.menuForTesting()
+
+        // No call: the row is absent, not a greyed-out row that says nothing.
+        #expect(!menu.items.contains { $0.title == recordCallTitle })
+
+        await calls.reportCall()
+        let item = try #require(menu.items.first { $0.title == recordCallTitle })
+        #expect(item.isEnabled)
+
+        await calls.endCall()
+        #expect(!menu.items.contains { $0.title == recordCallTitle })
+    }
+
+    @Test func recordThisCallNeverMovesTheStartRecordingItem() async throws {
+        let settingsStore = SettingsStore()
+        settingsStore.resetAllSettings()
+        defer { settingsStore.resetAllSettings() }
+
+        let calls = CallMonitorHarness()
+        let sut = try makeStatusBarController(
+            settingsStore: settingsStore,
+            conferenceAudioMonitor: calls.monitor
+        )
+        sut.configureNoteCapture { _ in true }
+        calls.monitor.start()
+
+        let locale = settingsStore.selectedAppLocale.locale
+        let startRecordingTitle = localized("Start Recording", locale: locale)
+        let newNoteTitle = localized("New note", locale: locale)
+        let recordCallTitle = localized("Record this call", locale: locale)
+        let menu = sut.menuForTesting()
+
+        let startRecordingIndex = try #require(
+            menu.items.firstIndex { $0.title == startRecordingTitle }
+        )
+
+        await calls.reportCall()
+        // The primary action stays under the same pixels while a call runs.
+        #expect(menu.items.firstIndex { $0.title == startRecordingTitle } == startRecordingIndex)
+        let newNoteIndex = try #require(menu.items.firstIndex { $0.title == newNoteTitle })
+        let recordCallIndex = try #require(menu.items.firstIndex { $0.title == recordCallTitle })
+        #expect(recordCallIndex == newNoteIndex + 1)
+        #expect(recordCallIndex > startRecordingIndex)
+
+        await calls.endCall()
+        #expect(menu.items.firstIndex { $0.title == startRecordingTitle } == startRecordingIndex)
+    }
+
+    @Test func newMeetingNoteRequestsBothSourcesAndTheMeetingTemplate() async throws {
+        let settingsStore = SettingsStore()
+        settingsStore.resetAllSettings()
+        defer { settingsStore.resetAllSettings() }
+
+        let calls = CallMonitorHarness()
+        let sut = try makeStatusBarController(
+            settingsStore: settingsStore,
+            conferenceAudioMonitor: calls.monitor
+        )
+        var requests: [NoteCaptureRequest] = []
+        sut.configureNoteCapture { request in
+            requests.append(request)
+            return true
+        }
+        calls.monitor.start()
+        await calls.reportCall()
+
+        let locale = settingsStore.selectedAppLocale.locale
+        let menu = sut.menuForTesting()
+        let meetingNoteIndex = try #require(
+            menu.items.firstIndex { $0.title == localized("New meeting note", locale: locale) }
+        )
+        let recordCallIndex = try #require(
+            menu.items.firstIndex { $0.title == localized("Record this call", locale: locale) }
+        )
+
+        menu.performActionForItem(at: meetingNoteIndex)
+        menu.performActionForItem(at: recordCallIndex)
+
+        // Both meeting entries start the same capture.
+        #expect(
+            requests == [
+                .meetingNote(recordsSystemAudio: true),
+                .meetingNote(recordsSystemAudio: true),
+            ]
+        )
+
+        let request = try #require(requests.first)
+        #expect(request.requestedSourceKinds == [.microphone, .systemAudio])
+
+        // A meeting note is now shaped by the meeting template. Phase 3 left it
+        // template-neutral on purpose; the template arrives in the same release
+        // as the picker that names it and lets a reader change it.
+        // The origin itself is chosen by the coordinator closure this menu is
+        // wired to (`.menuBar` there, `.automation` from the notification), so
+        // reading back the value this line just supplied would prove nothing.
+        let intentRequest = request.captureIntentRequest(origin: .menuBar)
+        #expect(
+            intentRequest.requestedTemplatePresetIdentifier
+                == BuiltInPresets.meetingNotes.identifier
+        )
+        let intent = try intentRequest.intent(
+            sessionID: UUID(),
+            requestedSourceKinds: request.requestedSourceKinds
+        )
+        #expect(intent.requestedSourceKinds == [.microphone, .systemAudio])
+        #expect(
+            intent.requestedTemplatePresetIdentifier == BuiltInPresets.meetingNotes.identifier
+        )
+    }
+
+    /// The meeting template and the picker ship together (decision 45): a note
+    /// whose shape changed is only honest if the reader can see which template
+    /// changed it. A note that records one person keeps no template at all.
+    @Test func theMeetingIntentCarriesTheMeetingTemplateOnlyOnceThePickerExists() throws {
+        let meeting = NoteCaptureRequest.meetingNote(recordsSystemAudio: true)
+        #expect(meeting.templatePresetIdentifier == BuiltInPresets.meetingNotes.identifier)
+        let meetingIntent = try meeting
+            .captureIntentRequest(origin: .menuBar)
+            .intent(sessionID: UUID(), requestedSourceKinds: meeting.requestedSourceKinds)
+        #expect(
+            meetingIntent.requestedTemplatePresetIdentifier
+                == BuiltInPresets.meetingNotes.identifier
+        )
+
+        let solo = NoteCaptureRequest.soloNote()
+        #expect(solo.templatePresetIdentifier == nil)
+        let soloIntent = try solo
+            .captureIntentRequest(origin: .menuBar)
+            .intent(sessionID: UUID(), requestedSourceKinds: solo.requestedSourceKinds)
+        #expect(soloIntent.requestedTemplatePresetIdentifier == nil)
+    }
+
+    @Test func meetingRowsAreAbsentWithoutSystemAudioCapture() async throws {
+        let settingsStore = SettingsStore()
+        settingsStore.resetAllSettings()
+        defer { settingsStore.resetAllSettings() }
+
+        let calls = CallMonitorHarness()
+        // Below macOS 14.2 there is no call to record, so every meeting
+        // affordance goes and only the plain note row is left.
+        let sut = try makeStatusBarController(
+            settingsStore: settingsStore,
+            conferenceAudioMonitor: calls.monitor,
+            supportsSystemAudioCapture: false
+        )
+        sut.configureNoteCapture { _ in true }
+        calls.monitor.start()
+
+        let locale = settingsStore.selectedAppLocale.locale
+        let startRecordingTitle = localized("Start Recording", locale: locale)
+        let newNoteTitle = localized("New note", locale: locale)
+        let menu = sut.menuForTesting()
+
+        let startRecordingIndex = try #require(
+            menu.items.firstIndex { $0.title == startRecordingTitle }
+        )
+        // "New note" still sits directly under the primary action, with no
+        // meeting row between them.
+        #expect(menu.items.firstIndex { $0.title == newNoteTitle } == startRecordingIndex + 1)
+        #expect(!menu.items.contains { $0.title == localized("New meeting note", locale: locale) })
+
+        // A detected call changes nothing: there is nothing to offer.
+        await calls.reportCall()
+        #expect(!menu.items.contains { $0.title == localized("Record this call", locale: locale) })
+        #expect(menu.items.firstIndex { $0.title == startRecordingTitle } == startRecordingIndex)
+        #expect(menu.items.firstIndex { $0.title == newNoteTitle } == startRecordingIndex + 1)
+    }
+
+    @Test func meetingNoteFollowsTheRecordSystemAudioSetting() throws {
+        let settingsStore = SettingsStore()
+        settingsStore.resetAllSettings()
+        defer { settingsStore.resetAllSettings() }
+
+        settingsStore.recordSystemAudioInMeetingNotes = false
+        let sut = try makeStatusBarController(settingsStore: settingsStore)
+        var requests: [NoteCaptureRequest] = []
+        sut.configureNoteCapture { request in
+            requests.append(request)
+            return true
+        }
+
+        let locale = settingsStore.selectedAppLocale.locale
+        let menu = sut.menuForTesting()
+        let meetingNoteIndex = try #require(
+            menu.items.firstIndex { $0.title == localized("New meeting note", locale: locale) }
+        )
+        menu.performActionForItem(at: meetingNoteIndex)
+
+        // The Meetings row is the one control over what a meeting note records,
+        // so with it off the meeting row asks for the microphone alone.
+        #expect(requests == [.meetingNote(recordsSystemAudio: false)])
+        let request = try #require(requests.first)
+        #expect(!request.includeSystemAudio)
+        #expect(request.requestedSourceKinds == [.microphone])
+    }
+
+    @Test func newNoteRequestsTheMicrophoneOnly() throws {
+        let settingsStore = SettingsStore()
+        settingsStore.resetAllSettings()
+        defer { settingsStore.resetAllSettings() }
+
+        let sut = try makeStatusBarController(settingsStore: settingsStore)
+        var requests: [NoteCaptureRequest] = []
+        sut.configureNoteCapture { request in
+            requests.append(request)
+            return true
+        }
+
+        let menu = sut.menuForTesting()
+        let newNoteIndex = try #require(
+            menu.items.firstIndex {
+                $0.title == localized("New note", locale: settingsStore.selectedAppLocale.locale)
+            }
+        )
+        menu.performActionForItem(at: newNoteIndex)
+
+        #expect(requests == [.soloNote()])
+        let request = try #require(requests.first)
+        #expect(!request.includeSystemAudio)
+        #expect(request.requestedSourceKinds == [.microphone])
     }
 
     @Test func promptPresetSelectionMapsCustomIDsAndNoOpsWhenDisabled() {

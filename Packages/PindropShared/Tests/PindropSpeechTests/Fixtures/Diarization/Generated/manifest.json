@@ -1,0 +1,9 @@
+{
+  "fixtures": [
+    {
+      "id": "ami-en2002a-0-60",
+      "audio": "ami-en2002a-0-60.wav",
+      "expectedSpeakerCount": 4
+    }
+  ]
+}

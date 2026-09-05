@@ -8,6 +8,7 @@
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
+import PindropCore
 
 struct MCPSettingsView: View {
     @ObservedObject var settings: SettingsStore

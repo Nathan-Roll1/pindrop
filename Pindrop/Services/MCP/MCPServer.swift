@@ -7,6 +7,7 @@
 
 import Foundation
 import Network
+import PindropCore
 
 /// Lightweight localhost HTTP server that hosts the MCP endpoint.
 /// Start it when mcpServerEnabled is true; stop it when the user disables it or the app quits.

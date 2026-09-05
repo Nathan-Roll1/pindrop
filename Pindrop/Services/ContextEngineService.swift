@@ -9,6 +9,7 @@ import AppKit
 import ApplicationServices
 import Foundation
 import os.log
+import PindropCore
 
 struct FocusedTextSnapshot: Equatable {
     let appBundleIdentifier: String?

@@ -7,6 +7,9 @@
 
 import SwiftData
 import SwiftUI
+import PindropCore
+import PindropData
+import PindropMedia
 
 struct DictationSettingsView: View {
     @ObservedObject var settings: SettingsStore
@@ -28,9 +31,18 @@ struct DictationSettingsView: View {
     }
 
     private var retentionService: DictationAudioRetentionService {
-        DictationAudioRetentionService(
+        let applicationSupportRoot = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dictationAudioDirectoryURL = applicationSupportRoot
+            .appendingPathComponent("Pindrop", isDirectory: true)
+            .appendingPathComponent("MediaLibrary", isDirectory: true)
+            .appendingPathComponent("DictationAudio", isDirectory: true)
+        return DictationAudioRetentionService(
             historyStore: HistoryStore(modelContext: modelContext),
-            settingsStore: settings
+            directoryURL: dictationAudioDirectoryURL,
+            retentionPolicyProvider: { [settings] in
+                settings.dictationAudioRetention
+            }
         )
     }
 
@@ -38,7 +50,7 @@ struct DictationSettingsView: View {
         SettingsPaneStack {
             // Microphone
             SettingsGroupCard {
-                SettingsRow(showSeparator: false) {
+                SettingsRow(showSeparator: true) {
                     SettingsRowLabel(title: localized("Microphone", locale: locale))
                 } control: {
                     HStack(spacing: 8) {
@@ -73,6 +85,19 @@ struct DictationSettingsView: View {
                         }
                         .buttonStyle(.plain)
                     }
+                }
+
+                SettingsRow(showSeparator: false) {
+                    SettingsRowLabel(
+                        title: localized("Voice isolation", locale: locale),
+                        subtitle: localized("Reduce background noise before transcription", locale: locale)
+                    )
+                } control: {
+                    SettingsToggle(
+                        isOn: $settings.voiceIsolationEnabled,
+                        label: localized("Voice isolation", locale: locale)
+                    )
+                    .accessibilityIdentifier("settings.toggle.voiceIsolation")
                 }
             }
 
@@ -150,7 +175,8 @@ struct DictationSettingsView: View {
                 }
             }
 
-            // Speaker profiles summary
+            // Speakers. "Name speakers while recording" lives in the Meetings
+            // section, next to the other controls over a recorded call.
             SettingsGroupCard {
                 SettingsRow(showSeparator: false) {
                     SettingsRowLabel(
@@ -511,7 +537,11 @@ private struct SpeakerProfilesManageSheet: View {
                                 Text(profile.displayName)
                                     .font(AppTypography.labelStrong)
                                 if profile.isCurrentUser {
-                                    Text(localized("Current", locale: locale))
+                                    // "Current" slugs onto the "Current: %@" key
+                                    // and rendered that format string verbatim.
+                                    // "You" is also the word the transcript uses
+                                    // for this speaker.
+                                    Text(localized("You", locale: locale))
                                         .font(AppTypography.caption)
                                         .foregroundStyle(AppColors.accent)
                                 }

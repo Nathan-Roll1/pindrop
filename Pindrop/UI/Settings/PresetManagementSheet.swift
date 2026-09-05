@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import PindropData
 
 struct PresetManagementSheet: View {
     @Environment(\.modelContext) private var modelContext
@@ -20,6 +21,12 @@ struct PresetManagementSheet: View {
     @State private var isCreating = false
     @State private var newName = ""
     @State private var newPrompt = ""
+
+    /// Opens straight on the create form, for callers whose action was "new
+    /// template" rather than "show me the templates".
+    init(startsCreating: Bool = false) {
+        _isCreating = State(initialValue: startsCreating)
+    }
 
     @State private var editingPresetID: UUID?
     @State private var editName = ""

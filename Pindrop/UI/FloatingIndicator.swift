@@ -8,6 +8,7 @@
 import SwiftUI
 import AppKit
 import Combine
+import PindropCore
 
 enum NotchPanelMetrics {
     static let fallbackNotchWidth: CGFloat = 186

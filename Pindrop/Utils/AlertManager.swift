@@ -7,6 +7,7 @@
 
 import Foundation
 import AppKit
+import PindropCore
 
 @MainActor
 final class AlertManager {
@@ -84,24 +85,6 @@ final class AlertManager {
         _ = alert.runModal()
     }
     
-    func showModelTimeoutAlert() {
-        let alert = makeAlert(style: .critical)
-        alert.messageText = localized("Model Loading Timed Out", locale: locale)
-        alert.informativeText = localized("""
-            The model failed to load within 60 seconds. This usually means the model files are corrupted or incompatible.
-            
-            To fix this:
-            1. Open Settings → Models
-            2. Delete the problematic model
-            3. Re-download the model
-            
-            If the problem persists, try a smaller model (Tiny or Base).
-            """, locale: locale)
-        alert.addButton(withTitle: localized("Open Settings", locale: locale))
-        alert.addButton(withTitle: localized("OK", locale: locale))
-        
-        _ = alert.runModal()
-    }
     
     func showModelLoadErrorAlert(error: Error) {
         let alert = makeAlert(style: .warning)
@@ -196,6 +179,24 @@ final class AlertManager {
         alert.runModal()
     }
 
+    /// The one-time ask that makes the call notification findable.
+    ///
+    /// Modal, like every other ask in this file, and shown only when the main
+    /// window is already up: the caller keeps it away from a live call and a
+    /// live recording.
+    func presentCallNotificationAsk() -> Bool {
+        let alert = makeAlert(style: .informational)
+        alert.messageText = localized("Pindrop noticed a call.", locale: locale)
+        alert.informativeText = localized(
+            "Do you want a notification when a call starts?",
+            locale: locale
+        )
+        alert.addButton(withTitle: localized("Notify me", locale: locale))
+        alert.addButton(withTitle: localized("No thanks", locale: locale))
+
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
     private func openAccessibilitySettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
@@ -210,3 +211,5 @@ final class AlertManager {
         }
     }
 }
+
+extension AlertManager: MeetingCallAskPresenting {}

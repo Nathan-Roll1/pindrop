@@ -9,6 +9,9 @@
 
 import AVFoundation
 import SwiftUI
+import PindropCore
+import PindropMedia
+import PindropData
 
 struct LibraryExpandedPlayerCard: View {
     let record: TranscriptionRecord
