@@ -240,7 +240,8 @@ struct NotePageView: View {
             hasLiveText: hasLiveText,
             liveLabelsDiffered: views?.transcript?.liveLabelsDiffered ?? false,
             wasRecovered: views?.captureState?.wasRecovered ?? false,
-            hasFailedFinalizationStep: failedFinalizationStep != nil
+            hasFailedFinalizationStep: failedFinalizationStep != nil,
+            canRetryFinalization: capturePhase == .failed && noteCaptureState?.canRetryFinalization == true
         )
     }
 
@@ -1081,7 +1082,13 @@ struct NotePageView: View {
         }
 
         if case .failed = capturePhase, let message = noteCaptureState?.failureMessage {
-            InlineNotice(kind: .error, message: message)
+            InlineNotice(
+                kind: .error,
+                message: message,
+                actionTitle: pageState.canRetryFinalization ? localized("Try again", locale: locale) : nil,
+                actionIdentifier: "note.page.capture.retry",
+                action: pageState.canRetryFinalization ? onFinishNoteCapture : nil
+            )
                 .padding(.leading, textColumnInset)
                 .accessibilityIdentifier("note.page.capture.failure")
         }

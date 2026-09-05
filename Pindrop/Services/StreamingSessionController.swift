@@ -1219,6 +1219,7 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
                 if Task.isCancelled { break }
                 await pump.ingest(packet)
             }
+            await pump.finish()
         }
         // The continuation is captured directly (it is Sendable); going through
         // self would re-enter the main actor from the capture thread.
@@ -1540,29 +1541,25 @@ final class StreamingSessionController: StreamingRefinementCommitObserver {
 
     /// What the pump does when a handover takes effect: one hop to the main
     /// actor, at the engine boundary the switch landed on, never per buffer.
-    private func handoverApplicationHandler() -> @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) -> Void {
+    private func handoverApplicationHandler() -> @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) async -> Void {
         { [weak self] source, captureTime, fedSeconds in
-            Task { @MainActor [weak self] in
-                await self?.applyLiveChannelChange(
-                    to: source,
-                    at: captureTime,
-                    fedSeconds: fedSeconds
-                )
-            }
+            await self?.applyLiveChannelChange(
+                to: source,
+                at: captureTime,
+                fedSeconds: fedSeconds
+            )
         }
     }
 
     /// What the pump does with speech the live engine never heard: one hop per
     /// marker, a few per minute.
-    private func droppedSpeechHandler() -> @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) -> Void {
+    private func droppedSpeechHandler() -> @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) async -> Void {
         { [weak self] source, startCaptureTime, duration in
-            Task { @MainActor [weak self] in
-                await self?.refinementCoordinator?.markDroppedSpeech(
-                    speaker: .channel(for: source),
-                    startOffset: startCaptureTime,
-                    duration: duration
-                )
-            }
+            await self?.refinementCoordinator?.markDroppedSpeech(
+                speaker: .channel(for: source),
+                startOffset: startCaptureTime,
+                duration: duration
+            )
         }
     }
 
@@ -2037,26 +2034,30 @@ final class LiveEngineBoundarySignal: @unchecked Sendable {
 ///
 /// The consumer, not the arbiter, decides when a handover takes effect. Splicing
 /// a second channel into a partly filled decode chunk puts two voices inside one
-/// decoded string, and no clock can separate them afterwards, so while a handover
-/// is pending nothing is fed at all. The switch lands at the engine's own next
-/// boundary; if none arrives within `handoverCeilingSeconds` the pump feeds
-/// exactly the remainder of the open chunk as silence to force one decode, then
-/// applies it behind that decode.
-///
-/// The incoming channel's speech between the decision and the application is not
-/// in the live preview. The durable spool still holds it and the offline pass at
-/// finalize still transcribes it.
+/// decoded string, and no clock can separate them afterwards. While a handover is
+/// pending, the incoming channel is held in a bounded buffer. The switch lands at
+/// the engine's own next boundary, then the held audio is replayed behind it. If no
+/// boundary arrives within `handoverCeilingSeconds`, the pump feeds exactly the
+/// remainder of the open chunk as silence to force one decode first. Audio that
+/// cannot fit in the bounded handover buffer gets a visible dropped-speech marker;
+/// the durable spool still holds it for the offline pass at finalize.
 ///
 /// Internal, not private, so the boundary contract above can be asserted directly
 /// rather than inferred from the packets the recorder happened to emit.
 final class LiveAudioPump {
 
+    /// Capture callbacks normally arrive about 50 times per second. This keeps
+    /// more than one ceiling's worth at that rate, while the duration bound below
+    /// remains authoritative for larger buffers.
+    private static let maximumPendingAudioBuffers = 256
+    private static let pendingAudioDurationTolerance: TimeInterval = 0.000_001
+
     private let engine: any PindropSpeech.StreamingTranscriptionEngine
     private let arbiter: LiveChannelArbiter?
     private let boundarySignal: LiveEngineBoundarySignal
     private let chunkSeconds: TimeInterval
-    private let onHandoverApplied: @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) -> Void
-    private let onDroppedSpeech: @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) -> Void
+    private let onHandoverApplied: @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) async -> Void
+    private let onDroppedSpeech: @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) async -> Void
 
     /// Samples handed to the engine, including forced-flush silence. The engine
     /// decodes on whole chunks, so this is what says how much of the open chunk
@@ -2071,15 +2072,35 @@ final class LiveAudioPump {
     /// The channel whose buffers currently reach the engine.
     private var admittedSource: CaptureSourceKind?
     private var pendingHandover: PendingHandover?
+    private var pendingAudio: [PendingAudioBuffer] = []
+    private var pendingAudioSeconds: TimeInterval = 0
+    private var pendingDroppedAudio: DroppedAudioSpan?
 
     private struct PendingHandover {
         let to: CaptureSourceKind
-        /// Capture time the incoming channel took the engine at. It stamps the
-        /// new turn's header and nothing else.
-        let atCaptureTime: TimeInterval
+        /// Capture time the arbiter awarded the engine. The ceiling starts here,
+        /// but the ownership run starts at the first retained incoming buffer.
+        let decisionCaptureTime: TimeInterval
         /// The engine's boundary count when this handover was recorded. Only a
         /// boundary past this one can carry the switch.
         let afterBoundaryCount: UInt64
+    }
+
+    private struct PendingAudioBuffer {
+        let buffer: AVAudioPCMBuffer
+        let source: CaptureSourceKind
+        let captureTime: TimeInterval
+        let duration: TimeInterval
+    }
+
+    private struct DroppedAudioSpan {
+        let source: CaptureSourceKind
+        let startCaptureTime: TimeInterval
+        var endCaptureTime: TimeInterval
+
+        var duration: TimeInterval {
+            max(0, endCaptureTime - startCaptureTime)
+        }
     }
 
     init(
@@ -2087,8 +2108,8 @@ final class LiveAudioPump {
         arbiter: LiveChannelArbiter?,
         boundarySignal: LiveEngineBoundarySignal,
         chunkSeconds: TimeInterval,
-        onHandoverApplied: @escaping @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) -> Void,
-        onDroppedSpeech: @escaping @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) -> Void
+        onHandoverApplied: @escaping @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) async -> Void,
+        onDroppedSpeech: @escaping @Sendable (CaptureSourceKind, TimeInterval, TimeInterval) async -> Void
     ) {
         self.engine = engine
         self.arbiter = arbiter
@@ -2101,19 +2122,34 @@ final class LiveAudioPump {
     func ingest(_ packet: LiveAudioPacket) async {
         switch packet {
         case .handoverPending(let target, let captureTime):
-            beginHandover(to: target, at: captureTime)
+            await beginHandover(to: target, at: captureTime)
         case .droppedSpeech(let source, let startCaptureTime, let duration):
-            onDroppedSpeech(source, startCaptureTime, duration)
+            await flushPendingDroppedAudio()
+            await onDroppedSpeech(source, startCaptureTime, duration)
         case .buffer(let buffer, let source, let captureTime):
             await ingestBuffer(buffer, from: source, at: captureTime)
         }
     }
 
-    private func beginHandover(to target: CaptureSourceKind, at captureTime: TimeInterval) {
-        guard pendingHandover == nil, target != admittedSource else { return }
+    func finish() async {
+        await reportPendingAudioAsDropped()
+        await flushPendingDroppedAudio()
+        pendingHandover = nil
+    }
+
+    private func beginHandover(to target: CaptureSourceKind, at captureTime: TimeInterval) async {
+        if let pendingHandover {
+            guard pendingHandover.to != target else { return }
+            await reportPendingAudioAsDropped()
+            self.pendingHandover = nil
+        }
+        guard target != admittedSource else {
+            arbiter?.applyPendingHandover()
+            return
+        }
         pendingHandover = PendingHandover(
             to: target,
-            atCaptureTime: captureTime,
+            decisionCaptureTime: captureTime,
             afterBoundaryCount: boundarySignal.boundaryCount
         )
     }
@@ -2133,21 +2169,40 @@ final class LiveAudioPump {
             admittedSource = owner
             pendingHandover = nil
             arbiter?.applyPendingHandover()
-            onHandoverApplied(owner, captureTime, fedSeconds)
+            await onHandoverApplied(owner, captureTime, fedSeconds)
         }
         // Control packets travel in the same bounded ring as the audio, so one can
         // be dropped as the oldest element. Ownership lives in the arbiter, so
         // read it here too: a lost packet then costs latency, never an arbiter
         // wedged behind a handover nobody ever applied.
         if let target = arbiter?.pendingHandover {
-            beginHandover(to: target, at: captureTime)
+            await beginHandover(to: target, at: captureTime)
         }
         if pendingHandover != nil {
-            await resolvePendingHandover(sampleRate: buffer.format.sampleRate, now: captureTime)
+            await resolvePendingHandover(
+                sampleRate: buffer.format.sampleRate,
+                source: source,
+                captureTime: captureTime
+            )
         }
-        guard pendingHandover == nil else { return }
-        guard admittedSource == source else { return }
+        if let pendingHandover {
+            if source == pendingHandover.to {
+                await retainPendingAudio(buffer, from: source, at: captureTime)
+            } else {
+                await recordDropped(buffer, from: source, at: captureTime)
+            }
+            return
+        }
+        guard admittedSource == source else {
+            await flushPendingDroppedAudio()
+            await onDroppedSpeech(source, captureTime, audioDuration(of: buffer))
+            return
+        }
 
+        await feed(buffer)
+    }
+
+    private func feed(_ buffer: AVAudioPCMBuffer) async {
         // Counted before the call, not after. The engine advances its own fed
         // watermark before it decodes, and rethrows a decode failure, so a
         // buffer it threw on has still moved the clock the emissions report.
@@ -2169,15 +2224,24 @@ final class LiveAudioPump {
 
     /// Applies the pending handover if the engine reached a boundary, or forces
     /// one at the ceiling.
-    private func resolvePendingHandover(sampleRate: Double, now: TimeInterval) async {
+    private func resolvePendingHandover(
+        sampleRate: Double,
+        source: CaptureSourceKind,
+        captureTime: TimeInterval
+    ) async {
         guard let pending = pendingHandover else { return }
-        if boundarySignal.boundaryCount > pending.afterBoundaryCount {
-            apply(pending.to, at: pending.atCaptureTime)
-            return
+        let reachedNaturalBoundary = boundarySignal.boundaryCount > pending.afterBoundaryCount
+        let reachedCeiling = needsForcedFlush(pending, at: captureTime)
+        guard reachedNaturalBoundary || reachedCeiling else { return }
+        guard let captureStart = pendingAudio.first?.captureTime
+            ?? (source == pending.to ? captureTime : nil)
+        else { return }
+        if !reachedNaturalBoundary {
+            await forceFlush(sampleRate: sampleRate)
         }
-        guard needsForcedFlush(pending, at: now) else { return }
-        await forceFlush(sampleRate: sampleRate)
-        apply(pending.to, at: pending.atCaptureTime)
+        await flushPendingDroppedAudio()
+        await apply(pending.to, at: captureStart)
+        await replayPendingAudio()
     }
 
     /// The arbiter owns the ceiling, so a test that moves it moves what ships.
@@ -2187,7 +2251,114 @@ final class LiveAudioPump {
         if let arbiter, arbiter.pendingHandover != nil {
             return arbiter.needsForcedFlush(at: now)
         }
-        return now - pending.atCaptureTime >= LiveChannelArbiter.handoverCeilingSeconds
+        return now - pending.decisionCaptureTime >= LiveChannelArbiter.handoverCeilingSeconds
+    }
+
+    private func retainPendingAudio(
+        _ buffer: AVAudioPCMBuffer,
+        from source: CaptureSourceKind,
+        at captureTime: TimeInterval
+    ) async {
+        let duration = audioDuration(of: buffer)
+        while let oldest = pendingAudio.first,
+              pendingAudio.count >= Self.maximumPendingAudioBuffers
+                || pendingAudioSeconds + duration
+                    > LiveChannelArbiter.handoverCeilingSeconds + Self.pendingAudioDurationTolerance {
+            pendingAudio.removeFirst()
+            pendingAudioSeconds -= oldest.duration
+            await recordDropped(
+                source: oldest.source,
+                startCaptureTime: oldest.captureTime,
+                duration: oldest.duration
+            )
+        }
+        guard pendingAudio.count < Self.maximumPendingAudioBuffers,
+              duration
+                <= LiveChannelArbiter.handoverCeilingSeconds + Self.pendingAudioDurationTolerance
+        else {
+            await recordDropped(
+                source: source,
+                startCaptureTime: captureTime,
+                duration: duration
+            )
+            return
+        }
+        pendingAudio.append(
+            PendingAudioBuffer(
+                buffer: buffer,
+                source: source,
+                captureTime: captureTime,
+                duration: duration
+            )
+        )
+        pendingAudioSeconds += duration
+    }
+
+    private func replayPendingAudio() async {
+        let retained = pendingAudio
+        pendingAudio.removeAll(keepingCapacity: true)
+        pendingAudioSeconds = 0
+        for item in retained {
+            await feed(item.buffer)
+        }
+    }
+
+    private func reportPendingAudioAsDropped() async {
+        for item in pendingAudio {
+            await recordDropped(
+                source: item.source,
+                startCaptureTime: item.captureTime,
+                duration: item.duration
+            )
+        }
+        pendingAudio.removeAll(keepingCapacity: true)
+        pendingAudioSeconds = 0
+        await flushPendingDroppedAudio()
+    }
+
+    private func recordDropped(
+        _ buffer: AVAudioPCMBuffer,
+        from source: CaptureSourceKind,
+        at captureTime: TimeInterval
+    ) async {
+        await recordDropped(
+            source: source,
+            startCaptureTime: captureTime,
+            duration: audioDuration(of: buffer)
+        )
+    }
+
+    private func recordDropped(
+        source: CaptureSourceKind,
+        startCaptureTime: TimeInterval,
+        duration: TimeInterval
+    ) async {
+        let endCaptureTime = startCaptureTime + duration
+        if var span = pendingDroppedAudio,
+           span.source == source,
+           startCaptureTime <= span.endCaptureTime + Self.pendingAudioDurationTolerance {
+            span.endCaptureTime = max(span.endCaptureTime, endCaptureTime)
+            pendingDroppedAudio = span
+            return
+        }
+        await flushPendingDroppedAudio()
+        pendingDroppedAudio = DroppedAudioSpan(
+            source: source,
+            startCaptureTime: startCaptureTime,
+            endCaptureTime: endCaptureTime
+        )
+    }
+
+    private func flushPendingDroppedAudio() async {
+        guard let span = pendingDroppedAudio else { return }
+        pendingDroppedAudio = nil
+        await onDroppedSpeech(span.source, span.startCaptureTime, span.duration)
+    }
+
+    private func audioDuration(of buffer: AVAudioPCMBuffer) -> TimeInterval {
+        let sampleRate = buffer.format.sampleRate
+        guard sampleRate > 0 else { return 0 }
+        return Double(buffer.frameLength) / sampleRate
     }
 
     /// Feeds exactly the remainder of the open chunk as silence, which forces one
@@ -2222,12 +2393,12 @@ final class LiveAudioPump {
         }
     }
 
-    private func apply(_ target: CaptureSourceKind, at captureTime: TimeInterval) {
+    private func apply(_ target: CaptureSourceKind, at captureTime: TimeInterval) async {
         pendingHandover = nil
         admittedSource = target
         // Tells the arbiter one channel change cleared, so it may decide another.
         arbiter?.applyPendingHandover()
-        onHandoverApplied(target, captureTime, fedSeconds)
+        await onHandoverApplied(target, captureTime, fedSeconds)
         Log.transcription.debug("Live channel handover applied to \(target.rawValue)")
     }
 }

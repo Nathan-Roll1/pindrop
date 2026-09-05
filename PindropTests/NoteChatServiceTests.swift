@@ -40,15 +40,31 @@ struct NoteChatServiceTests {
         text: String,
         speakerLabel: String? = "You"
     ) -> TranscriptSegmentSnapshot {
-        TranscriptSegmentSnapshot(
+        segment(
             id: "segment-\(index)",
+            text: text,
+            startOffset: Double(index) * Self.chunkDuration,
+            duration: Self.chunkDuration,
+            speakerLabel: speakerLabel
+        )
+    }
+
+    private func segment(
+        id: String,
+        text: String,
+        startOffset: TimeInterval,
+        duration: TimeInterval,
+        speakerLabel: String? = "You"
+    ) -> TranscriptSegmentSnapshot {
+        TranscriptSegmentSnapshot(
+            id: id,
             revisionID: UUID(),
             speakerKey: "self",
             speakerLabel: speakerLabel,
             isCurrentUser: speakerLabel == "You",
             text: text,
-            startOffset: Double(index) * Self.chunkDuration,
-            duration: Self.chunkDuration
+            startOffset: startOffset,
+            duration: duration
         )
     }
 
@@ -103,6 +119,7 @@ struct NoteChatServiceTests {
             "The release candidate ships on Friday.",
             "Dana owns the changelog.",
         ],
+        transcriptSegments: [TranscriptSegmentSnapshot]? = nil,
         panels: [CaptureEnhancedPanelSnapshot] = [],
         configureProvider: Bool = true
     ) throws -> Fixture {
@@ -127,7 +144,7 @@ struct NoteChatServiceTests {
             )
         }
 
-        let segments = transcriptTexts.enumerated().map { index, text in
+        let segments = transcriptSegments ?? transcriptTexts.enumerated().map { index, text in
             segment(index, text: text)
         }
         let resolved = views(
@@ -239,6 +256,58 @@ struct NoteChatServiceTests {
         let answer = try await fixture.sut.ask(noteID: fixture.noteID, question: "When?")
 
         #expect(answer.sources.isEmpty)
+    }
+
+    @Test func aFractionalCitationOffsetRoundTripsToItsAdjacentSpan() async throws {
+        let first = segment(
+            id: "fractional-first",
+            text: "The decision came first.",
+            startOffset: 0.6,
+            duration: 0.3
+        )
+        let second = segment(
+            id: "fractional-second",
+            text: "The next turn starts one second in.",
+            startOffset: 1.0,
+            duration: 0.4
+        )
+        let fixture = try makeFixture(transcriptSegments: [first, second])
+        defer { fixture.cleanup() }
+        fixture.session.responseContent = """
+        {"answer": "The first decision.", "sources": [{"offset": 0.6}]}
+        """
+
+        let answer = try await fixture.sut.ask(noteID: fixture.noteID, question: "What came first?")
+
+        #expect(answer.sources.map(\.segmentID) == ["fractional-first"])
+        let evidence = try userContent(from: fixture.session)
+        #expect(evidence.contains("offset=0.6"))
+    }
+
+    @Test func anExactFractionalStartWinsWhenTranscriptSpansOverlap() async throws {
+        let first = segment(
+            id: "overlap-first",
+            text: "The first speaker is still talking.",
+            startOffset: 0.6,
+            duration: 0.8
+        )
+        let second = segment(
+            id: "overlap-second",
+            text: "The second speaker starts here.",
+            startOffset: 1.0,
+            duration: 0.5
+        )
+        let fixture = try makeFixture(transcriptSegments: [first, second])
+        defer { fixture.cleanup() }
+        fixture.session.responseContent = """
+        {"answer": "The second speaker.", "sources": [{"offset": 1}]}
+        """
+
+        let answer = try await fixture.sut.ask(noteID: fixture.noteID, question: "Who starts at one second?")
+
+        #expect(answer.sources.map(\.segmentID) == ["overlap-second"])
+        let evidence = try userContent(from: fixture.session)
+        #expect(evidence.contains("offset=1"))
     }
 
     // MARK: - Evidence envelope

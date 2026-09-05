@@ -195,6 +195,22 @@ public final class NoteViewStateModel {
         updatedAt = timestamp
     }
 
+    /// Records deletion for the capture that is current at the call site.
+    /// A later capture can be deleted independently, while repeating deletion
+    /// for the same capture keeps its first timestamp.
+    func markTranscriptDeleted(
+        forCaptureStartedAt captureStartedAt: Date?,
+        at timestamp: Date = Date()
+    ) {
+        if let transcriptDeletedAt {
+            guard let captureStartedAt, captureStartedAt > transcriptDeletedAt else {
+                return
+            }
+        }
+        transcriptDeletedAt = timestamp
+        updatedAt = timestamp
+    }
+
     public var isTranscriptDeleted: Bool {
         transcriptDeletedAt != nil
     }

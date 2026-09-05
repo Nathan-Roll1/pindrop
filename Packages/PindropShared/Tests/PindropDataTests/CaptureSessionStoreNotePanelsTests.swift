@@ -291,6 +291,66 @@ struct CaptureSessionStoreNotePanelsTests {
         #expect(try fixture.store.enhancedPanels(noteID: fixture.noteID).isEmpty)
     }
 
+    @Test func aPanelWriteFailsWhenItsNoteWasDeletedDuringGeneration() throws {
+        let fixture = try makeFixture()
+        let context = ModelContext(fixture.container)
+        let noteID = fixture.noteID
+        let note = try #require(try context.fetch(
+            FetchDescriptor<Note>(predicate: #Predicate<Note> { $0.id == noteID })
+        ).first)
+        let references = try context.fetch(
+            FetchDescriptor<CaptureNoteReferenceModel>(
+                predicate: #Predicate<CaptureNoteReferenceModel> { $0.noteID == noteID }
+            )
+        )
+        for reference in references {
+            context.delete(reference)
+        }
+        context.delete(note)
+        try context.save()
+
+        #expect(throws: CaptureSessionStoreError.noteNotFound(noteID)) {
+            try fixture.store.saveEnhancedPanel(
+                sessionID: fixture.handle.sessionID,
+                noteID: noteID,
+                templatePresetIdentifier: "summary",
+                templateDisplayName: "Summary",
+                content: "Generation finished after deletion.",
+                assignmentAttempt: 1,
+                humanAnchorContentSnapshot: fixture.typedContent
+            )
+        }
+        #expect(try fixture.store.enhancedPanels(noteID: noteID).isEmpty)
+    }
+
+    @Test func aPanelWriteFailsWhenItsHumanAnchorWasDeletedDuringGeneration() throws {
+        let fixture = try makeFixture()
+        let context = ModelContext(fixture.container)
+        let sessionID = fixture.handle.sessionID
+        let references = try context.fetch(
+            FetchDescriptor<CaptureNoteReferenceModel>(
+                predicate: #Predicate<CaptureNoteReferenceModel> { $0.sessionID == sessionID }
+            )
+        )
+        for reference in references {
+            context.delete(reference)
+        }
+        try context.save()
+
+        #expect(throws: CaptureSessionStoreError.meetingHumanAnchorConflict(sessionID)) {
+            try fixture.store.saveEnhancedPanel(
+                sessionID: sessionID,
+                noteID: fixture.noteID,
+                templatePresetIdentifier: "summary",
+                templateDisplayName: "Summary",
+                content: "Generation finished after anchor deletion.",
+                assignmentAttempt: 1,
+                humanAnchorContentSnapshot: fixture.typedContent
+            )
+        }
+        #expect(try fixture.store.enhancedPanels(noteID: fixture.noteID).isEmpty)
+    }
+
     // MARK: - Regeneration
 
     @Test func regeneratingATemplateSupersedesThePreviousGenerationAndKeepsBothRows() throws {
@@ -344,6 +404,61 @@ struct CaptureSessionStoreNotePanelsTests {
 
         #expect(try fixture.store.enhancedPanels(noteID: fixture.noteID).count == 2)
         #expect(try fixture.store.currentPanels(noteID: fixture.noteID).map(\.id) == [second.id])
+    }
+
+    @Test func panelGenerationsAreIndependentForEachCaptureOnTheSameNote() throws {
+        let fixture = try makeFixture()
+        let first = try fixture.store.saveEnhancedPanel(
+            sessionID: fixture.handle.sessionID,
+            noteID: fixture.noteID,
+            templatePresetIdentifier: "summary",
+            templateDisplayName: "Summary",
+            content: "First capture.",
+            assignmentAttempt: 1,
+            at: Date(timeIntervalSinceReferenceDate: 50_000)
+        )
+        let secondHandle = try fixture.store.startNoteCapture(
+            startedAt: Date(timeIntervalSinceReferenceDate: 41_000),
+            includeSystemAudio: false,
+            intent: CaptureIntentRequest(
+                destination: .existingNote,
+                destinationNoteID: fixture.noteID,
+                origin: .mainWindow
+            )
+        )
+        _ = try fixture.store.ensureMeetingHumanAnchor(
+            secondHandle,
+            noteID: fixture.noteID,
+            at: Date(timeIntervalSinceReferenceDate: 41_000)
+        )
+        let second = try fixture.store.saveEnhancedPanel(
+            sessionID: secondHandle.sessionID,
+            noteID: fixture.noteID,
+            templatePresetIdentifier: "summary",
+            templateDisplayName: "Summary",
+            content: "Second capture.",
+            assignmentAttempt: 1,
+            at: Date(timeIntervalSinceReferenceDate: 51_000)
+        )
+        let regeneratedFirst = try fixture.store.saveEnhancedPanel(
+            sessionID: fixture.handle.sessionID,
+            noteID: fixture.noteID,
+            templatePresetIdentifier: "summary",
+            templateDisplayName: "Summary",
+            content: "First capture regenerated later.",
+            assignmentAttempt: 2,
+            at: Date(timeIntervalSinceReferenceDate: 52_000)
+        )
+
+        #expect(first.generation == 1)
+        #expect(second.generation == 1)
+        #expect(regeneratedFirst.generation == 2)
+        #expect(try fixture.store.enhancedPanel(id: first.id)?.isCurrent == false)
+        #expect(try fixture.store.enhancedPanel(id: second.id)?.isCurrent == true)
+        #expect(
+            Set(try fixture.store.currentPanels(noteID: fixture.noteID).map(\.id))
+                == Set([second.id, regeneratedFirst.id])
+        )
     }
 
     @Test func generatingASecondTemplateLeavesTheFirstTemplatesPanelCurrent() throws {

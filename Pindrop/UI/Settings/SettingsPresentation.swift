@@ -14,7 +14,7 @@ import PindropMedia
 // MARK: - Layout metrics (spec §13 — normative)
 
 enum SettingsLayoutMetrics {
-    static let windowWidth: CGFloat = 620
+    static let windowWidth: CGFloat = 660
     static let defaultHeight: CGFloat = 640
     static let minimumHeight: CGFloat = 420
 

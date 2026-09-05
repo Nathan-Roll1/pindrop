@@ -133,8 +133,16 @@ extension CaptureSessionStore {
 
         let context = ModelContext(modelContainer)
         _ = try fetchAssignmentSession(id: sessionID, in: context)
+        try validateEnhancedPanelAnchor(
+            sessionID: sessionID,
+            noteID: noteID,
+            in: context
+        )
         let templatePanels = try panelModels(noteID: noteID, in: context)
-            .filter { $0.templatePresetIdentifier == templatePresetIdentifier }
+            .filter {
+                $0.sessionID == sessionID &&
+                    $0.templatePresetIdentifier == templatePresetIdentifier
+            }
         let generation = (templatePanels.map(\.generation).max() ?? 0) + 1
         for panel in templatePanels where panel.supersededAt == nil {
             panel.markSuperseded(at: timestamp)
@@ -174,20 +182,24 @@ extension CaptureSessionStore {
 
     // MARK: - Panel reads
 
-    /// The panel to show for each template of one note, newest generation first.
+    /// The panel to show for each session and template of one note, newest first.
     ///
     /// A superseded row is never returned: it stays on disk as the evidence trail
     /// of what an earlier generation produced.
     public func currentPanels(noteID: UUID) throws -> [CaptureEnhancedPanelSnapshot] {
         let context = ModelContext(modelContainer)
-        var newestByTemplate: [String: CaptureEnhancedPanelModel] = [:]
+        var newestByTemplate: [PanelGenerationKey: CaptureEnhancedPanelModel] = [:]
         for panel in try panelModels(noteID: noteID, in: context) where panel.supersededAt == nil {
-            guard let incumbent = newestByTemplate[panel.templatePresetIdentifier] else {
-                newestByTemplate[panel.templatePresetIdentifier] = panel
+            let key = PanelGenerationKey(
+                sessionID: panel.sessionID,
+                templatePresetIdentifier: panel.templatePresetIdentifier
+            )
+            guard let incumbent = newestByTemplate[key] else {
+                newestByTemplate[key] = panel
                 continue
             }
             if isNewer(panel, than: incumbent) {
-                newestByTemplate[panel.templatePresetIdentifier] = panel
+                newestByTemplate[key] = panel
             }
         }
         return try newestByTemplate.values
@@ -259,20 +271,10 @@ extension CaptureSessionStore {
     /// `noteID` is the note the person typed into (the human anchor).
     public func legacyEnhancedPanel(noteID: UUID) throws -> CaptureEnhancedPanelSnapshot? {
         let context = ModelContext(modelContainer)
-        let descriptor = FetchDescriptor<CaptureNoteReferenceModel>(
-            predicate: #Predicate<CaptureNoteReferenceModel> { $0.noteID == noteID }
-        )
-        let anchorReferences: [CaptureNoteReferenceModel]
-        do {
-            anchorReferences = try context.fetch(descriptor)
-        } catch {
-            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
-        }
-        guard
-            let anchorReference = anchorReferences.first(where: {
-                (try? $0.resolvedRole()) == .humanAnchor
-            })
-        else {
+        guard let anchorReference = try latestHumanAnchorReference(
+            noteID: noteID,
+            in: context
+        ) else {
             return nil
         }
 
@@ -361,6 +363,63 @@ extension CaptureSessionStore {
     }
 
     // MARK: - Helpers
+
+    private struct PanelGenerationKey: Hashable {
+        let sessionID: UUID
+        let templatePresetIdentifier: String
+    }
+
+    /// The latest capture that uses this note as its human anchor.
+    /// The identifier makes equal timestamps deterministic.
+    func latestHumanAnchorReference(
+        noteID: UUID,
+        in context: ModelContext
+    ) throws -> CaptureNoteReferenceModel? {
+        let descriptor = FetchDescriptor<CaptureNoteReferenceModel>(
+            predicate: #Predicate<CaptureNoteReferenceModel> { $0.noteID == noteID }
+        )
+        let references: [CaptureNoteReferenceModel]
+        do {
+            references = try context.fetch(descriptor)
+        } catch {
+            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
+        }
+        var newest: (reference: CaptureNoteReferenceModel, startedAt: Date)?
+        for reference in references where (try? reference.resolvedRole()) == .humanAnchor {
+            let session = try fetchSession(id: reference.sessionID, in: context)
+                .restoreSession()
+            let startedAt = session.startedAt ?? session.createdAt
+            if let current = newest {
+                guard
+                    startedAt > current.startedAt ||
+                    (startedAt == current.startedAt &&
+                        reference.sessionID.uuidString > current.reference.sessionID.uuidString)
+                else {
+                    continue
+                }
+            }
+            newest = (reference, startedAt)
+        }
+        return newest?.reference
+    }
+
+    /// A panel can be saved only while its note and this session's human anchor
+    /// still exist in the same write context.
+    private func validateEnhancedPanelAnchor(
+        sessionID: UUID,
+        noteID: UUID,
+        in context: ModelContext
+    ) throws {
+        guard try fetchNote(id: noteID, in: context) != nil else {
+            throw CaptureSessionStoreError.noteNotFound(noteID)
+        }
+        guard
+            let anchor = try validMeetingHumanAnchor(sessionID: sessionID, in: context),
+            anchor.noteID == noteID
+        else {
+            throw CaptureSessionStoreError.meetingHumanAnchorConflict(sessionID)
+        }
+    }
 
     private func nextNoteGenerationAttempt(
         sessionID: UUID,

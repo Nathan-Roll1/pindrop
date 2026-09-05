@@ -546,17 +546,24 @@ struct NotesView: View {
 
     // MARK: - Actions
 
-    /// A new note is created durably first, then capture starts against that
-    /// identity, then the note opens. Order matters: the note page always has an
-    /// identity to bind capture and panels to.
+    /// A recording start asks the coordinator to admit capture before it creates
+    /// a note. A refused start therefore leaves no empty note behind. Plain notes
+    /// still open as soon as their durable record exists.
     private func startNewNote(_ action: NewNoteAction) {
+        switch action.startDisposition(admittingCapture: onStartNoteCapture) {
+        case .captureStarted, .captureUnavailable:
+            return
+        case .captureRefused:
+            errorMessage = localized("A note capture is already running.", locale: locale)
+            return
+        case .createPlainNote:
+            break
+        }
+
         let store = notesStore
         Task { @MainActor in
             do {
                 let note = try await store.create(content: "")
-                if let request = action.captureRequest(noteID: note.id) {
-                    _ = onStartNoteCapture?(request)
-                }
                 onOpenNote?(note.id)
             } catch {
                 errorMessage = error.localizedDescription

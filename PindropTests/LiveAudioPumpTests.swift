@@ -59,6 +59,22 @@ struct LiveAudioPumpTests {
         }
     }
 
+    private final class DroppedAudio: @unchecked Sendable {
+        private(set) var sources: [CaptureSourceKind] = []
+        private(set) var captureTimes: [TimeInterval] = []
+        private(set) var durations: [TimeInterval] = []
+
+        func record(
+            _ source: CaptureSourceKind,
+            _ captureTime: TimeInterval,
+            _ duration: TimeInterval
+        ) {
+            sources.append(source)
+            captureTimes.append(captureTime)
+            durations.append(duration)
+        }
+    }
+
     // MARK: Fixtures
 
     private static let sampleRate: Double = 16_000
@@ -75,7 +91,8 @@ struct LiveAudioPumpTests {
         engine: RecordingEngine,
         arbiter: LiveChannelArbiter?,
         signal: LiveEngineBoundarySignal,
-        applied: AppliedHandovers
+        applied: AppliedHandovers,
+        dropped: DroppedAudio? = nil
     ) -> LiveAudioPump {
         LiveAudioPump(
             engine: engine,
@@ -85,7 +102,9 @@ struct LiveAudioPumpTests {
             onHandoverApplied: { source, captureTime, fedSeconds in
                 applied.record(source, captureTime, fedSeconds)
             },
-            onDroppedSpeech: { _, _, _ in }
+            onDroppedSpeech: { source, captureTime, duration in
+                dropped?.record(source, captureTime, duration)
+            }
         )
     }
 
@@ -105,9 +124,8 @@ struct LiveAudioPumpTests {
         await sut.ingest(.buffer(Self.buffer(), source: .systemAudio, captureTime: 5.1))
 
         #expect(applied.sources == [.microphone])
-        // The incoming channel is held out of the engine until a boundary the
-        // engine reaches after the decision, so its audio cannot land inside the
-        // outgoing channel's open chunk.
+        // The incoming channel is held until the engine reaches a new boundary,
+        // so its audio cannot land inside the outgoing channel's open chunk.
         #expect(engine.fedFrameCounts == [1_600])
     }
 
@@ -128,10 +146,10 @@ struct LiveAudioPumpTests {
         await sut.ingest(.buffer(Self.buffer(), source: .systemAudio, captureTime: 5.2))
 
         #expect(applied.sources == [.microphone, .systemAudio])
-        // The turn is stamped where the incoming channel took the engine, not
-        // where the switch happened to land.
-        #expect(applied.captureTimes.last == 5.0)
-        #expect(engine.fedFrameCounts == [1_600, 1_600])
+        // The ownership run starts at the first held incoming buffer. Both held
+        // and current incoming buffers reach the engine behind the boundary.
+        #expect(applied.captureTimes.last == 5.1)
+        #expect(engine.fedFrameCounts == [1_600, 1_600, 1_600])
     }
 
     @Test func anAppliedHandoverReportsTheAudioAlreadyFedToTheEngine() async {
@@ -153,11 +171,11 @@ struct LiveAudioPumpTests {
         await sut.ingest(.buffer(Self.buffer(), source: .systemAudio, captureTime: 0.4))
 
         // Three buffers of 1600 frames at 16 kHz is 0.3 s of audio, and the
-        // switch lands behind exactly that. The pair (0.35, 0.3) is the whole
+        // switch lands behind exactly that. The pair (0.4, 0.3) is the whole
         // ownership run the consumer converts later fed watermarks against.
         #expect(applied.sources == [.microphone, .systemAudio])
         #expect(abs((applied.fedSeconds.last ?? -1) - 0.3) < 0.0001)
-        #expect(applied.captureTimes.last == 0.35)
+        #expect(applied.captureTimes.last == 0.4)
     }
 
     @Test func aLostHandoverPacketIsRecoveredFromTheArbiter() async {
@@ -218,11 +236,26 @@ struct LiveAudioPumpTests {
         let engine = RecordingEngine()
         let signal = LiveEngineBoundarySignal()
         let applied = AppliedHandovers()
-        let sut = Self.makeSut(engine: engine, arbiter: nil, signal: signal, applied: applied)
+        let dropped = DroppedAudio()
+        let sut = Self.makeSut(
+            engine: engine,
+            arbiter: nil,
+            signal: signal,
+            applied: applied,
+            dropped: dropped
+        )
 
         await sut.ingest(.buffer(Self.buffer(frames: 1_000), source: .microphone, captureTime: 0.1))
         await sut.ingest(.handoverPending(to: .systemAudio, atCaptureTime: 1.0))
-        await sut.ingest(.buffer(Self.buffer(), source: .systemAudio, captureTime: 2.0))
+        for tick in 11..<40 {
+            await sut.ingest(
+                .buffer(
+                    Self.buffer(),
+                    source: .systemAudio,
+                    captureTime: Double(tick) / 10
+                )
+            )
+        }
         #expect(applied.sources == [.microphone])
 
         await sut.ingest(
@@ -235,8 +268,71 @@ struct LiveAudioPumpTests {
 
         #expect(applied.sources == [.microphone, .systemAudio])
         // Exactly the remainder of the open chunk: 1.12 s at 16 kHz is 17920
-        // samples, and 1000 were fed. The buffer the switch landed on belongs to
-        // the incoming channel, so it is fed behind the forced decode.
-        #expect(engine.fedFrameCounts == [1_000, 16_920, 1_600])
+        // samples, and 1000 were fed. All incoming buffers are then replayed in
+        // order, with the ownership run anchored to the first one's capture time.
+        #expect(
+            engine.fedFrameCounts
+                == [1_000, 16_920] + Array(repeating: 1_600, count: 30)
+        )
+        #expect(applied.captureTimes.last == 1.1)
+        #expect(abs((applied.fedSeconds.last ?? -1) - 1.12) < 0.0001)
+        #expect(dropped.sources.isEmpty)
+    }
+
+    @Test func changingAPendingTargetReportsItsHeldAudioAsDropped() async {
+        let engine = RecordingEngine()
+        let signal = LiveEngineBoundarySignal()
+        let applied = AppliedHandovers()
+        let dropped = DroppedAudio()
+        let sut = Self.makeSut(
+            engine: engine,
+            arbiter: nil,
+            signal: signal,
+            applied: applied,
+            dropped: dropped
+        )
+
+        await sut.ingest(.buffer(Self.buffer(), source: .microphone, captureTime: 0.1))
+        await sut.ingest(.handoverPending(to: .systemAudio, atCaptureTime: 1.0))
+        await sut.ingest(.buffer(Self.buffer(), source: .systemAudio, captureTime: 1.1))
+
+        // The challenger loses ownership before the pending switch lands. Its
+        // held audio cannot enter the microphone run, so the preview marks it.
+        await sut.ingest(.handoverPending(to: .microphone, atCaptureTime: 1.2))
+        await sut.ingest(.buffer(Self.buffer(), source: .microphone, captureTime: 1.2))
+
+        #expect(applied.sources == [.microphone])
+        #expect(engine.fedFrameCounts == [1_600, 1_600])
+        #expect(dropped.sources == [.systemAudio])
+        #expect(dropped.captureTimes == [1.1])
+        #expect(dropped.durations.count == 1)
+        #expect(abs((dropped.durations.first ?? -1) - 0.1) < 0.0001)
+    }
+
+    @Test func finishingReportsAudioStillHeldForAPendingHandover() async {
+        let engine = RecordingEngine()
+        let signal = LiveEngineBoundarySignal()
+        let applied = AppliedHandovers()
+        let dropped = DroppedAudio()
+        let sut = Self.makeSut(
+            engine: engine,
+            arbiter: nil,
+            signal: signal,
+            applied: applied,
+            dropped: dropped
+        )
+
+        await sut.ingest(.buffer(Self.buffer(), source: .microphone, captureTime: 0.1))
+        await sut.ingest(.handoverPending(to: .systemAudio, atCaptureTime: 1.0))
+        await sut.ingest(.buffer(Self.buffer(), source: .systemAudio, captureTime: 1.1))
+        await sut.ingest(.buffer(Self.buffer(), source: .systemAudio, captureTime: 1.2))
+
+        await sut.finish()
+
+        #expect(engine.fedFrameCounts == [1_600])
+        #expect(dropped.sources == [.systemAudio])
+        #expect(dropped.captureTimes == [1.1])
+        #expect(dropped.durations.count == 1)
+        #expect(abs((dropped.durations.first ?? -1) - 0.2) < 0.0001)
     }
 }

@@ -37,18 +37,11 @@ extension CaptureSessionStore {
         let viewState = try noteViewStateModel(noteID: noteID, in: context)
         let transcriptDeletedAt = viewState?.transcriptDeletedAt
 
-        var panels = try currentPanels(noteID: noteID)
-        if let legacy = try legacyEnhancedPanel(noteID: noteID) {
-            // Older builds wrote their generated output as a second note. It is
-            // shown after everything this build generated, and never rewritten.
-            panels.append(legacy)
-        }
-
-        guard let anchorReference = try humanAnchorReference(noteID: noteID, in: context) else {
+        guard let anchorReference = try latestHumanAnchorReference(noteID: noteID, in: context) else {
             return NoteCaptureViews(
                 noteID: noteID,
                 typedNotes: typedNotes,
-                panels: panels,
+                panels: [],
                 transcript: nil,
                 captureState: nil,
                 storedSelection: viewState?.resolvedSelection(),
@@ -59,6 +52,17 @@ extension CaptureSessionStore {
         let sessionID = anchorReference.sessionID
         let sessionModel = try fetchSession(id: sessionID, in: context)
         let session = try sessionModel.restoreSession()
+        var panels = try currentPanels(noteID: noteID)
+            .filter { $0.sessionID == sessionID }
+        if let legacy = try legacyEnhancedPanel(noteID: noteID) {
+            // Older builds wrote their generated output as a second note. It is
+            // shown after everything this build generated, and never rewritten.
+            panels.append(legacy)
+        }
+        let effectiveTranscriptDeletedAt = transcriptDeletedAt.flatMap { deletedAt in
+            let captureStartedAt = session.startedAt ?? session.createdAt
+            return captureStartedAt > deletedAt ? nil : deletedAt
+        }
         let handle = try noteCaptureHandle(sessionID: sessionID, in: context)
         let captureState = NoteCaptureSessionSnapshot(
             handle: handle,
@@ -72,7 +76,7 @@ extension CaptureSessionStore {
             wasRecovered: try wasRecovered(sessionID: sessionID, in: context)
         )
 
-        let transcript = transcriptDeletedAt == nil
+        let transcript = effectiveTranscriptDeletedAt == nil
             ? try transcriptView(
                 handle: handle,
                 session: session,
@@ -88,7 +92,7 @@ extension CaptureSessionStore {
             transcript: transcript,
             captureState: captureState,
             storedSelection: viewState?.resolvedSelection(),
-            transcriptDeletedAt: transcriptDeletedAt
+            transcriptDeletedAt: effectiveTranscriptDeletedAt
         )
     }
 
@@ -191,7 +195,18 @@ extension CaptureSessionStore {
             at: timestamp,
             in: context
         )
-        viewState.markTranscriptDeleted(at: timestamp)
+        let captureStartedAt: Date?
+        if let anchorReference = try latestHumanAnchorReference(noteID: noteID, in: context) {
+            let session = try fetchSession(id: anchorReference.sessionID, in: context)
+                .restoreSession()
+            captureStartedAt = session.startedAt ?? session.createdAt
+        } else {
+            captureStartedAt = nil
+        }
+        viewState.markTranscriptDeleted(
+            forCaptureStartedAt: captureStartedAt,
+            at: timestamp
+        )
         try save(context)
         return viewState.transcriptDeletedAt ?? timestamp
     }
@@ -601,22 +616,6 @@ extension CaptureSessionStore {
             createdAt: note.createdAt,
             updatedAt: note.updatedAt
         )
-    }
-
-    /// The capture reference that says this note is the one a capture wrote into.
-    private func humanAnchorReference(
-        noteID: UUID,
-        in context: ModelContext
-    ) throws -> CaptureNoteReferenceModel? {
-        let descriptor = FetchDescriptor<CaptureNoteReferenceModel>(
-            predicate: #Predicate<CaptureNoteReferenceModel> { $0.noteID == noteID }
-        )
-        do {
-            return try context.fetch(descriptor)
-                .first { (try? $0.resolvedRole()) == .humanAnchor }
-        } catch {
-            throw CaptureSessionStoreError.fetchFailed(error.localizedDescription)
-        }
     }
 
     private func noteCaptureHandle(

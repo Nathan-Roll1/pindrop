@@ -3126,10 +3126,11 @@ final class AppCoordinator {
     /// finalization. Claiming occurs synchronously before the first suspension so
     /// simultaneous events cannot stop or transcribe the same recording twice.
     private func dispatchRecordingStop() async throws {
-        guard isRecording else { return }
+        let isNoteRetry = noteCaptureController.canRetryFinalization
+        guard isRecording || isNoteRetry else { return }
         let route = RecordingStopRoute.resolve(
             noteAppendEditorID: isNoteAppendMode ? noteAppendEditorID : nil,
-            isNoteCapture: isRecordingFeatureCaptureActive
+            isNoteCapture: isRecordingFeatureCaptureActive || isNoteRetry
         )
         guard let claim = recordingStopAdmission.claim(route) else {
             Log.app.debug("Ignoring duplicate recording stop request")
@@ -3181,7 +3182,8 @@ final class AppCoordinator {
             // The lifecycle lives in `NoteCaptureController`. The coordinator's
             // operation token goes along as the staleness guard so an explicit
             // cancel still stops finalization at a durable checkpoint.
-            guard isRecordingFeatureCaptureActive, noteCaptureController.isActive else {
+            guard noteCaptureController.isActive,
+                  isRecordingFeatureCaptureActive || noteCaptureController.canRetryFinalization else {
                 throw AudioRecorderError.notRecording
             }
             try await noteCaptureController.stop(operationGuard: { [weak self] in
@@ -7510,6 +7512,7 @@ extension AppCoordinator: CaptureArbiter {
     var isCaptureBusy: Bool {
         isRecording
             || isProcessing
+            || pendingMeetingCaptureStartTask != nil
             || recordingState.isCaptureStartPending
             || noteCaptureController.isActive
             || noteCaptureController.hasPendingStart

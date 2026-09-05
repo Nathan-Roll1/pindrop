@@ -2913,7 +2913,7 @@ public final class CaptureSessionStore {
         )
     }
 
-    private func validMeetingHumanAnchor(
+    func validMeetingHumanAnchor(
         sessionID: UUID,
         in context: ModelContext
     ) throws -> MeetingHumanAnchorSnapshot? {

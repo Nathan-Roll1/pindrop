@@ -492,6 +492,52 @@ struct NoteCaptureControllerTests {
         #expect(try fixture.captureSessionStore.noteCaptureRecoveryCandidates().isEmpty)
     }
 
+    @Test func aFailedCancelKeepsARetryableCaptureVisibleUntilTheNextCancelSucceeds() async throws {
+        let fixture = try makeFixture()
+        _ = try await fixture.controller.startNote(
+            request: NoteCaptureRequest(includeSystemAudio: false),
+            origin: .mainWindow
+        )
+        let handle = try #require(fixture.controller.activeHandle)
+        fixture.state.beginFinalizing(.transcribing(nil))
+        fixture.state.fail("Finalization stopped.", canRetryFinalization: true)
+
+        let microphoneSourceID = handle.microphoneSourceID
+        let corruptingContext = ModelContext(fixture.container)
+        let corruptedSource = try #require(
+            try corruptingContext.fetch(
+                FetchDescriptor<CaptureSourceModel>(
+                    predicate: #Predicate { $0.id == microphoneSourceID }
+                )
+            ).first
+        )
+        corruptedSource.sessionID = UUID()
+        try corruptingContext.save()
+
+        await fixture.controller.cancel()
+
+        #expect(fixture.controller.isActive)
+        #expect(fixture.controller.canRetryFinalization)
+        #expect(fixture.state.failureMessage != nil)
+
+        let repairContext = ModelContext(fixture.container)
+        let repairedSource = try #require(
+            try repairContext.fetch(
+                FetchDescriptor<CaptureSourceModel>(
+                    predicate: #Predicate { $0.id == microphoneSourceID }
+                )
+            ).first
+        )
+        repairedSource.sessionID = handle.sessionID
+        try repairContext.save()
+
+        await fixture.controller.cancel()
+
+        #expect(!fixture.controller.isActive)
+        #expect(!fixture.state.canRetryFinalization)
+        #expect(fixture.state.phase == .idle)
+    }
+
     // MARK: - Termination
 
     @Test func terminationMidCaptureLeavesARecoverableSessionCarryingItsIntent() async throws {
@@ -659,7 +705,7 @@ struct NoteCaptureControllerTests {
         )
     }
 
-    @Test func finishingARecordedNoteGeneratesItsEnhancedPanel() async throws {
+    @Test func eachRecordingGeneratesItsOwnPanelAndBecomesTheVisibleCapture() async throws {
         let fixture = try makeFixture()
         defer { fixture.settingsStore.resetAllSettings() }
         try configureNoteEnhancement(fixture)
@@ -696,6 +742,23 @@ struct NoteCaptureControllerTests {
         #expect(try fixture.notesStore.fetchAll().count == 1)
         let session = try #require(try sessions(in: fixture.container).first { $0.id == handle.sessionID })
         #expect(session.stateRawValue == CaptureSessionState.completed.rawValue)
+
+        fixture.enhancementSession.responseContent = "Second recording summary."
+        let second = try fixture.captureSessionStore.startNoteCapture(
+            includeSystemAudio: false,
+            intent: CaptureIntentRequest(destination: .existingNote, destinationNoteID: anchor.noteID, origin: .mainWindow)
+        )
+        _ = try fixture.captureSessionStore.ensureMeetingHumanAnchor(second, noteID: anchor.noteID)
+        try freezeAssignments(in: fixture.captureSessionStore, sessionID: second.sessionID)
+        try fixture.captureSessionStore.checkpointVoiceNoteLiveTranscript(for: second, committedText: "second recording text")
+        try fixture.captureSessionStore.beginMeetingFinalization(second)
+        try recordOneSealedChunk(in: fixture.captureSessionStore, handle: second)
+        try fixture.captureSessionStore.finishMeetingSources(second, sourceFailures: [])
+        try await fixture.controller.finalize(second, spoolPlan: makeSpoolPlan(fixture, handle: second), expectedSpeakerCount: nil, operationGuard: {})
+        #expect(fixture.enhancementSession.requestCount == 2)
+        let latestViews = try fixture.captureSessionStore.noteCaptureViews(noteID: anchor.noteID)
+        #expect(latestViews.panels.first?.content == "Second recording summary.")
+        #expect(latestViews.captureState?.handle == second)
     }
 
     @Test func aFailedPanelGenerationStillCompletesTheCapture() async throws {
@@ -852,6 +915,54 @@ struct NoteCaptureControllerTests {
         #expect(try fixture.notesStore.contains(id: noteID))
         #expect(fixture.arbiter.noSpeechReports == 0)
         #expect(fixture.state.failureMessage != nil)
+        #expect(!fixture.controller.isActive)
+        #expect(!fixture.state.canRetryFinalization)
+        _ = try await fixture.controller.startNote(
+            request: NoteCaptureRequest(includeSystemAudio: false),
+            origin: .mainWindow
+        )
+        await fixture.controller.cancel()
+    }
+
+    @Test func retryFinalizationUsesSavedAudioAndCompletedTranscriptionWithoutStoppingTwice() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.settingsStore.resetAllSettings() }
+        fixture.microphoneBackend.simulatedBuffers = [try #require(
+            MockAudioCaptureBackend.makeSynthesizedBuffer(format: fixture.microphoneBackend.targetFormat)
+        )]
+        let noteID = try await fixture.controller.startNote(
+            request: NoteCaptureRequest(includeSystemAudio: false), origin: .mainWindow
+        )
+        let handle = try #require(fixture.controller.activeHandle)
+        let failure = NSError(domain: "test-persistence", code: 1)
+        await #expect(throws: NSError.self) {
+            try await fixture.controller.stop(operationGuard: {
+                if !fixture.audioRecorder.isRecording { throw failure }
+            })
+        }
+        #expect(fixture.controller.canRetryFinalization)
+        #expect(fixture.microphoneBackend.stopMeetingRecordingCallCount == 1)
+
+        // A prior attempt can have durable ASR checkpoints even when a later
+        // step fails. Retry must reuse them without asking an engine to run.
+        let spoolPlan = makeSpoolPlan(fixture, handle: handle)
+        _ = try await fixture.controller.reconcileArtifacts(
+            handle: handle, spoolPlan: spoolPlan, operationGuard: {}
+        )
+        let plan = try fixture.captureSessionStore.makeMeetingFinalizationPlan(handle)
+        let chunk = try #require(plan.sourceChunks.first)
+        _ = try fixture.captureSessionStore.recordMeetingTranscriptionChunk(
+            handle, sourceChunkSequence: chunk.sequence, startOffset: chunk.startOffset,
+            duration: chunk.duration, text: "Saved transcript", assignmentAttempt: 1
+        )
+
+        try await fixture.controller.stop()
+        #expect(fixture.microphoneBackend.stopMeetingRecordingCallCount == 1)
+        #expect(!fixture.controller.isActive)
+        #expect(!fixture.state.canRetryFinalization)
+        #expect(fixture.state.phase == .completed)
+        #expect(fixture.arbiter.activatedModels.isEmpty)
+        #expect(try fixture.captureSessionStore.noteCaptureViews(noteID: noteID).transcript?.plainText == "Saved transcript")
     }
 
     // MARK: - Startup recovery

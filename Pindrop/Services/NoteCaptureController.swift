@@ -244,6 +244,7 @@ final class NoteCaptureController {
     // MARK: - Lifecycle state
 
     private var context: NoteCaptureContext?
+    private var finalizationLiveAttribution: LiveAttributionSnapshot?
     private var generation: UInt64 = 0
     /// The handle of a start still inside its claim window. Retained so a quit
     /// mid-start can cancel exactly that capture.
@@ -255,6 +256,7 @@ final class NoteCaptureController {
     var activeHandle: PindropCore.NoteCaptureHandle? { context?.handle }
     var activeNoteID: UUID? { context?.noteID }
     var isActive: Bool { context != nil }
+    var canRetryFinalization: Bool { context != nil && state.canRetryFinalization }
     var hasPendingStart: Bool { pendingStartHandle != nil }
 
     init(
@@ -551,10 +553,12 @@ final class NoteCaptureController {
         }
         // Read before the first teardown step: both sources are gone by the
         // time finalization needs them.
-        let liveAttribution = LiveAttributionSnapshot(
+        let isRetry = canRetryFinalization
+        let liveAttribution = finalizationLiveAttribution ?? LiveAttributionSnapshot(
             micOnlyRanges: audioRecorder.liveChannelArbiter?.micOnlyRanges() ?? [],
             liveSpans: state.liveSpans
         )
+        finalizationLiveAttribution = liveAttribution
 
         do {
             state.beginFinalizing(.sealingAudio)
@@ -563,12 +567,30 @@ final class NoteCaptureController {
                 detail: localized("Sealing the recording.", locale: settingsStore.selectedAppLocale.locale),
                 errorMessage: nil
             )
-            await streamingSession.finishArtifactCapture(for: context.handle)
+            if isRetry {
+                try captureSessionStore.interruptMeetingCapture(
+                    context.handle,
+                    errorDomain: "Pindrop",
+                    errorCode: "finalization-retry",
+                    message: "Retrying note finalization from saved audio.",
+                    at: .now
+                )
+                try captureSessionStore.recoverMeetingForFinalization(context.handle, at: .now)
+            } else {
+                await streamingSession.finishArtifactCapture(for: context.handle)
+                try guardCurrent()
+                try captureSessionStore.beginMeetingFinalization(context.handle, at: .now)
+            }
+            // A retry uses the sealed files. Stopping the recorder again would
+            // fail before any saved transcription checkpoints could be reused.
+            let stopResult: MeetingRecordingStopResult?
+            if !isRetry || audioRecorder.isRecording {
+                stopResult = try await audioRecorder.stopMeetingRecording()
+            } else {
+                stopResult = nil
+            }
             try guardCurrent()
-            try captureSessionStore.beginMeetingFinalization(context.handle, at: .now)
-            let stopResult = try await audioRecorder.stopMeetingRecording()
-            try guardCurrent()
-            for chunk in stopResult.sealedChunks {
+            for chunk in stopResult?.sealedChunks ?? [] {
                 recordSealedChunk(chunk, for: context)
             }
             let recovery = try await reconcileArtifacts(
@@ -637,9 +659,10 @@ final class NoteCaptureController {
             }
             throw CancellationError()
         } catch {
-            // Chunk and history failures are durable and retryable: keep the
-            // context so a retry or cancel still owns the exact capture.
-            state.fail(error.localizedDescription)
+            if error as? NoteCaptureError == .noRetainedSources {
+                clearContext(ifCurrent: context)
+            }
+            state.fail(error.localizedDescription, canRetryFinalization: isCurrent(context))
             arbiter.captureDidEnd(message: error.localizedDescription)
             throw error
         }
@@ -657,6 +680,9 @@ final class NoteCaptureController {
             try await cancelCapture(context.handle, activeContext: context)
         } catch {
             reportTerminalPersistenceFailure(error)
+            state.fail(error.localizedDescription, canRetryFinalization: isCurrent(context))
+            arbiter.captureDidEnd(message: error.localizedDescription)
+            return
         }
         state.reset()
         arbiter.captureDidEnd(
@@ -1147,6 +1173,7 @@ final class NoteCaptureController {
     private func clearContext(ifCurrent context: NoteCaptureContext) {
         guard isCurrent(context) else { return }
         self.context = nil
+        finalizationLiveAttribution = nil
         pendingStartHandle = nil
     }
 
@@ -2052,7 +2079,8 @@ final class NoteCaptureController {
         let intent = (try? captureSessionStore.fetchCaptureIntent(sessionID: handle.sessionID)) ?? nil
         let templatePresetIdentifier = intent?.requestedTemplatePresetIdentifier
             ?? noteEnhancementService.defaultTemplatePresetIdentifier
-        let currentPanels = (try? captureSessionStore.currentPanels(noteID: anchor.noteID)) ?? []
+        let currentPanels = ((try? captureSessionStore.currentPanels(noteID: anchor.noteID)) ?? [])
+            .filter { $0.sessionID == handle.sessionID }
         let alreadyGenerated: Bool
         if let templatePresetIdentifier {
             alreadyGenerated = currentPanels.contains {

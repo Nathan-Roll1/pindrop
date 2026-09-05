@@ -236,17 +236,15 @@ struct NotesPresentationTests {
     // MARK: - Split button actions
 
     @Test func newNoteActionsMapToCaptureRequests() {
-        let noteID = UUID()
-
         #expect(
-            NewNoteAction.recordMicrophone.captureRequest(noteID: noteID)
-                == NoteCaptureRequest(noteID: noteID, includeSystemAudio: false)
+            NewNoteAction.recordMicrophone.captureRequest()
+                == NoteCaptureRequest(noteID: nil, includeSystemAudio: false)
         )
         #expect(
-            NewNoteAction.recordWithSystemAudio.captureRequest(noteID: noteID)
-                == NoteCaptureRequest(noteID: noteID, includeSystemAudio: true)
+            NewNoteAction.recordWithSystemAudio.captureRequest()
+                == NoteCaptureRequest(noteID: nil, includeSystemAudio: true)
         )
-        #expect(NewNoteAction.withoutRecording.captureRequest(noteID: noteID) == nil)
+        #expect(NewNoteAction.withoutRecording.captureRequest() == nil)
     }
 
     @Test func onlyRecordingActionsStartACapture() {
@@ -254,8 +252,34 @@ struct NotesPresentationTests {
         #expect(NewNoteAction.recordWithSystemAudio.startsCapture)
         #expect(NewNoteAction.withoutRecording.startsCapture == false)
         for action in NewNoteAction.allCases {
-            #expect(action.startsCapture == (action.captureRequest(noteID: UUID()) != nil))
+            #expect(action.startsCapture == (action.captureRequest() != nil))
         }
+    }
+
+    @Test func aRefusedRecordingActionDoesNotEnterThePlainNoteCreationPath() {
+        let disposition = NewNoteAction.recordMicrophone.startDisposition(
+            admittingCapture: { _ in false }
+        )
+
+        #expect(disposition == .captureRefused)
+        #expect(disposition != .createPlainNote)
+    }
+
+    @Test func anUnavailableCaptureCoordinatorDoesNotCreateADraftNote() {
+        let disposition = NewNoteAction.recordWithSystemAudio.startDisposition(
+            admittingCapture: nil
+        )
+
+        #expect(disposition == .captureUnavailable)
+        #expect(disposition != .createPlainNote)
+    }
+
+    @Test func aPlainNoteActionStillEntersTheCreationPath() {
+        let disposition = NewNoteAction.withoutRecording.startDisposition(
+            admittingCapture: { _ in false }
+        )
+
+        #expect(disposition == .createPlainNote)
     }
 
     @Test func newNoteActionTitlesAreDistinct() {

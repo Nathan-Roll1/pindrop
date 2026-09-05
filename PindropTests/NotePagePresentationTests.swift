@@ -336,6 +336,16 @@ struct NotePagePresentationTests {
         #expect(actions.showsRecordButton)
     }
 
+    @Test func aRetryableFailureKeepsCancelAndDoesNotOfferAnotherRecording() {
+        let actions = NotePagePresentation.headerActions(
+            state: NotePageState(isRecorded: true, capture: .failed, canRetryFinalization: true),
+            selection: .humanNotes
+        )
+        #expect(!actions.showsRecordButton)
+        #expect(actions.canCancelCapture)
+        #expect(!actions.canDeleteNote)
+    }
+
     @Test func saveAsNoteNeedsAPanelOnScreen() {
         let onEnhanced = NotePagePresentation.headerActions(
             state: NotePageState(hasPanels: true, isRecorded: true),
@@ -377,8 +387,8 @@ struct NotePagePresentationTests {
             #expect(actions.canCancelCapture)
         }
 
-        // Past the recording there is nothing left to cancel: Finish already
-        // happened and the audio is durable.
+        // Running finalization cannot be cancelled from this menu. A terminal
+        // failure with no retained capture also needs no cancellation action.
         for phase in [
             NotePageCapturePhase.none,
             .finalizing(.transcribing, progress: 0.5),
@@ -414,7 +424,7 @@ struct NotePagePresentationTests {
         #expect(idleActions.canDeleteNote)
 
         let failedActions = NotePagePresentation.headerActions(
-            state: NotePageState(capture: .failed),
+            state: NotePageState(capture: .failed, canRetryFinalization: true),
             selection: .humanNotes
         )
         #expect(!failedActions.canDeleteNote)

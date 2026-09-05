@@ -116,6 +116,7 @@ struct NotePageState: Equatable, Sendable {
     /// a failed row in it. A capture that failed before finalization has no
     /// pipeline to draw.
     var hasFailedFinalizationStep: Bool
+    var canRetryFinalization: Bool
 
     init(
         hasPanels: Bool = false,
@@ -127,7 +128,8 @@ struct NotePageState: Equatable, Sendable {
         hasLiveText: Bool = false,
         liveLabelsDiffered: Bool = false,
         wasRecovered: Bool = false,
-        hasFailedFinalizationStep: Bool = false
+        hasFailedFinalizationStep: Bool = false,
+        canRetryFinalization: Bool = false
     ) {
         self.hasPanels = hasPanels
         self.hasTranscript = hasTranscript
@@ -139,6 +141,7 @@ struct NotePageState: Equatable, Sendable {
         self.liveLabelsDiffered = liveLabelsDiffered
         self.wasRecovered = wasRecovered
         self.hasFailedFinalizationStep = hasFailedFinalizationStep
+        self.canRetryFinalization = canRetryFinalization
     }
 
     /// A plain typed note: nothing was ever recorded into it.
@@ -450,16 +453,12 @@ enum NotePagePresentation {
 
     static func headerActions(state: NotePageState, selection: CaptureNoteViewKind) -> NotePageHeaderActions {
         NotePageHeaderActions(
-            // A failed capture is over: the person can start another one.
-            showsRecordButton: !state.capture.isActive,
+            showsRecordButton: !state.capture.isActive && !state.canRetryFinalization,
             canSaveAsNote: state.hasPanels && selection == .enhanced,
             canDeleteTranscript: state.hasTranscript && !state.isTranscriptDeleted,
-            // A failed phase can still be recoverable in durable state. Only the
-            // detached phase proves no capture lifecycle still owns this note.
-            canDeleteNote: state.capture == .none,
-            // Only while audio is still being recorded: once finalization owns
-            // the capture, the recording exists and Finish already happened.
-            canCancelCapture: state.capture.isRecording
+            canDeleteNote: state.capture == .none
+                || (state.capture == .failed && !state.canRetryFinalization),
+            canCancelCapture: state.capture.isRecording || state.canRetryFinalization
         )
     }
 

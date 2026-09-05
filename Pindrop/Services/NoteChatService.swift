@@ -601,6 +601,11 @@ final class NoteChatService {
         to offset: TimeInterval,
         in segments: [TranscriptSegmentSnapshot]
     ) -> TranscriptSegmentSnapshot? {
+        // Evidence prints each segment's start offset. Prefer that exact identity
+        // before span containment, because diarized spans can overlap.
+        if let startingAtOffset = segments.first(where: { $0.startOffset == offset }) {
+            return startingAtOffset
+        }
         // A span ends where the next one starts, so containment is half open.
         // The inclusive pass catches the two spans a half-open rule cannot: the
         // very end of the transcript, and a live span with no measured length.
@@ -648,10 +653,10 @@ final class NoteChatService {
         return String(format: "%02d:%02d", minutes, seconds)
     }
 
-    /// The number a model cites a line by. Whole seconds: a citation names a
-    /// span, not an instant.
+    /// The number a model cites a line by. `String(Double)` is locale-independent
+    /// and emits the shortest decimal that converts back to the same value.
     private static func offsetLiteral(_ offset: TimeInterval) -> String {
-        String(max(0, Int(offset.rounded())))
+        String(max(0, offset))
     }
 
     private static func block(_ tag: String, _ body: String) -> String {

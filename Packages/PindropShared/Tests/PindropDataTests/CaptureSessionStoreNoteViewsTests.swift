@@ -98,6 +98,73 @@ struct CaptureSessionStoreNoteViewsTests {
         return try #require(try ModelContext(container).fetch(descriptor).first).content
     }
 
+    private func complete(
+        _ recorded: RecordedNote,
+        at timestamp: Date
+    ) throws {
+        try recorded.store.finishMeetingSources(
+            recorded.handle,
+            sourceFailures: [],
+            at: timestamp
+        )
+        let recordID = try recorded.store.reserveMeetingTranscriptionRecordID(recorded.handle)
+        let context = ModelContext(recorded.container)
+        context.insert(TranscriptionRecord(
+            id: recordID,
+            text: Self.twoSpeakerText,
+            timestamp: timestamp,
+            duration: recorded.chunkDuration,
+            modelUsed: "catalog-model"
+        ))
+        try context.save()
+        try recorded.store.completeMeetingCapture(
+            recorded.handle,
+            transcriptionRecordID: recordID,
+            at: timestamp.addingTimeInterval(1)
+        )
+    }
+
+    private func startLiveCapture(
+        on noteID: UUID,
+        in recorded: RecordedNote,
+        startedAt: Date,
+        text: String
+    ) throws -> NoteCaptureHandle {
+        let handle = try recorded.store.startNoteCapture(
+            startedAt: startedAt,
+            includeSystemAudio: false,
+            intent: CaptureIntentRequest(
+                destination: .existingNote,
+                destinationNoteID: noteID,
+                origin: .mainWindow
+            )
+        )
+        _ = try recorded.store.ensureMeetingHumanAnchor(
+            handle,
+            noteID: noteID,
+            at: startedAt
+        )
+        _ = try recorded.store.resolveAssignment(
+            sessionID: handle.sessionID,
+            stage: .liveTranscription,
+            attempt: 1,
+            selecting: {
+                try assignment(
+                    stage: .liveTranscription,
+                    providerKind: .streamingSpeech,
+                    providerIdentifier: "streaming-provider",
+                    modelIdentifier: "streaming-model"
+                )
+            }
+        )
+        _ = try recorded.store.checkpointVoiceNoteLiveTranscript(
+            for: handle,
+            committedText: text,
+            at: startedAt.addingTimeInterval(1)
+        )
+        return handle
+    }
+
     /// A finished note capture with typed notes, one sealed chunk, and one
     /// completed final-ASR revision. `diarized` decides whether that revision
     /// carries two speaker turns or only the whole-chunk text.
@@ -432,6 +499,81 @@ struct CaptureSessionStoreNoteViewsTests {
             at: Date(timeIntervalSinceReferenceDate: 43_000)
         )
         #expect(repeated == deletedAt)
+    }
+
+    @Test func aSecondRecordingOnTheSameNoteBecomesItsCurrentCapture() throws {
+        let recorded = try makeRecordedNote(
+            includeSystemAudio: false,
+            startedAt: Date(timeIntervalSinceReferenceDate: 40_000)
+        )
+        let firstPanel = try recorded.store.saveEnhancedPanel(
+            sessionID: recorded.handle.sessionID,
+            noteID: recorded.noteID,
+            templatePresetIdentifier: "summary",
+            templateDisplayName: "Summary",
+            content: "The first recording's summary.",
+            assignmentAttempt: 1,
+            at: Date(timeIntervalSinceReferenceDate: 40_500)
+        )
+        try complete(recorded, at: Date(timeIntervalSinceReferenceDate: 41_000))
+        let second = try startLiveCapture(
+            on: recorded.noteID,
+            in: recorded,
+            startedAt: Date(timeIntervalSinceReferenceDate: 42_000),
+            text: "The second recording is live."
+        )
+
+        let views = try recorded.store.noteCaptureViews(noteID: recorded.noteID)
+
+        #expect(views.captureState?.handle.sessionID == second.sessionID)
+        #expect(views.captureState?.isRecording == true)
+        #expect(views.transcript?.plainText == "The second recording is live.")
+        #expect(views.transcript?.isLive == true)
+        #expect(views.panels.isEmpty)
+        #expect(try recorded.store.currentPanels(noteID: recorded.noteID).map(\.id) == [firstPanel.id])
+        let references = try ModelContext(recorded.container)
+            .fetch(FetchDescriptor<CaptureNoteReferenceModel>())
+        #expect(references.filter { $0.noteID == recorded.noteID }.count == 2)
+        #expect(references.contains { $0.sessionID == recorded.handle.sessionID })
+    }
+
+    @Test func deletingAnOlderTranscriptDoesNotHideASecondRecording() throws {
+        let recorded = try makeRecordedNote(
+            includeSystemAudio: false,
+            startedAt: Date(timeIntervalSinceReferenceDate: 40_000)
+        )
+        try complete(recorded, at: Date(timeIntervalSinceReferenceDate: 41_000))
+        let firstDeletedAt = try recorded.store.deleteTranscript(
+            noteID: recorded.noteID,
+            at: Date(timeIntervalSinceReferenceDate: 42_000)
+        )
+        _ = try startLiveCapture(
+            on: recorded.noteID,
+            in: recorded,
+            startedAt: Date(timeIntervalSinceReferenceDate: 43_000),
+            text: "This new recording remains visible."
+        )
+
+        let visible = try recorded.store.noteCaptureViews(noteID: recorded.noteID)
+        #expect(visible.transcript?.plainText == "This new recording remains visible.")
+        #expect(!visible.isTranscriptDeleted)
+        #expect(visible.transcriptDeletedAt == nil)
+
+        let secondDeletedAt = try recorded.store.deleteTranscript(
+            noteID: recorded.noteID,
+            at: Date(timeIntervalSinceReferenceDate: 44_000)
+        )
+        let repeated = try recorded.store.deleteTranscript(
+            noteID: recorded.noteID,
+            at: Date(timeIntervalSinceReferenceDate: 45_000)
+        )
+        let hidden = try recorded.store.noteCaptureViews(noteID: recorded.noteID)
+
+        #expect(firstDeletedAt == Date(timeIntervalSinceReferenceDate: 42_000))
+        #expect(secondDeletedAt == Date(timeIntervalSinceReferenceDate: 44_000))
+        #expect(repeated == secondDeletedAt)
+        #expect(hidden.transcript == nil)
+        #expect(hidden.transcriptDeletedAt == secondDeletedAt)
     }
 
     // MARK: - Live fallback

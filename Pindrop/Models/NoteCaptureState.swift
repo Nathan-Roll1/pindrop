@@ -135,6 +135,7 @@ final class NoteCaptureState {
     }
 
     private(set) var phase: Phase = .idle
+    private(set) var canRetryFinalization = false
     /// When the running step last said anything new. Written only when the phase
     /// actually changes, so a stage that keeps reporting progress keeps starting
     /// the stall window over and a still one does not.
@@ -309,6 +310,7 @@ final class NoteCaptureState {
     // MARK: - Transitions
 
     func beginStarting(includesSystemAudio: Bool, origin: CaptureIntentOrigin) {
+        canRetryFinalization = false
         phase = .starting
         self.includesSystemAudio = includesSystemAudio
         self.origin = origin
@@ -513,6 +515,7 @@ final class NoteCaptureState {
     }
 
     func beginFinalizing(_ stage: FinalizationStage) {
+        canRetryFinalization = false
         // Reported progress is what keeps the stall window open, so the clock
         // restarts only when the phase genuinely changed. A stage repeating
         // itself has said nothing new.
@@ -545,12 +548,14 @@ final class NoteCaptureState {
     }
 
     func complete() {
+        canRetryFinalization = false
         phase = .completed
         audioLevel = 0
         bandLevels = .zero
     }
 
-    func fail(_ message: String) {
+    func fail(_ message: String, canRetryFinalization: Bool = false) {
+        self.canRetryFinalization = canRetryFinalization
         phase = .failed(message)
         audioLevel = 0
         bandLevels = .zero
@@ -559,6 +564,7 @@ final class NoteCaptureState {
     /// Returns to idle without clearing which note the capture wrote to, so the
     /// note page can stay open on the note that was just recorded.
     func reset() {
+        canRetryFinalization = false
         phase = .idle
         sessionID = nil
         startedAt = nil

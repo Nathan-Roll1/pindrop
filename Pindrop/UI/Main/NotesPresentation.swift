@@ -266,6 +266,13 @@ enum NoteRowPresentation {
 /// The three ways to start a note from the split "New note" button (and the
 /// menu-bar items). Only the recording legs produce a capture request.
 enum NewNoteAction: Equatable, Sendable, CaseIterable {
+    enum StartDisposition: Equatable {
+        case captureStarted
+        case captureUnavailable
+        case captureRefused
+        case createPlainNote
+    }
+
     /// Primary segment and ⌘N: a note that records the microphone.
     case recordMicrophone
     /// Menu item: also captures system audio (the old meeting pillar).
@@ -280,17 +287,32 @@ enum NewNoteAction: Equatable, Sendable, CaseIterable {
         }
     }
 
-    /// The capture to start after the note exists, or `nil` when the action only
-    /// creates and opens a note.
-    func captureRequest(noteID: UUID) -> NoteCaptureRequest? {
+    /// The capture to start, or `nil` when the action only creates and opens a
+    /// plain note. Recording requests leave `noteID` empty so the controller can
+    /// create a note only after it admits the capture.
+    func captureRequest() -> NoteCaptureRequest? {
         switch self {
         case .recordMicrophone:
-            NoteCaptureRequest(noteID: noteID, includeSystemAudio: false)
+            NoteCaptureRequest(includeSystemAudio: false)
         case .recordWithSystemAudio:
-            NoteCaptureRequest(noteID: noteID, includeSystemAudio: true)
+            NoteCaptureRequest(includeSystemAudio: true)
         case .withoutRecording:
             nil
         }
+    }
+
+    /// Starts capture before any note is allocated. The coordinator owns the
+    /// note that a successful unbound capture creates.
+    func startDisposition(
+        admittingCapture startCapture: ((NoteCaptureRequest) -> Bool)?
+    ) -> StartDisposition {
+        guard let request = captureRequest() else {
+            return .createPlainNote
+        }
+        guard let startCapture else {
+            return .captureUnavailable
+        }
+        return startCapture(request) ? .captureStarted : .captureRefused
     }
 
     func title(locale: Locale) -> String {
