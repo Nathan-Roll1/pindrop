@@ -1,0 +1,32 @@
+diff --git a/Pindrop/AppTestMode.swift b/Pindrop/AppTestMode.swift
+index 78c9bd2..ff58551 100644
+--- a/Pindrop/AppTestMode.swift
++++ b/Pindrop/AppTestMode.swift
+@@ -8,6 +8,7 @@
+ import AppKit
+ import Foundation
+ import PindropCore
++import PindropSpeech
+ import PindropData
+ import SwiftData
+ import SwiftUI
+@@ -93,6 +94,10 @@ enum AppUITestFixture {
+ 
+ private struct SettingsFixtureRootView: View {
+     @StateObject private var settings = SettingsStore()
++    @State private var orukeetModelManager = ModelManager(storageLocations: ModelStorageLocations(
++        pindropApplicationSupportRoot: FileManager.default.temporaryDirectory.appendingPathComponent("PindropOrukeetGUI/Pindrop"),
++        fluidAudioModelsRoot: FileManager.default.temporaryDirectory.appendingPathComponent("PindropOrukeetGUI/FluidAudio/Models")
++    ))
+ 
+     let initialTab: SettingsTab
+ 
+@@ -109,7 +114,7 @@ private struct SettingsFixtureRootView: View {
+     }()
+ 
+     var body: some View {
+-        SettingsPaneContent(settings: settings, tab: initialTab)
++        ModelsSettingsView(settings: settings, modelManager: orukeetModelManager)
+             .frame(minWidth: 620, minHeight: 420)
+             .environment(\.locale, settings.selectedAppLocale.locale)
+             .environment(\.layoutDirection, settings.selectedAppLocale.layoutDirection)
