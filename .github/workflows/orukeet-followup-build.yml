@@ -1,0 +1,42 @@
+name: Orukeet Pindrop follow-up app and iOS validation
+on:
+  push:
+    branches: [codex/orukeet-validation]
+    paths: [.github/workflows/orukeet-followup-build.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 40
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: b5ba3f97800b938577388d47b0df79cf92efc9f2
+      - uses: extractions/setup-just@v3
+        with:
+          just-version: '1.49.0'
+      - name: Record source and toolchain
+        run: |
+          mkdir -p evidence
+          git rev-parse HEAD | tee evidence/source-head.txt
+          xcodebuild -version | tee evidence/xcode-version.txt
+      - name: Shared iOS platform boundary
+        run: |
+          set -o pipefail
+          just build-shared-ios-all | tee evidence/ios-build.log
+      - name: Complete app build and unit tests
+        if: ${{ !cancelled() }}
+        run: |
+          set -o pipefail
+          just build-unsigned | tee evidence/app-build.log
+          just test-unsigned | tee evidence/app-tests.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Pindrop-orukeet-followup-build
+          path: evidence/
+          retention-days: 14
