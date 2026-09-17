@@ -1,0 +1,54 @@
+name: Orukeet Pindrop offline validation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: macos-26
+    timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 5be066c85ddaa1a3bf03e8259f51806de5530445
+      - name: Record source and download fixtures
+        run: |
+          mkdir -p evidence fixtures
+          git rev-parse HEAD > evidence/source-head.txt
+          xcodebuild -version > evidence/xcode-version.txt
+          for name in en de fr silence; do
+            curl --fail --retry 3 --location "https://raw.githubusercontent.com/Nathan-Roll1/muesli/5f03f1e/.validation-fixtures/$name.wav" -o "fixtures/$name.wav"
+          done
+      - name: Retain only the opt-in test cache between separate test processes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Packages/PindropShared/Tests/PindropSpeechTests/OrukeetTests.swift')
+          source = p.read_text()
+          old = '''        let (locations, root) = try SpeechTestSupport.makeStorageLocations(label: "orukeet-runtime")
+                  defer { try? FileManager.default.removeItem(at: root) }'''
+          new = '''        let root = URL(fileURLWithPath: ProcessInfo.processInfo.environment["ORUKEET_CACHE_ROOT"]!)
+                  let locations = ModelStorageLocations(
+                      pindropApplicationSupportRoot: root.appendingPathComponent("Pindrop"),
+                      fluidAudioModelsRoot: root.appendingPathComponent("FluidAudio/Models")
+                  )'''
+          assert source.count(old) == 1
+          p.write_text(source.replace(old, new))
+          PY
+          git diff -- Packages/PindropShared/Tests/PindropSpeechTests/OrukeetTests.swift > evidence/test-cache-retention.patch
+      - name: Actual initial download and recognition
+        run: |
+          set -o pipefail
+          ORUKEET_AUDIO_DIR="$PWD/fixtures" ORUKEET_CACHE_ROOT="$RUNNER_TEMP/orukeet-cache" swift test --package-path Packages/PindropShared --filter OrukeetTests.actualEngineSpeechSilenceAndCachedReload | tee evidence/online-runtime.log
+      - name: New process with all network access denied
+        run: |
+          set -o pipefail
+          ORUKEET_AUDIO_DIR="$PWD/fixtures" ORUKEET_CACHE_ROOT="$RUNNER_TEMP/orukeet-cache" sandbox-exec -p '(version 1)(allow default)(deny network*)' swift test --skip-build --package-path Packages/PindropShared --filter OrukeetTests.actualEngineSpeechSilenceAndCachedReload | tee evidence/offline-runtime.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Pindrop-orukeet-offline-validation
+          path: evidence/
+          retention-days: 14
