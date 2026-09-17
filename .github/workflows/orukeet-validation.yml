@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 5be066c85ddaa1a3bf03e8259f51806de5530445
+          ref: 025cb0ade1afb887a6e63e893a6c20b1755e7fe0
       - uses: extractions/setup-just@v3
         with:
           just-version: '1.49.0'
