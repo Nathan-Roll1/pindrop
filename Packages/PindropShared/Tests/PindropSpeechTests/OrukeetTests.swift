@@ -1,0 +1,110 @@
+//
+//  OrukeetTests.swift
+//  PindropSpeech
+//
+//  Created on 2026-09-17.
+//
+
+#if os(macOS)
+import Foundation
+import AVFoundation
+import Testing
+import PindropCore
+@testable import PindropSpeech
+
+@MainActor
+@Suite
+struct OrukeetTests {
+    @Test func catalogKeepsRecommendationsAndSeparateInjectedStorage() throws {
+        let (locations, root) = try SpeechTestSupport.makeStorageLocations(label: "orukeet-catalog")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sut = ModelManager(storageLocations: locations)
+        let model = try #require(sut.availableModels.first { $0.name == ParakeetEngine.orukeetModelName })
+        #expect(model.provider == .parakeet)
+        #expect(model.speedRating == nil)
+        #expect(model.accuracyRating == nil)
+        #expect(!sut.recommendedModels.contains(model))
+        let directory = ParakeetEngine.modelDirectory(forName: model.name, fluidAudioModelsRoot: locations.fluidAudioModelsRoot)
+        #expect(directory.deletingLastPathComponent() == locations.fluidAudioModelsRoot)
+        #expect(directory != ParakeetEngine.modelDirectory(for: .v3, fluidAudioModelsRoot: locations.fluidAudioModelsRoot))
+    }
+
+    @Test func installationRequiresStampAndEveryCompiledComponent() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try OrukeetModelStore.revision.write(to: root.appendingPathComponent(".revision"), atomically: true, encoding: .utf8)
+        #expect(!OrukeetModelStore.installed(at: root))
+        for name in OrukeetModelStore.components {
+            let model = root.appendingPathComponent("\(name).mlmodelc")
+            try FileManager.default.createDirectory(at: model.appendingPathComponent("weights"), withIntermediateDirectories: true)
+            try Data([1]).write(to: model.appendingPathComponent("coremldata.bin"))
+            try Data([1]).write(to: model.appendingPathComponent("weights/weight.bin"))
+        }
+        try Data([1]).write(to: root.appendingPathComponent("parakeet_vocab.json"))
+        #expect(OrukeetModelStore.installed(at: root))
+        try Data().write(to: root.appendingPathComponent("Encoder.mlmodelc/weights/weight.bin"))
+        #expect(!OrukeetModelStore.installed(at: root))
+    }
+
+    @Test func manifestMustDescribePinnedArchive() throws {
+        let valid = Data("""
+        {"archives":{"baseline":{"filename":"orukeet-r3-coreml-baseline.zip","bytes":466579851,"sha256":"b2a6efc4ed3280c860f29b3e2e2ea242ade14c6482c94f1c8d3e8551d5edb626"}}}
+        """.utf8)
+        #expect(try OrukeetModelStore.validateManifest(valid).bytes == OrukeetModelStore.archiveBytes)
+        let wrong = Data(String(decoding: valid, as: UTF8.self).replacingOccurrences(of: "466579851", with: "1").utf8)
+        #expect(throws: (any Error).self) { try OrukeetModelStore.validateManifest(wrong) }
+    }
+
+    @Test func interruptedDownloadUsesInjectedDirectoryAndClearsState() async throws {
+        let (locations, root) = try SpeechTestSupport.makeStorageLocations(label: "orukeet-failure")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let expected = ParakeetEngine.modelDirectory(forName: ParakeetEngine.orukeetModelName, fluidAudioModelsRoot: locations.fluidAudioModelsRoot)
+        var operations = ModelManager.DownloadOperations.production()
+        operations.prepareOrukeet = { directory, _ in
+            #expect(directory == expected)
+            throw URLError(.networkConnectionLost)
+        }
+        let sut = ModelManager(storageLocations: locations, downloadOperations: operations)
+        await #expect(throws: (any Error).self) { try await sut.downloadModel(named: ParakeetEngine.orukeetModelName) }
+        #expect(!sut.isDownloading)
+        #expect(sut.currentDownloadModel == nil)
+        #expect(sut.downloadSnapshot == nil)
+        #expect(!sut.downloadedModelNames.contains(ParakeetEngine.orukeetModelName))
+    }
+
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["ORUKEET_AUDIO_DIR"] != nil))
+    func actualEngineSpeechSilenceAndCachedReload() async throws {
+        let audioPath = try #require(ProcessInfo.processInfo.environment["ORUKEET_AUDIO_DIR"])
+        let (locations, root) = try SpeechTestSupport.makeStorageLocations(label: "orukeet-runtime")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sut = ModelManager(storageLocations: locations)
+        try await sut.downloadModel(named: ParakeetEngine.orukeetModelName)
+        #expect(sut.downloadedModelNames.contains(ParakeetEngine.orukeetModelName))
+        let directory = try #require(sut.existingLocalModelPath(for: ParakeetEngine.orukeetModelName))
+        let engine = ParakeetEngine()
+        try await engine.loadModel(name: ParakeetEngine.orukeetModelName, downloadBase: directory)
+        var expected: [String: String] = [:]
+        for name in ["en", "de", "fr", "silence"] {
+            let file = try AVAudioFile(forReading: URL(fileURLWithPath: audioPath).appendingPathComponent("\(name).wav"))
+            let buffer = try #require(AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)))
+            try file.read(into: buffer)
+            let channel = try #require(buffer.floatChannelData?.pointee)
+            #expect(buffer.format.sampleRate == 16000)
+            #expect(buffer.format.channelCount == 1)
+            let data = Data(bytes: channel, count: Int(buffer.frameLength) * MemoryLayout<Float>.size)
+            let text = try await engine.transcribe(audioData: data, options: .init())
+            let repeated = try await engine.transcribe(audioData: data, options: .init())
+            #expect(text == repeated)
+            #expect(name == "silence" ? text.isEmpty : !text.isEmpty)
+            expected[name] = text
+            print("ORUKEET_REAL \(name): \(text)")
+        }
+        await engine.unloadModel()
+        try await engine.loadModel(name: ParakeetEngine.orukeetModelName, downloadBase: directory)
+        #expect(engine.state == .ready)
+        #expect(expected.count == 4)
+        await engine.unloadModel()
+    }
+}
+#endif

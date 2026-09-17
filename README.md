@@ -153,3 +153,7 @@ MIT. See [LICENSE](LICENSE).
 - [WhisperKit](https://github.com/argmaxinc/WhisperKit) and [OpenAI Whisper](https://github.com/openai/whisper)
 - [FluidAudio](https://github.com/FluidInference/FluidAudio) by Fluid Inference
 - [Sparkle](https://sparkle-project.org/)
+
+### Optional Orukeet model
+
+On macOS, the Models settings also offer Orukeet, a Parakeet v3 fine-tune using the existing local FluidAudio engine. The Core ML export is a preview and remains optional; default recommendations are unchanged. Its approximately 467 MB download comes from a pinned [Hugging Face release](https://huggingface.co/oruk/orukeet/tree/43142dd1897f9ddadcd70173fcb5ff45c08aa951/coreml). The installer validates the release manifest and archive checksum, compiles into a separate model directory, and reuses that installation offline. The required manifest uses normal Hugging Face download accounting without extra counting requests. Audio stays on the device. Weights use the NVIDIA Open Model License; published NeMo accuracy results do not establish this Core ML export's accuracy or speed.
