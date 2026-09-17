@@ -1,0 +1,56 @@
+name: Orukeet Pindrop model view validation
+on:
+  push:
+    branches: [codex/orukeet-validation]
+    paths: [.github/workflows/orukeet-gui-validation.yml]
+permissions:
+  contents: read
+jobs:
+  gui:
+    runs-on: macos-26
+    timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 5be066c85ddaa1a3bf03e8259f51806de5530445
+      - uses: extractions/setup-just@v3
+        with:
+          just-version: '1.49.0'
+      - name: Host unchanged model view with isolated settings and model directories
+        run: |
+          mkdir -p evidence
+          git rev-parse HEAD > evidence/source-head.txt
+          xcodebuild -version > evidence/xcode-version.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('Pindrop/AppTestMode.swift')
+          s=p.read_text().replace('import PindropCore\n','import PindropCore\nimport PindropSpeech\n')
+          old='''private struct SettingsFixtureRootView: View {
+              @StateObject private var settings = SettingsStore()'''
+          new='''private struct SettingsFixtureRootView: View {
+              @StateObject private var settings = SettingsStore()
+              @State private var orukeetModelManager = ModelManager(storageLocations: ModelStorageLocations(
+                  pindropApplicationSupportRoot: FileManager.default.temporaryDirectory.appendingPathComponent("PindropOrukeetGUI/Pindrop"),
+                  fluidAudioModelsRoot: FileManager.default.temporaryDirectory.appendingPathComponent("PindropOrukeetGUI/FluidAudio/Models")
+              ))'''
+          assert s.count(old)==1
+          s=s.replace(old,new)
+          old='SettingsPaneContent(settings: settings, tab: initialTab)'
+          assert s.count(old)==1
+          s=s.replace(old,'ModelsSettingsView(settings: settings, modelManager: orukeetModelManager)')
+          p.write_text(s)
+          PY
+          git diff > evidence/validation-host.patch
+      - name: Build the full application with validation host
+        run: |
+          set -o pipefail
+          just build-unsigned | tee evidence/gui-build.log
+          ditto -c -k --sequesterRsrc --keepParent DerivedData/Build/Products/Debug/Pindrop.app evidence/Pindrop.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Pindrop-orukeet-model-view
+          path: evidence/
+          retention-days: 14
