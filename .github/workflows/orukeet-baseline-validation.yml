@@ -1,5 +1,6 @@
 name: Pindrop unchanged baseline shared tests
 on:
+  workflow_dispatch:
   push:
     branches: [codex/orukeet-validation]
     paths: [.github/workflows/orukeet-baseline-validation.yml]
