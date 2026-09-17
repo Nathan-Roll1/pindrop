@@ -1,0 +1,41 @@
+name: Orukeet Pindrop scheduler-safe regression validation
+on:
+  push:
+    branches: [codex/orukeet-validation]
+    paths: [.github/workflows/orukeet-followup-tests.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: macos-26
+    timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 196a549cacb409b0f8436a9eaba227154e33533b
+      - uses: extractions/setup-just@v3
+        with:
+          just-version: '1.49.0'
+      - name: Record source and toolchain
+        run: |
+          mkdir -p evidence
+          git rev-parse HEAD | tee evidence/source-head.txt
+          xcodebuild -version | tee evidence/xcode-version.txt
+      - name: Focused deterministic regressions
+        run: |
+          set -o pipefail
+          swift test --package-path Packages/PindropShared --filter OrukeetTests | tee evidence/orukeet-tests.log
+      - name: All shared tests
+        if: ${{ !cancelled() }}
+        run: |
+          set -o pipefail
+          just test-shared | tee evidence/shared-tests.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Pindrop-orukeet-followup-tests
+          path: evidence/
+          retention-days: 14
