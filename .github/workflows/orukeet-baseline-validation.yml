@@ -1,0 +1,33 @@
+name: Pindrop unchanged baseline shared tests
+on:
+  push:
+    branches: [codex/orukeet-validation]
+    paths: [.github/workflows/orukeet-baseline-validation.yml]
+permissions:
+  contents: read
+jobs:
+  baseline:
+    runs-on: macos-26
+    timeout-minutes: 15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fe518a88bcf88259cd49bcf36e07c851289112f4
+      - uses: extractions/setup-just@v3
+        with:
+          just-version: '1.49.0'
+      - name: Run untouched baseline
+        run: |
+          set -o pipefail
+          mkdir -p evidence
+          git rev-parse HEAD | tee evidence/source-head.txt
+          xcodebuild -version | tee evidence/xcode-version.txt
+          just test-shared 2>&1 | tee evidence/baseline-tests.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Pindrop-baseline-shared-tests
+          path: evidence/
+          retention-days: 14
