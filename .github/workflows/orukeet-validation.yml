@@ -1,0 +1,56 @@
+name: Orukeet Pindrop validation
+on:
+  push:
+    branches: [codex/orukeet-validation]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 39d2cc2
+      - uses: extractions/setup-just@v3
+        with:
+          just-version: '1.49.0'
+      - name: Record source and toolchain
+        run: |
+          mkdir -p evidence fixtures
+          git rev-parse HEAD | tee evidence/source-head.txt
+          xcodebuild -version | tee evidence/xcode-version.txt
+      - name: Download public CC-BY-4.0 validation fixtures
+        run: |
+          for name in en de fr silence; do
+            curl --fail --retry 3 --location "https://raw.githubusercontent.com/Nathan-Roll1/muesli/5f03f1e/.validation-fixtures/$name.wav" -o "fixtures/$name.wav"
+          done
+      - name: Shared package focused tests and actual model runtime
+        run: |
+          set -o pipefail
+          ORUKEET_AUDIO_DIR="$PWD/fixtures" swift test --package-path Packages/PindropShared --filter OrukeetTests | tee evidence/orukeet-tests.log
+      - name: All shared tests
+        run: |
+          set -o pipefail
+          just test-shared | tee evidence/shared-tests.log
+      - name: Shared iOS platform boundary
+        run: |
+          set -o pipefail
+          just build-shared-ios-all | tee evidence/ios-build.log
+      - name: Complete app build and unit tests
+        run: |
+          set -o pipefail
+          just build-unsigned | tee evidence/app-build.log
+          just test-unsigned | tee evidence/app-tests.log
+      - name: Preserve built application
+        if: success()
+        run: ditto -c -k --sequesterRsrc --keepParent DerivedData/Build/Products/Debug/Pindrop.app evidence/Pindrop.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Pindrop-orukeet-validation
+          path: evidence/
+          retention-days: 14
