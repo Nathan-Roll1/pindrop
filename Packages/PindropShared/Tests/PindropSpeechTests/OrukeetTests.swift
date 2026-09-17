@@ -93,17 +93,48 @@ struct OrukeetTests {
 
     @Test func cancelledOwnerDoesNotCancelIndependentInstallationWaiter() async throws {
         let gate = OrukeetInstallationGate()
-        let sut = OrukeetInstallation { _, _ in try await gate.run() }
+        let sut = OrukeetInstallation { _, progress in try await gate.run(progress: progress) }
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let owner = Task { try await sut.install(at: directory, progress: { _ in }) }
+        let ownerProgress = OrukeetProgressRecorder()
+        let independentProgress = OrukeetProgressRecorder()
+        let owner = Task { try await sut.install(at: directory, progress: { ownerProgress.record($0) }) }
         try await gate.waitForStarts(1)
-        let independent = Task { try await sut.install(at: directory, progress: { _ in }) }
+        await gate.emitProgress(0.25)
+        try await waitForProgress(0.25, in: ownerProgress)
+        let independent = Task { try await sut.install(at: directory, progress: { independentProgress.record($0) }) }
         try await waitForWaiters(2, in: sut, directory: directory)
+        #expect(independentProgress.values.contains(0.25))
         owner.cancel()
         await #expect(throws: CancellationError.self) { try await owner.value }
+        let cancelledProgress = ownerProgress.values
+        await gate.emitProgress(0.75)
+        try await waitForProgress(0.75, in: independentProgress)
+        #expect(ownerProgress.values == cancelledProgress)
         #expect(!independent.isCancelled)
         await gate.release()
         try await independent.value
+        #expect(await gate.starts == 1)
+        #expect(await gate.cancelled == 0)
+    }
+
+    @Test func cancelledJoiningWaiterDetachesItsProgressOnly() async throws {
+        let gate = OrukeetInstallationGate()
+        let sut = OrukeetInstallation { _, progress in try await gate.run(progress: progress) }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let ownerProgress = OrukeetProgressRecorder()
+        let joiningProgress = OrukeetProgressRecorder()
+        let owner = Task { try await sut.install(at: directory, progress: { ownerProgress.record($0) }) }
+        try await gate.waitForStarts(1)
+        let joining = Task { try await sut.install(at: directory, progress: { joiningProgress.record($0) }) }
+        try await waitForWaiters(2, in: sut, directory: directory)
+        joining.cancel()
+        await #expect(throws: CancellationError.self) { try await joining.value }
+        let cancelledProgress = joiningProgress.values
+        await gate.emitProgress(0.75)
+        try await waitForProgress(0.75, in: ownerProgress)
+        #expect(joiningProgress.values == cancelledProgress)
+        await gate.release()
+        try await owner.value
         #expect(await gate.starts == 1)
         #expect(await gate.cancelled == 0)
     }
@@ -135,6 +166,15 @@ struct OrukeetTests {
         }
         await #expect(throws: CancellationError.self) { try await caller.value }
         #expect(await gate.starts == 0)
+    }
+
+    private func waitForProgress(_ value: Double, in recorder: OrukeetProgressRecorder) async throws {
+        for _ in 0..<10_000 {
+            if recorder.values.contains(value) { return }
+            await Task.yield()
+        }
+        Issue.record("Installation progress did not reach the active caller")
+        throw URLError(.timedOut)
     }
 
     private func waitForWaiters(_ count: Int, in installation: OrukeetInstallation, directory: URL) async throws {
@@ -184,8 +224,10 @@ private actor OrukeetInstallationGate {
     private(set) var starts = 0
     private(set) var cancelled = 0
     private var continuation: CheckedContinuation<Void, Never>?
+    private var progress: (@Sendable (Double) -> Void)?
 
-    func run() async throws {
+    func run(progress: (@Sendable (Double) -> Void)? = nil) async throws {
+        self.progress = progress
         starts += 1
         await withCheckedContinuation { continuation = $0 }
         do { try Task.checkCancellation() }
@@ -201,9 +243,27 @@ private actor OrukeetInstallationGate {
         throw URLError(.timedOut)
     }
 
+    func emitProgress(_ value: Double) { progress?(value) }
+
     func release() {
         continuation?.resume()
         continuation = nil
+    }
+}
+private final class OrukeetProgressRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [Double] = []
+
+    func record(_ value: Double) {
+        lock.lock()
+        defer { lock.unlock() }
+        recorded.append(value)
+    }
+
+    var values: [Double] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recorded
     }
 }
 #endif

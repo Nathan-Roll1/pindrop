@@ -276,10 +276,16 @@ enum OrukeetModelStore {
 actor OrukeetInstallation {
     static let shared = OrukeetInstallation()
 
+    private struct Waiter {
+        let continuation: CheckedContinuation<Void, Error>
+        let progress: @Sendable (Double) -> Void
+    }
+
     private struct Installation {
         let id: UUID
         let task: Task<Void, Error>
-        var waiters: [UUID: CheckedContinuation<Void, Error>]
+        var waiters: [UUID: Waiter]
+        var progress: Double = 0
     }
 
     private var installations: [URL: Installation] = [:]
@@ -307,13 +313,20 @@ actor OrukeetInstallation {
                     continuation.resume(throwing: CancellationError())
                     return
                 }
+                let waiter = Waiter(continuation: continuation, progress: progress)
                 if installations[directory] != nil {
-                    installations[directory]?.waiters[waiterID] = continuation
+                    installations[directory]?.waiters[waiterID] = waiter
+                    progress(installations[directory]?.progress ?? 0)
                     return
                 }
                 let id = UUID()
-                let task = Task { try await operation(directory, progress) }
-                installations[directory] = Installation(id: id, task: task, waiters: [waiterID: continuation])
+                let task = Task {
+                    try await operation(directory) { fraction in
+                        Task { await self.reportProgress(fraction, at: directory, id: id) }
+                    }
+                }
+                installations[directory] = Installation(id: id, task: task, waiters: [waiterID: waiter])
+                progress(0)
                 Task {
                     let result = await task.result
                     finish(at: directory, id: id, result: result)
@@ -329,9 +342,16 @@ actor OrukeetInstallation {
         installations[directory]?.waiters.count ?? 0
     }
 
+    private func reportProgress(_ fraction: Double, at directory: URL, id: UUID) {
+        guard var current = installations[directory], current.id == id else { return }
+        current.progress = min(1, max(current.progress, fraction))
+        installations[directory] = current
+        for waiter in current.waiters.values { waiter.progress(current.progress) }
+    }
+
     private func cancelWaiter(at directory: URL, id: UUID) {
-        guard let continuation = installations[directory]?.waiters.removeValue(forKey: id) else { return }
-        continuation.resume(throwing: CancellationError())
+        guard let waiter = installations[directory]?.waiters.removeValue(forKey: id) else { return }
+        waiter.continuation.resume(throwing: CancellationError())
         // Keep the handle until completion, including when no caller remains.
         if let current = installations[directory], current.waiters.isEmpty {
             current.task.cancel()
@@ -341,7 +361,7 @@ actor OrukeetInstallation {
     private func finish(at directory: URL, id: UUID, result: Result<Void, Error>) {
         guard let current = installations[directory], current.id == id else { return }
         installations[directory] = nil
-        for continuation in current.waiters.values { continuation.resume(with: result) }
+        for waiter in current.waiters.values { waiter.continuation.resume(with: result) }
     }
 }
 
