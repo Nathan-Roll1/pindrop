@@ -73,6 +73,79 @@ struct OrukeetTests {
         #expect(!sut.downloadedModelNames.contains(ParakeetEngine.orukeetModelName))
     }
 
+    @Test func replacingInstallationIsAtomicAndFailureKeepsOldContents() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let destination = root.appendingPathComponent("installed")
+        let replacement = root.appendingPathComponent("replacement")
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: replacement, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("old".utf8).write(to: destination.appendingPathComponent("model"))
+        try Data("new".utf8).write(to: replacement.appendingPathComponent("model"))
+        try OrukeetModelStore.commitInstallation(from: replacement, to: destination)
+        #expect(try Data(contentsOf: destination.appendingPathComponent("model")) == Data("new".utf8))
+        #expect(throws: (any Error).self) {
+            try OrukeetModelStore.commitInstallation(from: root.appendingPathComponent("missing"), to: destination)
+        }
+        #expect(try Data(contentsOf: destination.appendingPathComponent("model")) == Data("new".utf8))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: root.path) == ["installed"])
+    }
+
+    @Test func cancelledOwnerDoesNotCancelIndependentInstallationWaiter() async throws {
+        let gate = OrukeetInstallationGate()
+        let sut = OrukeetInstallation { _, _ in try await gate.run() }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let owner = Task { try await sut.install(at: directory, progress: { _ in }) }
+        try await gate.waitForStarts(1)
+        let independent = Task { try await sut.install(at: directory, progress: { _ in }) }
+        try await waitForWaiters(2, in: sut, directory: directory)
+        owner.cancel()
+        await #expect(throws: CancellationError.self) { try await owner.value }
+        #expect(!independent.isCancelled)
+        await gate.release()
+        try await independent.value
+        #expect(await gate.starts == 1)
+        #expect(await gate.cancelled == 0)
+    }
+
+    @Test func cancelledOnlyWaiterStopsWorkAndRetryWaitsForCleanup() async throws {
+        let gate = OrukeetInstallationGate()
+        let sut = OrukeetInstallation { _, _ in try await gate.run() }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let owner = Task { try await sut.install(at: directory, progress: { _ in }) }
+        try await gate.waitForStarts(1)
+        owner.cancel()
+        await #expect(throws: CancellationError.self) { try await owner.value }
+        let retry = Task { try await sut.install(at: directory, progress: { _ in }) }
+        #expect(await gate.starts == 1)
+        await gate.release()
+        try await gate.waitForStarts(2)
+        #expect(await gate.cancelled == 1)
+        await gate.release()
+        try await retry.value
+    }
+
+    @Test func alreadyCancelledCallerDoesNotStartInstallation() async throws {
+        let gate = OrukeetInstallationGate()
+        let sut = OrukeetInstallation { _, _ in try await gate.run() }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let caller = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try await sut.install(at: directory, progress: { _ in })
+        }
+        await #expect(throws: CancellationError.self) { try await caller.value }
+        #expect(await gate.starts == 0)
+    }
+
+    private func waitForWaiters(_ count: Int, in installation: OrukeetInstallation, directory: URL) async throws {
+        for _ in 0..<10_000 {
+            if await installation.waiterCount(at: directory) == count { return }
+            await Task.yield()
+        }
+        Issue.record("Installation callers did not register")
+        throw URLError(.timedOut)
+    }
+
     @Test(.enabled(if: ProcessInfo.processInfo.environment["ORUKEET_AUDIO_DIR"] != nil))
     func actualEngineSpeechSilenceAndCachedReload() async throws {
         let audioPath = try #require(ProcessInfo.processInfo.environment["ORUKEET_AUDIO_DIR"])
@@ -105,6 +178,32 @@ struct OrukeetTests {
         #expect(engine.state == .ready)
         #expect(expected.count == 4)
         await engine.unloadModel()
+    }
+}
+private actor OrukeetInstallationGate {
+    private(set) var starts = 0
+    private(set) var cancelled = 0
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    func run() async throws {
+        starts += 1
+        await withCheckedContinuation { continuation = $0 }
+        do { try Task.checkCancellation() }
+        catch { cancelled += 1; throw error }
+    }
+
+    func waitForStarts(_ count: Int) async throws {
+        for _ in 0..<10_000 {
+            if starts >= count { return }
+            await Task.yield()
+        }
+        Issue.record("Installation operation did not start")
+        throw URLError(.timedOut)
+    }
+
+    func release() {
+        continuation?.resume()
+        continuation = nil
     }
 }
 #endif

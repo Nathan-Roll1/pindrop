@@ -210,20 +210,14 @@ enum OrukeetModelStore {
         try commitInstallation(from: bundle, to: destination)
     }
 
-    /// Keep the previous installation available for rollback if the final rename fails.
+    /// Foundation replaces the directory atomically, so interruption cannot strand a backup.
     static func commitInstallation(from bundle: URL, to destination: URL) throws {
         let files = FileManager.default
-        let backup = destination.deletingLastPathComponent()
-            .appendingPathComponent(".previous-\(UUID().uuidString)", isDirectory: true)
-        let hadPrevious = files.fileExists(atPath: destination.path)
-        if hadPrevious { try files.moveItem(at: destination, to: backup) }
-        do {
+        if files.fileExists(atPath: destination.path) {
+            _ = try files.replaceItemAt(destination, withItemAt: bundle, options: .usingNewMetadataOnly)
+        } else {
             try files.moveItem(at: bundle, to: destination)
-        } catch {
-            if hadPrevious { try files.moveItem(at: backup, to: destination) }
-            throw error
         }
-        if hadPrevious { try? files.removeItem(at: backup) }
     }
 
     static func load(from directory: URL) throws -> AsrModels {
@@ -279,21 +273,75 @@ enum OrukeetModelStore {
 
 /// Coalesce model preparation so selecting a model during a download cannot start
 /// another transfer or replace a directory while the first install is compiling.
-private actor OrukeetInstallation {
+actor OrukeetInstallation {
     static let shared = OrukeetInstallation()
-    private var tasks: [URL: Task<Void, Error>] = [:]
+
+    private struct Installation {
+        let id: UUID
+        let task: Task<Void, Error>
+        var waiters: [UUID: CheckedContinuation<Void, Error>]
+    }
+
+    private var installations: [URL: Installation] = [:]
+    private let operation: @Sendable (URL, @escaping @Sendable (Double) -> Void) async throws -> Void
+
+    init(operation: @escaping @Sendable (URL, @escaping @Sendable (Double) -> Void) async throws -> Void = { directory, progress in
+        try await OrukeetModelStore.install(at: directory, progress: progress)
+    }) {
+        self.operation = operation
+    }
 
     func install(at directory: URL, progress: @escaping @Sendable (Double) -> Void) async throws {
-        if let task = tasks[directory] { return try await task.value }
-        guard !OrukeetModelStore.installed(at: directory) else { return }
-        let task = Task { try await OrukeetModelStore.install(at: directory, progress: progress) }
-        tasks[directory] = task
-        defer { tasks[directory] = nil }
-        try await withTaskCancellationHandler {
-            try await task.value
-        } onCancel: {
-            task.cancel()
+        // A cancelled last waiter may still be unwinding network/compilation work.
+        // Finish that operation before allowing another writer for this directory.
+        while let current = installations[directory], current.task.isCancelled {
+            let result = await current.task.result
+            finish(at: directory, id: current.id, result: result)
         }
+        try Task.checkCancellation()
+        guard !OrukeetModelStore.installed(at: directory) else { return }
+        let waiterID = UUID()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                guard !Task.isCancelled else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                if installations[directory] != nil {
+                    installations[directory]?.waiters[waiterID] = continuation
+                    return
+                }
+                let id = UUID()
+                let task = Task { try await operation(directory, progress) }
+                installations[directory] = Installation(id: id, task: task, waiters: [waiterID: continuation])
+                Task {
+                    let result = await task.result
+                    finish(at: directory, id: id, result: result)
+                }
+            }
+        } onCancel: {
+            Task { await self.cancelWaiter(at: directory, id: waiterID) }
+        }
+        try Task.checkCancellation()
+    }
+
+    func waiterCount(at directory: URL) -> Int {
+        installations[directory]?.waiters.count ?? 0
+    }
+
+    private func cancelWaiter(at directory: URL, id: UUID) {
+        guard let continuation = installations[directory]?.waiters.removeValue(forKey: id) else { return }
+        continuation.resume(throwing: CancellationError())
+        // Keep the handle until completion, including when no caller remains.
+        if let current = installations[directory], current.waiters.isEmpty {
+            current.task.cancel()
+        }
+    }
+
+    private func finish(at directory: URL, id: UUID, result: Result<Void, Error>) {
+        guard let current = installations[directory], current.id == id else { return }
+        installations[directory] = nil
+        for continuation in current.waiters.values { continuation.resume(with: result) }
     }
 }
 
