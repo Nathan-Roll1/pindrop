@@ -1,5 +1,8 @@
 name: Orukeet Pindrop offline validation
 on:
+  push:
+    branches: [codex/orukeet-validation]
+    paths: [.github/workflows/orukeet-offline-validation.yml]
   workflow_dispatch:
 permissions:
   contents: read
