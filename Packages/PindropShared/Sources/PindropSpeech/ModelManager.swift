@@ -1153,7 +1153,9 @@ public final class ModelManager {
             do {
                 try await downloadOperations.prepareOrukeet(directory) { [weak self] progress in
                     Task { @MainActor in
-                        self?.updateDownloadSnapshot(
+                        guard let self, self.isDownloading, self.currentDownloadModel == modelName,
+                              self.downloadSnapshot?.phase != .completed else { return }
+                        self.updateDownloadSnapshot(
                             DownloadSnapshot(modelName: modelName, progress: progress, phase: progress < 0.9 ? .downloading(completedFiles: nil, totalFiles: nil) : .compiling(modelName: modelName)),
                             onProgress: onProgress)
                     }
