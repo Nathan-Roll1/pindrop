@@ -32,7 +32,7 @@ jobs:
           source = p.read_text()
           old = '''        let (locations, root) = try SpeechTestSupport.makeStorageLocations(label: "orukeet-runtime")
                   defer { try? FileManager.default.removeItem(at: root) }'''
-          new = '''        let root = URL(fileURLWithPath: ProcessInfo.processInfo.environment["ORUKEET_CACHE_ROOT"]!)
+          new = '''        let root = URL(fileURLWithPath: try #require(ProcessInfo.processInfo.environment["ORUKEET_CACHE_ROOT"]))
                   let locations = ModelStorageLocations(
                       pindropApplicationSupportRoot: root.appendingPathComponent("Pindrop"),
                       fluidAudioModelsRoot: root.appendingPathComponent("FluidAudio/Models")
@@ -48,7 +48,7 @@ jobs:
       - name: New process with all network access denied
         run: |
           set -o pipefail
-          ORUKEET_AUDIO_DIR="$PWD/fixtures" ORUKEET_CACHE_ROOT="$RUNNER_TEMP/orukeet-cache" sandbox-exec -p '(version 1)(allow default)(deny network*)' swift test --skip-build --package-path Packages/PindropShared --filter OrukeetTests.actualEngineSpeechSilenceAndCachedReload | tee evidence/offline-runtime.log
+          ORUKEET_AUDIO_DIR="$PWD/fixtures" ORUKEET_CACHE_ROOT="$RUNNER_TEMP/orukeet-cache" sandbox-exec -p '(version 1)(allow default)(deny network*)' swift test --disable-sandbox --skip-build --package-path Packages/PindropShared --filter OrukeetTests.actualEngineSpeechSilenceAndCachedReload | tee evidence/offline-runtime.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
