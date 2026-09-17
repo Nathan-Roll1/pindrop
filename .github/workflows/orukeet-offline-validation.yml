@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 025cb0ade1afb887a6e63e893a6c20b1755e7fe0
+          ref: a95fae44ed40f9a51af8be8d24a0495e31cd85a3
       - name: Record source and download fixtures
         run: |
           mkdir -p evidence fixtures
