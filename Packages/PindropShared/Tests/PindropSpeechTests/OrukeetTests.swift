@@ -169,7 +169,8 @@ struct OrukeetTests {
     }
 
     private func waitForProgress(_ value: Double, in recorder: OrukeetProgressRecorder) async throws {
-        for _ in 0..<10_000 {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while ContinuousClock.now < deadline {
             if recorder.values.contains(value) { return }
             await Task.yield()
         }
@@ -178,7 +179,8 @@ struct OrukeetTests {
     }
 
     private func waitForWaiters(_ count: Int, in installation: OrukeetInstallation, directory: URL) async throws {
-        for _ in 0..<10_000 {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while ContinuousClock.now < deadline {
             if await installation.waiterCount(at: directory) == count { return }
             await Task.yield()
         }
@@ -235,7 +237,8 @@ private actor OrukeetInstallationGate {
     }
 
     func waitForStarts(_ count: Int) async throws {
-        for _ in 0..<10_000 {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while ContinuousClock.now < deadline {
             if starts >= count { return }
             await Task.yield()
         }
